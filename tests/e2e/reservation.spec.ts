@@ -36,7 +36,6 @@ async function submitReservation(page: import('@playwright/test').Page) {
   await page.getByLabel('방문 상호 또는 소속 지사명').fill('시노펙스');
   await page.getByLabel('성명').fill('홍길동');
   await page.getByLabel('이메일').fill(REQUESTER_EMAIL);
-  await page.getByLabel('휴대전화 번호').fill('010-1234-5678');
   await page.getByLabel('차량번호').fill('12가 3456');
   await page.getByLabel('입차 예정 시간').fill(tomorrowInput(10));
   await page.getByLabel('출차 예정 시간').fill(tomorrowInput(12));
@@ -83,12 +82,12 @@ test('방문객이 주차를 신청하면 예약번호와 승인 대기 상태�
   expect(reservation?.vehicleNo).toBe('12가3456');
 });
 
-test('예약 조회는 이메일 링크로만 가능하다 (예약번호 입력 화면 없음)', async ({ page }) => {
+test('예약 조회 화면에서 예약번호 입력과 메일 링크 안내를 모두 제공한다', async ({ page }) => {
   await page.goto('/reservations/lookup');
 
-  await expect(page.getByText('예약 조회는 이메일 링크로만 가능합니다')).toBeVisible();
-  // 예약번호를 입력해 조회하는 입력창이 존재하지 않아야 한다.
-  await expect(page.locator('input[name="reservationNo"]')).toHaveCount(0);
+  await expect(page.locator('input[name="reservationNo"]')).toBeVisible();
+  await expect(page.getByRole('button', { name: '예약 조회하기' })).toBeVisible();
+  await expect(page.getByText('예약번호를 모르시나요?')).toBeVisible();
 });
 
 test('관리자가 로그인해 예약을 승인하고 주차면을 배정한다', async ({ page }) => {

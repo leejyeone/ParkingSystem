@@ -51,13 +51,18 @@ describe('1. 비로그인 방문객 예약 신청', () => {
     expect(reservation.assignedSpaceId).toBeNull();
   });
 
-  it('차량번호는 정규화되어 저장되고 마스킹 값도 함께 저장된다', async () => {
+  it('차량번호는 공백/하이픈이 제거되어 정규화 저장된다', async () => {
     const { reservation } = await createReservation(
       baseReservationInput({ vehicleNo: '12가 - 3456' }),
     );
 
     expect(reservation.vehicleNo).toBe('12가3456');
-    expect(reservation.vehicleNoMasked).toBe('12가3***');
+  });
+
+  it('비로그인 신청은 회원 계정에 연결되지 않는다', async () => {
+    const { reservation } = await createReservation(baseReservationInput());
+
+    expect(reservation.userId).toBeNull();
   });
 
   it('신청자와 관리자에게 이메일이 발송되고 이력이 기록된다', async () => {
@@ -219,9 +224,7 @@ describe('10. 승인 후 신청자 수정', () => {
     const nextRange = futureVisitRange({ daysFromToday: 2, startHour: 13, hours: 2 });
     const updated = await updateReservationByRequester(reservation.reservationId, {
       companyOrBranchName: '시노펙스',
-      departmentName: null,
       requesterName: '홍길동',
-      requesterPhone: '01012345678',
       vehicleNo: '12가3456',
       visitPurpose: null,
       requestMemo: null,
@@ -245,9 +248,7 @@ describe('10. 승인 후 신청자 수정', () => {
 
     await updateReservationByRequester(reservation.reservationId, {
       companyOrBranchName: '시노펙스',
-      departmentName: null,
       requesterName: '홍길동',
-      requesterPhone: '01012345678',
       vehicleNo: '12가3456',
       visitPurpose: null,
       requestMemo: null,

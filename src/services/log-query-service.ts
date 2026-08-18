@@ -1,6 +1,5 @@
 import { EmailSendStatus, EmailType, Prisma } from '@prisma/client';
 
-import { maskEmail } from '@/lib/masking';
 import { prisma } from '@/lib/prisma';
 
 /** 이메일 발송 이력 / 감사 로그 조회 (관리자 전용) */
@@ -49,11 +48,7 @@ export async function listEmailLogs(filter: EmailLogFilter) {
   ]);
 
   return {
-    items: rows.map((row) => ({
-      ...row,
-      // 이메일 발송 이력 목록에서도 수신자 주소는 마스킹한다.
-      recipientEmail: maskEmail(row.recipientEmail),
-    })),
+    items: rows,
     totalCount,
     page,
     pageSize,

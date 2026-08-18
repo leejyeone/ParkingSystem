@@ -29,6 +29,7 @@ export async function resetE2eDatabase(): Promise<void> {
   await prisma.parkingReservationStatusLog.deleteMany();
   await prisma.reservationAccessToken.deleteMany();
   await prisma.parkingReservation.deleteMany();
+  await prisma.siteUser.deleteMany();
   await prisma.parkingSpace.deleteMany();
   await prisma.parkingArea.deleteMany();
   await prisma.adminNotificationEmail.deleteMany();

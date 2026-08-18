@@ -1,15 +1,14 @@
 import { EmailType, RequesterType, SpaceType } from '@prisma/client';
 
 import { formatKstHuman, formatKstRange } from '@/lib/datetime';
-import { maskName } from '@/lib/masking';
 import { REQUESTER_TYPE_LABEL } from '@/domain/reservation-status';
 
 /**
  * 이메일 제목 / HTML / Text 템플릿.
  *
- * 보안 규칙
- *  - 타인의 개인정보를 포함하지 않는다.
- *  - 성명, 차량번호는 마스킹된 값만 사용한다.
+ * 규칙
+ *  - 한 통의 메일에는 해당 예약 1건의 정보만 담는다. 타인의 정보는 절대 포함하지 않는다.
+ *  - 성명과 차량번호는 마스킹 없이 원문으로 표시한다.
  *  - 예약 조회 링크에는 보안 토큰이 포함되며 해당 예약 1건만 접근할 수 있다.
  */
 
@@ -20,7 +19,7 @@ export type ReservationEmailData = {
   requesterName: string;
   requesterType: RequesterType;
   companyOrBranchName: string;
-  vehicleNoMasked: string;
+  vehicleNo: string;
   visitStartAt: Date;
   visitEndAt: Date;
   assignedSpaceCode?: string | null;
@@ -60,8 +59,8 @@ function baseRows(data: ReservationEmailData): Row[] {
     { label: '예약번호', value: data.reservationNo },
     { label: '신청 구분', value: REQUESTER_TYPE_LABEL[data.requesterType] },
     { label: '방문 상호/지사', value: data.companyOrBranchName },
-    { label: '신청자', value: maskName(data.requesterName) },
-    { label: '차량번호', value: data.vehicleNoMasked },
+    { label: '신청자', value: data.requesterName },
+    { label: '차량번호', value: data.vehicleNo },
     { label: '방문 시간', value: formatKstRange(data.visitStartAt, data.visitEndAt) },
   ];
 }
@@ -221,7 +220,7 @@ export function renderReservationEmail(
       }
       const params = {
         title: '주차 신청이 접수되었습니다',
-        lead: `${maskName(data.requesterName)}님, 주차 신청이 정상 접수되었습니다. 현재 상태는 "승인 대기" 입니다.`,
+        lead: `${data.requesterName}님, 주차 신청이 정상 접수되었습니다. 현재 상태는 "승인 대기" 입니다.`,
         rows: [...rows, { label: '예약 상태', value: '승인 대기' }],
         notices,
         buttonLabel: '내 예약 조회하기',
@@ -239,7 +238,9 @@ export function renderReservationEmail(
         title: '신규 주차 신청이 접수되었습니다',
         lead: '승인 대기 중인 주차 신청이 있습니다. 관리자 화면에서 확인 후 승인 또는 반려해 주세요.',
         rows,
-        notices: ['개인정보 보호를 위해 성명과 차량번호는 마스킹되어 표시됩니다.'],
+        notices: [
+          '신청자 개인정보가 포함된 메일입니다. 업무 목적 외 사용이나 외부 공유를 금지합니다.',
+        ],
         buttonLabel: '관리자 화면에서 확인하기',
         buttonUrl: data.adminDetailUrl,
         footerNote: '본 메일은 관리자 알림 수신자에게 발송됩니다.',
@@ -261,7 +262,7 @@ export function renderReservationEmail(
       }
       const params = {
         title: '주차 신청이 승인되었습니다',
-        lead: `${maskName(data.requesterName)}님, 신청하신 주차 예약이 승인되었습니다.`,
+        lead: `${data.requesterName}님, 신청하신 주차 예약이 승인되었습니다.`,
         rows: [
           ...rows,
           { label: '배정 주차 위치', value: spaceGuideText(data) },
@@ -281,7 +282,7 @@ export function renderReservationEmail(
     case EmailType.REJECTED: {
       const params = {
         title: '주차 신청이 반려되었습니다',
-        lead: `${maskName(data.requesterName)}님, 신청하신 주차 예약이 반려되었습니다.`,
+        lead: `${data.requesterName}님, 신청하신 주차 예약이 반려되었습니다.`,
         rows: [
           ...rows,
           { label: '반려 사유', value: data.rejectionReason ?? '사유 미기재' },
@@ -352,7 +353,7 @@ export function renderReservationEmail(
     case EmailType.EXIT_REMINDER: {
       const params = {
         title: '출차 예정 시간이 곧 도래합니다',
-        lead: `${maskName(data.requesterName)}님, 등록하신 출차 예정 시간이 곧 도래합니다. 시간에 맞추어 출차해 주세요.`,
+        lead: `${data.requesterName}님, 등록하신 출차 예정 시간이 곧 도래합니다. 시간에 맞추어 출차해 주세요.`,
         rows: [
           ...rows,
           { label: '출차 예정 시각', value: formatKstHuman(data.visitEndAt) },
@@ -373,11 +374,11 @@ export function renderReservationEmail(
     case EmailType.DOUBLE_PARKING_NOTICE: {
       const params = {
         title: '이중주차 위치로 배정되었습니다',
-        lead: `${maskName(data.requesterName)}님, 주차 공간 사정으로 이중주차 위치가 배정되었습니다. 아래 내용을 반드시 확인해 주세요.`,
+        lead: `${data.requesterName}님, 주차 공간 사정으로 이중주차 위치가 배정되었습니다. 아래 내용을 반드시 확인해 주세요.`,
         rows: [...rows, { label: '배정 주차 위치', value: spaceGuideText(data) }],
         notices: [
           '앞 차량 출차를 위해 차량 이동 요청을 받으실 수 있습니다.',
-          '방문 중에는 휴대전화 연락이 가능한 상태를 유지해 주세요.',
+          '차량 이동 요청은 현장 안내 방송 또는 안내 데스크를 통해 전달됩니다. 방문 중 확인이 가능하도록 해 주세요.',
           '기어는 중립(N)에 두고 주차 브레이크는 해제해 주시기 바랍니다.',
         ],
         buttonLabel: '내 예약 조회하기',

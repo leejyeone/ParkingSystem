@@ -34,14 +34,23 @@ export default defineConfig({
     { name: 'mobile-chromium', use: { ...devices['Pixel 7'] } },
   ],
   webServer: {
-    command: 'npm run dev -- --port 3100',
+    /**
+     * dev 서버가 아니라 프로덕션 빌드로 띄운다.
+     *  - Next 는 같은 디렉터리에서 dev 서버를 두 개 띄우지 못한다.
+     *    개발자가 `npm run dev` 를 켜 둔 상태에서도 E2E 가 돌아가야 한다.
+     *  - 빌드 산출물은 NEXT_DIST_DIR 로 분리해 개발 중인 .next 를 건드리지 않는다.
+     */
+    command: 'npm run build && npm run start -- --port 3100',
     url: BASE_URL,
     reuseExistingServer: !process.env.CI,
-    timeout: 180_000,
+    timeout: 300_000,
     env: {
+      NEXT_DIST_DIR: '.next-e2e',
       // 실제 메일을 보내지 않고 파일로 저장한다. (예약 조회 링크 추출용)
       EMAIL_PROVIDER: 'file',
       MAIL_OUTBOX_DIR: process.env.MAIL_OUTBOX_DIR,
+      // E2E 는 프로덕션 빌드로 돌리므로 파일 공급자 사용을 명시적으로 허용한다.
+      ALLOW_FILE_EMAIL_PROVIDER: 'true',
       APP_BASE_URL: BASE_URL,
       APP_TIME_ZONE: 'Asia/Seoul',
       DATABASE_URL: process.env.DATABASE_URL ?? '',

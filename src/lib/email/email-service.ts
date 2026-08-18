@@ -136,7 +136,7 @@ export type ReservationForEmail = {
   requesterName: string;
   requesterEmail: string;
   companyOrBranchName: string;
-  vehicleNoMasked: string;
+  vehicleNo: string;
   visitStartAt: Date;
   visitEndAt: Date;
   rejectionReason?: string | null;
@@ -153,7 +153,7 @@ function toEmailData(
     requesterName: reservation.requesterName,
     requesterType: reservation.requesterType,
     companyOrBranchName: reservation.companyOrBranchName,
-    vehicleNoMasked: reservation.vehicleNoMasked,
+    vehicleNo: reservation.vehicleNo,
     visitStartAt: reservation.visitStartAt,
     visitEndAt: reservation.visitEndAt,
     assignedSpaceCode: reservation.assignedSpace?.spaceCode ?? null,

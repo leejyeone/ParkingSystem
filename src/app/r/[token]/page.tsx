@@ -15,10 +15,13 @@ export const metadata: Metadata = { title: '내 예약' };
 type PageProps = { params: Promise<{ token: string }> };
 
 /**
- * 이메일 보안 토큰으로만 접근 가능한 예약 조회 화면.
+ * 보안 토큰 기반 예약 조회 화면.
  *
- * - 토큰 1개는 예약 1건에만 매핑되므로 다른 예약자 정보는 노출되지 않는다.
- * - 예약번호만 입력해 조회하는 화면은 제공하지 않는다.
+ * 토큰이 만들어지는 경로는 두 가지다.
+ *  1) 안내 메일에 포함된 링크 (방문 종료 + 7일까지 유효)
+ *  2) 예약번호 조회 성공 시 발급 (2시간만 유효)
+ *
+ * 토큰 1개는 예약 1건에만 매핑되므로 다른 예약자 정보는 노출되지 않는다.
  */
 export default async function ReservationAccessPage({ params }: PageProps) {
   const { token } = await params;

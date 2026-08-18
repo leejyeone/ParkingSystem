@@ -4,6 +4,7 @@ import { apiSuccess, handleApiError } from '@/lib/api-response';
 import { formatKstRange } from '@/lib/datetime';
 import { consumeRateLimit } from '@/lib/rate-limit';
 import { getRequestContext } from '@/lib/request-context';
+import { getUserSession } from '@/lib/user-session';
 import { createReservationSchema } from '@/lib/validation/reservation-schema';
 import { createReservation } from '@/services/reservation-service';
 
@@ -12,7 +13,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/reservations
- * 비로그인 주차 예약 신청.
+ * 주차 예약 신청. 로그인 없이도 신청할 수 있고, 로그인 상태면 예약이 계정에 연결된다.
  *
  * 응답에는 예약번호와 일정만 포함하고, 접근 토큰 링크는 이메일로만 전달한다.
  */
@@ -29,13 +30,15 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const payload = createReservationSchema.parse(body);
 
+    // 로그인 회원이면 예약을 계정에 연결한다. 비로그인 신청도 그대로 허용한다.
+    const session = await getUserSession();
+
     const { reservation } = await createReservation({
+      userId: session?.userId ?? null,
       requesterType: payload.requesterType,
       companyOrBranchName: payload.companyOrBranchName,
-      departmentName: payload.departmentName,
       requesterName: payload.requesterName,
       requesterEmail: payload.requesterEmail,
-      requesterPhone: payload.requesterPhone,
       vehicleNo: payload.vehicleNo,
       visitPurpose: payload.visitPurpose,
       requestMemo: payload.requestMemo,
@@ -51,7 +54,7 @@ export async function POST(request: NextRequest) {
         visitStartAt: reservation.visitStartAt.toISOString(),
         visitEndAt: reservation.visitEndAt.toISOString(),
         visitRangeText: formatKstRange(reservation.visitStartAt, reservation.visitEndAt),
-        emailNoticeSentTo: reservation.requesterEmail.replace(/^(.).*(@.*)$/, '$1***$2'),
+        emailNoticeSentTo: reservation.requesterEmail,
       },
       undefined,
       201,

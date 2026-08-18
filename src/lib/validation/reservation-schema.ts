@@ -4,13 +4,12 @@ import { z } from 'zod';
 import {
   emailSchema,
   optionalText,
-  phoneSchema,
   requiredText,
   vehicleNoSchema,
   zonedDateTimeSchema,
 } from '@/lib/validation/common';
 
-/** 공개(비로그인) 예약 API 입력 스키마 */
+/** 예약 API 입력 스키마 (로그인 여부와 무관하게 동일하다) */
 
 export const requesterTypeSchema = z.enum([RequesterType.VISITOR, RequesterType.EMPLOYEE], {
   error: '신청 구분을 선택해 주세요.',
@@ -19,10 +18,8 @@ export const requesterTypeSchema = z.enum([RequesterType.VISITOR, RequesterType.
 export const createReservationSchema = z.object({
   requesterType: requesterTypeSchema,
   companyOrBranchName: requiredText(100, '방문 상호 또는 소속 지사명'),
-  departmentName: optionalText(100, '부서명'),
   requesterName: requiredText(50, '성명'),
   requesterEmail: emailSchema,
-  requesterPhone: phoneSchema,
   vehicleNo: vehicleNoSchema,
   visitPurpose: optionalText(200, '방문 목적'),
   requestMemo: optionalText(1000, '요청 메모'),
@@ -42,9 +39,7 @@ export type CreateReservationPayload = z.infer<typeof createReservationSchema>;
  */
 export const updateReservationSchema = z.object({
   companyOrBranchName: requiredText(100, '방문 상호 또는 소속 지사명'),
-  departmentName: optionalText(100, '부서명'),
   requesterName: requiredText(50, '성명'),
-  requesterPhone: phoneSchema,
   vehicleNo: vehicleNoSchema,
   visitPurpose: optionalText(200, '방문 목적'),
   requestMemo: optionalText(1000, '요청 메모'),

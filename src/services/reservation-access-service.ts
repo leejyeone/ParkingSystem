@@ -19,13 +19,27 @@ type Db = Prisma.TransactionClient | typeof prisma;
 
 export const TOKEN_VALIDITY_DAYS_AFTER_VISIT = 7;
 
+/**
+ * 예약번호 조회로 발급되는 토큰의 유효시간(분).
+ *
+ * 메일 링크 토큰과 달리 이 토큰은 "예약번호를 아는 사람" 이면 누구나 만들 수 있으므로,
+ * 링크가 흘러나갔을 때의 노출 시간을 줄이기 위해 짧게 둔다.
+ */
+export const LOOKUP_TOKEN_TTL_MINUTES = 120;
+
 export function calculateTokenExpiry(visitEndAt: Date): Date {
   return new Date(visitEndAt.getTime() + TOKEN_VALIDITY_DAYS_AFTER_VISIT * 24 * 60 * 60 * 1000);
 }
 
-/** 예약 생성 시 접근 토큰 발급. 원본 토큰은 이 반환값으로만 얻을 수 있다. */
+/** 접근 토큰 발급. 원본 토큰은 이 반환값으로만 얻을 수 있다. */
 export async function issueAccessToken(
-  params: { reservationId: number; visitEndAt: Date; tokenType?: AccessTokenType },
+  params: {
+    reservationId: number;
+    visitEndAt: Date;
+    tokenType?: AccessTokenType;
+    /** 지정하면 방문 종료 기준 만료 대신 이 시각을 사용한다. */
+    expiresAt?: Date;
+  },
   db: Db = prisma,
 ): Promise<{ rawToken: string; tokenId: number }> {
   const rawToken = generateAccessToken();
@@ -34,7 +48,7 @@ export async function issueAccessToken(
       reservationId: params.reservationId,
       tokenHash: hashAccessToken(rawToken),
       tokenType: params.tokenType ?? AccessTokenType.VIEW,
-      expiresAt: calculateTokenExpiry(params.visitEndAt),
+      expiresAt: params.expiresAt ?? calculateTokenExpiry(params.visitEndAt),
       isActive: true,
     },
     select: { tokenId: true },

@@ -69,8 +69,8 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
       <div>
         <h1 className="text-xl font-black text-slate-900 sm:text-2xl">예약 목록</h1>
         <p className="mt-1 text-sm text-slate-600">
-          목록에서는 개인정보가 마스킹되어 표시됩니다. 전체 정보는 상세 화면에서 확인할 수 있으며,
-          열람 이력은 감사 로그에 기록됩니다.
+          신청자 개인정보가 그대로 표시됩니다. 상세 화면 열람 이력은 감사 로그에 기록되며, 업무 목적
+          외 사용이나 외부 공유는 금지됩니다.
         </p>
       </div>
 
@@ -189,7 +189,6 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
                     <th>방문 상호/지사</th>
                     <th>성명</th>
                     <th>이메일</th>
-                    <th>연락처</th>
                     <th>차량번호</th>
                     <th>방문 시간</th>
                     <th>배정 위치</th>
@@ -205,10 +204,9 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
                       </td>
                       <td>{REQUESTER_TYPE_LABEL[reservation.requesterType]}</td>
                       <td>{reservation.companyOrBranchName}</td>
-                      <td>{reservation.requesterNameMasked}</td>
-                      <td className="text-xs">{reservation.requesterEmailMasked}</td>
-                      <td className="text-xs">{reservation.requesterPhoneMasked}</td>
-                      <td className="font-mono text-xs">{reservation.vehicleNoMasked}</td>
+                      <td>{reservation.requesterName}</td>
+                      <td className="text-xs">{reservation.requesterEmail}</td>
+                      <td className="font-mono text-xs">{reservation.vehicleNo}</td>
                       <td className="text-xs whitespace-nowrap">
                         {formatKstDateTime(reservation.visitStartAt)}
                         <br />~ {formatKstDateTime(reservation.visitEndAt)}

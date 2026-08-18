@@ -34,8 +34,13 @@ export class FileEmailProvider implements EmailProvider {
   private sequence = 0;
 
   async send(message: EmailMessage): Promise<EmailSendResult> {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('FileEmailProvider 는 운영 환경에서 사용할 수 없습니다.');
+    // 운영 빌드에서 실수로 켜지는 것을 막는다.
+    // E2E 는 프로덕션 빌드로 돌기 때문에 명시적 opt-in 을 허용한다.
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_FILE_EMAIL_PROVIDER !== 'true') {
+      throw new Error(
+        'FileEmailProvider 는 운영 환경에서 사용할 수 없습니다. ' +
+          '테스트용 프로덕션 빌드라면 ALLOW_FILE_EMAIL_PROVIDER=true 를 설정하세요.',
+      );
     }
 
     const directory = resolveMailOutboxDir();

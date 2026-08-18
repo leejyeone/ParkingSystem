@@ -43,16 +43,6 @@ export const emailSchema = z
   )
   .transform((value) => value.toLowerCase());
 
-export const phoneSchema = z
-  .string({ error: '휴대전화 번호를 입력해 주세요.' })
-  .trim()
-  .min(1, '휴대전화 번호를 입력해 주세요.')
-  .transform((value) => value.replace(/\D/g, ''))
-  .refine(
-    (value) => /^01[016789]\d{7,8}$/.test(value),
-    '휴대전화 번호 형식이 올바르지 않습니다. (예: 010-1234-5678)',
-  );
-
 export const vehicleNoSchema = z
   .string({ error: '차량번호를 입력해 주세요.' })
   .trim()

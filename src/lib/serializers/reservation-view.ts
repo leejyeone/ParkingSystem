@@ -2,15 +2,14 @@ import { SpaceType } from '@prisma/client';
 
 import { RESERVATION_STATUS_LABEL, REQUESTER_TYPE_LABEL } from '@/domain/reservation-status';
 import { formatKstDateTime, formatKstHuman, formatKstRange, utcToZonedInput } from '@/lib/datetime';
-import { formatPhone } from '@/lib/masking';
 import type { getReservationForRequester } from '@/services/reservation-service';
 
 type RequesterReservation = Awaited<ReturnType<typeof getReservationForRequester>>;
 
 /**
- * 토큰 소유자(본인)에게 보여줄 예약 1건의 표현형.
+ * 신청자 본인에게 보여줄 예약 1건의 표현형.
  *
- * 본인 정보이므로 차량번호/연락처는 원문 그대로 노출한다.
+ * 값은 마스킹 없이 원문 그대로 노출한다.
  * 다른 예약자의 정보는 어떤 필드에도 포함되지 않는다.
  */
 export type RequesterReservationView = {
@@ -20,10 +19,8 @@ export type RequesterReservationView = {
   reservationStatus: string;
   reservationStatusLabel: string;
   companyOrBranchName: string;
-  departmentName: string | null;
   requesterName: string;
   requesterEmail: string;
-  requesterPhone: string;
   vehicleNo: string;
   visitPurpose: string | null;
   requestMemo: string | null;
@@ -51,10 +48,8 @@ export function toRequesterReservationView(
     reservationStatus: reservation.reservationStatus,
     reservationStatusLabel: RESERVATION_STATUS_LABEL[reservation.reservationStatus],
     companyOrBranchName: reservation.companyOrBranchName,
-    departmentName: reservation.departmentName,
     requesterName: reservation.requesterName,
     requesterEmail: reservation.requesterEmail,
-    requesterPhone: formatPhone(reservation.requesterPhone),
     vehicleNo: reservation.vehicleNo,
     visitPurpose: reservation.visitPurpose,
     requestMemo: reservation.requestMemo,

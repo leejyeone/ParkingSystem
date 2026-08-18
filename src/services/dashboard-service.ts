@@ -4,7 +4,7 @@ import { SPACE_OCCUPYING_STATUSES } from '@/domain/reservation-status';
 import { buildOverlapWhere } from '@/domain/time-overlap';
 import { kstDayRangeUtc, parseTimeOfDayToMinutes } from '@/lib/datetime';
 import { prisma } from '@/lib/prisma';
-import { toMaskedListItem, type MaskedReservationListItem } from '@/services/reservation-service';
+import { toReservationListItem, type ReservationListItem } from '@/services/reservation-service';
 import { getSystemSettings } from '@/services/settings-service';
 
 /**
@@ -26,7 +26,7 @@ export type SpaceStatusRow = {
     reservationId: number;
     reservationNo: string;
     reservationStatus: ReservationStatus;
-    vehicleNoMasked: string;
+    vehicleNo: string;
     visitStartAt: Date;
     visitEndAt: Date;
   }[];
@@ -43,7 +43,7 @@ export type DashboardData = {
   pendingCount: number;
   mapImageUrls: { areaName: string; mapImageUrl: string }[];
   spaces: SpaceStatusRow[];
-  pendingReservations: MaskedReservationListItem[];
+  pendingReservations: ReservationListItem[];
   hourlyUsage: HourlyUsage[];
   operatingHours: { open: string; close: string };
 };
@@ -81,7 +81,7 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
         reservationId: true,
         reservationNo: true,
         reservationStatus: true,
-        vehicleNoMasked: true,
+        vehicleNo: true,
         visitStartAt: true,
         visitEndAt: true,
         assignedSpaceId: true,
@@ -106,7 +106,7 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
       reservationId: reservation.reservationId,
       reservationNo: reservation.reservationNo,
       reservationStatus: reservation.reservationStatus,
-      vehicleNoMasked: reservation.vehicleNoMasked,
+      vehicleNo: reservation.vehicleNo,
       visitStartAt: reservation.visitStartAt,
       visitEndAt: reservation.visitEndAt,
     });
@@ -154,7 +154,7 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
       )
       .map((area) => ({ areaName: area.areaName, mapImageUrl: area.mapImageUrl })),
     spaces: spaceRows,
-    pendingReservations: pendingReservations.map(toMaskedListItem),
+    pendingReservations: pendingReservations.map(toReservationListItem),
     hourlyUsage,
     operatingHours: { open: settings.parkingOpenTime, close: settings.parkingCloseTime },
   };

@@ -236,12 +236,11 @@ describe('14. SYSTEM_ADMIN 의 주차면 및 관리자 관리', () => {
     ).rejects.toThrowError(/비밀번호/);
   });
 
-  it('목록에서는 이메일과 연락처가 마스킹된다', async () => {
+  it('목록에는 이메일이 마스킹 없이 그대로 표시된다', async () => {
     const list = await listAdminUsers();
     const sysadmin = list.find((user) => user.loginId === 'sysadmin');
 
-    expect(sysadmin?.emailMasked).toBe('s***@example.com');
-    expect(sysadmin?.emailMasked).not.toContain('sysadmin@');
+    expect(sysadmin?.email).toBe('sysadmin@example.com');
   });
 
   it('마지막 활성 SYSTEM_ADMIN 은 비활성화할 수 없다', async () => {

@@ -28,7 +28,6 @@ import {
   type ReservationForEmail,
 } from '@/lib/email/email-service';
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/errors';
-import { maskEmail, maskName, maskPhone, maskVehicleNo } from '@/lib/masking';
 import { prisma } from '@/lib/prisma';
 import { generateReservationNo } from '@/lib/tokens';
 import { normalizeVehicleNo } from '@/lib/vehicle';
@@ -76,7 +75,7 @@ function toReservationForEmail(reservation: ReservationWithSpaces): ReservationF
     requesterName: reservation.requesterName,
     requesterEmail: reservation.requesterEmail,
     companyOrBranchName: reservation.companyOrBranchName,
-    vehicleNoMasked: reservation.vehicleNoMasked,
+    vehicleNo: reservation.vehicleNo,
     visitStartAt: reservation.visitStartAt,
     visitEndAt: reservation.visitEndAt,
     rejectionReason: reservation.rejectionReason,
@@ -157,11 +156,11 @@ async function loadReservationOrThrow(
 export type CreateReservationInput = {
   requesterType: RequesterType;
   companyOrBranchName: string;
-  departmentName?: string | null;
   requesterName: string;
   requesterEmail: string;
-  requesterPhone: string;
   vehicleNo: string;
+  /** 로그인 회원이 신청한 경우에만 채운다. 비로그인 신청은 undefined/null. */
+  userId?: number | null;
   visitPurpose?: string | null;
   requestMemo?: string | null;
   visitStartAt: Date;
@@ -210,14 +209,12 @@ export async function createReservation(input: CreateReservationInput): Promise<
       const created = await tx.parkingReservation.create({
         data: {
           reservationNo,
+          userId: input.userId ?? null,
           requesterType: input.requesterType,
           companyOrBranchName: input.companyOrBranchName,
-          departmentName: input.departmentName ?? null,
           requesterName: input.requesterName,
           requesterEmail: input.requesterEmail,
-          requesterPhone: input.requesterPhone,
           vehicleNo,
-          vehicleNoMasked: maskVehicleNo(vehicleNo),
           visitPurpose: input.visitPurpose ?? null,
           requestMemo: input.requestMemo ?? null,
           visitStartAt: input.visitStartAt,
@@ -295,9 +292,7 @@ async function createWithUniqueReservationNo(
 
 export type UpdateReservationInput = {
   companyOrBranchName: string;
-  departmentName?: string | null;
   requesterName: string;
-  requesterPhone: string;
   vehicleNo: string;
   visitPurpose?: string | null;
   requestMemo?: string | null;
@@ -364,11 +359,8 @@ export async function updateReservationByRequester(
       where: { reservationId },
       data: {
         companyOrBranchName: input.companyOrBranchName,
-        departmentName: input.departmentName ?? null,
         requesterName: input.requesterName,
-        requesterPhone: input.requesterPhone,
         vehicleNo,
-        vehicleNoMasked: maskVehicleNo(vehicleNo),
         visitPurpose: input.visitPurpose ?? null,
         requestMemo: input.requestMemo ?? null,
         visitStartAt: input.visitStartAt,
@@ -875,17 +867,16 @@ export type ReservationListFilter = {
   pageSize?: number;
 };
 
-/** 관리자 목록용 (개인정보 마스킹 적용) */
-export type MaskedReservationListItem = {
+/** 관리자 목록용 표현형. 마스킹 없이 원문을 그대로 노출한다. */
+export type ReservationListItem = {
   reservationId: number;
   reservationNo: string;
   requesterType: RequesterType;
   reservationStatus: ReservationStatus;
   companyOrBranchName: string;
-  requesterNameMasked: string;
-  requesterEmailMasked: string;
-  requesterPhoneMasked: string;
-  vehicleNoMasked: string;
+  requesterName: string;
+  requesterEmail: string;
+  vehicleNo: string;
   visitStartAt: Date;
   visitEndAt: Date;
   recommendedSpaceCode: string | null;
@@ -895,7 +886,7 @@ export type MaskedReservationListItem = {
 };
 
 export async function listReservationsForAdmin(filter: ReservationListFilter): Promise<{
-  items: MaskedReservationListItem[];
+  items: ReservationListItem[];
   totalCount: number;
   page: number;
   pageSize: number;
@@ -927,7 +918,7 @@ export async function listReservationsForAdmin(filter: ReservationListFilter): P
   ]);
 
   return {
-    items: rows.map(toMaskedListItem),
+    items: rows.map(toReservationListItem),
     totalCount,
     page,
     pageSize,
@@ -935,17 +926,16 @@ export async function listReservationsForAdmin(filter: ReservationListFilter): P
   };
 }
 
-export function toMaskedListItem(reservation: ReservationWithSpaces): MaskedReservationListItem {
+export function toReservationListItem(reservation: ReservationWithSpaces): ReservationListItem {
   return {
     reservationId: reservation.reservationId,
     reservationNo: reservation.reservationNo,
     requesterType: reservation.requesterType,
     reservationStatus: reservation.reservationStatus,
     companyOrBranchName: reservation.companyOrBranchName,
-    requesterNameMasked: maskName(reservation.requesterName),
-    requesterEmailMasked: maskEmail(reservation.requesterEmail),
-    requesterPhoneMasked: maskPhone(reservation.requesterPhone),
-    vehicleNoMasked: reservation.vehicleNoMasked,
+    requesterName: reservation.requesterName,
+    requesterEmail: reservation.requesterEmail,
+    vehicleNo: reservation.vehicleNo,
     visitStartAt: reservation.visitStartAt,
     visitEndAt: reservation.visitEndAt,
     recommendedSpaceCode: reservation.recommendedSpace?.spaceCode ?? null,
@@ -953,6 +943,24 @@ export function toMaskedListItem(reservation: ReservationWithSpaces): MaskedRese
     assignedSpaceType: reservation.assignedSpace?.spaceType ?? null,
     createdAt: reservation.createdAt,
   };
+}
+
+/**
+ * 회원 마이페이지용 내 예약 목록.
+ * 로그인 회원이 신청한 예약(user_id 로 연결된 건)만 조회한다.
+ */
+export async function listReservationsForUser(
+  userId: number,
+  options: { limit?: number } = {},
+): Promise<ReservationListItem[]> {
+  const rows = await prisma.parkingReservation.findMany({
+    where: { userId },
+    include: RESERVATION_WITH_SPACES,
+    orderBy: [{ visitStartAt: 'desc' }, { reservationId: 'desc' }],
+    take: Math.min(100, Math.max(1, options.limit ?? 50)),
+  });
+
+  return rows.map(toReservationListItem);
 }
 
 /**

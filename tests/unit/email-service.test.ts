@@ -133,7 +133,7 @@ describe('이메일 템플릿', () => {
     requesterName: '홍길동',
     requesterType: 'VISITOR' as const,
     companyOrBranchName: '시노펙스',
-    vehicleNoMasked: '12가3***',
+    vehicleNo: '12가3456',
     visitStartAt: new Date('2026-08-20T00:00:00Z'),
     visitEndAt: new Date('2026-08-20T02:00:00Z'),
     accessUrl: 'http://localhost:3000/r/token-value',
@@ -148,19 +148,19 @@ describe('이메일 템플릿', () => {
     expect(email.text).not.toContain('<html');
   });
 
-  it('성명은 마스킹해서 노출하고 원문은 포함하지 않는다', () => {
+  it('성명을 마스킹하지 않고 원문으로 표시한다', () => {
     const email = renderReservationEmail(EmailType.REQUEST_RECEIVED, data);
 
-    expect(email.html).toContain('홍*동');
-    expect(email.html).not.toContain('홍길동');
-    expect(email.text).not.toContain('홍길동');
+    expect(email.html).toContain('홍길동');
+    expect(email.text).toContain('홍길동');
+    expect(email.html).not.toContain('홍*동');
   });
 
-  it('차량번호는 마스킹된 값만 사용한다', () => {
+  it('차량번호를 마스킹하지 않고 원문으로 표시한다', () => {
     const email = renderReservationEmail(EmailType.APPROVED, data);
 
-    expect(email.text).toContain('12가3***');
-    expect(email.text).not.toContain('12가3456');
+    expect(email.text).toContain('12가3456');
+    expect(email.text).not.toContain('12가3***');
   });
 
   it('예약 조회 링크에는 보안 토큰이 포함된다', () => {

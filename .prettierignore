@@ -1,6 +1,8 @@
 node_modules
 .next
+.next-e2e
 out
+.mail-outbox
 build
 coverage
 playwright-report

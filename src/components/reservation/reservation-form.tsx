@@ -21,6 +21,14 @@ type Settings = {
   minDateTimeInput: string;
 };
 
+/** 로그인 회원이면 서버가 프로필로 채워 보내는 초기값 */
+export type ReservationFormInitialValues = {
+  companyOrBranchName?: string;
+  requesterName?: string;
+  requesterEmail?: string;
+  vehicleNo?: string;
+};
+
 type CreateResponse = {
   reservationNo: string;
   reservationStatus: string;
@@ -31,10 +39,8 @@ type CreateResponse = {
 type FormState = {
   requesterType: 'VISITOR' | 'EMPLOYEE';
   companyOrBranchName: string;
-  departmentName: string;
   requesterName: string;
   requesterEmail: string;
-  requesterPhone: string;
   vehicleNo: string;
   visitPurpose: string;
   requestMemo: string;
@@ -43,23 +49,32 @@ type FormState = {
   privacyConsent: boolean;
 };
 
-const INITIAL_STATE: FormState = {
-  requesterType: 'VISITOR',
-  companyOrBranchName: '',
-  departmentName: '',
-  requesterName: '',
-  requesterEmail: '',
-  requesterPhone: '',
-  vehicleNo: '',
-  visitPurpose: '',
-  requestMemo: '',
-  visitStartAt: '',
-  visitEndAt: '',
-  privacyConsent: false,
-};
+function buildInitialState(initialValues?: ReservationFormInitialValues): FormState {
+  return {
+    requesterType: 'VISITOR',
+    companyOrBranchName: initialValues?.companyOrBranchName ?? '',
+    requesterName: initialValues?.requesterName ?? '',
+    requesterEmail: initialValues?.requesterEmail ?? '',
+    vehicleNo: initialValues?.vehicleNo ?? '',
+    visitPurpose: '',
+    requestMemo: '',
+    visitStartAt: '',
+    visitEndAt: '',
+    privacyConsent: false,
+  };
+}
 
-export function ReservationForm({ settings }: { settings: Settings }) {
-  const [form, setForm] = useState<FormState>(INITIAL_STATE);
+export function ReservationForm({
+  settings,
+  initialValues,
+  autofilled = false,
+}: {
+  settings: Settings;
+  initialValues?: ReservationFormInitialValues;
+  /** 로그인 회원 정보로 자동완성된 상태인지 */
+  autofilled?: boolean;
+}) {
+  const [form, setForm] = useState<FormState>(() => buildInitialState(initialValues));
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [formError, setFormError] = useState<ApiErrorPayload | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -93,10 +108,8 @@ export function ReservationForm({ settings }: { settings: Settings }) {
       body: JSON.stringify({
         requesterType: form.requesterType,
         companyOrBranchName: form.companyOrBranchName,
-        departmentName: form.departmentName || null,
         requesterName: form.requesterName,
         requesterEmail: form.requesterEmail,
-        requesterPhone: form.requesterPhone,
         vehicleNo: form.vehicleNo,
         visitPurpose: form.visitPurpose || null,
         requestMemo: form.requestMemo || null,
@@ -129,6 +142,14 @@ export function ReservationForm({ settings }: { settings: Settings }) {
         <div className="mb-4">
           <Alert variant="error" title="신청을 완료하지 못했습니다">
             {formError.message}
+          </Alert>
+        </div>
+      )}
+
+      {autofilled && (
+        <div className="mb-4">
+          <Alert variant="success" title="회원 정보로 자동 입력했습니다">
+            내용이 다르면 아래에서 바로 수정할 수 있습니다. 수정해도 회원 정보는 바뀌지 않습니다.
           </Alert>
         </div>
       )}
@@ -186,18 +207,6 @@ export function ReservationForm({ settings }: { settings: Settings }) {
             />
           </FormField>
 
-          <FormField label="부서명" htmlFor="departmentName" errors={fieldErrors.departmentName}>
-            <input
-              id="departmentName"
-              name="departmentName"
-              className={inputClassName(Boolean(fieldErrors.departmentName))}
-              value={form.departmentName}
-              onChange={(event) => update('departmentName', event.target.value)}
-              placeholder="선택 입력"
-              maxLength={100}
-            />
-          </FormField>
-
           <FormField
             label="성명"
             htmlFor="requesterName"
@@ -233,26 +242,6 @@ export function ReservationForm({ settings }: { settings: Settings }) {
               placeholder="hong@example.com"
               maxLength={255}
               autoComplete="email"
-            />
-          </FormField>
-
-          <FormField
-            label="휴대전화 번호"
-            htmlFor="requesterPhone"
-            required
-            errors={fieldErrors.requesterPhone}
-          >
-            <input
-              id="requesterPhone"
-              name="requesterPhone"
-              type="tel"
-              inputMode="tel"
-              className={inputClassName(Boolean(fieldErrors.requesterPhone))}
-              value={form.requesterPhone}
-              onChange={(event) => update('requesterPhone', event.target.value)}
-              placeholder="010-1234-5678"
-              maxLength={20}
-              autoComplete="tel"
             />
           </FormField>
 
@@ -353,8 +342,7 @@ export function ReservationForm({ settings }: { settings: Settings }) {
           <h2 className="card-title">개인정보 수집 및 이용 동의</h2>
           <div className="mt-3 max-h-40 overflow-y-auto rounded-lg bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
             <p>
-              <strong>수집 항목</strong> : 성명, 이메일, 휴대전화 번호, 차량번호, 소속(상호/지사),
-              부서명, 방문 목적
+              <strong>수집 항목</strong> : 성명, 이메일, 차량번호, 소속(상호/지사), 방문 목적
             </p>
             <p className="mt-2">
               <strong>수집 목적</strong> : 방문 차량 주차 예약 접수·승인, 주차면 배정, 방문 관련
@@ -438,20 +426,24 @@ function CompletionView({ result }: { result: CreateResponse }) {
         </dl>
 
         <div className="mt-5 space-y-3">
+          <Alert variant="warning" title="예약번호를 보관해 주세요">
+            <strong className="font-mono">{result.reservationNo}</strong> 로 언제든지 예약을 조회할
+            수 있습니다.
+          </Alert>
           <Alert variant="info" title="이메일이 발송되었습니다">
             <p>
-              {result.emailNoticeSentTo} 주소로 접수 확인 메일을 보냈습니다. 메일에 포함된 링크로만
-              예약 조회·수정·취소가 가능하니 메일을 보관해 주세요.
+              {result.emailNoticeSentTo} 주소로 접수 확인 메일을 보냈습니다. 메일의 링크로도 예약을
+              조회할 수 있습니다.
             </p>
             <p className="mt-1">메일이 도착하지 않으면 스팸함을 확인해 주세요.</p>
           </Alert>
-          <Alert variant="warning" title="예약번호만으로는 조회할 수 없습니다">
-            개인정보 보호를 위해 예약 조회는 이메일로 받은 보안 링크를 통해서만 가능합니다.
-          </Alert>
         </div>
 
-        <div className="mt-5">
-          <Link href="/" className="btn btn-secondary w-full">
+        <div className="mt-5 grid gap-2 sm:grid-cols-2">
+          <Link href="/reservations/lookup" className="btn btn-primary">
+            내 예약 조회하기
+          </Link>
+          <Link href="/" className="btn btn-secondary">
             처음으로
           </Link>
         </div>

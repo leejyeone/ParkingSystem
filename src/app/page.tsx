@@ -1,13 +1,17 @@
 import Link from 'next/link';
 
 import { DEFAULT_SETTINGS } from '@/domain/system-settings';
+import { getUserSession } from '@/lib/user-session';
 import { getSystemSettings } from '@/services/settings-service';
 
 export const dynamic = 'force-dynamic';
 
 /** 메인 화면. 모바일에서 버튼을 크고 명확하게 노출한다. */
 export default async function HomePage() {
-  const settings = await getSystemSettings().catch(() => DEFAULT_SETTINGS);
+  const [settings, session] = await Promise.all([
+    getSystemSettings().catch(() => DEFAULT_SETTINGS),
+    getUserSession(),
+  ]);
 
   return (
     <main className="app-container">
@@ -26,6 +30,20 @@ export default async function HomePage() {
         <Link href="/reservations/lookup" className="btn btn-secondary btn-lg w-full">
           내 예약 조회하기
         </Link>
+        {session ? (
+          <Link href="/mypage" className="btn btn-secondary btn-lg w-full">
+            마이페이지 ({session.name}님)
+          </Link>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            <Link href="/login" className="btn btn-secondary w-full">
+              로그인
+            </Link>
+            <Link href="/signup" className="btn btn-secondary w-full">
+              회원가입
+            </Link>
+          </div>
+        )}
         <Link href="/admin/login" className="btn btn-ghost w-full">
           관리자 로그인
         </Link>
@@ -47,6 +65,8 @@ export default async function HomePage() {
               • 주차 위치는 시스템이 추천하고 관리자가 최종 확정합니다. 직접 선택할 수 없습니다.
             </li>
             <li>• 신청 결과와 예약 조회 링크는 입력하신 이메일로 발송됩니다.</li>
+            <li>• 예약 조회는 예약번호로 하거나, 안내 메일의 링크를 이용하면 됩니다.</li>
+            <li>• 로그인하면 신청 시 내 정보가 자동으로 입력됩니다. (선택 사항)</li>
             <li>
               • 출차 예정 <strong>{settings.exitReminderMinutes}분 전</strong>에 안내 메일이
               발송됩니다.

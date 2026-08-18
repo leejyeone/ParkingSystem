@@ -21,6 +21,7 @@ export async function resetDatabase(): Promise<void> {
   await prisma.parkingReservationStatusLog.deleteMany();
   await prisma.reservationAccessToken.deleteMany();
   await prisma.parkingReservation.deleteMany();
+  await prisma.siteUser.deleteMany();
   await prisma.parkingSpace.deleteMany();
   await prisma.parkingArea.deleteMany();
   await prisma.adminNotificationEmail.deleteMany();
@@ -158,10 +159,8 @@ export function baseReservationInput(overrides: Record<string, unknown> = {}) {
   return {
     requesterType: 'VISITOR' as const,
     companyOrBranchName: '시노펙스',
-    departmentName: null,
     requesterName: '홍길동',
     requesterEmail: 'hong@example.com',
-    requesterPhone: '01012345678',
     vehicleNo: '12가3456',
     visitPurpose: '회의 참석',
     requestMemo: null,

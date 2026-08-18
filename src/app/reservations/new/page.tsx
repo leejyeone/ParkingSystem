@@ -1,10 +1,16 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { ReservationForm } from '@/components/reservation/reservation-form';
+import {
+  ReservationForm,
+  type ReservationFormInitialValues,
+} from '@/components/reservation/reservation-form';
+import { Alert } from '@/components/ui/alert';
 import { DEFAULT_SETTINGS } from '@/domain/system-settings';
 import { earliestSelectableInput } from '@/lib/datetime';
+import { getUserSession } from '@/lib/user-session';
 import { getSystemSettings } from '@/services/settings-service';
+import { getUserProfile } from '@/services/user-auth-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +18,19 @@ export const metadata: Metadata = { title: '주차 신청' };
 
 export default async function NewReservationPage() {
   const settings = await getSystemSettings().catch(() => DEFAULT_SETTINGS);
+
+  // 로그인 회원이면 저장된 정보로 폼을 자동완성한다. 비로그인이면 빈 폼 그대로.
+  const session = await getUserSession();
+  const profile = session ? await getUserProfile(session.userId) : null;
+
+  const initialValues: ReservationFormInitialValues | undefined = profile
+    ? {
+        companyOrBranchName: profile.companyOrBranchName,
+        requesterName: profile.name,
+        requesterEmail: profile.email,
+        vehicleNo: profile.vehicleNo ?? '',
+      }
+    : undefined;
 
   return (
     <main className="app-container pb-4">
@@ -25,7 +44,31 @@ export default async function NewReservationPage() {
         </p>
       </div>
 
+      {!profile && (
+        <div className="mb-4">
+          <Alert variant="info" title="자주 방문하시나요?">
+            <p>
+              로그인하면 상호·성명·이메일·차량번호가 자동으로 입력되고, 내 예약을 한곳에서 볼 수
+              있습니다.
+            </p>
+            <p className="mt-2 flex flex-wrap gap-2">
+              <Link
+                href="/login?redirect=%2Freservations%2Fnew"
+                className="btn btn-secondary min-h-9 px-3 py-1.5 text-xs"
+              >
+                로그인
+              </Link>
+              <Link href="/signup" className="btn btn-secondary min-h-9 px-3 py-1.5 text-xs">
+                회원가입
+              </Link>
+            </p>
+          </Alert>
+        </div>
+      )}
+
       <ReservationForm
+        autofilled={Boolean(profile)}
+        initialValues={initialValues}
         settings={{
           reservationMinLeadMinutes: settings.reservationMinLeadMinutes,
           parkingOpenTime: settings.parkingOpenTime,

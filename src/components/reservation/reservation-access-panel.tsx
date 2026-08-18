@@ -77,7 +77,7 @@ export function ReservationAccessPanel({ token, initialReservation, settings }: 
               <Alert variant="warning" title="이중주차 위치로 배정되었습니다">
                 <ul className="mt-1 list-disc space-y-1 pl-4">
                   <li>앞 차량 출차를 위해 차량 이동 요청을 받으실 수 있습니다.</li>
-                  <li>방문 중 휴대전화 연락이 가능한 상태를 유지해 주세요.</li>
+                  <li>차량 이동 요청은 현장 안내 방송 또는 안내 데스크를 통해 전달됩니다.</li>
                   <li>기어는 중립(N), 주차 브레이크는 해제해 주세요.</li>
                 </ul>
               </Alert>
@@ -87,10 +87,8 @@ export function ReservationAccessPanel({ token, initialReservation, settings }: 
           <dl className="mt-4">
             <Row term="신청 구분" desc={reservation.requesterTypeLabel} />
             <Row term="방문 상호/지사" desc={reservation.companyOrBranchName} />
-            {reservation.departmentName && <Row term="부서명" desc={reservation.departmentName} />}
             <Row term="성명" desc={reservation.requesterName} />
             <Row term="이메일" desc={reservation.requesterEmail} />
-            <Row term="휴대전화" desc={reservation.requesterPhone} />
             <Row term="차량번호" desc={reservation.vehicleNo} />
             <Row term="방문 시간" desc={reservation.visitRangeText} />
             <Row
@@ -198,9 +196,7 @@ function EditForm({
 }) {
   const [form, setForm] = useState({
     companyOrBranchName: reservation.companyOrBranchName,
-    departmentName: reservation.departmentName ?? '',
     requesterName: reservation.requesterName,
-    requesterPhone: reservation.requesterPhone,
     vehicleNo: reservation.vehicleNo,
     visitPurpose: reservation.visitPurpose ?? '',
     requestMemo: reservation.requestMemo ?? '',
@@ -231,7 +227,6 @@ function EditForm({
         method: 'PUT',
         body: JSON.stringify({
           ...form,
-          departmentName: form.departmentName || null,
           visitPurpose: form.visitPurpose || null,
           requestMemo: form.requestMemo || null,
         }),
@@ -275,16 +270,6 @@ function EditForm({
           />
         </FormField>
 
-        <FormField label="부서명" htmlFor="edit-department" errors={fieldErrors.departmentName}>
-          <input
-            id="edit-department"
-            className={inputClassName(Boolean(fieldErrors.departmentName))}
-            value={form.departmentName}
-            onChange={(event) => update('departmentName', event.target.value)}
-            maxLength={100}
-          />
-        </FormField>
-
         <FormField label="성명" htmlFor="edit-name" required errors={fieldErrors.requesterName}>
           <input
             id="edit-name"
@@ -292,23 +277,6 @@ function EditForm({
             value={form.requesterName}
             onChange={(event) => update('requesterName', event.target.value)}
             maxLength={50}
-          />
-        </FormField>
-
-        <FormField
-          label="휴대전화 번호"
-          htmlFor="edit-phone"
-          required
-          errors={fieldErrors.requesterPhone}
-        >
-          <input
-            id="edit-phone"
-            type="tel"
-            inputMode="tel"
-            className={inputClassName(Boolean(fieldErrors.requesterPhone))}
-            value={form.requesterPhone}
-            onChange={(event) => update('requesterPhone', event.target.value)}
-            maxLength={20}
           />
         </FormField>
 

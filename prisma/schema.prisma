@@ -2,10 +2,12 @@
 //
 // 설계 제약(반드시 유지):
 //  - vehicles 테이블을 만들지 않는다. 차량번호는 parking_reservations 에 직접 저장한다.
-//  - 일반 사용자(users) 테이블을 만들지 않는다. 방문객/직원은 계정이 없다.
+//  - users(회원) 계정은 "선택" 이다. 비로그인으로도 신청/조회가 모두 가능해야 한다.
+//    회원 정보는 신청 폼 자동완성과 내 예약 목록에만 사용한다.
 //  - 도면 좌표 컬럼(map_x, map_y, map_width, map_height)을 만들지 않는다.
 //  - 주차면 배정은 주차면 코드(A-01 ...) 기반으로만 처리한다.
 //  - 예약 접근 토큰 원문은 저장하지 않고 HMAC-SHA256 해시만 저장한다.
+//  - 화면/이메일에 개인정보 마스킹은 적용하지 않는다(원문 표시). 따라서 마스킹 전용 컬럼도 두지 않는다.
 
 generator client {
   provider = "prisma-client-js"
@@ -97,14 +99,14 @@ enum EmailSendStatus {
 // ---------------------------------------------------------------------------
 
 model AdminUser {
-  adminUserId Int    @id @default(autoincrement()) @map("admin_user_id")
-  loginId     String @unique(map: "uq_admin_users_login_id") @map("login_id") @db.VarChar(50)
+  adminUserId   Int           @id @default(autoincrement()) @map("admin_user_id")
+  loginId       String        @unique(map: "uq_admin_users_login_id") @map("login_id") @db.VarChar(50)
   /// bcrypt 해시. 평문 비밀번호는 절대 저장하지 않는다.
-  passwordHash String @map("password_hash") @db.VarChar(255)
-  adminName   String @map("admin_name") @db.VarChar(50)
-  email       String @unique(map: "uq_admin_users_email") @db.VarChar(255)
-  phone       String? @db.VarChar(20)
-  roleCode    AdminRole     @map("role_code")
+  passwordHash  String        @map("password_hash") @db.VarChar(255)
+  adminName     String        @map("admin_name") @db.VarChar(50)
+  email         String        @unique(map: "uq_admin_users_email") @db.VarChar(255)
+  phone         String?       @db.VarChar(20)
+  roleCode      AdminRole     @map("role_code")
   accountStatus AccountStatus @default(ACTIVE) @map("account_status")
 
   /// brute-force 방지용. 연속 로그인 실패 횟수
@@ -118,7 +120,7 @@ model AdminUser {
   updatedAt         DateTime  @updatedAt @map("updated_at")
   deletedAt         DateTime? @map("deleted_at")
 
-  approvedReservations ParkingReservation[]             @relation("ReservationApprovalAdmin")
+  approvedReservations ParkingReservation[]          @relation("ReservationApprovalAdmin")
   statusLogs           ParkingReservationStatusLog[]
   auditLogs            AuditLog[]
   updatedSettings      SystemSetting[]
@@ -128,20 +130,58 @@ model AdminUser {
 }
 
 // ---------------------------------------------------------------------------
+// users - 일반 사용자(회원) 계정
+//
+// 로그인은 "선택" 이다. 비로그인 상태로도 주차 신청과 예약 조회가 모두 가능하며,
+// 회원 로그인은 신청 폼 자동완성과 내 예약 목록을 위해서만 사용한다.
+// 자동완성에 필요한 항목과 인증에 필요한 항목만 저장한다.
+// ---------------------------------------------------------------------------
+
+model SiteUser {
+  userId       Int    @id @default(autoincrement()) @map("user_id")
+  email        String @unique(map: "uq_users_email") @db.VarChar(255)
+  /// bcrypt 해시. 평문 비밀번호는 절대 저장하지 않는다.
+  passwordHash String @map("password_hash") @db.VarChar(255)
+
+  /// 신청 폼 자동완성용 기본 정보
+  name                String  @db.VarChar(50)
+  companyOrBranchName String  @map("company_or_branch_name") @db.VarChar(100)
+  vehicleNo           String? @map("vehicle_no") @db.VarChar(20)
+
+  accountStatus AccountStatus @default(ACTIVE) @map("account_status")
+
+  /// brute-force 방지용. 연속 로그인 실패 횟수
+  loginFailCount Int       @default(0) @map("login_fail_count")
+  /// 계정 임시 잠금 해제 시각
+  lockedUntil    DateTime? @map("locked_until")
+
+  lastLoginAt       DateTime? @map("last_login_at")
+  passwordChangedAt DateTime? @map("password_changed_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
+
+  reservations ParkingReservation[]
+
+  @@index([accountStatus], map: "idx_users_account_status")
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
 // 8-2. parking_areas
 // ---------------------------------------------------------------------------
 
 model ParkingArea {
-  areaId      Int     @id @default(autoincrement()) @map("area_id")
-  areaCode    String  @unique(map: "uq_parking_areas_area_code") @map("area_code") @db.VarChar(20)
-  areaName    String  @map("area_name") @db.VarChar(100)
-  description String? @db.VarChar(500)
+  areaId       Int      @id @default(autoincrement()) @map("area_id")
+  areaCode     String   @unique(map: "uq_parking_areas_area_code") @map("area_code") @db.VarChar(20)
+  areaName     String   @map("area_name") @db.VarChar(100)
+  description  String?  @db.VarChar(500)
   /// 참고용 도면 이미지 경로. 좌표 정보는 저장하지 않는다.
-  mapImageUrl String? @map("map_image_url") @db.VarChar(500)
-  displayOrder Int    @default(0) @map("display_order")
-  isActive    Boolean @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  mapImageUrl  String?  @map("map_image_url") @db.VarChar(500)
+  displayOrder Int      @default(0) @map("display_order")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   spaces ParkingSpace[]
 
@@ -165,7 +205,7 @@ model ParkingSpace {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  area                   ParkingArea          @relation(fields: [areaId], references: [areaId])
+  area                    ParkingArea          @relation(fields: [areaId], references: [areaId])
   recommendedReservations ParkingReservation[] @relation("ReservationRecommendedSpace")
   assignedReservations    ParkingReservation[] @relation("ReservationAssignedSpace")
 
@@ -182,24 +222,23 @@ model ParkingReservation {
   reservationId Int    @id @default(autoincrement()) @map("reservation_id")
   reservationNo String @unique(map: "uq_parking_reservations_no") @map("reservation_no") @db.VarChar(30)
 
+  /// 로그인 회원이 신청한 경우에만 연결된다. 비로그인 신청은 NULL.
+  userId Int? @map("user_id")
+
   requesterType       RequesterType @map("requester_type")
   companyOrBranchName String        @map("company_or_branch_name") @db.VarChar(100)
-  departmentName      String?       @map("department_name") @db.VarChar(100)
   requesterName       String        @map("requester_name") @db.VarChar(50)
   requesterEmail      String        @map("requester_email") @db.VarChar(255)
-  requesterPhone      String        @map("requester_phone") @db.VarChar(20)
 
   /// 공백/하이픈을 제거해 정규화한 차량번호
-  vehicleNo       String @map("vehicle_no") @db.VarChar(20)
-  /// 목록/이메일 노출용 마스킹 차량번호 (예: 12가3***)
-  vehicleNoMasked String @map("vehicle_no_masked") @db.VarChar(20)
+  vehicleNo String @map("vehicle_no") @db.VarChar(20)
 
   visitPurpose String? @map("visit_purpose") @db.VarChar(200)
   requestMemo  String? @map("request_memo") @db.Text
 
   /// 모든 시각은 UTC로 저장하고 화면/메일에서 Asia/Seoul로 변환한다.
-  visitStartAt DateTime  @map("visit_start_at")
-  visitEndAt   DateTime  @map("visit_end_at")
+  visitStartAt  DateTime  @map("visit_start_at")
+  visitEndAt    DateTime  @map("visit_end_at")
   actualEntryAt DateTime? @map("actual_entry_at")
   actualExitAt  DateTime? @map("actual_exit_at")
 
@@ -223,11 +262,13 @@ model ParkingReservation {
   recommendedSpace ParkingSpace? @relation("ReservationRecommendedSpace", fields: [recommendedSpaceId], references: [spaceId], onDelete: SetNull)
   assignedSpace    ParkingSpace? @relation("ReservationAssignedSpace", fields: [assignedSpaceId], references: [spaceId], onDelete: SetNull)
   approvalAdmin    AdminUser?    @relation("ReservationApprovalAdmin", fields: [approvalAdminId], references: [adminUserId], onDelete: SetNull)
+  user             SiteUser?     @relation(fields: [userId], references: [userId], onDelete: SetNull)
 
   accessTokens ReservationAccessToken[]
   statusLogs   ParkingReservationStatusLog[]
   emailLogs    EmailSendLog[]
 
+  @@index([userId, createdAt], map: "idx_reservations_user_created")
   @@index([reservationStatus], map: "idx_reservations_status")
   @@index([visitStartAt, visitEndAt], map: "idx_reservations_visit_range")
   @@index([assignedSpaceId, visitStartAt, visitEndAt, reservationStatus], map: "idx_reservations_space_range_status")
@@ -264,14 +305,14 @@ model ReservationAccessToken {
 // ---------------------------------------------------------------------------
 
 model ParkingReservationStatusLog {
-  statusLogId    Int                @id @default(autoincrement()) @map("status_log_id")
-  reservationId  Int                @map("reservation_id")
-  previousStatus ReservationStatus? @map("previous_status")
-  currentStatus  ReservationStatus  @map("current_status")
-  changedByType  ChangedByType      @map("changed_by_type")
-  changedByAdminId Int?             @map("changed_by_admin_id")
-  changeReason   String?            @map("change_reason") @db.VarChar(500)
-  createdAt      DateTime           @default(now()) @map("created_at")
+  statusLogId      Int                @id @default(autoincrement()) @map("status_log_id")
+  reservationId    Int                @map("reservation_id")
+  previousStatus   ReservationStatus? @map("previous_status")
+  currentStatus    ReservationStatus  @map("current_status")
+  changedByType    ChangedByType      @map("changed_by_type")
+  changedByAdminId Int?               @map("changed_by_admin_id")
+  changeReason     String?            @map("change_reason") @db.VarChar(500)
+  createdAt        DateTime           @default(now()) @map("created_at")
 
   reservation    ParkingReservation @relation(fields: [reservationId], references: [reservationId], onDelete: Cascade)
   changedByAdmin AdminUser?         @relation(fields: [changedByAdminId], references: [adminUserId], onDelete: SetNull)
@@ -290,9 +331,9 @@ model AdminNotificationEmail {
   email               String  @unique(map: "uq_admin_notification_emails_email") @db.VarChar(255)
   recipientName       String? @map("recipient_name") @db.VarChar(50)
 
-  receiveNewRequest        Boolean @default(true) @map("receive_new_request")
-  receiveApprovalAlert     Boolean @default(true) @map("receive_approval_alert")
-  receiveDailySummary      Boolean @default(false) @map("receive_daily_summary")
+  receiveNewRequest         Boolean @default(true) @map("receive_new_request")
+  receiveApprovalAlert      Boolean @default(true) @map("receive_approval_alert")
+  receiveDailySummary       Boolean @default(false) @map("receive_daily_summary")
   receiveDoubleParkingAlert Boolean @default(true) @map("receive_double_parking_alert")
 
   isActive  Boolean  @default(true) @map("is_active")
@@ -308,17 +349,17 @@ model AdminNotificationEmail {
 // ---------------------------------------------------------------------------
 
 model EmailSendLog {
-  emailLogId    Int             @id @default(autoincrement()) @map("email_log_id")
-  reservationId Int?            @map("reservation_id")
-  emailType     EmailType       @map("email_type")
-  recipientEmail String         @map("recipient_email") @db.VarChar(255)
-  subject       String          @db.VarChar(300)
-  sendStatus    EmailSendStatus @default(PENDING) @map("send_status")
-  providerMessageId String?     @map("provider_message_id") @db.VarChar(255)
-  failReason    String?         @map("fail_reason") @db.Text
-  retryCount    Int             @default(0) @map("retry_count")
-  requestedAt   DateTime        @default(now()) @map("requested_at")
-  sentAt        DateTime?       @map("sent_at")
+  emailLogId        Int             @id @default(autoincrement()) @map("email_log_id")
+  reservationId     Int?            @map("reservation_id")
+  emailType         EmailType       @map("email_type")
+  recipientEmail    String          @map("recipient_email") @db.VarChar(255)
+  subject           String          @db.VarChar(300)
+  sendStatus        EmailSendStatus @default(PENDING) @map("send_status")
+  providerMessageId String?         @map("provider_message_id") @db.VarChar(255)
+  failReason        String?         @map("fail_reason") @db.Text
+  retryCount        Int             @default(0) @map("retry_count")
+  requestedAt       DateTime        @default(now()) @map("requested_at")
+  sentAt            DateTime?       @map("sent_at")
 
   /// 1회만 발송되어야 하는 메일(EXIT_REMINDER)의 멱등성 키.
   /// "<reservationId>:<emailType>" 형태이며 그 외 메일에서는 NULL 이다.
@@ -360,11 +401,11 @@ model AuditLog {
 // ---------------------------------------------------------------------------
 
 model SystemSetting {
-  settingKey        String   @id @map("setting_key") @db.VarChar(100)
-  settingValue      String   @map("setting_value") @db.VarChar(500)
-  description       String?  @db.VarChar(500)
-  updatedByAdminId  Int?     @map("updated_by_admin_id")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  settingKey       String   @id @map("setting_key") @db.VarChar(100)
+  settingValue     String   @map("setting_value") @db.VarChar(500)
+  description      String?  @db.VarChar(500)
+  updatedByAdminId Int?     @map("updated_by_admin_id")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   updatedByAdmin AdminUser? @relation(fields: [updatedByAdminId], references: [adminUserId], onDelete: SetNull)
 

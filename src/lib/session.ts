@@ -10,10 +10,15 @@ import { ADMIN_SESSION_COOKIE } from '@/lib/session-cookie';
  *
  * - HttpOnly / SameSite=Lax / (운영) Secure 쿠키에 HS256 서명 JWT 를 담는다.
  * - 만료(exp)는 SESSION_MAX_AGE_MINUTES 기준이며 쿠키 maxAge 와 동일하게 맞춘다.
- * - 세션에는 식별에 필요한 최소 정보만 담고 개인정보(이메일/연락처)는 담지 않는다.
+ * - 세션에는 식별에 필요한 최소 정보만 담는다.
+ * - 회원 세션과 같은 서명키를 쓰므로 `typ` 클레임으로 토큰 용도를 구분한다.
+ *   (회원 토큰을 관리자 쿠키에 넣어도 통과하지 않도록)
  */
 
 export { ADMIN_SESSION_COOKIE };
+
+/** 관리자 세션 토큰임을 나타내는 클레임 */
+export const ADMIN_SESSION_TYPE = 'admin';
 
 export type AdminSession = {
   adminUserId: number;
@@ -29,6 +34,7 @@ function secretKey(): Uint8Array {
 export async function signAdminSessionToken(session: AdminSession): Promise<string> {
   const maxAgeSeconds = getSessionMaxAgeMinutes() * 60;
   return new SignJWT({
+    typ: ADMIN_SESSION_TYPE,
     loginId: session.loginId,
     adminName: session.adminName,
     roleCode: session.roleCode,
@@ -45,6 +51,7 @@ export async function verifyAdminSessionToken(token: string): Promise<AdminSessi
     const { payload } = await jwtVerify(token, secretKey(), { algorithms: ['HS256'] });
     const adminUserId = Number(payload.sub);
     const roleCode = payload.roleCode;
+    if (payload.typ !== ADMIN_SESSION_TYPE) return null;
     if (!Number.isInteger(adminUserId) || adminUserId <= 0) return null;
     if (roleCode !== AdminRole.PARKING_ADMIN && roleCode !== AdminRole.SYSTEM_ADMIN) return null;
 

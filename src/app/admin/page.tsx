@@ -129,8 +129,8 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
                       <td className="font-mono text-xs">{reservation.reservationNo}</td>
                       <td>{REQUESTER_TYPE_LABEL[reservation.requesterType]}</td>
                       <td>{reservation.companyOrBranchName}</td>
-                      <td>{reservation.requesterNameMasked}</td>
-                      <td className="font-mono text-xs">{reservation.vehicleNoMasked}</td>
+                      <td>{reservation.requesterName}</td>
+                      <td className="font-mono text-xs">{reservation.vehicleNo}</td>
                       <td className="whitespace-nowrap">
                         {formatKstTime(reservation.visitStartAt)} ~{' '}
                         {formatKstTime(reservation.visitEndAt)}
@@ -218,7 +218,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
                               className="flex flex-wrap items-center gap-2"
                             >
                               <StatusBadge status={occupancy.reservationStatus} />
-                              <span className="font-mono text-xs">{occupancy.vehicleNoMasked}</span>
+                              <span className="font-mono text-xs">{occupancy.vehicleNo}</span>
                               <span className="text-xs text-slate-500">
                                 {formatKstTime(occupancy.visitStartAt)} ~{' '}
                                 {formatKstTime(occupancy.visitEndAt)}

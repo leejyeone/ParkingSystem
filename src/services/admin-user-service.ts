@@ -1,7 +1,6 @@
 import { AccountStatus, AdminRole, Prisma } from '@prisma/client';
 
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/errors';
-import { maskEmail, maskPhone } from '@/lib/masking';
 import { hashPassword, isPasswordPolicySatisfied, PASSWORD_POLICY_MESSAGE } from '@/lib/password';
 import { prisma } from '@/lib/prisma';
 import type { RequestContext } from '@/lib/request-context';
@@ -13,8 +12,8 @@ export type AdminUserListItem = {
   adminUserId: number;
   loginId: string;
   adminName: string;
-  emailMasked: string;
-  phoneMasked: string;
+  email: string;
+  phone: string | null;
   roleCode: AdminRole;
   accountStatus: AccountStatus;
   lastLoginAt: Date | null;
@@ -42,8 +41,8 @@ export async function listAdminUsers(): Promise<AdminUserListItem[]> {
     adminUserId: row.adminUserId,
     loginId: row.loginId,
     adminName: row.adminName,
-    emailMasked: maskEmail(row.email),
-    phoneMasked: maskPhone(row.phone),
+    email: row.email,
+    phone: row.phone,
     roleCode: row.roleCode,
     accountStatus: row.accountStatus,
     lastLoginAt: row.lastLoginAt,

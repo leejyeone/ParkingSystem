@@ -46,8 +46,8 @@ type AdminUser = {
   adminUserId: number;
   loginId: string;
   adminName: string;
-  emailMasked: string;
-  phoneMasked: string;
+  email: string;
+  phone: string | null;
   roleCode: 'PARKING_ADMIN' | 'SYSTEM_ADMIN';
   accountStatus: 'ACTIVE' | 'INACTIVE' | 'LOCKED';
   lastLoginAt: string | null;
@@ -742,8 +742,8 @@ function AdminUserSection({ adminUsers }: { adminUsers: AdminUser[] }) {
                   <tr key={user.adminUserId}>
                     <td className="font-mono text-xs">{user.loginId}</td>
                     <td>{user.adminName}</td>
-                    <td className="text-xs">{user.emailMasked}</td>
-                    <td className="text-xs">{user.phoneMasked}</td>
+                    <td className="text-xs">{user.email}</td>
+                    <td className="text-xs">{user.phone ?? '-'}</td>
                     <td>{user.roleCode === 'SYSTEM_ADMIN' ? '시스템 관리자' : '주차 관리자'}</td>
                     <td>
                       <span

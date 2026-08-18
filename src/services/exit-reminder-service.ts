@@ -54,7 +54,7 @@ export async function findExitReminderTargets(
     requesterName: reservation.requesterName,
     requesterEmail: reservation.requesterEmail,
     companyOrBranchName: reservation.companyOrBranchName,
-    vehicleNoMasked: reservation.vehicleNoMasked,
+    vehicleNo: reservation.vehicleNo,
     visitStartAt: reservation.visitStartAt,
     visitEndAt: reservation.visitEndAt,
     assignedSpace: reservation.assignedSpace,

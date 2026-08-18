@@ -8,7 +8,6 @@ import { SpaceTypeBadge, StatusBadge } from '@/components/ui/status-badge';
 import { REQUESTER_TYPE_LABEL, RESERVATION_STATUS_LABEL } from '@/domain/reservation-status';
 import { requireAdminPage } from '@/lib/admin-page-guard';
 import { formatKstDateTime, formatKstRange } from '@/lib/datetime';
-import { formatPhone } from '@/lib/masking';
 import { NotFoundError } from '@/lib/errors';
 import { getRequestContext } from '@/lib/request-context';
 import { getReservationDetailForAdmin } from '@/services/reservation-service';
@@ -90,10 +89,8 @@ export default async function AdminReservationDetailPage({ params }: PageProps) 
               <dl className="mt-3">
                 <Row term="신청 구분" desc={REQUESTER_TYPE_LABEL[reservation.requesterType]} />
                 <Row term="방문 상호/지사" desc={reservation.companyOrBranchName} />
-                <Row term="부서명" desc={reservation.departmentName ?? '-'} />
                 <Row term="성명" desc={reservation.requesterName} />
                 <Row term="이메일" desc={reservation.requesterEmail} />
-                <Row term="휴대전화" desc={formatPhone(reservation.requesterPhone)} />
                 <Row term="차량번호" desc={reservation.vehicleNo} />
                 <Row term="방문 목적" desc={reservation.visitPurpose ?? '-'} />
                 <Row term="요청 메모" desc={reservation.requestMemo ?? '-'} />
