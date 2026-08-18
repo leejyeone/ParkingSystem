@@ -1,0 +1,59 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (실제 비밀값이 들어가는 파일은 커밋 금지, 예시 템플릿만 커밋)
+.env*
+!.env.example
+!.env.test.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+# 개발/E2E 용 이메일 아웃박스 (FileEmailProvider)
+/.mail-outbox/
+
+# 에디터 / 에이전트 로컬 설정
+/.claude/
+
+# next dev 가 자동 생성하는 에이전트 안내 파일 (삭제해도 dev 실행 시 다시 생성됨)
+/AGENTS.md
+/CLAUDE.md

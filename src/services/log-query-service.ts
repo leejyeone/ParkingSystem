@@ -1,0 +1,109 @@
+import { EmailSendStatus, EmailType, Prisma } from '@prisma/client';
+
+import { maskEmail } from '@/lib/masking';
+import { prisma } from '@/lib/prisma';
+
+/** 이메일 발송 이력 / 감사 로그 조회 (관리자 전용) */
+
+export type EmailLogFilter = {
+  reservationNo?: string;
+  emailType?: EmailType;
+  sendStatus?: EmailSendStatus;
+  page?: number;
+  pageSize?: number;
+};
+
+export async function listEmailLogs(filter: EmailLogFilter) {
+  const page = Math.max(1, filter.page ?? 1);
+  const pageSize = Math.min(100, Math.max(1, filter.pageSize ?? 20));
+
+  const where: Prisma.EmailSendLogWhereInput = {
+    ...(filter.emailType ? { emailType: filter.emailType } : {}),
+    ...(filter.sendStatus ? { sendStatus: filter.sendStatus } : {}),
+    ...(filter.reservationNo
+      ? { reservation: { reservationNo: { contains: filter.reservationNo } } }
+      : {}),
+  };
+
+  const [totalCount, rows] = await Promise.all([
+    prisma.emailSendLog.count({ where }),
+    prisma.emailSendLog.findMany({
+      where,
+      orderBy: { emailLogId: 'desc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      select: {
+        emailLogId: true,
+        emailType: true,
+        recipientEmail: true,
+        subject: true,
+        sendStatus: true,
+        providerMessageId: true,
+        failReason: true,
+        retryCount: true,
+        requestedAt: true,
+        sentAt: true,
+        reservation: { select: { reservationId: true, reservationNo: true } },
+      },
+    }),
+  ]);
+
+  return {
+    items: rows.map((row) => ({
+      ...row,
+      // 이메일 발송 이력 목록에서도 수신자 주소는 마스킹한다.
+      recipientEmail: maskEmail(row.recipientEmail),
+    })),
+    totalCount,
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(totalCount / pageSize)),
+  };
+}
+
+export type AuditLogFilter = {
+  actionType?: string;
+  targetType?: string;
+  actorAdminId?: number;
+  page?: number;
+  pageSize?: number;
+};
+
+export async function listAuditLogs(filter: AuditLogFilter) {
+  const page = Math.max(1, filter.page ?? 1);
+  const pageSize = Math.min(100, Math.max(1, filter.pageSize ?? 20));
+
+  const where: Prisma.AuditLogWhereInput = {
+    ...(filter.actionType ? { actionType: filter.actionType } : {}),
+    ...(filter.targetType ? { targetType: filter.targetType } : {}),
+    ...(filter.actorAdminId ? { actorAdminId: filter.actorAdminId } : {}),
+  };
+
+  const [totalCount, rows] = await Promise.all([
+    prisma.auditLog.count({ where }),
+    prisma.auditLog.findMany({
+      where,
+      orderBy: { auditLogId: 'desc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      select: {
+        auditLogId: true,
+        actionType: true,
+        targetType: true,
+        targetId: true,
+        detailJson: true,
+        ipAddress: true,
+        createdAt: true,
+        actorAdmin: { select: { adminUserId: true, loginId: true, adminName: true } },
+      },
+    }),
+  ]);
+
+  return {
+    items: rows,
+    totalCount,
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(totalCount / pageSize)),
+  };
+}

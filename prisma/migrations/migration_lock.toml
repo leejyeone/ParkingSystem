@@ -1,0 +1,4 @@
+# Prisma Migrate lock file
+# 이 파일은 직접 수정하지 마세요.
+
+provider = "mysql"

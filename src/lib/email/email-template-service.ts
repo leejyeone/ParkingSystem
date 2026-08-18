@@ -1,0 +1,398 @@
+import { EmailType, RequesterType, SpaceType } from '@prisma/client';
+
+import { formatKstHuman, formatKstRange } from '@/lib/datetime';
+import { maskName } from '@/lib/masking';
+import { REQUESTER_TYPE_LABEL } from '@/domain/reservation-status';
+
+/**
+ * 이메일 제목 / HTML / Text 템플릿.
+ *
+ * 보안 규칙
+ *  - 타인의 개인정보를 포함하지 않는다.
+ *  - 성명, 차량번호는 마스킹된 값만 사용한다.
+ *  - 예약 조회 링크에는 보안 토큰이 포함되며 해당 예약 1건만 접근할 수 있다.
+ */
+
+const BRAND = '본사 주차관리';
+
+export type ReservationEmailData = {
+  reservationNo: string;
+  requesterName: string;
+  requesterType: RequesterType;
+  companyOrBranchName: string;
+  vehicleNoMasked: string;
+  visitStartAt: Date;
+  visitEndAt: Date;
+  assignedSpaceCode?: string | null;
+  assignedSpaceType?: SpaceType | null;
+  rejectionReason?: string | null;
+  cancelReason?: string | null;
+  /** 신청자용 예약 조회 링크(보안 토큰 포함) */
+  accessUrl?: string | null;
+  /** 관리자용 예약 상세 링크 */
+  adminDetailUrl?: string | null;
+  /** 변경 전 일정 (UPDATED 메일에서만 사용) */
+  previousVisitStartAt?: Date | null;
+  previousVisitEndAt?: Date | null;
+  /** 수정/취소 마감 시각 */
+  changeDeadlineAt?: Date | null;
+};
+
+export type RenderedEmail = {
+  subject: string;
+  html: string;
+  text: string;
+};
+
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+type Row = { label: string; value: string };
+
+function baseRows(data: ReservationEmailData): Row[] {
+  return [
+    { label: '예약번호', value: data.reservationNo },
+    { label: '신청 구분', value: REQUESTER_TYPE_LABEL[data.requesterType] },
+    { label: '방문 상호/지사', value: data.companyOrBranchName },
+    { label: '신청자', value: maskName(data.requesterName) },
+    { label: '차량번호', value: data.vehicleNoMasked },
+    { label: '방문 시간', value: formatKstRange(data.visitStartAt, data.visitEndAt) },
+  ];
+}
+
+function renderHtmlLayout(params: {
+  title: string;
+  lead: string;
+  rows: Row[];
+  notices?: string[];
+  buttonLabel?: string;
+  buttonUrl?: string | null;
+  footerNote?: string;
+}): string {
+  const rowsHtml = params.rows
+    .map(
+      (row) => `
+            <tr>
+              <th style="text-align:left;padding:8px 12px;background:#f8fafc;color:#475569;font-weight:600;font-size:13px;width:34%;border-bottom:1px solid #e2e8f0;">${escapeHtml(
+                row.label,
+              )}</th>
+              <td style="padding:8px 12px;color:#0f172a;font-size:14px;border-bottom:1px solid #e2e8f0;">${escapeHtml(
+                row.value,
+              )}</td>
+            </tr>`,
+    )
+    .join('');
+
+  const noticesHtml =
+    params.notices && params.notices.length > 0
+      ? `<div style="margin-top:20px;padding:14px 16px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;">
+           <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#92400e;">유의사항</p>
+           <ul style="margin:0;padding-left:18px;color:#78350f;font-size:13px;line-height:1.7;">
+             ${params.notices.map((notice) => `<li>${escapeHtml(notice)}</li>`).join('')}
+           </ul>
+         </div>`
+      : '';
+
+  const buttonHtml =
+    params.buttonUrl && params.buttonLabel
+      ? `<div style="margin-top:24px;text-align:center;">
+           <a href="${escapeHtml(params.buttonUrl)}" style="display:inline-block;padding:14px 28px;background:#1d4ed8;color:#ffffff;border-radius:8px;font-size:15px;font-weight:700;text-decoration:none;">${escapeHtml(
+             params.buttonLabel,
+           )}</a>
+           <p style="margin:12px 0 0;font-size:12px;color:#64748b;word-break:break-all;">버튼이 동작하지 않으면 아래 주소를 복사해 접속하세요.<br />${escapeHtml(
+             params.buttonUrl,
+           )}</p>
+         </div>`
+      : '';
+
+  return `<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(params.title)}</title>
+  </head>
+  <body style="margin:0;padding:0;background:#f1f5f9;font-family:'Malgun Gothic','Apple SD Gothic Neo',Arial,sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
+            <tr>
+              <td style="padding:20px 24px;background:#0f172a;">
+                <p style="margin:0;color:#e2e8f0;font-size:13px;letter-spacing:1px;">${escapeHtml(BRAND)}</p>
+                <h1 style="margin:6px 0 0;color:#ffffff;font-size:19px;">${escapeHtml(params.title)}</h1>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:24px;">
+                <p style="margin:0 0 18px;color:#334155;font-size:14px;line-height:1.7;">${escapeHtml(
+                  params.lead,
+                )}</p>
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;border-collapse:separate;overflow:hidden;">
+                  ${rowsHtml}
+                </table>
+                ${noticesHtml}
+                ${buttonHtml}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 24px;background:#f8fafc;border-top:1px solid #e2e8f0;">
+                <p style="margin:0;color:#94a3b8;font-size:12px;line-height:1.6;">${escapeHtml(
+                  params.footerNote ??
+                    '본 메일은 발신 전용입니다. 문의는 주차 관리 담당자에게 연락해 주세요.',
+                )}</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
+function renderTextLayout(params: {
+  title: string;
+  lead: string;
+  rows: Row[];
+  notices?: string[];
+  buttonLabel?: string;
+  buttonUrl?: string | null;
+  footerNote?: string;
+}): string {
+  const lines: string[] = [
+    `[${BRAND}] ${params.title}`,
+    '',
+    params.lead,
+    '',
+    '------------------------------',
+    ...params.rows.map((row) => `${row.label}: ${row.value}`),
+    '------------------------------',
+  ];
+
+  if (params.notices && params.notices.length > 0) {
+    lines.push('', '[유의사항]', ...params.notices.map((notice) => `- ${notice}`));
+  }
+  if (params.buttonUrl && params.buttonLabel) {
+    lines.push('', `${params.buttonLabel}: ${params.buttonUrl}`);
+  }
+  lines.push(
+    '',
+    params.footerNote ?? '본 메일은 발신 전용입니다. 문의는 주차 관리 담당자에게 연락해 주세요.',
+  );
+
+  return lines.join('\n');
+}
+
+function spaceGuideText(data: ReservationEmailData): string {
+  if (!data.assignedSpaceCode) return '현장 안내에 따라 주차해 주세요.';
+  if (data.assignedSpaceType === SpaceType.DOUBLE) {
+    return `${data.assignedSpaceCode} (이중주차 구역)`;
+  }
+  return data.assignedSpaceCode;
+}
+
+/**
+ * 이메일 종류별 렌더링.
+ */
+export function renderReservationEmail(
+  emailType: EmailType,
+  data: ReservationEmailData,
+): RenderedEmail {
+  const rows = baseRows(data);
+  const suffix = ` (${data.reservationNo})`;
+
+  switch (emailType) {
+    case EmailType.REQUEST_RECEIVED: {
+      const notices = [
+        '아직 승인 전 상태이며, 관리자 승인 후 배정 주차 위치가 안내됩니다.',
+        '주차 위치는 시스템과 관리자가 배정하며 신청자가 직접 선택할 수 없습니다.',
+      ];
+      if (data.changeDeadlineAt) {
+        notices.push(
+          `예약 수정/취소는 ${formatKstHuman(data.changeDeadlineAt)} 까지 아래 링크에서 가능합니다.`,
+        );
+      }
+      const params = {
+        title: '주차 신청이 접수되었습니다',
+        lead: `${maskName(data.requesterName)}님, 주차 신청이 정상 접수되었습니다. 현재 상태는 "승인 대기" 입니다.`,
+        rows: [...rows, { label: '예약 상태', value: '승인 대기' }],
+        notices,
+        buttonLabel: '내 예약 조회하기',
+        buttonUrl: data.accessUrl,
+      };
+      return {
+        subject: `[본사 주차] 주차 신청이 접수되었습니다${suffix}`,
+        html: renderHtmlLayout(params),
+        text: renderTextLayout(params),
+      };
+    }
+
+    case EmailType.NEW_REQUEST_TO_ADMIN: {
+      const params = {
+        title: '신규 주차 신청이 접수되었습니다',
+        lead: '승인 대기 중인 주차 신청이 있습니다. 관리자 화면에서 확인 후 승인 또는 반려해 주세요.',
+        rows,
+        notices: ['개인정보 보호를 위해 성명과 차량번호는 마스킹되어 표시됩니다.'],
+        buttonLabel: '관리자 화면에서 확인하기',
+        buttonUrl: data.adminDetailUrl,
+        footerNote: '본 메일은 관리자 알림 수신자에게 발송됩니다.',
+      };
+      return {
+        subject: `[본사 주차][승인요청] 신규 주차 신청${suffix}`,
+        html: renderHtmlLayout(params),
+        text: renderTextLayout(params),
+      };
+    }
+
+    case EmailType.APPROVED: {
+      const notices = [
+        '입차 시 차량번호와 예약 정보가 일치해야 합니다.',
+        '방문 시간이 변경되면 예약 조회 링크에서 수정해 주세요.',
+      ];
+      if (data.assignedSpaceType === SpaceType.DOUBLE) {
+        notices.push('이중주차 구역으로 배정되었습니다. 차량 이동 요청이 있을 수 있습니다.');
+      }
+      const params = {
+        title: '주차 신청이 승인되었습니다',
+        lead: `${maskName(data.requesterName)}님, 신청하신 주차 예약이 승인되었습니다.`,
+        rows: [
+          ...rows,
+          { label: '배정 주차 위치', value: spaceGuideText(data) },
+          { label: '예약 상태', value: '승인 완료' },
+        ],
+        notices,
+        buttonLabel: '내 예약 조회하기',
+        buttonUrl: data.accessUrl,
+      };
+      return {
+        subject: `[본사 주차] 주차 신청이 승인되었습니다${suffix}`,
+        html: renderHtmlLayout(params),
+        text: renderTextLayout(params),
+      };
+    }
+
+    case EmailType.REJECTED: {
+      const params = {
+        title: '주차 신청이 반려되었습니다',
+        lead: `${maskName(data.requesterName)}님, 신청하신 주차 예약이 반려되었습니다.`,
+        rows: [
+          ...rows,
+          { label: '반려 사유', value: data.rejectionReason ?? '사유 미기재' },
+          { label: '예약 상태', value: '반려' },
+        ],
+        notices: [
+          '방문 일정 조정이 필요하시면 새로 주차 신청을 등록해 주세요.',
+          '자세한 사항은 방문 담당자 또는 주차 관리 담당자에게 문의해 주세요.',
+        ],
+      };
+      return {
+        subject: `[본사 주차] 주차 신청이 반려되었습니다${suffix}`,
+        html: renderHtmlLayout(params),
+        text: renderTextLayout(params),
+      };
+    }
+
+    case EmailType.UPDATED: {
+      const changeRows: Row[] = [];
+      if (data.previousVisitStartAt && data.previousVisitEndAt) {
+        changeRows.push({
+          label: '변경 전 방문 시간',
+          value: formatKstRange(data.previousVisitStartAt, data.previousVisitEndAt),
+        });
+      }
+      const params = {
+        title: '예약 내용이 변경되었습니다',
+        lead: '신청자 요청으로 예약 내용이 변경되었습니다. 변경된 예약은 다시 관리자 승인을 받아야 합니다.',
+        rows: [
+          ...changeRows,
+          ...rows.map((row) =>
+            row.label === '방문 시간' ? { label: '변경 후 방문 시간', value: row.value } : row,
+          ),
+          { label: '예약 상태', value: '승인 대기' },
+        ],
+        notices: [
+          '변경으로 인해 기존 배정 주차 위치는 해제되었습니다.',
+          '재승인 후 배정 위치가 다시 안내됩니다.',
+        ],
+        buttonLabel: '내 예약 조회하기',
+        buttonUrl: data.accessUrl,
+      };
+      return {
+        subject: `[본사 주차] 예약 내용이 변경되었습니다${suffix}`,
+        html: renderHtmlLayout(params),
+        text: renderTextLayout(params),
+      };
+    }
+
+    case EmailType.CANCELLED: {
+      const params = {
+        title: '예약이 취소되었습니다',
+        lead: '요청하신 주차 예약이 취소 처리되었습니다.',
+        rows: [
+          ...rows,
+          { label: '취소 사유', value: data.cancelReason ?? '사유 미기재' },
+          { label: '예약 상태', value: '취소' },
+        ],
+        notices: ['배정되어 있던 주차 위치는 해제되었습니다.'],
+      };
+      return {
+        subject: `[본사 주차] 예약이 취소되었습니다${suffix}`,
+        html: renderHtmlLayout(params),
+        text: renderTextLayout(params),
+      };
+    }
+
+    case EmailType.EXIT_REMINDER: {
+      const params = {
+        title: '출차 예정 시간이 곧 도래합니다',
+        lead: `${maskName(data.requesterName)}님, 등록하신 출차 예정 시간이 곧 도래합니다. 시간에 맞추어 출차해 주세요.`,
+        rows: [
+          ...rows,
+          { label: '출차 예정 시각', value: formatKstHuman(data.visitEndAt) },
+          { label: '배정 주차 위치', value: spaceGuideText(data) },
+        ],
+        notices: [
+          '출차가 지연될 경우 뒤이은 방문 차량의 주차가 어려울 수 있습니다.',
+          '부득이하게 시간이 초과되는 경우 주차 관리 담당자에게 연락해 주세요.',
+        ],
+      };
+      return {
+        subject: `[본사 주차] 출차 예정 시간 안내${suffix}`,
+        html: renderHtmlLayout(params),
+        text: renderTextLayout(params),
+      };
+    }
+
+    case EmailType.DOUBLE_PARKING_NOTICE: {
+      const params = {
+        title: '이중주차 위치로 배정되었습니다',
+        lead: `${maskName(data.requesterName)}님, 주차 공간 사정으로 이중주차 위치가 배정되었습니다. 아래 내용을 반드시 확인해 주세요.`,
+        rows: [...rows, { label: '배정 주차 위치', value: spaceGuideText(data) }],
+        notices: [
+          '앞 차량 출차를 위해 차량 이동 요청을 받으실 수 있습니다.',
+          '방문 중에는 휴대전화 연락이 가능한 상태를 유지해 주세요.',
+          '기어는 중립(N)에 두고 주차 브레이크는 해제해 주시기 바랍니다.',
+        ],
+        buttonLabel: '내 예약 조회하기',
+        buttonUrl: data.accessUrl,
+      };
+      return {
+        subject: `[본사 주차] 이중주차 배정 안내${suffix}`,
+        html: renderHtmlLayout(params),
+        text: renderTextLayout(params),
+      };
+    }
+
+    default: {
+      const exhaustiveCheck: never = emailType;
+      throw new Error(`지원하지 않는 이메일 종류입니다: ${String(exhaustiveCheck)}`);
+    }
+  }
+}

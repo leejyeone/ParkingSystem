@@ -1,0 +1,390 @@
+// 본사 주차 예약 관리 시스템 - Prisma Schema
+//
+// 설계 제약(반드시 유지):
+//  - vehicles 테이블을 만들지 않는다. 차량번호는 parking_reservations 에 직접 저장한다.
+//  - 일반 사용자(users) 테이블을 만들지 않는다. 방문객/직원은 계정이 없다.
+//  - 도면 좌표 컬럼(map_x, map_y, map_width, map_height)을 만들지 않는다.
+//  - 주차면 배정은 주차면 코드(A-01 ...) 기반으로만 처리한다.
+//  - 예약 접근 토큰 원문은 저장하지 않고 HMAC-SHA256 해시만 저장한다.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enum
+// ---------------------------------------------------------------------------
+
+/// 관리자 역할
+enum AdminRole {
+  PARKING_ADMIN
+  SYSTEM_ADMIN
+}
+
+/// 관리자 계정 상태
+enum AccountStatus {
+  ACTIVE
+  INACTIVE
+  LOCKED
+}
+
+/// 주차면 유형
+enum SpaceType {
+  NORMAL
+  DOUBLE
+  DISABLED
+  EV
+  UNAVAILABLE
+}
+
+/// 신청 구분 (분류값일 뿐이며 권한 차이는 없다)
+enum RequesterType {
+  VISITOR
+  EMPLOYEE
+}
+
+/// 예약 상태
+enum ReservationStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  CANCELLED
+  PARKING
+  EXITED
+  NO_SHOW
+}
+
+/// 예약 접근 토큰 유형
+enum AccessTokenType {
+  VIEW
+  EDIT
+  CANCEL
+}
+
+/// 상태 변경 주체
+enum ChangedByType {
+  REQUESTER
+  ADMIN
+  SYSTEM
+}
+
+/// 이메일 종류
+enum EmailType {
+  REQUEST_RECEIVED
+  NEW_REQUEST_TO_ADMIN
+  APPROVED
+  REJECTED
+  UPDATED
+  CANCELLED
+  EXIT_REMINDER
+  DOUBLE_PARKING_NOTICE
+}
+
+/// 이메일 발송 상태
+enum EmailSendStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+// ---------------------------------------------------------------------------
+// 8-1. admin_users
+// ---------------------------------------------------------------------------
+
+model AdminUser {
+  adminUserId Int    @id @default(autoincrement()) @map("admin_user_id")
+  loginId     String @unique(map: "uq_admin_users_login_id") @map("login_id") @db.VarChar(50)
+  /// bcrypt 해시. 평문 비밀번호는 절대 저장하지 않는다.
+  passwordHash String @map("password_hash") @db.VarChar(255)
+  adminName   String @map("admin_name") @db.VarChar(50)
+  email       String @unique(map: "uq_admin_users_email") @db.VarChar(255)
+  phone       String? @db.VarChar(20)
+  roleCode    AdminRole     @map("role_code")
+  accountStatus AccountStatus @default(ACTIVE) @map("account_status")
+
+  /// brute-force 방지용. 연속 로그인 실패 횟수
+  loginFailCount Int       @default(0) @map("login_fail_count")
+  /// 계정 임시 잠금 해제 시각
+  lockedUntil    DateTime? @map("locked_until")
+
+  lastLoginAt       DateTime? @map("last_login_at")
+  passwordChangedAt DateTime? @map("password_changed_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
+
+  approvedReservations ParkingReservation[]             @relation("ReservationApprovalAdmin")
+  statusLogs           ParkingReservationStatusLog[]
+  auditLogs            AuditLog[]
+  updatedSettings      SystemSetting[]
+
+  @@index([accountStatus], map: "idx_admin_users_account_status")
+  @@map("admin_users")
+}
+
+// ---------------------------------------------------------------------------
+// 8-2. parking_areas
+// ---------------------------------------------------------------------------
+
+model ParkingArea {
+  areaId      Int     @id @default(autoincrement()) @map("area_id")
+  areaCode    String  @unique(map: "uq_parking_areas_area_code") @map("area_code") @db.VarChar(20)
+  areaName    String  @map("area_name") @db.VarChar(100)
+  description String? @db.VarChar(500)
+  /// 참고용 도면 이미지 경로. 좌표 정보는 저장하지 않는다.
+  mapImageUrl String? @map("map_image_url") @db.VarChar(500)
+  displayOrder Int    @default(0) @map("display_order")
+  isActive    Boolean @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  spaces ParkingSpace[]
+
+  @@index([isActive, displayOrder], map: "idx_parking_areas_active_order")
+  @@map("parking_areas")
+}
+
+// ---------------------------------------------------------------------------
+// 8-3. parking_spaces
+// ---------------------------------------------------------------------------
+
+model ParkingSpace {
+  spaceId      Int       @id @default(autoincrement()) @map("space_id")
+  areaId       Int       @map("area_id")
+  spaceCode    String    @map("space_code") @db.VarChar(20)
+  spaceName    String?   @map("space_name") @db.VarChar(100)
+  spaceType    SpaceType @default(NORMAL) @map("space_type")
+  displayOrder Int       @default(0) @map("display_order")
+  isActive     Boolean   @default(true) @map("is_active")
+  memo         String?   @db.VarChar(500)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  area                   ParkingArea          @relation(fields: [areaId], references: [areaId])
+  recommendedReservations ParkingReservation[] @relation("ReservationRecommendedSpace")
+  assignedReservations    ParkingReservation[] @relation("ReservationAssignedSpace")
+
+  @@unique([areaId, spaceCode], map: "uq_parking_spaces_area_code")
+  @@index([spaceType, isActive, displayOrder], map: "idx_parking_spaces_type_active_order")
+  @@map("parking_spaces")
+}
+
+// ---------------------------------------------------------------------------
+// 8-4. parking_reservations
+// ---------------------------------------------------------------------------
+
+model ParkingReservation {
+  reservationId Int    @id @default(autoincrement()) @map("reservation_id")
+  reservationNo String @unique(map: "uq_parking_reservations_no") @map("reservation_no") @db.VarChar(30)
+
+  requesterType       RequesterType @map("requester_type")
+  companyOrBranchName String        @map("company_or_branch_name") @db.VarChar(100)
+  departmentName      String?       @map("department_name") @db.VarChar(100)
+  requesterName       String        @map("requester_name") @db.VarChar(50)
+  requesterEmail      String        @map("requester_email") @db.VarChar(255)
+  requesterPhone      String        @map("requester_phone") @db.VarChar(20)
+
+  /// 공백/하이픈을 제거해 정규화한 차량번호
+  vehicleNo       String @map("vehicle_no") @db.VarChar(20)
+  /// 목록/이메일 노출용 마스킹 차량번호 (예: 12가3***)
+  vehicleNoMasked String @map("vehicle_no_masked") @db.VarChar(20)
+
+  visitPurpose String? @map("visit_purpose") @db.VarChar(200)
+  requestMemo  String? @map("request_memo") @db.Text
+
+  /// 모든 시각은 UTC로 저장하고 화면/메일에서 Asia/Seoul로 변환한다.
+  visitStartAt DateTime  @map("visit_start_at")
+  visitEndAt   DateTime  @map("visit_end_at")
+  actualEntryAt DateTime? @map("actual_entry_at")
+  actualExitAt  DateTime? @map("actual_exit_at")
+
+  recommendedSpaceId Int? @map("recommended_space_id")
+  assignedSpaceId    Int? @map("assigned_space_id")
+
+  reservationStatus ReservationStatus @default(REQUESTED) @map("reservation_status")
+
+  approvalAdminId Int?      @map("approval_admin_id")
+  approvedAt      DateTime? @map("approved_at")
+  rejectedAt      DateTime? @map("rejected_at")
+  rejectionReason String?   @map("rejection_reason") @db.VarChar(500)
+  cancelledAt     DateTime? @map("cancelled_at")
+  cancelReason    String?   @map("cancel_reason") @db.VarChar(500)
+
+  privacyConsentAt DateTime @map("privacy_consent_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  recommendedSpace ParkingSpace? @relation("ReservationRecommendedSpace", fields: [recommendedSpaceId], references: [spaceId], onDelete: SetNull)
+  assignedSpace    ParkingSpace? @relation("ReservationAssignedSpace", fields: [assignedSpaceId], references: [spaceId], onDelete: SetNull)
+  approvalAdmin    AdminUser?    @relation("ReservationApprovalAdmin", fields: [approvalAdminId], references: [adminUserId], onDelete: SetNull)
+
+  accessTokens ReservationAccessToken[]
+  statusLogs   ParkingReservationStatusLog[]
+  emailLogs    EmailSendLog[]
+
+  @@index([reservationStatus], map: "idx_reservations_status")
+  @@index([visitStartAt, visitEndAt], map: "idx_reservations_visit_range")
+  @@index([assignedSpaceId, visitStartAt, visitEndAt, reservationStatus], map: "idx_reservations_space_range_status")
+  @@index([vehicleNo, visitStartAt, visitEndAt], map: "idx_reservations_vehicle_range")
+  @@index([requesterEmail, createdAt], map: "idx_reservations_email_created")
+  @@index([recommendedSpaceId], map: "idx_reservations_recommended_space")
+  @@index([approvalAdminId], map: "idx_reservations_approval_admin")
+  @@map("parking_reservations")
+}
+
+// ---------------------------------------------------------------------------
+// 8-5. reservation_access_tokens
+// ---------------------------------------------------------------------------
+
+model ReservationAccessToken {
+  tokenId       Int             @id @default(autoincrement()) @map("token_id")
+  reservationId Int             @map("reservation_id")
+  /// HMAC-SHA256(RESERVATION_TOKEN_SECRET, 원본토큰) hex. 원본은 저장하지 않는다.
+  tokenHash     String          @unique(map: "uq_reservation_access_tokens_hash") @map("token_hash") @db.VarChar(64)
+  tokenType     AccessTokenType @default(VIEW) @map("token_type")
+  expiresAt     DateTime        @map("expires_at")
+  lastUsedAt    DateTime?       @map("last_used_at")
+  isActive      Boolean         @default(true) @map("is_active")
+  createdAt     DateTime        @default(now()) @map("created_at")
+
+  reservation ParkingReservation @relation(fields: [reservationId], references: [reservationId], onDelete: Cascade)
+
+  @@index([reservationId, tokenType, isActive], map: "idx_access_tokens_reservation")
+  @@map("reservation_access_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// 8-6. parking_reservation_status_logs
+// ---------------------------------------------------------------------------
+
+model ParkingReservationStatusLog {
+  statusLogId    Int                @id @default(autoincrement()) @map("status_log_id")
+  reservationId  Int                @map("reservation_id")
+  previousStatus ReservationStatus? @map("previous_status")
+  currentStatus  ReservationStatus  @map("current_status")
+  changedByType  ChangedByType      @map("changed_by_type")
+  changedByAdminId Int?             @map("changed_by_admin_id")
+  changeReason   String?            @map("change_reason") @db.VarChar(500)
+  createdAt      DateTime           @default(now()) @map("created_at")
+
+  reservation    ParkingReservation @relation(fields: [reservationId], references: [reservationId], onDelete: Cascade)
+  changedByAdmin AdminUser?         @relation(fields: [changedByAdminId], references: [adminUserId], onDelete: SetNull)
+
+  @@index([reservationId, createdAt], map: "idx_status_logs_reservation_created")
+  @@index([changedByAdminId], map: "idx_status_logs_admin")
+  @@map("parking_reservation_status_logs")
+}
+
+// ---------------------------------------------------------------------------
+// 8-7. admin_notification_emails
+// ---------------------------------------------------------------------------
+
+model AdminNotificationEmail {
+  notificationEmailId Int     @id @default(autoincrement()) @map("notification_email_id")
+  email               String  @unique(map: "uq_admin_notification_emails_email") @db.VarChar(255)
+  recipientName       String? @map("recipient_name") @db.VarChar(50)
+
+  receiveNewRequest        Boolean @default(true) @map("receive_new_request")
+  receiveApprovalAlert     Boolean @default(true) @map("receive_approval_alert")
+  receiveDailySummary      Boolean @default(false) @map("receive_daily_summary")
+  receiveDoubleParkingAlert Boolean @default(true) @map("receive_double_parking_alert")
+
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([isActive], map: "idx_admin_notification_emails_active")
+  @@map("admin_notification_emails")
+}
+
+// ---------------------------------------------------------------------------
+// 8-8. email_send_logs
+// ---------------------------------------------------------------------------
+
+model EmailSendLog {
+  emailLogId    Int             @id @default(autoincrement()) @map("email_log_id")
+  reservationId Int?            @map("reservation_id")
+  emailType     EmailType       @map("email_type")
+  recipientEmail String         @map("recipient_email") @db.VarChar(255)
+  subject       String          @db.VarChar(300)
+  sendStatus    EmailSendStatus @default(PENDING) @map("send_status")
+  providerMessageId String?     @map("provider_message_id") @db.VarChar(255)
+  failReason    String?         @map("fail_reason") @db.Text
+  retryCount    Int             @default(0) @map("retry_count")
+  requestedAt   DateTime        @default(now()) @map("requested_at")
+  sentAt        DateTime?       @map("sent_at")
+
+  /// 1회만 발송되어야 하는 메일(EXIT_REMINDER)의 멱등성 키.
+  /// "<reservationId>:<emailType>" 형태이며 그 외 메일에서는 NULL 이다.
+  /// MySQL 의 UNIQUE 인덱스는 NULL 을 중복 허용하므로 부분 유니크처럼 동작한다.
+  dedupeKey String? @unique(map: "uq_email_send_logs_dedupe_key") @map("dedupe_key") @db.VarChar(100)
+
+  reservation ParkingReservation? @relation(fields: [reservationId], references: [reservationId], onDelete: SetNull)
+
+  @@index([reservationId, emailType, sendStatus], map: "idx_email_logs_reservation_type_status")
+  @@index([sendStatus, requestedAt], map: "idx_email_logs_status_requested")
+  @@map("email_send_logs")
+}
+
+// ---------------------------------------------------------------------------
+// 8-9. audit_logs
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  auditLogId   Int      @id @default(autoincrement()) @map("audit_log_id")
+  actorAdminId Int?     @map("actor_admin_id")
+  actionType   String   @map("action_type") @db.VarChar(50)
+  targetType   String   @map("target_type") @db.VarChar(50)
+  targetId     String?  @map("target_id") @db.VarChar(50)
+  detailJson   Json?    @map("detail_json")
+  ipAddress    String?  @map("ip_address") @db.VarChar(64)
+  userAgent    String?  @map("user_agent") @db.VarChar(500)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  actorAdmin AdminUser? @relation(fields: [actorAdminId], references: [adminUserId], onDelete: SetNull)
+
+  @@index([actorAdminId, createdAt], map: "idx_audit_logs_actor_created")
+  @@index([actionType, createdAt], map: "idx_audit_logs_action_created")
+  @@index([targetType, targetId], map: "idx_audit_logs_target")
+  @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// 8-10. system_settings
+// ---------------------------------------------------------------------------
+
+model SystemSetting {
+  settingKey        String   @id @map("setting_key") @db.VarChar(100)
+  settingValue      String   @map("setting_value") @db.VarChar(500)
+  description       String?  @db.VarChar(500)
+  updatedByAdminId  Int?     @map("updated_by_admin_id")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  updatedByAdmin AdminUser? @relation(fields: [updatedByAdminId], references: [adminUserId], onDelete: SetNull)
+
+  @@index([updatedByAdminId], map: "idx_system_settings_updated_by")
+  @@map("system_settings")
+}
+
+// ---------------------------------------------------------------------------
+// 관리자 로그인 시도 기록 (brute-force 방지 / 감사)
+// ---------------------------------------------------------------------------
+
+model AdminLoginAttempt {
+  loginAttemptId Int      @id @default(autoincrement()) @map("login_attempt_id")
+  loginId        String   @map("login_id") @db.VarChar(50)
+  succeeded      Boolean  @map("succeeded")
+  ipAddress      String?  @map("ip_address") @db.VarChar(64)
+  userAgent      String?  @map("user_agent") @db.VarChar(500)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([loginId, createdAt], map: "idx_login_attempts_login_created")
+  @@index([ipAddress, createdAt], map: "idx_login_attempts_ip_created")
+  @@map("admin_login_attempts")
+}
