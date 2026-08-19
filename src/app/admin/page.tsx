@@ -270,8 +270,14 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
                                 key={occupancy.reservationId}
                                 className="flex items-center gap-2 text-xs whitespace-nowrap"
                               >
-                                {formatKstTime(occupancy.visitStartAt)} ~{' '}
-                                {formatKstTime(occupancy.visitEndAt)}
+                                {/* 시간도 상세 열의 차량번호와 같은 예약으로 이동한다. */}
+                                <Link
+                                  href={`/admin/reservations/${occupancy.reservationId}`}
+                                  className="text-brand-700 font-bold hover:underline"
+                                >
+                                  {formatKstTime(occupancy.visitStartAt)} ~{' '}
+                                  {formatKstTime(occupancy.visitEndAt)}
+                                </Link>
                                 {space.inUseReservationId === occupancy.reservationId && (
                                   <span className={`badge ${SPACE_STATUS_CLASS.IN_USE}`}>
                                     {SPACE_STATUS_LABEL.IN_USE}
