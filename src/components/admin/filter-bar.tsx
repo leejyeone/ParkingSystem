@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 
 export type FilterChip = {
   /** 검색 조건 이름 (예: 날짜, 상태) */
@@ -13,22 +13,26 @@ export type FilterChip = {
 };
 
 /**
- * 예약 목록 검색 조건 바.
+ * 관리자 목록 화면 공통 검색 조건 바. (예약 목록 / 이메일 발송 이력)
  *
- * 모바일에서 입력 필드 6개가 화면을 다 차지하지 않도록 **기본은 접힌 상태**이고,
- * 실제로 적용된 조건만 칩으로 보여준다. 필터 버튼을 눌러야 입력 폼이 펼쳐진다.
+ * 모바일에서 입력 필드가 화면을 다 차지하지 않도록 **기본은 접힌 상태**이고,
+ * 실제로 적용된 조건만 칩으로 보여준다. 검색 조건 버튼을 눌러야 입력 폼이 펼쳐진다.
  */
-export function ReservationFilterBar({
+export function FilterBar({
   chips,
   resetHref,
+  emptyLabel,
   children,
 }: {
   chips: FilterChip[];
   resetHref: string;
+  /** 조건이 하나도 없을 때 보여줄 안내 문구 (예: "전체 예약을 보고 있습니다.") */
+  emptyLabel: string;
   children: ReactNode;
 }) {
   // 조건이 하나도 없으면 굳이 펼쳐 두지 않는다. 적용된 조건이 있어도 칩으로 충분히 보인다.
   const [open, setOpen] = useState(false);
+  const panelId = useId();
   const hasChips = chips.length > 0;
 
   return (
@@ -40,7 +44,7 @@ export function ReservationFilterBar({
             className="btn btn-secondary min-h-10 px-3 py-2 text-sm"
             onClick={() => setOpen((previous) => !previous)}
             aria-expanded={open}
-            aria-controls="reservation-filter-panel"
+            aria-controls={panelId}
             data-testid="filter-toggle"
           >
             <span>검색 조건</span>
@@ -52,9 +56,7 @@ export function ReservationFilterBar({
             </span>
           </button>
 
-          {!hasChips && !open && (
-            <span className="text-sm text-slate-500">전체 예약을 보고 있습니다.</span>
-          )}
+          {!hasChips && !open && <span className="text-sm text-slate-500">{emptyLabel}</span>}
 
           {chips.map((chip) => (
             <Link
@@ -80,7 +82,7 @@ export function ReservationFilterBar({
         </div>
 
         {open && (
-          <div id="reservation-filter-panel" className="mt-4 border-t border-slate-100 pt-4">
+          <div id={panelId} className="mt-4 border-t border-slate-100 pt-4">
             {children}
           </div>
         )}

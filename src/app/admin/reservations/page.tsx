@@ -1,12 +1,18 @@
-import { ReservationStatus, RequesterType } from '@prisma/client';
+import { RequesterType } from '@prisma/client';
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import Link from 'next/link';
 
 import { ClickableTableRow } from '@/components/admin/clickable-table-row';
-import { ReservationFilterBar, type FilterChip } from '@/components/admin/reservation-filter-bar';
+import { FilterBar, type FilterChip } from '@/components/admin/filter-bar';
 import { SpaceTypeBadge, StatusBadge } from '@/components/ui/status-badge';
-import { REQUESTER_TYPE_LABEL, RESERVATION_STATUS_LABEL } from '@/domain/reservation-status';
+import {
+  DISPLAY_STATUS_LABEL,
+  REQUESTER_TYPE_LABEL,
+  RESERVATION_STATUS_FILTER_OPTIONS,
+  SELECTABLE_RESERVATION_STATUSES,
+  type DisplayReservationStatus,
+} from '@/domain/reservation-status';
 import { requireAdminPage } from '@/lib/admin-page-guard';
 import { getSystemSettings } from '@/services/settings-service';
 import { formatKstDateTime, kstDayRangeUtc } from '@/lib/datetime';
@@ -41,8 +47,8 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
   const date = params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date) ? params.date : undefined;
   const range = date ? kstDayRangeUtc(date) : null;
   const status =
-    params.status && params.status in ReservationStatus
-      ? (params.status as ReservationStatus)
+    params.status && (SELECTABLE_RESERVATION_STATUSES as readonly string[]).includes(params.status)
+      ? (params.status as DisplayReservationStatus)
       : undefined;
   const requesterType =
     params.requesterType && params.requesterType in RequesterType
@@ -97,7 +103,7 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
   // 적용된 조건만 칩으로 노출한다. (모바일에서 입력 폼이 화면을 다 차지하지 않도록)
   const chips: FilterChip[] = [
     { key: 'date', label: '날짜', value: date },
-    { key: 'status', label: '상태', value: status ? RESERVATION_STATUS_LABEL[status] : undefined },
+    { key: 'status', label: '상태', value: status ? DISPLAY_STATUS_LABEL[status] : undefined },
     {
       key: 'requesterType',
       label: '구분',
@@ -126,7 +132,7 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
         </p>
       </div>
 
-      <ReservationFilterBar chips={chips} resetHref={BASE_PATH}>
+      <FilterBar chips={chips} resetHref={BASE_PATH} emptyLabel="전체 예약을 보고 있습니다.">
         <form method="get" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <label htmlFor="filter-date" className="label">
@@ -140,9 +146,9 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
             </label>
             <select id="filter-status" name="status" defaultValue={status ?? ''} className="input">
               <option value="">전체</option>
-              {Object.values(ReservationStatus).map((value) => (
+              {RESERVATION_STATUS_FILTER_OPTIONS.map((value) => (
                 <option key={value} value={value}>
-                  {RESERVATION_STATUS_LABEL[value]}
+                  {DISPLAY_STATUS_LABEL[value]}
                 </option>
               ))}
             </select>
@@ -211,7 +217,7 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
             </Link>
           </div>
         </form>
-      </ReservationFilterBar>
+      </FilterBar>
 
       <section className="card">
         <div className="card-body">
@@ -238,6 +244,7 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
                     <th>차량번호</th>
                     <th>방문 시간</th>
                     {showSpace && <th>배정 위치</th>}
+                    <th>신청일시</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -256,7 +263,7 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
                         </Link>
                       </td>
                       <td>
-                        <StatusBadge status={reservation.reservationStatus} />
+                        <StatusBadge status={reservation.displayStatus} />
                       </td>
                       <td>{REQUESTER_TYPE_LABEL[reservation.requesterType]}</td>
                       <td>{reservation.companyOrBranchName}</td>
@@ -287,6 +294,9 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
                           )}
                         </td>
                       )}
+                      <td className="text-xs whitespace-nowrap text-slate-500">
+                        {formatKstDateTime(reservation.createdAt)}
+                      </td>
                     </ClickableTableRow>
                   ))}
                 </tbody>

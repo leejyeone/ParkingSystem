@@ -10,6 +10,7 @@ import {
   isTerminalStatus,
   REQUESTER_TYPE_LABEL,
   RESERVATION_STATUS_LABEL,
+  resolveDisplayStatus,
 } from '@/domain/reservation-status';
 import { requireAdminPage } from '@/lib/admin-page-guard';
 import { formatKstDateTime, formatKstRange, utcToZonedInput } from '@/lib/datetime';
@@ -95,7 +96,7 @@ export default async function AdminReservationDetailPage({ params }: PageProps) 
           <h1 className="font-mono text-xl font-black text-slate-900 sm:text-2xl">
             {reservation.reservationNo}
           </h1>
-          <StatusBadge status={reservation.reservationStatus} />
+          <StatusBadge status={resolveDisplayStatus(reservation)} />
           {showSpace && reservation.assignedSpace?.spaceType === 'DOUBLE' && (
             <span className="badge bg-orange-100 text-orange-800">⚠ 이중주차 배정</span>
           )}

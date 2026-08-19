@@ -274,6 +274,7 @@ model ParkingReservation {
   emailLogs    EmailSendLog[]
 
   @@index([userId, createdAt], map: "idx_reservations_user_created")
+  @@index([createdAt], map: "idx_reservations_created")
   @@index([reservationStatus], map: "idx_reservations_status")
   @@index([visitStartAt, visitEndAt], map: "idx_reservations_visit_range")
   @@index([assignedSpaceId, visitStartAt, visitEndAt, reservationStatus], map: "idx_reservations_space_range_status")

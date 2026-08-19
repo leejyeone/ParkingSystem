@@ -4,11 +4,11 @@ import {
   EmailSendStatus,
   EmailType,
   RequesterType,
-  ReservationStatus,
   SpaceType,
 } from '@prisma/client';
 import { z } from 'zod';
 
+import { SELECTABLE_RESERVATION_STATUSES } from '@/domain/reservation-status';
 import {
   dateStringSchema,
   emailSchema,
@@ -35,7 +35,8 @@ export const adminLoginSchema = z.object({
 
 export const reservationListQuerySchema = z.object({
   date: dateStringSchema.optional(),
-  status: z.enum(ReservationStatus).optional(),
+  // 저장된 상태 + 파생 상태(사용 중 / 사용 완료)
+  status: z.enum(SELECTABLE_RESERVATION_STATUSES).optional(),
   requesterType: z.enum(RequesterType).optional(),
   vehicleNo: z.string().trim().max(20).optional(),
   requesterName: z.string().trim().max(50).optional(),

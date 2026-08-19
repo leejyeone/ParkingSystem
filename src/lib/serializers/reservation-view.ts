@@ -1,6 +1,12 @@
 import { SpaceType } from '@prisma/client';
 
-import { RESERVATION_STATUS_LABEL, REQUESTER_TYPE_LABEL } from '@/domain/reservation-status';
+import {
+  DISPLAY_STATUS_LABEL,
+  resolveDisplayStatus,
+  RESERVATION_STATUS_LABEL,
+  REQUESTER_TYPE_LABEL,
+  type DisplayReservationStatus,
+} from '@/domain/reservation-status';
 import { formatKstDateTime, formatKstHuman, formatKstRange, utcToZonedInput } from '@/lib/datetime';
 import type { getReservationForRequester } from '@/services/reservation-service';
 
@@ -16,8 +22,12 @@ export type RequesterReservationView = {
   reservationNo: string;
   requesterType: string;
   requesterTypeLabel: string;
+  /** DB 에 저장된 상태. 수정 가능 여부 등 판정에 쓴다. */
   reservationStatus: string;
   reservationStatusLabel: string;
+  /** 화면에 보여줄 상태. 승인 완료 건은 방문 시간에 따라 사용 중/사용 완료가 된다. */
+  displayStatus: DisplayReservationStatus;
+  displayStatusLabel: string;
   companyOrBranchName: string;
   requesterName: string;
   requesterEmail: string;
@@ -41,12 +51,16 @@ export type RequesterReservationView = {
 export function toRequesterReservationView(
   reservation: RequesterReservation,
 ): RequesterReservationView {
+  const displayStatus = resolveDisplayStatus(reservation);
+
   return {
     reservationNo: reservation.reservationNo,
     requesterType: reservation.requesterType,
     requesterTypeLabel: REQUESTER_TYPE_LABEL[reservation.requesterType],
     reservationStatus: reservation.reservationStatus,
     reservationStatusLabel: RESERVATION_STATUS_LABEL[reservation.reservationStatus],
+    displayStatus,
+    displayStatusLabel: DISPLAY_STATUS_LABEL[displayStatus],
     companyOrBranchName: reservation.companyOrBranchName,
     requesterName: reservation.requesterName,
     requesterEmail: reservation.requesterEmail,

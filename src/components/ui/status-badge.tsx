@@ -1,8 +1,12 @@
-import type { ReservationStatus, SpaceType } from '@prisma/client';
+import type { SpaceType } from '@prisma/client';
 
-import { RESERVATION_STATUS_LABEL, SPACE_TYPE_LABEL } from '@/domain/reservation-status';
+import {
+  DISPLAY_STATUS_LABEL,
+  SPACE_TYPE_LABEL,
+  type DisplayReservationStatus,
+} from '@/domain/reservation-status';
 
-const STATUS_CLASS: Record<ReservationStatus, string> = {
+export const STATUS_BADGE_CLASS: Readonly<Record<DisplayReservationStatus, string>> = {
   REQUESTED: 'bg-amber-100 text-amber-800',
   APPROVED: 'bg-emerald-100 text-emerald-800',
   REJECTED: 'bg-red-100 text-red-700',
@@ -10,12 +14,15 @@ const STATUS_CLASS: Record<ReservationStatus, string> = {
   PARKING: 'bg-blue-100 text-blue-800',
   EXITED: 'bg-slate-100 text-slate-600',
   NO_SHOW: 'bg-orange-100 text-orange-800',
+  // 사용 중은 진행 중임이 드러나게, 사용 완료는 끝난 건이라 차분하게.
+  IN_USE: 'bg-blue-100 text-blue-800',
+  USED: 'bg-slate-100 text-slate-600',
 };
 
-export function StatusBadge({ status }: { status: ReservationStatus }) {
+export function StatusBadge({ status }: { status: DisplayReservationStatus }) {
   return (
-    <span className={`badge ${STATUS_CLASS[status]}`} data-testid="status-badge">
-      {RESERVATION_STATUS_LABEL[status]}
+    <span className={`badge ${STATUS_BADGE_CLASS[status]}`} data-testid="status-badge">
+      {DISPLAY_STATUS_LABEL[status]}
     </span>
   );
 }

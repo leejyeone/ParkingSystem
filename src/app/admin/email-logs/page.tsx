@@ -2,6 +2,7 @@ import { EmailSendStatus, EmailType } from '@prisma/client';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
+import { FilterBar, type FilterChip } from '@/components/admin/filter-bar';
 import { requireAdminPage } from '@/lib/admin-page-guard';
 import { formatKstDateTime } from '@/lib/datetime';
 import { listEmailLogs } from '@/services/log-query-service';
@@ -9,6 +10,8 @@ import { listEmailLogs } from '@/services/log-query-service';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = { title: '이메일 발송 이력' };
+
+const BASE_PATH = '/admin/email-logs';
 
 const EMAIL_TYPE_LABEL: Record<EmailType, string> = {
   REQUEST_RECEIVED: '신청 접수',
@@ -47,14 +50,49 @@ export default async function AdminEmailLogsPage({ searchParams }: PageProps) {
       ? (params.sendStatus as EmailSendStatus)
       : undefined;
   const page = Number(params.page) > 0 ? Number(params.page) : 1;
+  const reservationNo = params.reservationNo?.trim() || undefined;
 
   const result = await listEmailLogs({
-    reservationNo: params.reservationNo || undefined,
+    reservationNo,
     emailType,
     sendStatus,
     page,
     pageSize: 30,
   });
+
+  const buildHref = (overrides: Record<string, string | undefined>) => {
+    const query = new URLSearchParams();
+    const current: Record<string, string | undefined> = {
+      reservationNo,
+      emailType,
+      sendStatus,
+      ...overrides,
+    };
+    for (const [key, value] of Object.entries(current)) {
+      if (value) query.set(key, value);
+    }
+    const queryString = query.toString();
+    return queryString ? `${BASE_PATH}?${queryString}` : BASE_PATH;
+  };
+
+  // 적용된 조건만 칩으로 노출한다. (예약 목록과 동일한 방식)
+  const chips: FilterChip[] = [
+    { key: 'reservationNo', label: '예약번호', value: reservationNo },
+    { key: 'emailType', label: '종류', value: emailType ? EMAIL_TYPE_LABEL[emailType] : undefined },
+    {
+      key: 'sendStatus',
+      label: '상태',
+      value: sendStatus ? STATUS_LABEL[sendStatus] : undefined,
+    },
+  ]
+    .filter((filter): filter is { key: string; label: string; value: string } =>
+      Boolean(filter.value),
+    )
+    .map((filter) => ({
+      label: filter.label,
+      value: filter.value,
+      removeHref: buildHref({ [filter.key]: undefined }),
+    }));
 
   return (
     <main className="app-container-wide space-y-4">
@@ -66,68 +104,61 @@ export default async function AdminEmailLogsPage({ searchParams }: PageProps) {
         </p>
       </div>
 
-      <section className="card">
-        <div className="card-body">
-          <form method="get" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <label htmlFor="log-reservation" className="label">
-                예약번호
-              </label>
-              <input
-                id="log-reservation"
-                name="reservationNo"
-                defaultValue={params.reservationNo ?? ''}
-                className="input"
-                placeholder="PK-20260820-XXXXXX"
-              />
-            </div>
-            <div>
-              <label htmlFor="log-type" className="label">
-                이메일 종류
-              </label>
-              <select
-                id="log-type"
-                name="emailType"
-                defaultValue={emailType ?? ''}
-                className="input"
-              >
-                <option value="">전체</option>
-                {Object.values(EmailType).map((value) => (
-                  <option key={value} value={value}>
-                    {EMAIL_TYPE_LABEL[value]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="log-status" className="label">
-                발송 상태
-              </label>
-              <select
-                id="log-status"
-                name="sendStatus"
-                defaultValue={sendStatus ?? ''}
-                className="input"
-              >
-                <option value="">전체</option>
-                {Object.values(EmailSendStatus).map((value) => (
-                  <option key={value} value={value}>
-                    {STATUS_LABEL[value]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex items-end gap-2">
-              <button type="submit" className="btn btn-primary px-6">
-                검색
-              </button>
-              <Link href="/admin/email-logs" className="btn btn-secondary">
-                초기화
-              </Link>
-            </div>
-          </form>
-        </div>
-      </section>
+      <FilterBar chips={chips} resetHref={BASE_PATH} emptyLabel="전체 발송 이력을 보고 있습니다.">
+        <form method="get" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <label htmlFor="log-reservation" className="label">
+              예약번호
+            </label>
+            <input
+              id="log-reservation"
+              name="reservationNo"
+              defaultValue={params.reservationNo ?? ''}
+              className="input"
+              placeholder="PK-20260820-XXXXXX"
+            />
+          </div>
+          <div>
+            <label htmlFor="log-type" className="label">
+              이메일 종류
+            </label>
+            <select id="log-type" name="emailType" defaultValue={emailType ?? ''} className="input">
+              <option value="">전체</option>
+              {Object.values(EmailType).map((value) => (
+                <option key={value} value={value}>
+                  {EMAIL_TYPE_LABEL[value]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="log-status" className="label">
+              발송 상태
+            </label>
+            <select
+              id="log-status"
+              name="sendStatus"
+              defaultValue={sendStatus ?? ''}
+              className="input"
+            >
+              <option value="">전체</option>
+              {Object.values(EmailSendStatus).map((value) => (
+                <option key={value} value={value}>
+                  {STATUS_LABEL[value]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-end gap-2">
+            <button type="submit" className="btn btn-primary px-6">
+              검색
+            </button>
+            <Link href={BASE_PATH} className="btn btn-secondary">
+              초기화
+            </Link>
+          </div>
+        </form>
+      </FilterBar>
 
       <section className="card">
         <div className="card-body">

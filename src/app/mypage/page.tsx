@@ -93,7 +93,7 @@ export default async function MyPage({ searchParams }: PageProps) {
                       <span className="font-mono text-sm font-bold text-slate-900">
                         {reservation.reservationNo}
                       </span>
-                      <StatusBadge status={reservation.reservationStatus} />
+                      <StatusBadge status={reservation.displayStatus} />
                     </div>
                     <dl className="mt-2 space-y-1 text-sm text-slate-700">
                       <div className="flex gap-2">

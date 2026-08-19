@@ -5,6 +5,7 @@ import { useState, type ChangeEvent, type FormEvent } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { FormField, inputClassName } from '@/components/ui/form-field';
+import { STATUS_BADGE_CLASS } from '@/components/ui/status-badge';
 import { apiRequest, type ApiErrorPayload } from '@/lib/client/api-client';
 import type { RequesterReservationView } from '@/lib/serializers/reservation-view';
 import { normalizeVehicleNo } from '@/lib/vehicle';
@@ -20,16 +21,6 @@ type Props = {
     /** 주차면 배정 사용 여부. false 면 주차 위치 관련 안내를 모두 감춘다. */
     spaceAssignmentEnabled: boolean;
   };
-};
-
-const STATUS_BADGE_CLASS: Record<string, string> = {
-  REQUESTED: 'bg-amber-100 text-amber-800',
-  APPROVED: 'bg-emerald-100 text-emerald-800',
-  REJECTED: 'bg-red-100 text-red-700',
-  CANCELLED: 'bg-slate-200 text-slate-600',
-  PARKING: 'bg-blue-100 text-blue-800',
-  EXITED: 'bg-slate-100 text-slate-600',
-  NO_SHOW: 'bg-orange-100 text-orange-800',
 };
 
 export function ReservationAccessPanel({ token, initialReservation, settings }: Props) {
@@ -54,10 +45,9 @@ export function ReservationAccessPanel({ token, initialReservation, settings }: 
                 {reservation.reservationNo}
               </p>
             </div>
-            <span
-              className={`badge ${STATUS_BADGE_CLASS[reservation.reservationStatus] ?? 'bg-slate-100 text-slate-600'}`}
-            >
-              {reservation.reservationStatusLabel}
+            {/* 승인 완료 건은 방문 시간이 지나면 사용 중 / 사용 완료로 표시된다. */}
+            <span className={`badge ${STATUS_BADGE_CLASS[reservation.displayStatus]}`}>
+              {reservation.displayStatusLabel}
             </span>
           </div>
 

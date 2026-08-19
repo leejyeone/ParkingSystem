@@ -113,6 +113,7 @@ CREATE TABLE `parking_reservations` (
 
     UNIQUE INDEX `uq_parking_reservations_no`(`reservation_no`),
     INDEX `idx_reservations_user_created`(`user_id`, `created_at`),
+    INDEX `idx_reservations_created`(`created_at`),
     INDEX `idx_reservations_status`(`reservation_status`),
     INDEX `idx_reservations_visit_range`(`visit_start_at`, `visit_end_at`),
     INDEX `idx_reservations_space_range_status`(`assigned_space_id`, `visit_start_at`, `visit_end_at`, `reservation_status`),

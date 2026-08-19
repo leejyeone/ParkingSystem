@@ -16,9 +16,12 @@ import {
 } from '@/domain/reservation-rules';
 import {
   assertTransition,
+  DERIVED_STATUS_ENABLED,
   isTerminalStatus,
+  resolveDisplayStatus,
   RESERVATION_STATUS_LABEL,
   SPACE_OCCUPYING_STATUSES,
+  type DisplayReservationStatus,
 } from '@/domain/reservation-status';
 import { ENTRY_EXIT_MANAGEMENT_ENABLED } from '@/domain/feature-flags';
 import { buildOverlapWhere } from '@/domain/time-overlap';
@@ -1179,11 +1182,44 @@ async function changeStatusByAdmin(params: {
 // 4. 조회
 // ---------------------------------------------------------------------------
 
+/**
+ * 상태 필터를 where 절로 바꾼다.
+ *
+ * 사용 중 / 사용 완료는 DB 에 없는 파생 상태라 시간 조건으로 푼다. 이때 "승인 완료"는
+ * **아직 시작 전인 건**만 뜻하도록 좁힌다. 그러지 않으면 승인 완료를 골랐는데 목록에는
+ * 사용 중으로 표시된 행이 섞여 나온다.
+ */
+function buildStatusWhere(
+  status: DisplayReservationStatus | undefined,
+  now: Date = new Date(),
+): Prisma.ParkingReservationWhereInput {
+  if (!status) return {};
+
+  if (status === 'IN_USE') {
+    return {
+      reservationStatus: ReservationStatus.APPROVED,
+      visitStartAt: { lte: now },
+      visitEndAt: { gt: now },
+    };
+  }
+  if (status === 'USED') {
+    return { reservationStatus: ReservationStatus.APPROVED, visitEndAt: { lte: now } };
+  }
+  if (status === ReservationStatus.APPROVED && DERIVED_STATUS_ENABLED) {
+    return { reservationStatus: ReservationStatus.APPROVED, visitStartAt: { gt: now } };
+  }
+  return { reservationStatus: status };
+}
+
 export type ReservationListFilter = {
   date?: string;
   dateFrom?: Date;
   dateTo?: Date;
-  status?: ReservationStatus;
+  /**
+   * 저장된 상태 또는 파생 상태(IN_USE / USED).
+   * 파생 상태는 승인 완료 + 방문 시간 조건으로 풀어서 조회한다.
+   */
+  status?: DisplayReservationStatus;
   requesterType?: RequesterType;
   vehicleNo?: string;
   requesterName?: string;
@@ -1198,6 +1234,8 @@ export type ReservationListItem = {
   reservationNo: string;
   requesterType: RequesterType;
   reservationStatus: ReservationStatus;
+  /** 화면 표시용 상태. 승인 완료 건은 방문 시간에 따라 사용 중/사용 완료로 갈린다. */
+  displayStatus: DisplayReservationStatus;
   companyOrBranchName: string;
   requesterName: string;
   requesterEmail: string;
@@ -1233,7 +1271,7 @@ export async function listReservationsForAdmin(
     ...(filter.dateFrom && filter.dateTo
       ? { visitStartAt: { lt: filter.dateTo }, visitEndAt: { gt: filter.dateFrom } }
       : {}),
-    ...(filter.status ? { reservationStatus: filter.status } : {}),
+    ...buildStatusWhere(filter.status),
     ...(filter.requesterType ? { requesterType: filter.requesterType } : {}),
     ...(filter.vehicleNo ? { vehicleNo: { contains: normalizeVehicleNo(filter.vehicleNo) } } : {}),
     ...(filter.requesterName ? { requesterName: { contains: filter.requesterName } } : {}),
@@ -1245,7 +1283,8 @@ export async function listReservationsForAdmin(
     prisma.parkingReservation.findMany({
       where,
       include: RESERVATION_WITH_SPACES,
-      orderBy: [{ visitStartAt: 'asc' }, { reservationId: 'asc' }],
+      // 신청일시 최신순. 같은 시각이면 나중에 만들어진 예약이 먼저 온다.
+      orderBy: [{ createdAt: 'desc' }, { reservationId: 'desc' }],
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
@@ -1292,6 +1331,7 @@ export function toReservationListItem(reservation: ReservationWithSpaces): Reser
     reservationNo: reservation.reservationNo,
     requesterType: reservation.requesterType,
     reservationStatus: reservation.reservationStatus,
+    displayStatus: resolveDisplayStatus(reservation),
     companyOrBranchName: reservation.companyOrBranchName,
     requesterName: reservation.requesterName,
     requesterEmail: reservation.requesterEmail,
