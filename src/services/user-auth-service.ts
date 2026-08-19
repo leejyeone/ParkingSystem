@@ -10,12 +10,12 @@ import {
 import {
   DUMMY_PASSWORD_HASH,
   hashPassword,
-  isPasswordPolicySatisfied,
-  PASSWORD_POLICY_MESSAGE,
+  isUserPasswordPolicySatisfied,
   verifyPassword,
 } from '@/lib/password';
 import { prisma } from '@/lib/prisma';
 import { getUserSession, type UserSession } from '@/lib/user-session';
+import { USER_PASSWORD_POLICY_MESSAGE } from '@/lib/validation/common';
 import { normalizeVehicleNo } from '@/lib/vehicle';
 
 /**
@@ -50,29 +50,74 @@ export type SignUpUserInput = {
   vehicleNo?: string | null;
 };
 
-export async function signUpUser(input: SignUpUserInput): Promise<UserSession> {
-  if (!isPasswordPolicySatisfied(input.password)) {
-    throw new ValidationError(PASSWORD_POLICY_MESSAGE, { password: [PASSWORD_POLICY_MESSAGE] });
+export type SignUpResult = UserSession & {
+  /** 가입 시 이 계정 내역으로 연결된 기존 예약 건수 */
+  linkedReservationCount: number;
+};
+
+/**
+ * 성명·이메일이 일치하는 비로그인 예약을 이 계정 내역으로 연결한다.
+ *
+ * 가입 시점뿐 아니라 로그인할 때마다 실행한다. 회원이 로그아웃 상태에서 신청하거나
+ * 안내 메일 링크로만 처리한 예약이 계정에 영영 붙지 않는 것을 막기 위함이다.
+ * 이미 다른 계정에 연결된 예약(userId != null)은 대상에서 제외한다.
+ */
+export async function linkReservationsToUser(
+  params: { userId: number; email: string; name: string },
+  db: Prisma.TransactionClient | typeof prisma = prisma,
+): Promise<number> {
+  const linked = await db.parkingReservation.updateMany({
+    where: {
+      userId: null,
+      requesterEmail: params.email.trim().toLowerCase(),
+      requesterName: params.name.trim(),
+    },
+    data: { userId: params.userId },
+  });
+  return linked.count;
+}
+
+export async function signUpUser(input: SignUpUserInput): Promise<SignUpResult> {
+  if (!isUserPasswordPolicySatisfied(input.password)) {
+    throw new ValidationError(USER_PASSWORD_POLICY_MESSAGE, {
+      password: [USER_PASSWORD_POLICY_MESSAGE],
+    });
   }
 
   const email = input.email.trim().toLowerCase();
+  const name = input.name.trim();
   const vehicleNo = input.vehicleNo ? normalizeVehicleNo(input.vehicleNo) : null;
 
   try {
-    const created = await prisma.siteUser.create({
-      data: {
-        email,
-        passwordHash: await hashPassword(input.password),
-        name: input.name.trim(),
-        companyOrBranchName: input.companyOrBranchName.trim(),
-        vehicleNo: vehicleNo || null,
-        accountStatus: AccountStatus.ACTIVE,
-        passwordChangedAt: new Date(),
-      },
-      select: { userId: true, email: true, name: true },
+    const { created, linkedReservationCount } = await prisma.$transaction(async (tx) => {
+      const created = await tx.siteUser.create({
+        data: {
+          email,
+          passwordHash: await hashPassword(input.password),
+          name,
+          companyOrBranchName: input.companyOrBranchName.trim(),
+          vehicleNo: vehicleNo || null,
+          accountStatus: AccountStatus.ACTIVE,
+          passwordChangedAt: new Date(),
+        },
+        select: { userId: true, email: true, name: true },
+      });
+
+      // 가입 전 비로그인으로 신청했던 예약을 이 계정 내역으로 연결한다.
+      const linkedReservationCount = await linkReservationsToUser(
+        { userId: created.userId, email, name },
+        tx,
+      );
+
+      return { created, linkedReservationCount };
     });
 
-    return { userId: created.userId, email: created.email, name: created.name };
+    return {
+      userId: created.userId,
+      email: created.email,
+      name: created.name,
+      linkedReservationCount,
+    };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       throw new ConflictError('이미 가입된 이메일입니다. 로그인해 주세요.', 'DUPLICATE_USER_EMAIL');
@@ -154,6 +199,9 @@ export async function loginUser(params: { email: string; password: string }): Pr
     },
   });
 
+  // 로그아웃 상태에서 신청한 예약이 있으면 이번 로그인에 맞춰 계정에 연결한다.
+  await linkReservationsToUser({ userId: user.userId, email: user.email, name: user.name });
+
   return { userId: user.userId, email: user.email, name: user.name };
 }
 
@@ -207,8 +255,10 @@ export async function updateUserProfile(
   userId: number,
   input: UpdateUserProfileInput,
 ): Promise<UserProfile> {
-  if (input.password !== undefined && !isPasswordPolicySatisfied(input.password)) {
-    throw new ValidationError(PASSWORD_POLICY_MESSAGE, { password: [PASSWORD_POLICY_MESSAGE] });
+  if (input.password !== undefined && !isUserPasswordPolicySatisfied(input.password)) {
+    throw new ValidationError(USER_PASSWORD_POLICY_MESSAGE, {
+      password: [USER_PASSWORD_POLICY_MESSAGE],
+    });
   }
 
   const vehicleNo = input.vehicleNo ? normalizeVehicleNo(input.vehicleNo) : null;

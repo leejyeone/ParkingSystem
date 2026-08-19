@@ -71,3 +71,14 @@ export function requiredText(maxLength: number, label: string) {
 
 export const pageSchema = z.coerce.number().int().min(1).default(1);
 export const pageSizeSchema = z.coerce.number().int().min(1).max(100).default(20);
+
+/**
+ * 일반 사용자(회원) 비밀번호 최소 길이.
+ *
+ * 관리자와 달리 문자 종류 조건은 두지 않는다. 회원 가입은 자동완성 편의를 위한 선택 기능이고,
+ * 회원은 자기 예약만 볼 수 있어 관리자 계정과 위험도가 다르기 때문이다.
+ * (관리자 정책은 src/lib/password.ts 의 PASSWORD_POLICY_MESSAGE 참고)
+ */
+export const USER_PASSWORD_MIN_LENGTH = 8;
+
+export const USER_PASSWORD_POLICY_MESSAGE = `비밀번호는 ${USER_PASSWORD_MIN_LENGTH}자 이상으로 입력해 주세요.`;

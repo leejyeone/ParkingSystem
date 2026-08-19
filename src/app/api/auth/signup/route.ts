@@ -26,7 +26,15 @@ export async function POST(request: NextRequest) {
     const session = await signUpUser(payload);
     await setUserSessionCookie(session);
 
-    return apiSuccess({ email: session.email, name: session.name }, undefined, 201);
+    return apiSuccess(
+      {
+        email: session.email,
+        name: session.name,
+        linkedReservationCount: session.linkedReservationCount,
+      },
+      undefined,
+      201,
+    );
   } catch (error) {
     return handleApiError(error);
   }

@@ -4,31 +4,44 @@ import { redirect } from 'next/navigation';
 
 import { UserLogoutButton } from '@/components/user/user-logout-button';
 import { UserProfilePanel } from '@/components/user/user-profile-panel';
+import { Alert } from '@/components/ui/alert';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { REQUESTER_TYPE_LABEL } from '@/domain/reservation-status';
 import { formatKstRange } from '@/lib/datetime';
 import { requireUserPage } from '@/lib/user-page-guard';
 import { listReservationsForUser } from '@/services/reservation-service';
 import { getSystemSettings } from '@/services/settings-service';
-import { getUserProfile } from '@/services/user-auth-service';
+import { getUserProfile, linkReservationsToUser } from '@/services/user-auth-service';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = { title: '마이페이지' };
 
-export default async function MyPage() {
-  const session = await requireUserPage('/mypage');
+type PageProps = { searchParams: Promise<{ linked?: string }> };
 
-  const [profile, reservations, settings] = await Promise.all([
-    getUserProfile(session.userId),
-    listReservationsForUser(session.userId),
-    getSystemSettings(),
-  ]);
-  const showSpace = settings.spaceAssignmentEnabled;
+export default async function MyPage({ searchParams }: PageProps) {
+  const session = await requireUserPage('/mypage');
+  const linkedCount = Number((await searchParams).linked);
+
+  const profile = await getUserProfile(session.userId);
 
   if (!profile) {
     redirect('/login?redirect=%2Fmypage');
   }
+
+  // 로그인 세션을 유지한 채 로그아웃 상태로 신청한 예약이 있을 수 있으므로,
+  // 목록을 읽기 직전에 한 번 더 연결한다. (대부분 0건이라 비용이 거의 없다)
+  await linkReservationsToUser({
+    userId: session.userId,
+    email: profile.email,
+    name: profile.name,
+  });
+
+  const [reservations, settings] = await Promise.all([
+    listReservationsForUser(session.userId),
+    getSystemSettings(),
+  ]);
+  const showSpace = settings.spaceAssignmentEnabled;
 
   return (
     <main className="app-container space-y-4">
@@ -49,6 +62,15 @@ export default async function MyPage() {
 
       <section className="card">
         <div className="card-body">
+          {Number.isInteger(linkedCount) && linkedCount > 0 && (
+            <div className="mb-3">
+              <Alert variant="success" title="기존 예약을 연결했습니다">
+                가입하신 성명·이메일과 일치하는 기존 예약 {linkedCount}건을 내 예약으로
+                연결했습니다.
+              </Alert>
+            </div>
+          )}
+
           <h2 className="card-title">내 예약 ({reservations.length}건)</h2>
           <p className="field-hint">로그인한 상태로 신청한 예약이 표시됩니다.</p>
 

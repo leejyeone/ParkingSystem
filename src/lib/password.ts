@@ -1,5 +1,7 @@
 import bcrypt from 'bcryptjs';
 
+import { USER_PASSWORD_MIN_LENGTH } from '@/lib/validation/common';
+
 /**
  * 관리자 비밀번호 해싱.
  *
@@ -31,14 +33,27 @@ export async function verifyPassword(
  */
 export const DUMMY_PASSWORD_HASH = '$2b$12$C6UzMDM.H6dfI/f/IKcEeO1Uvm7ZgLoOfWXKpjkC4nJ2dxbA2dQdG';
 
+/**
+ * 비밀번호 정책은 두 가지다.
+ *
+ * - 관리자: 개인정보를 열람하고 시스템 설정을 바꿀 수 있으므로 강한 정책을 유지한다.
+ * - 일반 사용자: 자기 예약만 볼 수 있고 가입은 선택 사항(자동완성 편의 기능)이므로
+ *   진입 장벽을 낮춰 길이 조건만 둔다.
+ */
+
 export const PASSWORD_POLICY_MESSAGE =
   '비밀번호는 10자 이상이며 영문 대문자, 소문자, 숫자, 특수문자 중 3종류 이상을 포함해야 합니다.';
 
-/** 비밀번호 정책 검사 */
+/** 관리자 비밀번호 정책 검사 */
 export function isPasswordPolicySatisfied(password: string): boolean {
   if (password.length < 10 || password.length > 100) return false;
   const kinds = [/[A-Z]/, /[a-z]/, /\d/, /[^A-Za-z0-9]/].filter((pattern) =>
     pattern.test(password),
   ).length;
   return kinds >= 3;
+}
+
+/** 일반 사용자 비밀번호 정책 검사 */
+export function isUserPasswordPolicySatisfied(password: string): boolean {
+  return password.length >= USER_PASSWORD_MIN_LENGTH && password.length <= 100;
 }

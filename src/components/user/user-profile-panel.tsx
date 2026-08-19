@@ -134,7 +134,7 @@ export function UserProfilePanel({ profile }: { profile: Profile }) {
         <FormField
           label="새 비밀번호"
           htmlFor="profile-password"
-          hint="변경할 때만 입력하세요. 10자 이상, 영문 대/소문자·숫자·특수문자 중 3종류 이상"
+          hint="변경할 때만 입력하세요. 8자 이상"
           errors={fieldErrors.password}
         >
           <input

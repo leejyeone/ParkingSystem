@@ -39,13 +39,15 @@ export function UserSignUpForm() {
     setErrorMessage(null);
     setFieldErrors({});
 
-    const response = await apiRequest<{ name: string }>('/api/auth/signup', {
-      method: 'POST',
-      body: JSON.stringify(form),
-    });
+    const response = await apiRequest<{ name: string; linkedReservationCount: number }>(
+      '/api/auth/signup',
+      { method: 'POST', body: JSON.stringify(form) },
+    );
 
     if (response.ok) {
-      router.replace('/mypage');
+      // 가입 전 신청했던 예약이 연결됐다면 마이페이지에서 안내한다.
+      const linked = response.data.linkedReservationCount;
+      router.replace(linked > 0 ? `/mypage?linked=${linked}` : '/mypage');
       router.refresh();
       return;
     }
@@ -81,7 +83,7 @@ export function UserSignUpForm() {
           label="비밀번호"
           htmlFor="signup-password"
           required
-          hint="10자 이상, 영문 대/소문자·숫자·특수문자 중 3종류 이상"
+          hint="8자 이상, 영문 대/소문자·숫자·특수문자 중 3종류 이상"
           errors={fieldErrors.password}
         >
           <input
