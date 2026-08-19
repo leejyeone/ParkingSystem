@@ -9,12 +9,20 @@ import {
 
 import {
   assertReservationTiming,
+  checkOperatingHours,
   checkRequesterCanChange,
+  checkVisitRange,
   getRequesterChangeDeadline,
 } from '@/domain/reservation-rules';
-import { assertTransition, SPACE_OCCUPYING_STATUSES } from '@/domain/reservation-status';
+import {
+  assertTransition,
+  isTerminalStatus,
+  RESERVATION_STATUS_LABEL,
+  SPACE_OCCUPYING_STATUSES,
+} from '@/domain/reservation-status';
+import { ENTRY_EXIT_MANAGEMENT_ENABLED } from '@/domain/feature-flags';
 import { buildOverlapWhere } from '@/domain/time-overlap';
-import { formatKstDate } from '@/lib/datetime';
+import { formatKstDate, formatKstRange } from '@/lib/datetime';
 import {
   buildAccessUrl,
   dispatchQuietly,
@@ -27,7 +35,7 @@ import {
   sendUpdatedEmails,
   type ReservationForEmail,
 } from '@/lib/email/email-service';
-import { ConflictError, NotFoundError, ValidationError } from '@/lib/errors';
+import { ConflictError, NotFoundError, ValidationError, type FieldErrors } from '@/lib/errors';
 import { prisma } from '@/lib/prisma';
 import { generateReservationNo } from '@/lib/tokens';
 import { normalizeVehicleNo } from '@/lib/vehicle';
@@ -457,6 +465,193 @@ export async function updateReservationByRequester(
   return updated;
 }
 
+/**
+ * 관리자 예약 수정.
+ *
+ * 신청자는 승인 대기 상태에서 마감 시각 전까지만 스스로 수정할 수 있다.
+ * 그 외의 경우(승인 완료, 마감 시각 경과)에는 담당자에게 문의하도록 안내하므로,
+ * 관리자에게는 그 문의를 실제로 처리할 수 있는 수정 경로가 있어야 한다.
+ *
+ * 신청자 수정과 다른 점
+ *  - 최소 사전 신청 시간(마감 시각) 제한을 받지 않는다. 임박한 예약을 고치는 것이 목적이다.
+ *  - 상태를 승인 대기로 되돌리지 않는다. 관리자가 곧 승인 주체이므로 재승인이 불필요하다.
+ *  - 이미 배정된 주차면은 유지하되, 바뀐 시간대에 충돌이 없는지 다시 검증한다.
+ */
+export async function updateReservationByAdmin(
+  reservationId: number,
+  input: UpdateReservationInput,
+  actor: AdminActionContext,
+): Promise<ReservationWithSpaces> {
+  const settings = await getSystemSettings();
+  const current = await loadReservationOrThrow(reservationId);
+
+  if (isTerminalStatus(current.reservationStatus)) {
+    throw new ConflictError(
+      `종료된 예약(${RESERVATION_STATUS_LABEL[current.reservationStatus]})은 수정할 수 없습니다.`,
+      'RESERVATION_TERMINAL',
+    );
+  }
+
+  // 운영시간·최대 이용시간·시작<종료 는 그대로 적용하고, 최소 사전 신청 시간만 면제한다.
+  const fieldErrors: FieldErrors = {};
+  const rangeError = checkVisitRange(
+    input.visitStartAt,
+    input.visitEndAt,
+    settings.maxReservationHours,
+  );
+  if (rangeError) (fieldErrors.visitEndAt ??= []).push(rangeError);
+  if (!rangeError) {
+    const hoursError = checkOperatingHours(
+      input.visitStartAt,
+      input.visitEndAt,
+      settings.parkingOpenTime,
+      settings.parkingCloseTime,
+      settings.appTimeZone,
+    );
+    if (hoursError) (fieldErrors.visitStartAt ??= []).push(hoursError);
+  }
+  if (Object.keys(fieldErrors).length > 0) {
+    throw new ValidationError('예약 시간을 다시 확인해 주세요.', fieldErrors);
+  }
+
+  const vehicleNo = normalizeVehicleNo(input.vehicleNo);
+  await assertNoVehicleOverlap({
+    vehicleNo,
+    visitStartAt: input.visitStartAt,
+    visitEndAt: input.visitEndAt,
+    excludeReservationId: reservationId,
+  });
+
+  const previousVisitStartAt = current.visitStartAt;
+  const previousVisitEndAt = current.visitEndAt;
+  const timeChanged =
+    previousVisitStartAt.getTime() !== input.visitStartAt.getTime() ||
+    previousVisitEndAt.getTime() !== input.visitEndAt.getTime();
+  const occupiesSpace = SPACE_OCCUPYING_STATUSES.includes(current.reservationStatus);
+
+  const updated = await prisma.$transaction(async (tx) => {
+    // 이미 자리를 차지하는 예약의 시간이 바뀌면 새 시간대에서 다시 검증한다.
+    if (timeChanged && occupiesSpace) {
+      if (current.assignedSpaceId) {
+        await lockSpaceRow(tx, current.assignedSpaceId);
+        const conflict = await findConflictingReservation(
+          {
+            spaceId: current.assignedSpaceId,
+            visitStartAt: input.visitStartAt,
+            visitEndAt: input.visitEndAt,
+            excludeReservationId: reservationId,
+          },
+          tx,
+        );
+        if (conflict) {
+          throw new ConflictError(
+            `배정된 주차면이 변경한 시간대에 이미 사용 중입니다. (예약번호 ${conflict.reservationNo}) ` +
+              '주차 위치를 먼저 변경한 뒤 다시 시도해 주세요.',
+            'SPACE_TIME_CONFLICT',
+          );
+        }
+      } else if (!settings.spaceAssignmentEnabled) {
+        await lockCapacitySetting(tx);
+        const used = await countOverlappingReservations(
+          {
+            visitStartAt: input.visitStartAt,
+            visitEndAt: input.visitEndAt,
+            excludeReservationId: reservationId,
+          },
+          tx,
+        );
+        if (used >= settings.parkingCapacity) {
+          throw new ConflictError(
+            `변경한 시간대는 최대 주차 가능 대수(${settings.parkingCapacity}대)가 모두 차 있습니다.`,
+            'CAPACITY_EXCEEDED',
+          );
+        }
+      }
+    }
+
+    // 아직 승인 전이라면 추천 위치를 새 시간대 기준으로 다시 계산한다.
+    const recommended =
+      current.reservationStatus === ReservationStatus.REQUESTED
+        ? await recommendSpace(
+            {
+              visitStartAt: input.visitStartAt,
+              visitEndAt: input.visitEndAt,
+              excludeReservationId: reservationId,
+              doubleParkingEnabled: settings.doubleParkingEnabled,
+              spaceAssignmentEnabled: settings.spaceAssignmentEnabled,
+            },
+            tx,
+          )
+        : null;
+
+    const result = await tx.parkingReservation.update({
+      where: { reservationId },
+      data: {
+        companyOrBranchName: input.companyOrBranchName,
+        requesterName: input.requesterName,
+        vehicleNo,
+        visitPurpose: input.visitPurpose ?? null,
+        requestMemo: input.requestMemo ?? null,
+        visitStartAt: input.visitStartAt,
+        visitEndAt: input.visitEndAt,
+        ...(current.reservationStatus === ReservationStatus.REQUESTED
+          ? { recommendedSpaceId: recommended?.spaceId ?? null }
+          : {}),
+      },
+      include: RESERVATION_WITH_SPACES,
+    });
+
+    // 상태는 그대로지만 내용이 바뀌었으므로 이력에는 남긴다.
+    await tx.parkingReservationStatusLog.create({
+      data: {
+        reservationId,
+        previousStatus: current.reservationStatus,
+        currentStatus: current.reservationStatus,
+        changedByType: ChangedByType.ADMIN,
+        changedByAdminId: actor.adminUserId,
+        changeReason: timeChanged
+          ? `관리자 예약 수정 (방문 시간 ${formatKstRange(previousVisitStartAt, previousVisitEndAt)} → ${formatKstRange(input.visitStartAt, input.visitEndAt)})`
+          : '관리자 예약 수정',
+      },
+    });
+
+    await tx.reservationAccessToken.updateMany({
+      where: { reservationId, isActive: true },
+      data: { expiresAt: new Date(input.visitEndAt.getTime() + 7 * 24 * 60 * 60 * 1000) },
+    });
+
+    return result;
+  });
+
+  await writeAuditLog({
+    actorAdminId: actor.adminUserId,
+    actionType: AUDIT_ACTIONS.RESERVATION_UPDATE,
+    targetType: AUDIT_TARGETS.RESERVATION,
+    targetId: updated.reservationId,
+    // 개인정보 원문 대신 어떤 항목이 바뀌었는지만 남긴다.
+    detail: {
+      reservationNo: updated.reservationNo,
+      timeChanged,
+      vehicleNoChanged: current.vehicleNo !== vehicleNo,
+      requesterNameChanged: current.requesterName !== input.requesterName,
+      companyChanged: current.companyOrBranchName !== input.companyOrBranchName,
+    },
+    context: actor.requestContext,
+  });
+
+  const accessUrl = await issueAccessUrl(updated.reservationId, updated.visitEndAt);
+  await dispatchQuietly(
+    sendUpdatedEmails(toReservationForEmail(updated), {
+      accessUrl,
+      previousVisitStartAt,
+      previousVisitEndAt,
+      changedByAdmin: true,
+    }),
+  );
+
+  return updated;
+}
+
 /** 신청자 예약 취소 */
 export async function cancelReservationByRequester(
   reservationId: number,
@@ -861,9 +1056,21 @@ export async function changeAssignedSpace(
 }
 
 /** 실제 입차 처리 */
+/** 입·출차/미방문 처리가 꺼져 있으면 호출 자체를 막는다. */
+function assertEntryExitEnabled(): void {
+  if (!ENTRY_EXIT_MANAGEMENT_ENABLED) {
+    throw new ConflictError(
+      '입·출차 및 미방문 처리는 현재 사용하지 않는 기능입니다.',
+      'ENTRY_EXIT_DISABLED',
+    );
+  }
+}
+
 export async function markEntry(
   params: { reservationId: number } & AdminActionContext,
 ): Promise<ReservationWithSpaces> {
+  assertEntryExitEnabled();
+
   const updated = await changeStatusByAdmin({
     reservationId: params.reservationId,
     nextStatus: ReservationStatus.PARKING,
@@ -888,6 +1095,8 @@ export async function markEntry(
 export async function markExit(
   params: { reservationId: number } & AdminActionContext,
 ): Promise<ReservationWithSpaces> {
+  assertEntryExitEnabled();
+
   const updated = await changeStatusByAdmin({
     reservationId: params.reservationId,
     nextStatus: ReservationStatus.EXITED,
@@ -912,6 +1121,8 @@ export async function markExit(
 export async function markNoShow(
   params: { reservationId: number; reason?: string } & AdminActionContext,
 ): Promise<ReservationWithSpaces> {
+  assertEntryExitEnabled();
+
   const updated = await changeStatusByAdmin({
     reservationId: params.reservationId,
     nextStatus: ReservationStatus.NO_SHOW,

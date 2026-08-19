@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { Alert } from '@/components/ui/alert';
 import { FormField, inputClassName } from '@/components/ui/form-field';
 import { apiRequest } from '@/lib/client/api-client';
+import { ENTRY_EXIT_MANAGEMENT_ENABLED } from '@/domain/feature-flags';
 import { SPACE_TYPE_LABEL } from '@/domain/reservation-status';
 
 type SpaceOption = {
@@ -79,9 +80,10 @@ export function ReservationActionPanel({
   const canReject = reservationStatus === 'REQUESTED';
   const canChangeSpace =
     spaceAssignmentEnabled && (reservationStatus === 'APPROVED' || reservationStatus === 'PARKING');
-  const canEntry = reservationStatus === 'APPROVED';
-  const canExit = reservationStatus === 'PARKING';
-  const canNoShow = reservationStatus === 'APPROVED';
+  // 입·출차/미방문 처리는 현재 사용하지 않는 기능이라 영역 자체를 감춘다.
+  const canEntry = ENTRY_EXIT_MANAGEMENT_ENABLED && reservationStatus === 'APPROVED';
+  const canExit = ENTRY_EXIT_MANAGEMENT_ENABLED && reservationStatus === 'PARKING';
+  const canNoShow = ENTRY_EXIT_MANAGEMENT_ENABLED && reservationStatus === 'APPROVED';
   const isTerminal = ['REJECTED', 'CANCELLED', 'EXITED', 'NO_SHOW'].includes(reservationStatus);
 
   return (

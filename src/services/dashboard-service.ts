@@ -1,5 +1,6 @@
 import { ReservationStatus, SpaceType } from '@prisma/client';
 
+import { ENTRY_EXIT_MANAGEMENT_ENABLED } from '@/domain/feature-flags';
 import { SPACE_OCCUPYING_STATUSES } from '@/domain/reservation-status';
 import { buildOverlapWhere } from '@/domain/time-overlap';
 import { kstDayRangeUtc, parseTimeOfDayToMinutes } from '@/lib/datetime';
@@ -13,6 +14,18 @@ import { getSystemSettings } from '@/services/settings-service';
  * 주차면 현황은 도면 좌표가 아니라 "주차면 코드 기준 목록/표" 로 제공한다.
  * 도면 이미지는 참고용으로만 함께 내려준다.
  */
+
+/**
+ * 주차면 상태.
+ *  - EMPTY   : 해당 날짜에 배정된 예약이 없음
+ *  - RESERVED: 배정된 예약이 있으나 아직 사용 시간이 아님
+ *  - IN_USE  : 지금 사용 중
+ *
+ * IN_USE 판정은 입·출차 관리 사용 여부에 따라 다르다.
+ *  - 사용할 때: 실제 입차 처리된(PARKING) 예약이 있을 때
+ *  - 사용하지 않을 때: 입차 기록이 없으므로 현재 시각이 예약 시간대 안에 있으면 사용 중으로 본다
+ */
+export type SpaceOccupancyStatus = 'EMPTY' | 'RESERVED' | 'IN_USE';
 
 export type SpaceStatusRow = {
   spaceId: number;
@@ -30,6 +43,12 @@ export type SpaceStatusRow = {
     visitStartAt: Date;
     visitEndAt: Date;
   }[];
+  status: SpaceOccupancyStatus;
+  /**
+   * 상태 옆에 함께 보여줄 시간대.
+   * IN_USE 면 사용 중인 예약, RESERVED 면 가장 이른 예약의 시간이다. EMPTY 면 null.
+   */
+  statusTimeRange: { visitStartAt: Date; visitEndAt: Date } | null;
 };
 
 export type HourlyUsage = { hour: number; usedCount: number };
@@ -116,6 +135,7 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
       }),
     ]);
 
+  const nowMs = Date.now();
   const bySpace = new Map<number, SpaceStatusRow['occupancies']>();
   for (const reservation of dayReservations) {
     if (reservation.assignedSpaceId === null) continue;
@@ -131,16 +151,36 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
     bySpace.set(reservation.assignedSpaceId, list);
   }
 
-  const spaceRows: SpaceStatusRow[] = spaces.map((space) => ({
-    spaceId: space.spaceId,
-    spaceCode: space.spaceCode,
-    spaceName: space.spaceName,
-    spaceType: space.spaceType,
-    areaName: space.area.areaName,
-    isActive: space.isActive,
-    memo: space.memo,
-    occupancies: bySpace.get(space.spaceId) ?? [],
-  }));
+  const spaceRows: SpaceStatusRow[] = spaces.map((space) => {
+    // 조회 결과는 visitStartAt 오름차순이므로 첫 항목이 가장 이른 예약이다.
+    const occupancies = bySpace.get(space.spaceId) ?? [];
+    const inUse = occupancies.find((occupancy) =>
+      ENTRY_EXIT_MANAGEMENT_ENABLED
+        ? occupancy.reservationStatus === ReservationStatus.PARKING
+        : occupancy.visitStartAt.getTime() <= nowMs && occupancy.visitEndAt.getTime() > nowMs,
+    );
+    const status: SpaceOccupancyStatus = inUse
+      ? 'IN_USE'
+      : occupancies.length > 0
+        ? 'RESERVED'
+        : 'EMPTY';
+    const target = inUse ?? occupancies[0];
+
+    return {
+      spaceId: space.spaceId,
+      spaceCode: space.spaceCode,
+      spaceName: space.spaceName,
+      spaceType: space.spaceType,
+      areaName: space.area.areaName,
+      isActive: space.isActive,
+      memo: space.memo,
+      occupancies,
+      status,
+      statusTimeRange: target
+        ? { visitStartAt: target.visitStartAt, visitEndAt: target.visitEndAt }
+        : null,
+    };
+  });
 
   const normalSpaces = spaceRows.filter((row) => row.spaceType === SpaceType.NORMAL);
   const doubleSpaces = spaceRows.filter((row) => row.spaceType === SpaceType.DOUBLE);

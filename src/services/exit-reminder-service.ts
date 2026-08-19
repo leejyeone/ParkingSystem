@@ -1,6 +1,7 @@
 import { ChangedByType, EmailSendStatus, EmailType, ReservationStatus } from '@prisma/client';
 
 import { sendExitReminderEmail, type ReservationForEmail } from '@/lib/email/email-service';
+import { ENTRY_EXIT_MANAGEMENT_ENABLED } from '@/domain/feature-flags';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 import { getSystemSettings } from '@/services/settings-service';
@@ -95,6 +96,12 @@ export async function runAutoNoShowJob(
   now: Date = new Date(),
   graceMinutes = 30,
 ): Promise<{ processedCount: number }> {
+  // 입·출차 관리를 쓰지 않는 동안에는 입차 기록이 없는 것이 정상이므로 자동 처리하지 않는다.
+  if (!ENTRY_EXIT_MANAGEMENT_ENABLED) {
+    logger.info('입·출차 관리가 비활성화되어 자동 NO_SHOW 처리를 건너뜁니다.');
+    return { processedCount: 0 };
+  }
+
   const threshold = new Date(now.getTime() - graceMinutes * 60_000);
 
   const targets = await prisma.parkingReservation.findMany({

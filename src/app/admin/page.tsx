@@ -6,9 +6,21 @@ import { SpaceTypeBadge, StatusBadge } from '@/components/ui/status-badge';
 import { Alert } from '@/components/ui/alert';
 import { requireAdminPage } from '@/lib/admin-page-guard';
 import { formatKstTime, todayKstDateString } from '@/lib/datetime';
-import { getDashboardData } from '@/services/dashboard-service';
+import { getDashboardData, type SpaceOccupancyStatus } from '@/services/dashboard-service';
 
 export const dynamic = 'force-dynamic';
+
+const SPACE_STATUS_LABEL: Record<SpaceOccupancyStatus, string> = {
+  EMPTY: '비어 있음',
+  RESERVED: '예약',
+  IN_USE: '사용 중',
+};
+
+const SPACE_STATUS_CLASS: Record<SpaceOccupancyStatus, string> = {
+  EMPTY: 'bg-slate-100 text-slate-500',
+  RESERVED: 'bg-amber-100 text-amber-800',
+  IN_USE: 'bg-emerald-100 text-emerald-800',
+};
 
 export const metadata: Metadata = { title: '대시보드' };
 
@@ -245,11 +257,17 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
                       </td>
                       <td className="text-xs text-slate-500">{space.areaName}</td>
                       <td>
-                        {space.occupancies.length > 0 ? (
-                          <span className="badge bg-emerald-100 text-emerald-800">사용</span>
-                        ) : (
-                          <span className="badge bg-slate-100 text-slate-500">비어 있음</span>
-                        )}
+                        <div className="flex flex-col gap-1">
+                          <span className={`badge w-fit ${SPACE_STATUS_CLASS[space.status]}`}>
+                            {SPACE_STATUS_LABEL[space.status]}
+                          </span>
+                          {space.statusTimeRange && (
+                            <span className="text-xs whitespace-nowrap text-slate-500">
+                              {formatKstTime(space.statusTimeRange.visitStartAt)} ~{' '}
+                              {formatKstTime(space.statusTimeRange.visitEndAt)}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td>
                         {space.occupancies.length === 0 ? (

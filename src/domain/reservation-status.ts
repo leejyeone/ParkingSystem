@@ -44,11 +44,13 @@ export function isTerminalStatus(status: ReservationStatus): boolean {
 /** 주차면을 실제로 점유하는 상태 (중복 배정 검증 대상) */
 export const SPACE_OCCUPYING_STATUSES: readonly ReservationStatus[] = ['APPROVED', 'PARKING'];
 
-/** 신청자가 수정/취소를 시도할 수 있는 상태 */
-export const REQUESTER_MODIFIABLE_STATUSES: readonly ReservationStatus[] = [
-  'REQUESTED',
-  'APPROVED',
-];
+/**
+ * 신청자가 수정/취소를 시도할 수 있는 상태.
+ *
+ * 승인 완료 이후에는 주차면 배정과 관리자 확인이 끝난 상태이므로 신청자가 직접 바꿀 수 없다.
+ * 변경이 필요하면 담당자에게 문의하도록 안내한다.
+ */
+export const REQUESTER_MODIFIABLE_STATUSES: readonly ReservationStatus[] = ['REQUESTED'];
 
 export const RESERVATION_STATUS_LABEL: Readonly<Record<ReservationStatus, string>> = {
   REQUESTED: '승인 대기',

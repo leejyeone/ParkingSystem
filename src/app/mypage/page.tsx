@@ -1,3 +1,4 @@
+import { ReservationStatus } from '@prisma/client';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -72,7 +73,9 @@ export default async function MyPage({ searchParams }: PageProps) {
           )}
 
           <h2 className="card-title">내 예약 ({reservations.length}건)</h2>
-          <p className="field-hint">로그인한 상태로 신청한 예약이 표시됩니다.</p>
+          <p className="field-hint">
+            승인 대기 중인 예약은 카드를 누르면 조회·수정·취소 화면으로 이동합니다.
+          </p>
 
           {reservations.length === 0 ? (
             <p className="mt-4 text-sm text-slate-500">
@@ -80,50 +83,72 @@ export default async function MyPage({ searchParams }: PageProps) {
             </p>
           ) : (
             <ul className="mt-3 space-y-3">
-              {reservations.map((reservation) => (
-                <li
-                  key={reservation.reservationId}
-                  className="rounded-lg border border-slate-200 p-3"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-mono text-sm font-bold text-slate-900">
-                      {reservation.reservationNo}
-                    </span>
-                    <StatusBadge status={reservation.reservationStatus} />
-                  </div>
-                  <dl className="mt-2 space-y-1 text-sm text-slate-700">
-                    <div className="flex gap-2">
-                      <dt className="w-20 shrink-0 text-xs font-bold text-slate-500">방문 시간</dt>
-                      <dd>{formatKstRange(reservation.visitStartAt, reservation.visitEndAt)}</dd>
+              {reservations.map((reservation) => {
+                // 승인 대기 예약만 조회·수정·취소 화면으로 넘어갈 수 있다.
+                const openable = reservation.reservationStatus === ReservationStatus.REQUESTED;
+
+                const body = (
+                  <>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-mono text-sm font-bold text-slate-900">
+                        {reservation.reservationNo}
+                      </span>
+                      <StatusBadge status={reservation.reservationStatus} />
                     </div>
-                    <div className="flex gap-2">
-                      <dt className="w-20 shrink-0 text-xs font-bold text-slate-500">신청 구분</dt>
-                      <dd>{REQUESTER_TYPE_LABEL[reservation.requesterType]}</dd>
-                    </div>
-                    <div className="flex gap-2">
-                      <dt className="w-20 shrink-0 text-xs font-bold text-slate-500">차량번호</dt>
-                      <dd className="font-mono">{reservation.vehicleNo}</dd>
-                    </div>
-                    {showSpace && (
+                    <dl className="mt-2 space-y-1 text-sm text-slate-700">
                       <div className="flex gap-2">
                         <dt className="w-20 shrink-0 text-xs font-bold text-slate-500">
-                          배정 위치
+                          방문 시간
                         </dt>
-                        <dd>{reservation.assignedSpaceCode ?? '승인 후 배정'}</dd>
+                        <dd>{formatKstRange(reservation.visitStartAt, reservation.visitEndAt)}</dd>
                       </div>
+                      <div className="flex gap-2">
+                        <dt className="w-20 shrink-0 text-xs font-bold text-slate-500">
+                          신청 구분
+                        </dt>
+                        <dd>{REQUESTER_TYPE_LABEL[reservation.requesterType]}</dd>
+                      </div>
+                      <div className="flex gap-2">
+                        <dt className="w-20 shrink-0 text-xs font-bold text-slate-500">차량번호</dt>
+                        <dd className="font-mono">{reservation.vehicleNo}</dd>
+                      </div>
+                      {showSpace && (
+                        <div className="flex gap-2">
+                          <dt className="w-20 shrink-0 text-xs font-bold text-slate-500">
+                            배정 위치
+                          </dt>
+                          <dd>{reservation.assignedSpaceCode ?? '승인 후 배정'}</dd>
+                        </div>
+                      )}
+                    </dl>
+                  </>
+                );
+
+                return (
+                  <li key={reservation.reservationId}>
+                    {openable ? (
+                      <Link
+                        href={`/mypage/reservations/${reservation.reservationId}`}
+                        className="hover:border-brand-500 block rounded-lg border border-slate-200 p-3 transition hover:bg-slate-50"
+                      >
+                        {body}
+                      </Link>
+                    ) : (
+                      <div className="rounded-lg border border-slate-200 p-3">{body}</div>
                     )}
-                  </dl>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           )}
 
           <p className="field-hint mt-4">
-            예약 수정·취소는{' '}
+            승인 완료된 예약의 변경이 필요하면 주차 관리 담당자에게 문의해 주세요. 위 목록에 없는
+            예약은{' '}
             <Link href="/reservations/lookup" className="text-brand-700 font-semibold">
               예약 조회
             </Link>{' '}
-            화면에서 예약번호로 진행하거나, 안내 메일의 링크를 이용해 주세요.
+            화면에서 예약번호로 확인할 수 있습니다.
           </p>
         </div>
       </section>

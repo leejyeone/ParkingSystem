@@ -3,11 +3,16 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { ReservationActionPanel } from '@/components/admin/reservation-action-panel';
+import { RequesterInfoCard, ScheduleCard } from '@/components/admin/reservation-detail-cards';
 import { Alert } from '@/components/ui/alert';
 import { SpaceTypeBadge, StatusBadge } from '@/components/ui/status-badge';
-import { REQUESTER_TYPE_LABEL, RESERVATION_STATUS_LABEL } from '@/domain/reservation-status';
+import {
+  isTerminalStatus,
+  REQUESTER_TYPE_LABEL,
+  RESERVATION_STATUS_LABEL,
+} from '@/domain/reservation-status';
 import { requireAdminPage } from '@/lib/admin-page-guard';
-import { formatKstDateTime, formatKstRange } from '@/lib/datetime';
+import { formatKstDateTime, formatKstRange, utcToZonedInput } from '@/lib/datetime';
 import { NotFoundError } from '@/lib/errors';
 import { getRequestContext } from '@/lib/request-context';
 import { getCapacityUsage, getReservationDetailForAdmin } from '@/services/reservation-service';
@@ -68,6 +73,18 @@ export default async function AdminReservationDetailPage({ params }: PageProps) 
         excludeReservationId: reservationId,
       });
 
+  // 종료된 예약(반려/취소/출차/미방문)은 내용을 바꿀 수 없다.
+  const editable = !isTerminalStatus(reservation.reservationStatus);
+  const editableFields = {
+    companyOrBranchName: reservation.companyOrBranchName,
+    requesterName: reservation.requesterName,
+    vehicleNo: reservation.vehicleNo,
+    visitPurpose: reservation.visitPurpose ?? '',
+    requestMemo: reservation.requestMemo ?? '',
+    visitStartAt: utcToZonedInput(reservation.visitStartAt),
+    visitEndAt: utcToZonedInput(reservation.visitEndAt),
+  };
+
   return (
     <main className="app-container-wide space-y-4">
       <div>
@@ -96,78 +113,60 @@ export default async function AdminReservationDetailPage({ params }: PageProps) 
       */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="min-w-0 space-y-4 lg:col-span-2">
-          <section className="card">
-            <div className="card-body">
-              <h2 className="card-title">신청 정보</h2>
-              <dl className="mt-3">
-                <Row term="신청 구분" desc={REQUESTER_TYPE_LABEL[reservation.requesterType]} />
-                <Row term="방문 상호/지사" desc={reservation.companyOrBranchName} />
-                <Row term="성명" desc={reservation.requesterName} />
-                <Row term="이메일" desc={reservation.requesterEmail} />
-                <Row term="차량번호" desc={reservation.vehicleNo} />
-                <Row term="방문 목적" desc={reservation.visitPurpose ?? '-'} />
-                <Row term="요청 메모" desc={reservation.requestMemo ?? '-'} />
-                <Row
-                  term="개인정보 동의"
-                  desc={`${formatKstDateTime(reservation.privacyConsentAt)} 동의`}
-                />
-                <Row term="신청 일시" desc={formatKstDateTime(reservation.createdAt)} />
-              </dl>
-            </div>
-          </section>
+          <RequesterInfoCard
+            reservationId={reservation.reservationId}
+            editable={editable}
+            initial={editableFields}
+            readOnly={{
+              requesterTypeLabel: REQUESTER_TYPE_LABEL[reservation.requesterType],
+              requesterEmail: reservation.requesterEmail,
+              privacyConsentText: `${formatKstDateTime(reservation.privacyConsentAt)} 동의`,
+              createdAtText: formatKstDateTime(reservation.createdAt),
+            }}
+          />
 
-          <section className="card">
-            <div className="card-body">
-              <h2 className="card-title">{showSpace ? '일정 및 주차 위치' : '일정'}</h2>
-              <dl className="mt-3">
-                <Row
-                  term="방문 예정"
-                  desc={formatKstRange(reservation.visitStartAt, reservation.visitEndAt)}
-                />
-                <Row
-                  term="실제 입차"
-                  desc={
-                    reservation.actualEntryAt ? formatKstDateTime(reservation.actualEntryAt) : '-'
-                  }
-                />
-                <Row
-                  term="실제 출차"
-                  desc={
-                    reservation.actualExitAt ? formatKstDateTime(reservation.actualExitAt) : '-'
-                  }
-                />
-                {showSpace && (
-                  <>
-                    <Row
-                      term="추천 위치"
-                      desc={reservation.recommendedSpace?.spaceCode ?? '추천 없음'}
-                    />
-                    <div className="definition-row">
-                      <dt className="definition-term">배정 위치</dt>
-                      <dd className="definition-desc flex flex-wrap items-center gap-2">
-                        {reservation.assignedSpace ? (
-                          <>
-                            <span className="font-mono font-bold">
-                              {reservation.assignedSpace.spaceCode}
-                            </span>
-                            <SpaceTypeBadge spaceType={reservation.assignedSpace.spaceType} />
-                          </>
-                        ) : (
-                          '미배정'
-                        )}
-                      </dd>
-                    </div>
-                  </>
-                )}
-                {reservation.rejectionReason && (
-                  <Row term="반려 사유" desc={reservation.rejectionReason} />
-                )}
-                {reservation.cancelReason && (
-                  <Row term="취소 사유" desc={reservation.cancelReason} />
-                )}
-              </dl>
-            </div>
-          </section>
+          <ScheduleCard
+            reservationId={reservation.reservationId}
+            editable={editable}
+            initial={editableFields}
+            readOnly={{
+              title: showSpace ? '일정 및 주차 위치' : '일정',
+              visitRangeText: formatKstRange(reservation.visitStartAt, reservation.visitEndAt),
+              actualEntryText: reservation.actualEntryAt
+                ? formatKstDateTime(reservation.actualEntryAt)
+                : '-',
+              actualExitText: reservation.actualExitAt
+                ? formatKstDateTime(reservation.actualExitAt)
+                : '-',
+              spaceSection: showSpace ? (
+                <>
+                  <div className="definition-row">
+                    <dt className="definition-term">추천 위치</dt>
+                    <dd className="definition-desc">
+                      {reservation.recommendedSpace?.spaceCode ?? '추천 없음'}
+                    </dd>
+                  </div>
+                  <div className="definition-row">
+                    <dt className="definition-term">배정 위치</dt>
+                    <dd className="definition-desc flex flex-wrap items-center gap-2">
+                      {reservation.assignedSpace ? (
+                        <>
+                          <span className="font-mono font-bold">
+                            {reservation.assignedSpace.spaceCode}
+                          </span>
+                          <SpaceTypeBadge spaceType={reservation.assignedSpace.spaceType} />
+                        </>
+                      ) : (
+                        '미배정'
+                      )}
+                    </dd>
+                  </div>
+                </>
+              ) : null,
+              rejectionReason: reservation.rejectionReason,
+              cancelReason: reservation.cancelReason,
+            }}
+          />
 
           <section className="card">
             <div className="card-body">
@@ -225,14 +224,5 @@ export default async function AdminReservationDetailPage({ params }: PageProps) 
         </div>
       </div>
     </main>
-  );
-}
-
-function Row({ term, desc }: { term: string; desc: string }) {
-  return (
-    <div className="definition-row">
-      <dt className="definition-term">{term}</dt>
-      <dd className="definition-desc">{desc}</dd>
-    </div>
   );
 }

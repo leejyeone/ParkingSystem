@@ -273,12 +273,19 @@ export async function sendRejectedEmail(
 /** 5. 변경 (신청자 + 관리자) */
 export async function sendUpdatedEmails(
   reservation: ReservationForEmail,
-  options: { accessUrl: string; previousVisitStartAt: Date; previousVisitEndAt: Date },
+  options: {
+    accessUrl: string;
+    previousVisitStartAt: Date;
+    previousVisitEndAt: Date;
+    /** 신청자가 아니라 관리자가 수정한 경우 (본문 안내 문구가 달라진다) */
+    changedByAdmin?: boolean;
+  },
 ): Promise<EmailDispatchResult[]> {
   const data = await toEmailData(reservation, {
     accessUrl: options.accessUrl,
     previousVisitStartAt: options.previousVisitStartAt,
     previousVisitEndAt: options.previousVisitEndAt,
+    changedByAdmin: options.changedByAdmin ?? false,
   });
   const requesterMail = renderReservationEmail(EmailType.UPDATED, data);
   const adminMail = renderReservationEmail(EmailType.UPDATED, {

@@ -38,6 +38,8 @@ export type ReservationEmailData = {
   /** 변경 전 일정 (UPDATED 메일에서만 사용) */
   previousVisitStartAt?: Date | null;
   previousVisitEndAt?: Date | null;
+  /** UPDATED 메일에서 관리자가 수정한 경우인지 (신청자 요청과 안내 문구가 다르다) */
+  changedByAdmin?: boolean;
   /** 수정/취소 마감 시각 */
   changeDeadlineAt?: Date | null;
 };
@@ -276,7 +278,7 @@ export function renderReservationEmail(
     case EmailType.APPROVED: {
       const notices = [
         '입차 시 차량번호와 예약 정보가 일치해야 합니다.',
-        '방문 시간이 변경되면 예약 조회 링크에서 수정해 주세요.',
+        '승인 완료된 예약은 신청자가 직접 수정·취소할 수 없습니다. 변경이 필요하면 주차 관리 담당자에게 문의해 주세요.',
       ];
       if (!usesSpaceAssignment(data)) {
         notices.push('주차 위치는 지정되지 않습니다. 방문 시 현장 안내에 따라 주차해 주세요.');
@@ -328,22 +330,24 @@ export function renderReservationEmail(
           value: formatKstRange(data.previousVisitStartAt, data.previousVisitEndAt),
         });
       }
+      const byAdmin = data.changedByAdmin === true;
       const params = {
         title: '예약 내용이 변경되었습니다',
-        lead: '신청자 요청으로 예약 내용이 변경되었습니다. 변경된 예약은 다시 관리자 승인을 받아야 합니다.',
+        lead: byAdmin
+          ? '주차 관리 담당자가 예약 내용을 변경했습니다. 아래 내용을 확인해 주세요.'
+          : '신청자 요청으로 예약 내용이 변경되었습니다. 변경된 예약은 다시 관리자 승인을 받아야 합니다.',
         rows: [
           ...changeRows,
           ...rows.map((row) =>
             row.label === '방문 시간' ? { label: '변경 후 방문 시간', value: row.value } : row,
           ),
-          { label: '예약 상태', value: '승인 대기' },
+          ...(byAdmin ? [] : [{ label: '예약 상태', value: '승인 대기' }]),
         ],
-        notices: usesSpaceAssignment(data)
-          ? [
-              '변경으로 인해 기존 배정 주차 위치는 해제되었습니다.',
-              '재승인 후 배정 위치가 다시 안내됩니다.',
-            ]
-          : ['변경된 예약은 관리자 재승인 후 다시 주차 가능 상태가 됩니다.'],
+        notices: byAdmin
+          ? ['변경 내용이 맞지 않으면 주차 관리 담당자에게 문의해 주세요.']
+          : usesSpaceAssignment(data)
+            ? ['관리자 승인 후 배정 주차 위치가 안내됩니다.']
+            : ['변경된 예약은 관리자 승인 후 다시 주차 가능 상태가 됩니다.'],
         buttonLabel: '내 예약 조회하기',
         buttonUrl: data.accessUrl,
       };

@@ -21,6 +21,7 @@ const ACTION_LABEL: Record<string, string> = {
   RESERVATION_LIST_VIEW: '예약 목록 조회',
   RESERVATION_DETAIL_VIEW: '예약 상세 개인정보 조회',
   AUDIT_LOG_VIEW: '감사 로그 열람',
+  RESERVATION_UPDATE: '예약 내용 수정',
   RESERVATION_APPROVE: '예약 승인',
   RESERVATION_REJECT: '예약 반려',
   RESERVATION_SPACE_CHANGE: '주차 위치 변경',
