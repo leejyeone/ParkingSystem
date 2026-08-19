@@ -3,7 +3,6 @@ import Link from 'next/link';
 
 import { SpaceTypeBadge, StatusBadge } from '@/components/ui/status-badge';
 import { Alert } from '@/components/ui/alert';
-import { REQUESTER_TYPE_LABEL } from '@/domain/reservation-status';
 import { requireAdminPage } from '@/lib/admin-page-guard';
 import { formatKstTime, todayKstDateString } from '@/lib/datetime';
 import { getDashboardData } from '@/services/dashboard-service';
@@ -30,6 +29,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
   const dashboard = await getDashboardData(date);
 
   const maxHourlyUsage = Math.max(1, ...dashboard.hourlyUsage.map((slot) => slot.usedCount));
+  const showSpace = dashboard.spaceAssignmentEnabled;
 
   return (
     <main className="app-container-wide space-y-4">
@@ -42,7 +42,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-black text-slate-900 sm:text-2xl">대시보드</h1>
-          <p className="mt-1 text-sm text-slate-600">기준일: {date} (Asia/Seoul)</p>
+          <p className="mt-1 text-sm text-slate-600">기준일: {date}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -76,16 +76,37 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
       </div>
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard
-          label="일반 주차 사용"
-          value={`${dashboard.normalUsedCount} / ${dashboard.normalTotalCount}`}
-          tone="brand"
-        />
-        <StatCard
-          label="이중주차 사용"
-          value={`${dashboard.doubleUsedCount} / ${dashboard.doubleTotalCount}`}
-          tone="warning"
-        />
+        {showSpace ? (
+          <>
+            <StatCard
+              label="일반 주차 사용"
+              value={`${dashboard.normalUsedCount} / ${dashboard.normalTotalCount}`}
+              tone="brand"
+            />
+            <StatCard
+              label="이중주차 사용"
+              value={`${dashboard.doubleUsedCount} / ${dashboard.doubleTotalCount}`}
+              tone="warning"
+            />
+          </>
+        ) : (
+          <>
+            <StatCard
+              label="동시 주차 최대"
+              value={`${dashboard.peakConcurrentCount} / ${dashboard.parkingCapacity}`}
+              tone={
+                dashboard.peakConcurrentCount >= dashboard.parkingCapacity ? 'warning' : 'brand'
+              }
+              hint="당일 시간대별 최대치 / 정원"
+            />
+            <StatCard
+              label="당일 주차 차량"
+              value={`${dashboard.dayReservationCount} 대`}
+              tone="slate"
+              hint="승인 완료 + 입차"
+            />
+          </>
+        )}
         <StatCard
           label="승인 대기"
           value={`${dashboard.pendingCount} 건`}
@@ -137,21 +158,16 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>예약번호</th>
-                    <th>구분</th>
                     <th>방문 상호/지사</th>
                     <th>신청자</th>
                     <th>차량번호</th>
                     <th>방문 시간</th>
-                    <th>추천 위치</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {dashboard.pendingReservations.map((reservation) => (
                     <tr key={reservation.reservationId}>
-                      <td className="font-mono text-xs">{reservation.reservationNo}</td>
-                      <td>{REQUESTER_TYPE_LABEL[reservation.requesterType]}</td>
                       <td>{reservation.companyOrBranchName}</td>
                       <td>{reservation.requesterName}</td>
                       <td className="font-mono text-xs">{reservation.vehicleNo}</td>
@@ -159,7 +175,6 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
                         {formatKstTime(reservation.visitStartAt)} ~{' '}
                         {formatKstTime(reservation.visitEndAt)}
                       </td>
-                      <td>{reservation.recommendedSpaceCode ?? '추천 없음'}</td>
                       <td>
                         <Link
                           href={`/admin/reservations/${reservation.reservationId}`}
@@ -197,76 +212,78 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
         </div>
       </section>
 
-      <section className="card">
-        <div className="card-body">
-          <h2 className="card-title">주차면 현황</h2>
-          <p className="field-hint">
-            주차면 배정은 예약 상세 화면의 선택 목록에서 수행합니다. 도면 위 클릭 배정은 제공하지
-            않습니다.
-          </p>
+      {showSpace && (
+        <section className="card">
+          <div className="card-body">
+            <h2 className="card-title">주차면 현황</h2>
+            <p className="field-hint">
+              주차면 배정은 예약 상세 화면의 선택 목록에서 수행합니다. 도면 위 클릭 배정은 제공하지
+              않습니다.
+            </p>
 
-          <div className="table-scroll mt-3">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>주차면</th>
-                  <th>유형</th>
-                  <th>구역</th>
-                  <th>상태</th>
-                  <th>당일 예약</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dashboard.spaces.map((space) => (
-                  <tr key={space.spaceId}>
-                    <td className="font-mono font-bold">{space.spaceCode}</td>
-                    <td>
-                      <SpaceTypeBadge spaceType={space.spaceType} />
-                    </td>
-                    <td className="text-xs text-slate-500">{space.areaName}</td>
-                    <td>
-                      {space.occupancies.length > 0 ? (
-                        <span className="badge bg-emerald-100 text-emerald-800">사용</span>
-                      ) : (
-                        <span className="badge bg-slate-100 text-slate-500">비어 있음</span>
-                      )}
-                    </td>
-                    <td>
-                      {space.occupancies.length === 0 ? (
-                        <span className="text-xs text-slate-400">-</span>
-                      ) : (
-                        <ul className="space-y-1">
-                          {space.occupancies.map((occupancy) => (
-                            <li
-                              key={occupancy.reservationId}
-                              className="flex flex-wrap items-center gap-2"
-                            >
-                              <StatusBadge status={occupancy.reservationStatus} />
-                              <span className="font-mono text-xs">{occupancy.vehicleNo}</span>
-                              <span className="text-xs text-slate-500">
-                                {formatKstTime(occupancy.visitStartAt)} ~{' '}
-                                {formatKstTime(occupancy.visitEndAt)}
-                              </span>
-                              <Link
-                                href={`/admin/reservations/${occupancy.reservationId}`}
-                                className="text-brand-700 text-xs font-bold"
-                              >
-                                상세
-                              </Link>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </td>
+            <div className="table-scroll mt-3">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>주차면</th>
+                    <th>유형</th>
+                    <th>구역</th>
+                    <th>상태</th>
+                    <th>당일 예약</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {dashboard.spaces.map((space) => (
+                    <tr key={space.spaceId}>
+                      <td className="font-mono font-bold">{space.spaceCode}</td>
+                      <td>
+                        <SpaceTypeBadge spaceType={space.spaceType} />
+                      </td>
+                      <td className="text-xs text-slate-500">{space.areaName}</td>
+                      <td>
+                        {space.occupancies.length > 0 ? (
+                          <span className="badge bg-emerald-100 text-emerald-800">사용</span>
+                        ) : (
+                          <span className="badge bg-slate-100 text-slate-500">비어 있음</span>
+                        )}
+                      </td>
+                      <td>
+                        {space.occupancies.length === 0 ? (
+                          <span className="text-xs text-slate-400">-</span>
+                        ) : (
+                          <ul className="space-y-1">
+                            {space.occupancies.map((occupancy) => (
+                              <li
+                                key={occupancy.reservationId}
+                                className="flex flex-wrap items-center gap-2"
+                              >
+                                <StatusBadge status={occupancy.reservationStatus} />
+                                <span className="font-mono text-xs">{occupancy.vehicleNo}</span>
+                                <span className="text-xs text-slate-500">
+                                  {formatKstTime(occupancy.visitStartAt)} ~{' '}
+                                  {formatKstTime(occupancy.visitEndAt)}
+                                </span>
+                                <Link
+                                  href={`/admin/reservations/${occupancy.reservationId}`}
+                                  className="text-brand-700 text-xs font-bold"
+                                >
+                                  상세
+                                </Link>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
-      {dashboard.mapImageUrls.length > 0 && (
+      {showSpace && dashboard.mapImageUrls.length > 0 && (
         <section className="card">
           <div className="card-body">
             <h2 className="card-title">주차장 도면 (참고용)</h2>

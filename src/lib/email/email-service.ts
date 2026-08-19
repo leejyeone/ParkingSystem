@@ -11,6 +11,7 @@ import {
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 import { buildReservationAccessUrl } from '@/lib/tokens';
+import { getSystemSettings } from '@/services/settings-service';
 
 /**
  * 이메일 발송 오케스트레이션.
@@ -144,11 +145,19 @@ export type ReservationForEmail = {
   assignedSpace?: { spaceCode: string; spaceType: SpaceType } | null;
 };
 
-function toEmailData(
+/**
+ * 메일 본문 데이터 조립.
+ *
+ * 주차면 배정 사용 여부를 시스템 설정에서 읽어 함께 넘긴다.
+ * 배정을 끈 운영에서는 템플릿이 "배정 주차 위치" 행과 관련 안내 문구를 모두 생략한다.
+ */
+async function toEmailData(
   reservation: ReservationForEmail,
   extra?: Partial<ReservationEmailData>,
-): ReservationEmailData {
+): Promise<ReservationEmailData> {
+  const settings = await getSystemSettings();
   return {
+    spaceAssignmentEnabled: settings.spaceAssignmentEnabled,
     reservationNo: reservation.reservationNo,
     requesterName: reservation.requesterName,
     requesterType: reservation.requesterType,
@@ -195,7 +204,7 @@ export async function sendRequestReceivedEmail(
 ): Promise<EmailDispatchResult> {
   const rendered = renderReservationEmail(
     EmailType.REQUEST_RECEIVED,
-    toEmailData(reservation, {
+    await toEmailData(reservation, {
       accessUrl: options.accessUrl,
       changeDeadlineAt: options.changeDeadlineAt,
     }),
@@ -215,7 +224,9 @@ export async function sendNewRequestToAdminEmails(
   const recipients = await getAdminRecipients('receiveNewRequest');
   const rendered = renderReservationEmail(
     EmailType.NEW_REQUEST_TO_ADMIN,
-    toEmailData(reservation, { adminDetailUrl: buildAdminDetailUrl(reservation.reservationId) }),
+    await toEmailData(reservation, {
+      adminDetailUrl: buildAdminDetailUrl(reservation.reservationId),
+    }),
   );
   return Promise.all(
     recipients.map((to) =>
@@ -236,7 +247,7 @@ export async function sendApprovedEmail(
 ): Promise<EmailDispatchResult> {
   const rendered = renderReservationEmail(
     EmailType.APPROVED,
-    toEmailData(reservation, { accessUrl: options.accessUrl }),
+    await toEmailData(reservation, { accessUrl: options.accessUrl }),
   );
   return sendEmailWithLog({
     reservationId: reservation.reservationId,
@@ -250,7 +261,7 @@ export async function sendApprovedEmail(
 export async function sendRejectedEmail(
   reservation: ReservationForEmail,
 ): Promise<EmailDispatchResult> {
-  const rendered = renderReservationEmail(EmailType.REJECTED, toEmailData(reservation));
+  const rendered = renderReservationEmail(EmailType.REJECTED, await toEmailData(reservation));
   return sendEmailWithLog({
     reservationId: reservation.reservationId,
     emailType: EmailType.REJECTED,
@@ -264,7 +275,7 @@ export async function sendUpdatedEmails(
   reservation: ReservationForEmail,
   options: { accessUrl: string; previousVisitStartAt: Date; previousVisitEndAt: Date },
 ): Promise<EmailDispatchResult[]> {
-  const data = toEmailData(reservation, {
+  const data = await toEmailData(reservation, {
     accessUrl: options.accessUrl,
     previousVisitStartAt: options.previousVisitStartAt,
     previousVisitEndAt: options.previousVisitEndAt,
@@ -299,7 +310,7 @@ export async function sendUpdatedEmails(
 export async function sendCancelledEmails(
   reservation: ReservationForEmail,
 ): Promise<EmailDispatchResult[]> {
-  const rendered = renderReservationEmail(EmailType.CANCELLED, toEmailData(reservation));
+  const rendered = renderReservationEmail(EmailType.CANCELLED, await toEmailData(reservation));
   const admins = await getAdminRecipients('receiveApprovalAlert');
   return Promise.all([
     sendEmailWithLog({
@@ -323,7 +334,7 @@ export async function sendCancelledEmails(
 export async function sendExitReminderEmail(
   reservation: ReservationForEmail,
 ): Promise<EmailDispatchResult> {
-  const rendered = renderReservationEmail(EmailType.EXIT_REMINDER, toEmailData(reservation));
+  const rendered = renderReservationEmail(EmailType.EXIT_REMINDER, await toEmailData(reservation));
   return sendEmailWithLog({
     reservationId: reservation.reservationId,
     emailType: EmailType.EXIT_REMINDER,
@@ -339,11 +350,13 @@ export async function sendDoubleParkingNoticeEmails(
 ): Promise<EmailDispatchResult[]> {
   const rendered = renderReservationEmail(
     EmailType.DOUBLE_PARKING_NOTICE,
-    toEmailData(reservation, { accessUrl: options.accessUrl }),
+    await toEmailData(reservation, { accessUrl: options.accessUrl }),
   );
   const adminRendered = renderReservationEmail(
     EmailType.DOUBLE_PARKING_NOTICE,
-    toEmailData(reservation, { adminDetailUrl: buildAdminDetailUrl(reservation.reservationId) }),
+    await toEmailData(reservation, {
+      adminDetailUrl: buildAdminDetailUrl(reservation.reservationId),
+    }),
   );
   const admins = await getAdminRecipients('receiveDoubleParkingAlert');
 

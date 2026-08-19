@@ -94,7 +94,13 @@ export function SettingsPanel(props: Props) {
       {tab === 'policy' && <PolicySection initialSettings={props.initialSettings} />}
       {tab === 'notification' && <NotificationSection emails={props.notificationEmails} />}
       {tab === 'areas' && <AreaSection areas={props.areas} />}
-      {tab === 'spaces' && <SpaceSection spaces={props.spaces} areas={props.areas} />}
+      {tab === 'spaces' && (
+        <SpaceSection
+          spaces={props.spaces}
+          areas={props.areas}
+          spaceAssignmentEnabled={props.initialSettings.spaceAssignmentEnabled}
+        />
+      )}
       {tab === 'admins' && <AdminUserSection adminUsers={props.adminUsers} />}
     </div>
   );
@@ -229,15 +235,66 @@ function PolicySection({ initialSettings }: { initialSettings: SystemSettingsVal
           </FormField>
         </div>
 
-        <label className="flex min-h-12 items-center gap-3 rounded-lg border border-slate-300 px-3">
-          <input
-            type="checkbox"
-            className="accent-brand-700 size-5"
-            checked={form.doubleParkingEnabled}
-            onChange={(event) => setForm({ ...form, doubleParkingEnabled: event.target.checked })}
-          />
-          <span className="text-sm font-semibold text-slate-800">이중주차 사용</span>
-        </label>
+        <div className="space-y-2">
+          <label className="flex min-h-12 items-center gap-3 rounded-lg border border-slate-300 px-3">
+            <input
+              type="checkbox"
+              className="accent-brand-700 size-5"
+              checked={form.spaceAssignmentEnabled}
+              onChange={(event) =>
+                setForm({ ...form, spaceAssignmentEnabled: event.target.checked })
+              }
+            />
+            <span className="text-sm font-semibold text-slate-800">주차면 배정 사용</span>
+          </label>
+          <p className="text-xs text-slate-500">
+            끄면 특정 주차 위치를 배정하지 않고 <strong>주차 가능 여부만</strong> 관리합니다. 승인
+            메일, 예약 목록·상세, 대시보드에서 주차 위치 관련 항목이 함께 사라집니다. 이미 배정된
+            예약의 기록은 그대로 보존되며, 다시 켜면 복원됩니다.
+          </p>
+
+          {!form.spaceAssignmentEnabled && (
+            <FormField
+              label="최대 주차 가능 대수"
+              htmlFor="capacity"
+              required
+              errors={fieldErrors.parkingCapacity}
+              hint="같은 시간대에 이 대수를 이미 채웠다면 승인이 차단됩니다. 주차면 배정을 사용할 때는 주차면 개수가 정원이 되므로 이 값을 쓰지 않습니다."
+            >
+              <input
+                id="capacity"
+                type="number"
+                min={1}
+                max={999}
+                className={inputClassName(Boolean(fieldErrors.parkingCapacity))}
+                value={form.parkingCapacity}
+                onChange={(event) =>
+                  setForm({ ...form, parkingCapacity: Number(event.target.value) })
+                }
+              />
+            </FormField>
+          )}
+
+          <label
+            className={`flex min-h-12 items-center gap-3 rounded-lg border border-slate-300 px-3 ${
+              form.spaceAssignmentEnabled ? '' : 'bg-slate-50 opacity-60'
+            }`}
+          >
+            <input
+              type="checkbox"
+              className="accent-brand-700 size-5"
+              checked={form.doubleParkingEnabled}
+              disabled={!form.spaceAssignmentEnabled}
+              onChange={(event) => setForm({ ...form, doubleParkingEnabled: event.target.checked })}
+            />
+            <span className="text-sm font-semibold text-slate-800">이중주차 사용</span>
+          </label>
+          {form.spaceAssignmentEnabled ? null : (
+            <p className="text-xs text-slate-500">
+              주차면 배정을 끈 상태에서는 이중주차 설정이 적용되지 않습니다.
+            </p>
+          )}
+        </div>
 
         <button
           type="button"
@@ -521,7 +578,15 @@ function AreaSection({ areas }: { areas: Area[] }) {
   );
 }
 
-function SpaceSection({ spaces, areas }: { spaces: Space[]; areas: Area[] }) {
+function SpaceSection({
+  spaces,
+  areas,
+  spaceAssignmentEnabled,
+}: {
+  spaces: Space[];
+  areas: Area[];
+  spaceAssignmentEnabled: boolean;
+}) {
   const { pending, message, fieldErrors, mutate } = useMutation();
   const [form, setForm] = useState({
     areaId: areas[0]?.areaId ?? 0,
@@ -535,6 +600,13 @@ function SpaceSection({ spaces, areas }: { spaces: Space[]; areas: Area[] }) {
 
   return (
     <div className="space-y-4">
+      {!spaceAssignmentEnabled && (
+        <Alert variant="info" title="주차면 배정을 사용하지 않는 중입니다">
+          [주차장 정보] 탭에서 주차면 배정이 꺼져 있어, 아래 주차면 정보는 현재 예약 처리에 사용되지
+          않습니다. 등록해 둔 내용은 그대로 보존되며 다시 켜면 즉시 적용됩니다.
+        </Alert>
+      )}
+
       <section className="card">
         <div className="card-body">
           <h2 className="card-title">주차면 목록 ({spaces.length}면)</h2>

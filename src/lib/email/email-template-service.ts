@@ -24,6 +24,11 @@ export type ReservationEmailData = {
   visitEndAt: Date;
   assignedSpaceCode?: string | null;
   assignedSpaceType?: SpaceType | null;
+  /**
+   * 주차면 배정 기능 사용 여부(시스템 설정). 기본 true.
+   * false 이면 "배정 주차 위치" 행과 위치 관련 안내 문구를 모두 생략한다.
+   */
+  spaceAssignmentEnabled?: boolean;
   rejectionReason?: string | null;
   cancelReason?: string | null;
   /** 신청자용 예약 조회 링크(보안 토큰 포함) */
@@ -189,6 +194,17 @@ function renderTextLayout(params: {
   return lines.join('\n');
 }
 
+/** 주차면 배정을 사용하는 운영인지 (미지정이면 사용하는 것으로 본다) */
+function usesSpaceAssignment(data: ReservationEmailData): boolean {
+  return data.spaceAssignmentEnabled !== false;
+}
+
+/** 배정 주차 위치 행. 배정을 쓰지 않으면 행 자체를 넣지 않는다. */
+function spaceRows(data: ReservationEmailData): { label: string; value: string }[] {
+  if (!usesSpaceAssignment(data)) return [];
+  return [{ label: '배정 주차 위치', value: spaceGuideText(data) }];
+}
+
 function spaceGuideText(data: ReservationEmailData): string {
   if (!data.assignedSpaceCode) return '현장 안내에 따라 주차해 주세요.';
   if (data.assignedSpaceType === SpaceType.DOUBLE) {
@@ -209,10 +225,15 @@ export function renderReservationEmail(
 
   switch (emailType) {
     case EmailType.REQUEST_RECEIVED: {
-      const notices = [
-        '아직 승인 전 상태이며, 관리자 승인 후 배정 주차 위치가 안내됩니다.',
-        '주차 위치는 시스템과 관리자가 배정하며 신청자가 직접 선택할 수 없습니다.',
-      ];
+      const notices = usesSpaceAssignment(data)
+        ? [
+            '아직 승인 전 상태이며, 관리자 승인 후 배정 주차 위치가 안내됩니다.',
+            '주차 위치는 시스템과 관리자가 배정하며 신청자가 직접 선택할 수 없습니다.',
+          ]
+        : [
+            '아직 승인 전 상태이며, 관리자 승인 후 주차 가능 여부가 안내됩니다.',
+            '주차 위치는 지정되지 않습니다. 방문 시 현장 안내에 따라 주차해 주세요.',
+          ];
       if (data.changeDeadlineAt) {
         notices.push(
           `예약 수정/취소는 ${formatKstHuman(data.changeDeadlineAt)} 까지 아래 링크에서 가능합니다.`,
@@ -257,17 +278,16 @@ export function renderReservationEmail(
         '입차 시 차량번호와 예약 정보가 일치해야 합니다.',
         '방문 시간이 변경되면 예약 조회 링크에서 수정해 주세요.',
       ];
+      if (!usesSpaceAssignment(data)) {
+        notices.push('주차 위치는 지정되지 않습니다. 방문 시 현장 안내에 따라 주차해 주세요.');
+      }
       if (data.assignedSpaceType === SpaceType.DOUBLE) {
         notices.push('이중주차 구역으로 배정되었습니다. 차량 이동 요청이 있을 수 있습니다.');
       }
       const params = {
         title: '주차 신청이 승인되었습니다',
         lead: `${data.requesterName}님, 신청하신 주차 예약이 승인되었습니다.`,
-        rows: [
-          ...rows,
-          { label: '배정 주차 위치', value: spaceGuideText(data) },
-          { label: '예약 상태', value: '승인 완료' },
-        ],
+        rows: [...rows, ...spaceRows(data), { label: '예약 상태', value: '승인 완료' }],
         notices,
         buttonLabel: '내 예약 조회하기',
         buttonUrl: data.accessUrl,
@@ -318,10 +338,12 @@ export function renderReservationEmail(
           ),
           { label: '예약 상태', value: '승인 대기' },
         ],
-        notices: [
-          '변경으로 인해 기존 배정 주차 위치는 해제되었습니다.',
-          '재승인 후 배정 위치가 다시 안내됩니다.',
-        ],
+        notices: usesSpaceAssignment(data)
+          ? [
+              '변경으로 인해 기존 배정 주차 위치는 해제되었습니다.',
+              '재승인 후 배정 위치가 다시 안내됩니다.',
+            ]
+          : ['변경된 예약은 관리자 재승인 후 다시 주차 가능 상태가 됩니다.'],
         buttonLabel: '내 예약 조회하기',
         buttonUrl: data.accessUrl,
       };
@@ -341,7 +363,9 @@ export function renderReservationEmail(
           { label: '취소 사유', value: data.cancelReason ?? '사유 미기재' },
           { label: '예약 상태', value: '취소' },
         ],
-        notices: ['배정되어 있던 주차 위치는 해제되었습니다.'],
+        notices: usesSpaceAssignment(data)
+          ? ['배정되어 있던 주차 위치는 해제되었습니다.']
+          : ['예약이 취소되어 주차가 불가합니다.'],
       };
       return {
         subject: `[시노펙스] 예약이 취소되었습니다${suffix}`,
@@ -357,7 +381,7 @@ export function renderReservationEmail(
         rows: [
           ...rows,
           { label: '출차 예정 시각', value: formatKstHuman(data.visitEndAt) },
-          { label: '배정 주차 위치', value: spaceGuideText(data) },
+          ...spaceRows(data),
         ],
         notices: [
           '출차가 지연될 경우 뒤이은 방문 차량의 주차가 어려울 수 있습니다.',

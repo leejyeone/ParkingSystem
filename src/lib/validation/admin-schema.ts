@@ -103,6 +103,12 @@ export const systemSettingsSchema = z
       .int()
       .min(1, '최대 예약 시간은 1시간 이상이어야 합니다.')
       .max(24, '최대 예약 시간은 24시간 이하로 설정해 주세요.'),
+    spaceAssignmentEnabled: z.boolean(),
+    parkingCapacity: z.coerce
+      .number()
+      .int()
+      .min(1, '최대 주차 가능 대수는 1대 이상이어야 합니다.')
+      .max(999, '최대 주차 가능 대수는 999대 이하로 설정해 주세요.'),
     doubleParkingEnabled: z.boolean(),
     appTimeZone: requiredText(50, '타임존'),
   })
@@ -151,8 +157,11 @@ export const auditLogQuerySchema = z.object({
   actionType: z.string().trim().max(50).optional(),
   targetType: z.string().trim().max(50).optional(),
   actorAdminId: z.coerce.number().int().positive().optional(),
-  /** '1' 이면 개인정보 열람 계열 액션을 결과에서 제외한다. */
-  excludeViews: z.literal('1').optional(),
+  /**
+   * 개인정보 열람 계열 액션은 건수가 많아 기본으로 제외한다.
+   * '1' 을 주면 함께 조회한다.
+   */
+  includeViews: z.literal('1').optional(),
   page: pageSchema,
   pageSize: pageSizeSchema,
 });

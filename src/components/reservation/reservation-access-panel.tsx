@@ -14,7 +14,12 @@ type Mode = 'view' | 'edit' | 'cancel';
 type Props = {
   token: string;
   initialReservation: RequesterReservationView;
-  settings: { reservationMinLeadMinutes: number; maxReservationHours: number };
+  settings: {
+    reservationMinLeadMinutes: number;
+    maxReservationHours: number;
+    /** 주차면 배정 사용 여부. false 면 주차 위치 관련 안내를 모두 감춘다. */
+    spaceAssignmentEnabled: boolean;
+  };
 };
 
 const STATUS_BADGE_CLASS: Record<string, string> = {
@@ -91,14 +96,16 @@ export function ReservationAccessPanel({ token, initialReservation, settings }: 
             <Row term="이메일" desc={reservation.requesterEmail} />
             <Row term="차량번호" desc={reservation.vehicleNo} />
             <Row term="방문 시간" desc={reservation.visitRangeText} />
-            <Row
-              term="배정 위치"
-              desc={
-                reservation.assignedSpaceCode
-                  ? `${reservation.assignedSpaceCode}${reservation.isDoubleParking ? ' (이중주차)' : ''}`
-                  : '승인 후 배정됩니다'
-              }
-            />
+            {settings.spaceAssignmentEnabled && (
+              <Row
+                term="배정 위치"
+                desc={
+                  reservation.assignedSpaceCode
+                    ? `${reservation.assignedSpaceCode}${reservation.isDoubleParking ? ' (이중주차)' : ''}`
+                    : '승인 후 배정됩니다'
+                }
+              />
+            )}
             {reservation.visitPurpose && <Row term="방문 목적" desc={reservation.visitPurpose} />}
             {reservation.requestMemo && <Row term="요청 메모" desc={reservation.requestMemo} />}
             <Row term="수정·취소 마감" desc={reservation.changeDeadlineText} />
@@ -156,6 +163,7 @@ export function ReservationAccessPanel({ token, initialReservation, settings }: 
       {mode === 'cancel' && (
         <CancelForm
           token={token}
+          spaceAssignmentEnabled={settings.spaceAssignmentEnabled}
           onBack={() => setMode('view')}
           onSuccess={(updated) => {
             setReservation(updated);
@@ -190,7 +198,12 @@ function EditForm({
 }: {
   token: string;
   reservation: RequesterReservationView;
-  settings: { reservationMinLeadMinutes: number; maxReservationHours: number };
+  settings: {
+    reservationMinLeadMinutes: number;
+    maxReservationHours: number;
+    /** 주차면 배정 사용 여부. false 면 주차 위치 관련 안내를 모두 감춘다. */
+    spaceAssignmentEnabled: boolean;
+  };
   onCancel: () => void;
   onSuccess: (updated: RequesterReservationView) => void;
 }) {
@@ -249,8 +262,9 @@ function EditForm({
         <h2 className="card-title">예약 수정</h2>
 
         <Alert variant="warning" title="수정 시 유의사항">
-          수정하면 예약 상태가 <strong>승인 대기</strong>로 되돌아가고 기존 배정 주차 위치가
-          해제됩니다. 이메일 주소는 변경할 수 없습니다.
+          수정하면 예약 상태가 <strong>승인 대기</strong>로 되돌아갑니다.
+          {settings.spaceAssignmentEnabled ? ' 기존 배정 주차 위치가 해제됩니다.' : ''} 이메일
+          주소는 변경할 수 없습니다.
         </Alert>
 
         {formError && <Alert variant="error">{formError.message}</Alert>}
@@ -369,10 +383,12 @@ function EditForm({
 
 function CancelForm({
   token,
+  spaceAssignmentEnabled,
   onBack,
   onSuccess,
 }: {
   token: string;
+  spaceAssignmentEnabled: boolean;
   onBack: () => void;
   onSuccess: (updated: RequesterReservationView) => void;
 }) {
@@ -407,8 +423,10 @@ function CancelForm({
       <div className="card-body space-y-4">
         <h2 className="card-title">예약 취소</h2>
         <Alert variant="warning">
-          취소하면 배정된 주차 위치가 해제되며 되돌릴 수 없습니다. 다시 방문하시려면 새로 신청해
-          주세요.
+          {spaceAssignmentEnabled
+            ? '취소하면 배정된 주차 위치가 해제되며 되돌릴 수 없습니다.'
+            : '취소하면 되돌릴 수 없습니다.'}{' '}
+          다시 방문하시려면 새로 신청해 주세요.
         </Alert>
 
         {formError && <Alert variant="error">{formError.message}</Alert>}

@@ -8,6 +8,7 @@ import { ReservationFilterBar, type FilterChip } from '@/components/admin/reserv
 import { SpaceTypeBadge, StatusBadge } from '@/components/ui/status-badge';
 import { REQUESTER_TYPE_LABEL, RESERVATION_STATUS_LABEL } from '@/domain/reservation-status';
 import { requireAdminPage } from '@/lib/admin-page-guard';
+import { getSystemSettings } from '@/services/settings-service';
 import { formatKstDateTime, kstDayRangeUtc } from '@/lib/datetime';
 import { getRequestContext } from '@/lib/request-context';
 import { listReservationsForAdmin } from '@/services/reservation-service';
@@ -34,6 +35,8 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
   const session = await requireAdminPage(BASE_PATH);
   const params = await searchParams;
   const requestHeaders = await headers();
+  const settings = await getSystemSettings();
+  const showSpace = settings.spaceAssignmentEnabled;
 
   const date = params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date) ? params.date : undefined;
   const range = date ? kstDayRangeUtc(date) : null;
@@ -48,7 +51,8 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
   // 공백만 입력된 값이 조건 칩으로 뜨지 않도록 정규화한다.
   const vehicleNo = params.vehicleNo?.trim() || undefined;
   const requesterName = params.requesterName?.trim() || undefined;
-  const spaceCode = params.spaceCode?.trim() || undefined;
+  // 주차면 배정을 쓰지 않으면 주차 위치 조건 자체를 무시한다.
+  const spaceCode = showSpace ? params.spaceCode?.trim() || undefined : undefined;
   const page = Number(params.page) > 0 ? Number(params.page) : 1;
 
   const result = await listReservationsForAdmin(
@@ -101,7 +105,7 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
     },
     { key: 'vehicleNo', label: '차량번호', value: vehicleNo },
     { key: 'requesterName', label: '성명', value: requesterName },
-    { key: 'spaceCode', label: '주차 위치', value: spaceCode },
+    ...(showSpace ? [{ key: 'spaceCode', label: '주차 위치', value: spaceCode }] : []),
   ]
     .filter((filter): filter is { key: string; label: string; value: string } =>
       Boolean(filter.value),
@@ -184,18 +188,20 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
               className="input"
             />
           </div>
-          <div>
-            <label htmlFor="filter-space" className="label">
-              주차 위치
-            </label>
-            <input
-              id="filter-space"
-              name="spaceCode"
-              defaultValue={spaceCode ?? ''}
-              className="input"
-              placeholder="A-01"
-            />
-          </div>
+          {showSpace && (
+            <div>
+              <label htmlFor="filter-space" className="label">
+                주차 위치
+              </label>
+              <input
+                id="filter-space"
+                name="spaceCode"
+                defaultValue={spaceCode ?? ''}
+                className="input"
+                placeholder="A-01"
+              />
+            </div>
+          )}
           <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-3">
             <button type="submit" className="btn btn-primary px-6">
               검색
@@ -231,7 +237,7 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
                     <th>이메일</th>
                     <th>차량번호</th>
                     <th>방문 시간</th>
-                    <th>배정 위치</th>
+                    {showSpace && <th>배정 위치</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -261,24 +267,26 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
                         {formatKstDateTime(reservation.visitStartAt)}
                         <br />~ {formatKstDateTime(reservation.visitEndAt)}
                       </td>
-                      <td>
-                        {reservation.assignedSpaceCode ? (
-                          <span className="flex flex-wrap items-center gap-1">
-                            <span className="font-mono font-bold">
-                              {reservation.assignedSpaceCode}
+                      {showSpace && (
+                        <td>
+                          {reservation.assignedSpaceCode ? (
+                            <span className="flex flex-wrap items-center gap-1">
+                              <span className="font-mono font-bold">
+                                {reservation.assignedSpaceCode}
+                              </span>
+                              {reservation.assignedSpaceType && (
+                                <SpaceTypeBadge spaceType={reservation.assignedSpaceType} />
+                              )}
                             </span>
-                            {reservation.assignedSpaceType && (
-                              <SpaceTypeBadge spaceType={reservation.assignedSpaceType} />
-                            )}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-slate-400">
-                            {reservation.recommendedSpaceCode
-                              ? `추천 ${reservation.recommendedSpaceCode}`
-                              : '미배정'}
-                          </span>
-                        )}
-                      </td>
+                          ) : (
+                            <span className="text-xs text-slate-400">
+                              {reservation.recommendedSpaceCode
+                                ? `추천 ${reservation.recommendedSpaceCode}`
+                                : '미배정'}
+                            </span>
+                          )}
+                        </td>
+                      )}
                     </ClickableTableRow>
                   ))}
                 </tbody>

@@ -1,6 +1,7 @@
 import { EmailSendStatus, EmailType, Prisma } from '@prisma/client';
 
 import { prisma } from '@/lib/prisma';
+import { VIEW_AUDIT_ACTIONS } from '@/services/audit-service';
 
 /** 이메일 발송 이력 / 감사 로그 조회 (관리자 전용) */
 
@@ -54,6 +55,12 @@ export async function listEmailLogs(filter: EmailLogFilter) {
     pageSize,
     totalPages: Math.max(1, Math.ceil(totalCount / pageSize)),
   };
+}
+
+/** 결과에서 제외된 개인정보 열람 기록이 몇 건인지 (감췄다는 사실을 화면에 알리기 위함) */
+export async function countViewAuditLogs(actionType?: string): Promise<number> {
+  if (actionType) return 0;
+  return prisma.auditLog.count({ where: { actionType: { in: [...VIEW_AUDIT_ACTIONS] } } });
 }
 
 export type AuditLogFilter = {

@@ -14,6 +14,8 @@ type Settings = {
   parkingOpenTime: string;
   parkingCloseTime: string;
   maxReservationHours: number;
+  /** 주차면 배정 사용 여부. false 면 위치 안내 문구를 바꾼다. */
+  spaceAssignmentEnabled: boolean;
   /**
    * 입력 가능한 가장 이른 시각('yyyy-MM-ddTHH:mm').
    * 기기 타임존과 무관하게 Asia/Seoul 기준으로 맞추기 위해 서버에서 계산해 전달한다.
@@ -332,8 +334,9 @@ export function ReservationForm({
           </FormField>
 
           <Alert variant="info" title="주차 위치 안내">
-            주차 위치는 시스템이 자동으로 추천하고 관리자가 최종 확정합니다. 신청자가 직접 선택할 수
-            없습니다.
+            {settings.spaceAssignmentEnabled
+              ? '주차 위치는 시스템이 자동으로 추천하고 관리자가 최종 확정합니다. 신청자가 직접 선택할 수 없습니다.'
+              : '주차 위치는 지정되지 않습니다. 관리자 승인 후 방문하시어 현장 안내에 따라 주차해 주세요.'}
           </Alert>
         </div>
       </div>
@@ -432,8 +435,8 @@ function CompletionView({ result }: { result: CreateResponse }) {
         <div className="mt-5 space-y-3">
           <Alert variant="info" title="이메일이 발송되었습니다">
             <p>
-              {result.emailNoticeSentTo} 주소로 접수 확인 메일을 보냈습니다. 메일의 링크나 예약번호로 예약을
-              조회할 수 있습니다.
+              {result.emailNoticeSentTo} 주소로 접수 확인 메일을 보냈습니다. 메일의 링크나
+              예약번호로 예약을 조회할 수 있습니다.
             </p>
             <p className="mt-1">메일이 도착하지 않으면 스팸함을 확인해 주세요.</p>
           </Alert>

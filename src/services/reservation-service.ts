@@ -12,7 +12,7 @@ import {
   checkRequesterCanChange,
   getRequesterChangeDeadline,
 } from '@/domain/reservation-rules';
-import { assertTransition } from '@/domain/reservation-status';
+import { assertTransition, SPACE_OCCUPYING_STATUSES } from '@/domain/reservation-status';
 import { buildOverlapWhere } from '@/domain/time-overlap';
 import { formatKstDate } from '@/lib/datetime';
 import {
@@ -34,6 +34,7 @@ import { normalizeVehicleNo } from '@/lib/vehicle';
 import type { RequestContext } from '@/lib/request-context';
 import { AUDIT_ACTIONS, AUDIT_TARGETS, writeAuditLog } from '@/services/audit-service';
 import { issueAccessToken } from '@/services/reservation-access-service';
+import { SETTING_KEYS } from '@/domain/system-settings';
 import { getSystemSettings } from '@/services/settings-service';
 import {
   findConflictingReservation,
@@ -135,6 +136,53 @@ async function lockSpaceRow(tx: Prisma.TransactionClient, spaceId: number): Prom
   await tx.$queryRaw`SELECT space_id FROM parking_spaces WHERE space_id = ${spaceId} FOR UPDATE`;
 }
 
+/**
+ * 주차면 배정을 쓰지 않을 때 정원 판정을 직렬화하기 위한 잠금.
+ *
+ * 배정을 쓸 때는 주차면 행을 잠가 경합을 막지만, 배정을 쓰지 않으면 잠글 대상이 없다.
+ * 정원 설정 행 하나를 잠가 동시 승인이 같은 시간대 정원을 함께 통과하는 것을 막는다.
+ */
+async function lockCapacitySetting(tx: Prisma.TransactionClient): Promise<void> {
+  await tx.$queryRaw`SELECT setting_key FROM system_settings WHERE setting_key = ${SETTING_KEYS.PARKING_CAPACITY} FOR UPDATE`;
+}
+
+/**
+ * 해당 시간대에 이미 자리를 차지하고 있는 예약 수.
+ * (승인 완료 + 입차 상태 = 실제로 주차장에 있게 되는 차량)
+ */
+export async function countOverlappingReservations(
+  params: { visitStartAt: Date; visitEndAt: Date; excludeReservationId?: number },
+  db: Prisma.TransactionClient | typeof prisma = prisma,
+): Promise<number> {
+  return db.parkingReservation.count({
+    where: {
+      reservationStatus: { in: [...SPACE_OCCUPYING_STATUSES] },
+      ...buildOverlapWhere(params.visitStartAt, params.visitEndAt),
+      ...(params.excludeReservationId
+        ? { reservationId: { not: params.excludeReservationId } }
+        : {}),
+    },
+  });
+}
+
+/**
+ * 특정 시간대의 정원 사용 현황.
+ * 주차면 배정을 쓰지 않는 운영에서 관리자 화면이 잔여 대수를 보여주는 데 사용한다.
+ */
+export async function getCapacityUsage(params: {
+  visitStartAt: Date;
+  visitEndAt: Date;
+  excludeReservationId?: number;
+}): Promise<{ used: number; capacity: number; remaining: number }> {
+  const settings = await getSystemSettings();
+  const used = await countOverlappingReservations(params);
+  return {
+    used,
+    capacity: settings.parkingCapacity,
+    remaining: Math.max(0, settings.parkingCapacity - used),
+  };
+}
+
 async function loadReservationOrThrow(
   reservationId: number,
   db: Prisma.TransactionClient | typeof prisma = prisma,
@@ -202,6 +250,7 @@ export async function createReservation(input: CreateReservationInput): Promise<
           visitStartAt: input.visitStartAt,
           visitEndAt: input.visitEndAt,
           doubleParkingEnabled: settings.doubleParkingEnabled,
+          spaceAssignmentEnabled: settings.spaceAssignmentEnabled,
         },
         tx,
       );
@@ -351,6 +400,7 @@ export async function updateReservationByRequester(
         visitEndAt: input.visitEndAt,
         excludeReservationId: reservationId,
         doubleParkingEnabled: settings.doubleParkingEnabled,
+        spaceAssignmentEnabled: settings.spaceAssignmentEnabled,
       },
       tx,
     );
@@ -482,6 +532,28 @@ export async function approveReservation(
     const current = await loadReservationOrThrow(params.reservationId, tx);
     assertTransition(current.reservationStatus, ReservationStatus.APPROVED);
 
+    // 주차면 배정을 끈 운영에서는 위치를 잡지 않고 "주차 가능"만 승인한다.
+    // 대신 시스템 설정의 정원(최대 주차 가능 대수)을 초과하지 않는지 확인한다.
+    if (!settings.spaceAssignmentEnabled) {
+      await lockCapacitySetting(tx);
+      const used = await countOverlappingReservations(
+        {
+          visitStartAt: current.visitStartAt,
+          visitEndAt: current.visitEndAt,
+          excludeReservationId: current.reservationId,
+        },
+        tx,
+      );
+      if (used >= settings.parkingCapacity) {
+        throw new ConflictError(
+          `해당 시간대는 최대 주차 가능 대수(${settings.parkingCapacity}대)가 모두 차 있습니다. ` +
+            '시간 조정을 요청하거나 반려 처리해 주세요.',
+          'CAPACITY_EXCEEDED',
+        );
+      }
+      return approveWithoutSpace(tx, current, params.adminUserId);
+    }
+
     let targetSpaceId = params.spaceId ?? current.recommendedSpaceId ?? null;
 
     if (!targetSpaceId) {
@@ -491,6 +563,7 @@ export async function approveReservation(
           visitEndAt: current.visitEndAt,
           excludeReservationId: current.reservationId,
           doubleParkingEnabled: settings.doubleParkingEnabled,
+          spaceAssignmentEnabled: settings.spaceAssignmentEnabled,
         },
         tx,
       );
@@ -576,6 +649,40 @@ export async function approveReservation(
   );
 
   return approved;
+}
+
+/** 주차면 배정을 사용하지 않는 운영에서의 승인 처리. 주차면을 잡지 않는다. */
+async function approveWithoutSpace(
+  tx: Prisma.TransactionClient,
+  current: ReservationWithSpaces,
+  adminUserId: number,
+): Promise<ReservationWithSpaces> {
+  const result = await tx.parkingReservation.update({
+    where: { reservationId: current.reservationId },
+    data: {
+      reservationStatus: ReservationStatus.APPROVED,
+      // 과거에 배정된 위치가 남아 있다면 해제한다. (설정을 끈 뒤 재승인하는 경우)
+      assignedSpaceId: null,
+      approvalAdminId: adminUserId,
+      approvedAt: new Date(),
+      rejectedAt: null,
+      rejectionReason: null,
+    },
+    include: RESERVATION_WITH_SPACES,
+  });
+
+  await tx.parkingReservationStatusLog.create({
+    data: {
+      reservationId: current.reservationId,
+      previousStatus: current.reservationStatus,
+      currentStatus: ReservationStatus.APPROVED,
+      changedByType: ChangedByType.ADMIN,
+      changedByAdminId: adminUserId,
+      changeReason: '주차 가능 승인 (주차면 배정 미사용)',
+    },
+  });
+
+  return result;
 }
 
 async function assertSpaceAssignable(
@@ -664,6 +771,13 @@ export async function changeAssignedSpace(
   params: { reservationId: number; spaceId: number } & AdminActionContext,
 ): Promise<ReservationWithSpaces> {
   const settings = await getSystemSettings();
+
+  if (!settings.spaceAssignmentEnabled) {
+    throw new ConflictError(
+      '현재 시스템 설정에서 주차면 배정을 사용하지 않습니다.',
+      'SPACE_ASSIGNMENT_DISABLED',
+    );
+  }
 
   const { updated, previousSpaceCode } = await prisma.$transaction(async (tx) => {
     const current = await loadReservationOrThrow(params.reservationId, tx);

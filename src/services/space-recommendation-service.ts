@@ -23,6 +23,7 @@ export type RecommendableSpace = {
  *  4. 일반 주차면이 없을 때만 DOUBLE 주차면을 조회한다.
  *  5. DOUBLE 도 display_order 오름차순으로 추천한다.
  *  6. 추천 가능한 위치가 없으면 null 을 반환한다.
+ *  7. 시스템 설정에서 주차면 배정을 껐다면 항상 null 을 반환한다.
  *
  * 사용자는 주차 위치를 선택할 수 없으며, 이 값은 어디까지나 "추천" 이다.
  * 최종 확정은 관리자 승인 시점에 이루어진다.
@@ -35,9 +36,13 @@ export async function recommendSpace(
     excludeReservationId?: number;
     /** 이중주차 사용 여부 (시스템 설정) */
     doubleParkingEnabled: boolean;
+    /** 주차면 배정 기능 사용 여부 (시스템 설정). false 면 추천하지 않는다. */
+    spaceAssignmentEnabled?: boolean;
   },
   db: Db = prisma,
 ): Promise<RecommendableSpace | null> {
+  if (params.spaceAssignmentEnabled === false) return null;
+
   const occupiedSpaceIds = await findOccupiedSpaceIds(params, db);
 
   const normal = await findFirstAvailableSpace(SpaceType.NORMAL, occupiedSpaceIds, db);

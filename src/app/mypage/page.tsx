@@ -9,6 +9,7 @@ import { REQUESTER_TYPE_LABEL } from '@/domain/reservation-status';
 import { formatKstRange } from '@/lib/datetime';
 import { requireUserPage } from '@/lib/user-page-guard';
 import { listReservationsForUser } from '@/services/reservation-service';
+import { getSystemSettings } from '@/services/settings-service';
 import { getUserProfile } from '@/services/user-auth-service';
 
 export const dynamic = 'force-dynamic';
@@ -18,10 +19,12 @@ export const metadata: Metadata = { title: '마이페이지' };
 export default async function MyPage() {
   const session = await requireUserPage('/mypage');
 
-  const [profile, reservations] = await Promise.all([
+  const [profile, reservations, settings] = await Promise.all([
     getUserProfile(session.userId),
     listReservationsForUser(session.userId),
+    getSystemSettings(),
   ]);
+  const showSpace = settings.spaceAssignmentEnabled;
 
   if (!profile) {
     redirect('/login?redirect=%2Fmypage');
@@ -79,10 +82,14 @@ export default async function MyPage() {
                       <dt className="w-20 shrink-0 text-xs font-bold text-slate-500">차량번호</dt>
                       <dd className="font-mono">{reservation.vehicleNo}</dd>
                     </div>
-                    <div className="flex gap-2">
-                      <dt className="w-20 shrink-0 text-xs font-bold text-slate-500">배정 위치</dt>
-                      <dd>{reservation.assignedSpaceCode ?? '승인 후 배정'}</dd>
-                    </div>
+                    {showSpace && (
+                      <div className="flex gap-2">
+                        <dt className="w-20 shrink-0 text-xs font-bold text-slate-500">
+                          배정 위치
+                        </dt>
+                        <dd>{reservation.assignedSpaceCode ?? '승인 후 배정'}</dd>
+                      </div>
+                    )}
                   </dl>
                 </li>
               ))}

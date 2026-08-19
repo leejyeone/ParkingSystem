@@ -11,7 +11,7 @@ import {
   VIEW_AUDIT_ACTIONS,
   writeAuditLog,
 } from '@/services/audit-service';
-import { listAuditLogs } from '@/services/log-query-service';
+import { countViewAuditLogs, listAuditLogs } from '@/services/log-query-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,7 +42,7 @@ const ACTION_LABEL: Record<string, string> = {
 };
 
 type PageProps = {
-  searchParams: Promise<{ actionType?: string; excludeViews?: string; page?: string }>;
+  searchParams: Promise<{ actionType?: string; includeViews?: string; page?: string }>;
 };
 
 export default async function AdminAuditLogsPage({ searchParams }: PageProps) {
@@ -50,7 +50,9 @@ export default async function AdminAuditLogsPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const page = Number(params.page) > 0 ? Number(params.page) : 1;
   const actionType = params.actionType || undefined;
-  const excludeViews = params.excludeViews === '1';
+  // 열람 기록은 건수가 많아 변경 이력을 가리므로 기본으로 제외한다.
+  // 포함해서 보려면 includeViews=1 을 붙인다. (숨긴 건수는 화면에 항상 표시한다)
+  const includeViews = params.includeViews === '1';
 
   // 감사 기록을 누가 열어봤는지도 추적 대상이다.
   await writeAuditLog({
@@ -58,16 +60,32 @@ export default async function AdminAuditLogsPage({ searchParams }: PageProps) {
     actionType: AUDIT_ACTIONS.AUDIT_LOG_VIEW,
     targetType: AUDIT_TARGETS.AUDIT_LOG,
     targetId: null,
-    detail: { actionTypeFilter: actionType ?? null, excludeViews, page },
+    detail: { actionTypeFilter: actionType ?? null, includeViews, page },
     context: getRequestContext(await headers()),
   });
 
   const result = await listAuditLogs({
     actionType,
-    excludeActionTypes: excludeViews ? VIEW_AUDIT_ACTIONS : undefined,
+    excludeActionTypes: includeViews ? undefined : VIEW_AUDIT_ACTIONS,
     page,
     pageSize: 30,
   });
+
+  // 기록을 감췄다는 사실 자체는 항상 보이게 한다. (감사 자료가 조용히 사라지면 안 된다)
+  const hiddenViewCount = includeViews ? 0 : await countViewAuditLogs(actionType);
+
+  const buildHref = (overrides: Record<string, string | undefined>) => {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries({
+      actionType,
+      includeViews: includeViews ? '1' : undefined,
+      ...overrides,
+    })) {
+      if (value) query.set(key, value);
+    }
+    const queryString = query.toString();
+    return queryString ? `/admin/audit-logs?${queryString}` : '/admin/audit-logs';
+  };
 
   return (
     <main className="app-container-wide space-y-4">
@@ -104,12 +122,12 @@ export default async function AdminAuditLogsPage({ searchParams }: PageProps) {
             <label className="flex items-center gap-2 pb-2 text-sm text-slate-700">
               <input
                 type="checkbox"
-                name="excludeViews"
+                name="includeViews"
                 value="1"
-                defaultChecked={excludeViews}
+                defaultChecked={includeViews}
                 className="size-4"
               />
-              열람 기록 제외
+              열람 기록 포함
             </label>
             <button type="submit" className="btn btn-primary px-6">
               검색
@@ -123,7 +141,18 @@ export default async function AdminAuditLogsPage({ searchParams }: PageProps) {
 
       <section className="card">
         <div className="card-body">
-          <p className="text-sm font-bold text-slate-700">전체 {result.totalCount}건</p>
+          <p className="text-sm font-bold text-slate-700">
+            전체 {result.totalCount}건
+            {includeViews ? null : (
+              <span className="ml-2 text-xs font-normal text-slate-500">
+                (개인정보 열람 기록 {hiddenViewCount}건 숨김 —{' '}
+                <Link href={buildHref({ includeViews: '1' })} className="text-brand-700 font-bold">
+                  포함해서 보기
+                </Link>
+                )
+              </span>
+            )}
+          </p>
           <div className="table-scroll mt-3">
             <table className="data-table">
               <thead>
@@ -154,7 +183,7 @@ export default async function AdminAuditLogsPage({ searchParams }: PageProps) {
                       {log.targetType}
                       {log.targetId ? ` #${log.targetId}` : ''}
                     </td>
-                    <td className="text-xs">{log.ipAddress ?? '-'}</td>
+                    <td className="text-xs whitespace-nowrap">{log.ipAddress ?? '-'}</td>
                     <td className="max-w-[320px] text-xs break-words text-slate-500">
                       {log.detailJson ? JSON.stringify(log.detailJson) : '-'}
                     </td>

@@ -10,7 +10,7 @@ import { requireAdminPage } from '@/lib/admin-page-guard';
 import { formatKstDateTime, formatKstRange } from '@/lib/datetime';
 import { NotFoundError } from '@/lib/errors';
 import { getRequestContext } from '@/lib/request-context';
-import { getReservationDetailForAdmin } from '@/services/reservation-service';
+import { getCapacityUsage, getReservationDetailForAdmin } from '@/services/reservation-service';
 import { getSystemSettings } from '@/services/settings-service';
 import { listAvailableSpaces } from '@/services/space-recommendation-service';
 import { headers } from 'next/headers';
@@ -48,12 +48,25 @@ export default async function AdminReservationDetailPage({ params }: PageProps) 
   }
 
   const settings = await getSystemSettings();
-  const availableSpaces = await listAvailableSpaces({
-    visitStartAt: reservation.visitStartAt,
-    visitEndAt: reservation.visitEndAt,
-    excludeReservationId: reservationId,
-    doubleParkingEnabled: settings.doubleParkingEnabled,
-  });
+  const showSpace = settings.spaceAssignmentEnabled;
+  // 주차면 배정을 쓰지 않으면 배정 후보를 조회할 필요가 없다.
+  const availableSpaces = showSpace
+    ? await listAvailableSpaces({
+        visitStartAt: reservation.visitStartAt,
+        visitEndAt: reservation.visitEndAt,
+        excludeReservationId: reservationId,
+        doubleParkingEnabled: settings.doubleParkingEnabled,
+      })
+    : [];
+
+  // 배정을 쓰지 않을 때는 정원 잔여 대수를 대신 보여준다.
+  const capacityUsage = showSpace
+    ? null
+    : await getCapacityUsage({
+        visitStartAt: reservation.visitStartAt,
+        visitEndAt: reservation.visitEndAt,
+        excludeReservationId: reservationId,
+      });
 
   return (
     <main className="app-container-wide space-y-4">
@@ -66,7 +79,7 @@ export default async function AdminReservationDetailPage({ params }: PageProps) 
             {reservation.reservationNo}
           </h1>
           <StatusBadge status={reservation.reservationStatus} />
-          {reservation.assignedSpace?.spaceType === 'DOUBLE' && (
+          {showSpace && reservation.assignedSpace?.spaceType === 'DOUBLE' && (
             <span className="badge bg-orange-100 text-orange-800">⚠ 이중주차 배정</span>
           )}
         </div>
@@ -105,7 +118,7 @@ export default async function AdminReservationDetailPage({ params }: PageProps) 
 
           <section className="card">
             <div className="card-body">
-              <h2 className="card-title">일정 및 주차 위치</h2>
+              <h2 className="card-title">{showSpace ? '일정 및 주차 위치' : '일정'}</h2>
               <dl className="mt-3">
                 <Row
                   term="방문 예정"
@@ -123,25 +136,29 @@ export default async function AdminReservationDetailPage({ params }: PageProps) 
                     reservation.actualExitAt ? formatKstDateTime(reservation.actualExitAt) : '-'
                   }
                 />
-                <Row
-                  term="추천 위치"
-                  desc={reservation.recommendedSpace?.spaceCode ?? '추천 없음'}
-                />
-                <div className="definition-row">
-                  <dt className="definition-term">배정 위치</dt>
-                  <dd className="definition-desc flex flex-wrap items-center gap-2">
-                    {reservation.assignedSpace ? (
-                      <>
-                        <span className="font-mono font-bold">
-                          {reservation.assignedSpace.spaceCode}
-                        </span>
-                        <SpaceTypeBadge spaceType={reservation.assignedSpace.spaceType} />
-                      </>
-                    ) : (
-                      '미배정'
-                    )}
-                  </dd>
-                </div>
+                {showSpace && (
+                  <>
+                    <Row
+                      term="추천 위치"
+                      desc={reservation.recommendedSpace?.spaceCode ?? '추천 없음'}
+                    />
+                    <div className="definition-row">
+                      <dt className="definition-term">배정 위치</dt>
+                      <dd className="definition-desc flex flex-wrap items-center gap-2">
+                        {reservation.assignedSpace ? (
+                          <>
+                            <span className="font-mono font-bold">
+                              {reservation.assignedSpace.spaceCode}
+                            </span>
+                            <SpaceTypeBadge spaceType={reservation.assignedSpace.spaceType} />
+                          </>
+                        ) : (
+                          '미배정'
+                        )}
+                      </dd>
+                    </div>
+                  </>
+                )}
                 {reservation.rejectionReason && (
                   <Row term="반려 사유" desc={reservation.rejectionReason} />
                 )}
@@ -202,6 +219,8 @@ export default async function AdminReservationDetailPage({ params }: PageProps) 
             recommendedSpaceCode={reservation.recommendedSpace?.spaceCode ?? null}
             assignedSpaceId={reservation.assignedSpaceId}
             availableSpaces={availableSpaces}
+            spaceAssignmentEnabled={showSpace}
+            capacityUsage={capacityUsage}
           />
         </div>
       </div>

@@ -29,14 +29,19 @@ export async function GET(request: NextRequest) {
       actionType: AUDIT_ACTIONS.AUDIT_LOG_VIEW,
       targetType: AUDIT_TARGETS.AUDIT_LOG,
       targetId: null,
-      detail: { actionTypeFilter: query.actionType ?? null, page: query.page },
+      detail: {
+        actionTypeFilter: query.actionType ?? null,
+        includeViews: query.includeViews === '1',
+        page: query.page,
+      },
       context: getRequestContext(request.headers),
     });
 
-    const { excludeViews, ...filter } = query;
+    // 화면과 동일하게 개인정보 열람 기록은 기본 제외한다. includeViews=1 로 포함할 수 있다.
+    const { includeViews, ...filter } = query;
     const result = await listAuditLogs({
       ...filter,
-      excludeActionTypes: excludeViews === '1' ? VIEW_AUDIT_ACTIONS : undefined,
+      excludeActionTypes: includeViews === '1' ? undefined : VIEW_AUDIT_ACTIONS,
     });
     return apiSuccess(result.items, {
       page: result.page,

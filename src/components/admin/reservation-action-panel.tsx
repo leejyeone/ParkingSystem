@@ -23,6 +23,10 @@ type Props = {
   recommendedSpaceCode: string | null;
   assignedSpaceId: number | null;
   availableSpaces: SpaceOption[];
+  /** 시스템 설정의 주차면 배정 사용 여부. false 면 위치 선택 UI 자체를 감춘다. */
+  spaceAssignmentEnabled: boolean;
+  /** 배정을 쓰지 않을 때의 정원 사용 현황. 배정을 쓰면 null. */
+  capacityUsage: { used: number; capacity: number; remaining: number } | null;
 };
 
 export function ReservationActionPanel({
@@ -32,6 +36,8 @@ export function ReservationActionPanel({
   recommendedSpaceCode,
   assignedSpaceId,
   availableSpaces,
+  spaceAssignmentEnabled,
+  capacityUsage,
 }: Props) {
   const router = useRouter();
   const [selectedSpaceId, setSelectedSpaceId] = useState<string>(
@@ -71,7 +77,8 @@ export function ReservationActionPanel({
 
   const canApprove = reservationStatus === 'REQUESTED';
   const canReject = reservationStatus === 'REQUESTED';
-  const canChangeSpace = reservationStatus === 'APPROVED' || reservationStatus === 'PARKING';
+  const canChangeSpace =
+    spaceAssignmentEnabled && (reservationStatus === 'APPROVED' || reservationStatus === 'PARKING');
   const canEntry = reservationStatus === 'APPROVED';
   const canExit = reservationStatus === 'PARKING';
   const canNoShow = reservationStatus === 'APPROVED';
@@ -90,43 +97,62 @@ export function ReservationActionPanel({
       {(canApprove || canChangeSpace) && (
         <section className="card">
           <div className="card-body space-y-4">
-            <h2 className="card-title">주차면 배정</h2>
+            <h2 className="card-title">{spaceAssignmentEnabled ? '주차면 배정' : '승인'}</h2>
 
-            {recommendedSpaceCode ? (
-              <Alert variant="info" title="시스템 추천 위치">
-                {recommendedSpaceCode} — 관리자가 다른 위치로 변경할 수 있습니다.
-              </Alert>
-            ) : (
-              <Alert variant="warning" title="추천 가능한 위치가 없습니다">
-                해당 시간대에 비어 있는 주차면이 없습니다. 시간 조정을 요청하거나 반려 처리해
-                주세요.
-              </Alert>
+            {!spaceAssignmentEnabled &&
+              (capacityUsage && capacityUsage.remaining === 0 ? (
+                <Alert variant="warning" title="정원이 모두 찼습니다">
+                  이 시간대에 이미 {capacityUsage.used}대가 배정되어 정원(
+                  {capacityUsage.capacity}대)을 채웠습니다. 승인을 시도하면 차단됩니다. 시간 조정을
+                  요청하거나 반려 처리해 주세요.
+                </Alert>
+              ) : (
+                <Alert variant="info" title="주차면 배정을 사용하지 않습니다">
+                  주차 위치를 지정하지 않고 승인합니다.
+                  {capacityUsage
+                    ? ` 이 시간대 정원 ${capacityUsage.capacity}대 중 ${capacityUsage.used}대 사용, ${capacityUsage.remaining}대 남았습니다.`
+                    : ''}
+                </Alert>
+              ))}
+
+            {spaceAssignmentEnabled &&
+              (recommendedSpaceCode ? (
+                <Alert variant="info" title="시스템 추천 위치">
+                  {recommendedSpaceCode} — 관리자가 다른 위치로 변경할 수 있습니다.
+                </Alert>
+              ) : (
+                <Alert variant="warning" title="추천 가능한 위치가 없습니다">
+                  해당 시간대에 비어 있는 주차면이 없습니다. 시간 조정을 요청하거나 반려 처리해
+                  주세요.
+                </Alert>
+              ))}
+
+            {spaceAssignmentEnabled && (
+              <FormField
+                label="배정할 주차면"
+                htmlFor="space-select"
+                required
+                errors={fieldErrors.spaceId}
+                hint="사용 중인 주차면은 선택할 수 없습니다."
+              >
+                <select
+                  id="space-select"
+                  className={inputClassName(Boolean(fieldErrors.spaceId))}
+                  value={selectedSpaceId}
+                  onChange={(event) => setSelectedSpaceId(event.target.value)}
+                >
+                  <option value="">선택 안 함 (추천 위치 사용)</option>
+                  {availableSpaces.map((space) => (
+                    <option key={space.spaceId} value={space.spaceId} disabled={!space.available}>
+                      {space.spaceCode} · {SPACE_TYPE_LABEL[space.spaceType]} · {space.areaName}
+                      {space.available ? '' : ' (사용 중)'}
+                    </option>
+                  ))}
+                </select>
+              </FormField>
             )}
 
-            <FormField
-              label="배정할 주차면"
-              htmlFor="space-select"
-              required
-              errors={fieldErrors.spaceId}
-              hint="사용 중인 주차면은 선택할 수 없습니다."
-            >
-              <select
-                id="space-select"
-                className={inputClassName(Boolean(fieldErrors.spaceId))}
-                value={selectedSpaceId}
-                onChange={(event) => setSelectedSpaceId(event.target.value)}
-              >
-                <option value="">선택 안 함 (추천 위치 사용)</option>
-                {availableSpaces.map((space) => (
-                  <option key={space.spaceId} value={space.spaceId} disabled={!space.available}>
-                    {space.spaceCode} · {SPACE_TYPE_LABEL[space.spaceType]} · {space.areaName}
-                    {space.available ? '' : ' (사용 중)'}
-                  </option>
-                ))}
-              </select>
-            </FormField>
-
-            {isDoubleSelected && (
+            {spaceAssignmentEnabled && isDoubleSelected && (
               <Alert variant="warning" title="⚠ 이중주차 위치를 선택했습니다">
                 승인 시 신청자에게 이중주차 안내 메일이 추가 발송됩니다.
               </Alert>
@@ -140,11 +166,16 @@ export function ReservationActionPanel({
                   disabled={pending !== null}
                   onClick={() =>
                     run('approve', `/api/admin/reservations/${reservationId}/approve`, 'POST', {
-                      spaceId: selectedSpaceId ? Number(selectedSpaceId) : null,
+                      spaceId:
+                        spaceAssignmentEnabled && selectedSpaceId ? Number(selectedSpaceId) : null,
                     })
                   }
                 >
-                  {pending === 'approve' ? '승인 중…' : '승인 및 위치 확정'}
+                  {pending === 'approve'
+                    ? '승인 중…'
+                    : spaceAssignmentEnabled
+                      ? '승인 및 위치 확정'
+                      : '승인'}
                 </button>
               )}
               {canChangeSpace && (

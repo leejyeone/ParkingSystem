@@ -41,7 +41,7 @@ export function AdminNav({ adminName, roleCode }: Props) {
       <div className="app-container-wide flex flex-wrap items-center justify-between gap-3 py-3">
         <div className="flex items-center gap-3">
           <Link href="/admin" className="text-sm font-black text-slate-900">
-            본사 주차 관리자
+            관리자 페이지
           </Link>
           <span className="badge bg-slate-100 text-slate-600">
             {roleCode === 'SYSTEM_ADMIN' ? '시스템 관리자' : '주차 관리자'}

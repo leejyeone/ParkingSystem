@@ -17,7 +17,7 @@ export default async function HomePage() {
     <main className="app-container">
       <header className="mb-6 text-center">
         <p className="text-brand-700 text-xs font-bold tracking-widest">SYNOPEX PARKING</p>
-        <h1 className="mt-2 text-2xl font-black text-slate-900 sm:text-3xl">본사 주차 예약</h1>
+        <h1 className="mt-2 text-2xl font-black text-slate-900 sm:text-3xl">시노펙스 주차 예약</h1>
         <p className="mt-2 text-sm leading-relaxed text-slate-600">
           방문객과 타 지사 직원 모두 별도 가입 없이 주차를 신청할 수 있습니다.
         </p>
@@ -62,7 +62,9 @@ export default async function HomePage() {
               가능하며, 같은 시점까지 수정·취소할 수 있습니다.
             </li>
             <li>
-              • 주차 위치는 시스템이 추천하고 관리자가 최종 확정합니다. 직접 선택할 수 없습니다.
+              {settings.spaceAssignmentEnabled
+                ? '• 주차 위치는 시스템이 추천하고 관리자가 최종 확정합니다. 직접 선택할 수 없습니다.'
+                : '• 주차 위치는 지정되지 않습니다. 승인 후 현장 안내에 따라 주차해 주세요.'}
             </li>
             <li>• 신청 결과와 예약 조회 링크는 입력하신 이메일로 발송됩니다.</li>
             <li>• 예약 조회는 예약번호로 하거나, 안내 메일의 링크를 이용하면 됩니다.</li>

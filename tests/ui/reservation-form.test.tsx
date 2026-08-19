@@ -9,6 +9,7 @@ const SETTINGS = {
   parkingOpenTime: '07:00',
   parkingCloseTime: '22:00',
   maxReservationHours: 12,
+  spaceAssignmentEnabled: true,
   minDateTimeInput: '2026-08-20T10:00',
 };
 

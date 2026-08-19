@@ -36,6 +36,14 @@ export type HourlyUsage = { hour: number; usedCount: number };
 
 export type DashboardData = {
   date: string;
+  /** 주차면 배정 기능 사용 여부. false 면 화면에서 주차면 관련 영역을 감춘다. */
+  spaceAssignmentEnabled: boolean;
+  /** 선택한 날짜에 걸치는 주차 예약(승인/입차) 건수. 배정을 쓰지 않을 때의 사용량 지표. */
+  dayReservationCount: number;
+  /** 최대 주차 가능 대수(시스템 설정). 주차면 배정을 쓰지 않을 때의 정원. */
+  parkingCapacity: number;
+  /** 당일 시간대별 최대 동시 주차 대수. 정원 대비 얼마나 찼는지 보는 값. */
+  peakConcurrentCount: number;
   normalUsedCount: number;
   normalTotalCount: number;
   doubleUsedCount: number;
@@ -53,6 +61,7 @@ export type DashboardData = {
 
 export async function getDashboardData(dateString: string): Promise<DashboardData> {
   const settings = await getSystemSettings();
+  const spaceAssignmentEnabled = settings.spaceAssignmentEnabled;
   const { start, end } = kstDayRangeUtc(dateString, settings.appTimeZone);
 
   const [areas, spaces, dayReservations, pendingReservations, pendingTotalCount] =
@@ -78,7 +87,8 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
       prisma.parkingReservation.findMany({
         where: {
           reservationStatus: { in: [...SPACE_OCCUPYING_STATUSES] },
-          assignedSpaceId: { not: null },
+          // 배정을 쓰지 않으면 주차면이 없는 예약도 "당일 주차 차량" 으로 세야 한다.
+          ...(spaceAssignmentEnabled ? { assignedSpaceId: { not: null } } : {}),
           ...buildOverlapWhere(start, end),
         },
         select: {
@@ -151,6 +161,10 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
 
   return {
     date: dateString,
+    spaceAssignmentEnabled,
+    dayReservationCount: dayReservations.length,
+    parkingCapacity: settings.parkingCapacity,
+    peakConcurrentCount: Math.max(0, ...hourlyUsage.map((slot) => slot.usedCount)),
     normalUsedCount: normalSpaces.filter((row) => row.occupancies.length > 0).length,
     normalTotalCount: normalSpaces.length,
     doubleUsedCount: doubleSpaces.filter((row) => row.occupancies.length > 0).length,
