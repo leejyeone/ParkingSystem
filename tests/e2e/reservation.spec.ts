@@ -65,7 +65,8 @@ async function loginAsAdmin(page: import('@playwright/test').Page) {
 async function openPendingReservationDetail(page: import('@playwright/test').Page) {
   await page.goto('/admin/reservations?status=REQUESTED');
   await expect(page.getByRole('heading', { name: '예약 목록' })).toBeVisible();
-  await page.getByRole('link', { name: '상세' }).first().click();
+  // 목록의 예약번호 링크로 상세에 진입한다. (행 아무 곳이나 눌러도 동일하게 이동한다)
+  await page.getByRole('link', { name: /^PK-/ }).first().click();
   await expect(page.getByRole('heading', { name: /^PK-/ })).toBeVisible();
 }
 
@@ -88,6 +89,49 @@ test('예약 조회 화면에서 예약번호 입력과 메일 링크 안내를 
   await expect(page.locator('input[name="reservationNo"]')).toBeVisible();
   await expect(page.getByRole('button', { name: '예약 조회하기' })).toBeVisible();
   await expect(page.getByText('예약번호를 모르시나요?')).toBeVisible();
+});
+
+test('예약 목록의 검색 조건은 기본으로 접혀 있고 적용된 조건만 칩으로 보인다', async ({ page }) => {
+  await submitReservation(page);
+  await expect(page.getByTestId('reservation-complete')).toBeVisible();
+  await loginAsAdmin(page);
+
+  // 조건 없이 들어가면 입력 폼이 보이지 않는다.
+  await page.goto('/admin/reservations');
+  await expect(page.getByRole('heading', { name: '예약 목록' })).toBeVisible();
+  await expect(page.getByLabel('차량번호')).toBeHidden();
+  await expect(page.getByText('전체 예약을 보고 있습니다.')).toBeVisible();
+
+  // 버튼을 눌러야 입력 폼이 펼쳐진다.
+  await page.getByTestId('filter-toggle').click();
+  await expect(page.getByLabel('차량번호')).toBeVisible();
+
+  // 조건을 적용하면 폼은 다시 접히고 칩으로만 표시된다.
+  await page.getByLabel('예약 상태').selectOption('REQUESTED');
+  await page.getByRole('button', { name: '검색' }).click();
+
+  await expect(page.getByLabel('차량번호')).toBeHidden();
+  await expect(page.getByRole('link', { name: /상태.*승인 대기/ })).toBeVisible();
+
+  // 칩을 누르면 그 조건만 해제된다.
+  await page.getByRole('link', { name: /상태.*승인 대기/ }).click();
+  await expect(page).toHaveURL(/\/admin\/reservations$/);
+  await expect(page.getByText('전체 예약을 보고 있습니다.')).toBeVisible();
+});
+
+test('예약 목록에서 행을 누르면 상세 화면으로 이동한다', async ({ page }) => {
+  await submitReservation(page);
+  await expect(page.getByTestId('reservation-complete')).toBeVisible();
+  await loginAsAdmin(page);
+
+  await page.goto('/admin/reservations');
+  await expect(page.getByRole('heading', { name: '예약 목록' })).toBeVisible();
+
+  // 링크가 아닌 셀(성명)을 눌러도 상세로 이동해야 한다.
+  await page.getByTestId('reservation-row').first().getByText('홍길동').click();
+
+  await expect(page.getByRole('heading', { name: /^PK-/ })).toBeVisible();
+  await expect(page).toHaveURL(/\/admin\/reservations\/\d+$/);
 });
 
 test('관리자가 로그인해 예약을 승인하고 주차면을 배정한다', async ({ page }) => {

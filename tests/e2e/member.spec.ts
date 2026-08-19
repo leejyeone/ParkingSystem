@@ -77,6 +77,32 @@ test('회원이 신청한 예약은 마이페이지 내 예약 목록에 나온�
   expect(saved?.userId).not.toBeNull();
 });
 
+test('신청 완료 화면에서 예약번호를 복사할 수 있다', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+
+  await page.goto('/reservations/new');
+  await page.getByLabel('방문 상호 또는 소속 지사명').fill('시노펙스');
+  await page.getByLabel('성명').fill('홍길동');
+  await page.getByLabel('이메일').fill('guest@example.com');
+  await page.getByLabel('차량번호').fill('12가3456');
+  await page.getByLabel('입차 예정 시간').fill(tomorrowInput(10));
+  await page.getByLabel('출차 예정 시간').fill(tomorrowInput(12));
+  await page.getByLabel(/개인정보 수집 및 이용에 동의합니다/).check();
+  await page.getByRole('button', { name: '주차 신청하기' }).click();
+
+  await expect(page.getByTestId('reservation-complete')).toBeVisible();
+  const reservationNo = (await page.getByTestId('reservation-no').textContent())!.trim();
+
+  const copyButton = page.getByTestId('copy-button').first();
+  await expect(copyButton).toBeVisible();
+  await copyButton.click();
+
+  await expect(copyButton).toHaveText('복사됨');
+
+  const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
+  expect(clipboardText).toBe(reservationNo);
+});
+
 test('예약번호만으로 예약을 조회하고 수정할 수 있다', async ({ page }) => {
   // 비로그인으로 신청
   await page.goto('/reservations/new');

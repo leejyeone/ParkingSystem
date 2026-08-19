@@ -12,7 +12,7 @@ import { REQUESTER_TYPE_LABEL } from '@/domain/reservation-status';
  *  - 예약 조회 링크에는 보안 토큰이 포함되며 해당 예약 1건만 접근할 수 있다.
  */
 
-const BRAND = '본사 주차관리';
+const BRAND = '시노펙스 주차 관리';
 
 export type ReservationEmailData = {
   reservationNo: string;
@@ -227,7 +227,7 @@ export function renderReservationEmail(
         buttonUrl: data.accessUrl,
       };
       return {
-        subject: `[본사 주차] 주차 신청이 접수되었습니다${suffix}`,
+        subject: `[시노펙스] 주차 신청이 접수되었습니다${suffix}`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };
@@ -246,7 +246,7 @@ export function renderReservationEmail(
         footerNote: '본 메일은 관리자 알림 수신자에게 발송됩니다.',
       };
       return {
-        subject: `[본사 주차][승인요청] 신규 주차 신청${suffix}`,
+        subject: `[시노펙스][승인요청] 신규 주차 신청${suffix}`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };
@@ -273,7 +273,7 @@ export function renderReservationEmail(
         buttonUrl: data.accessUrl,
       };
       return {
-        subject: `[본사 주차] 주차 신청이 승인되었습니다${suffix}`,
+        subject: `[시노펙스] 주차 신청이 승인되었습니다${suffix}`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };
@@ -294,7 +294,7 @@ export function renderReservationEmail(
         ],
       };
       return {
-        subject: `[본사 주차] 주차 신청이 반려되었습니다${suffix}`,
+        subject: `[시노펙스] 주차 신청이 반려되었습니다${suffix}`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };
@@ -326,7 +326,7 @@ export function renderReservationEmail(
         buttonUrl: data.accessUrl,
       };
       return {
-        subject: `[본사 주차] 예약 내용이 변경되었습니다${suffix}`,
+        subject: `[시노펙스] 예약 내용이 변경되었습니다${suffix}`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };
@@ -344,7 +344,7 @@ export function renderReservationEmail(
         notices: ['배정되어 있던 주차 위치는 해제되었습니다.'],
       };
       return {
-        subject: `[본사 주차] 예약이 취소되었습니다${suffix}`,
+        subject: `[시노펙스] 예약이 취소되었습니다${suffix}`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };
@@ -365,7 +365,7 @@ export function renderReservationEmail(
         ],
       };
       return {
-        subject: `[본사 주차] 출차 예정 시간 안내${suffix}`,
+        subject: `[시노펙스] 출차 예정 시간 안내${suffix}`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };
@@ -385,7 +385,7 @@ export function renderReservationEmail(
         buttonUrl: data.accessUrl,
       };
       return {
-        subject: `[본사 주차] 이중주차 배정 안내${suffix}`,
+        subject: `[시노펙스] 이중주차 배정 안내${suffix}`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };
