@@ -138,7 +138,6 @@ export function ReservationActionPanel({
                   value={selectedSpaceId}
                   onChange={(event) => setSelectedSpaceId(event.target.value)}
                 >
-                  
                   {availableSpaces.map((space) => (
                     <option key={space.spaceId} value={space.spaceId} disabled={!space.available}>
                       {space.spaceCode} · {SPACE_TYPE_LABEL[space.spaceType]} · {space.areaName}

@@ -4,7 +4,6 @@ import { notFound } from 'next/navigation';
 
 import { ReservationActionPanel } from '@/components/admin/reservation-action-panel';
 import { RequesterInfoCard, ScheduleCard } from '@/components/admin/reservation-detail-cards';
-import { Alert } from '@/components/ui/alert';
 import { SpaceTypeBadge, StatusBadge } from '@/components/ui/status-badge';
 import {
   isTerminalStatus,
@@ -118,7 +117,8 @@ export default async function AdminReservationDetailPage({ params }: PageProps) 
         </div>
       </div>
 
-      {/* <Alert variant="warning" title="개인정보 열람 안내">
+      {/* 되살리려면 '@/components/ui/alert' 의 Alert import 도 함께 복원할 것
+      <Alert variant="warning" title="개인정보 열람 안내">
         이 화면에는 신청자의 개인정보 원문이 표시됩니다. 열람 이력은 감사 로그(audit_logs)에
         기록되며, 업무 목적 외 사용이나 외부 공유는 금지됩니다.
       </Alert> */}

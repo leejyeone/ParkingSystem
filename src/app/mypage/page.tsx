@@ -1,4 +1,3 @@
-import { ReservationStatus } from '@prisma/client';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -52,7 +51,9 @@ export default async function MyPage({ searchParams }: PageProps) {
             ← 처음으로
           </Link>
           <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">마이페이지</h1>
-          <p className="mt-1 text-sm text-slate-600">{profile.name}님, 안녕하세요.</p>
+          <p className="mt-1 text-sm text-slate-600">
+            {profile.companyOrBranchName} {profile.name}님, 안녕하세요.
+          </p>
         </div>
         <UserLogoutButton />
       </div>
@@ -74,7 +75,9 @@ export default async function MyPage({ searchParams }: PageProps) {
 
           <h2 className="card-title">내 예약 ({reservations.length}건)</h2>
           <p className="field-hint">
-            승인 대기 중인 예약은 카드를 누르면 조회·수정·취소 화면으로 이동합니다.
+            수정·취소는 승인 대기 상태에서만 가능합니다.
+            <br />
+            승인 완료된 예약의 변경이 필요하면 담당자에게 문의해 주세요.
           </p>
 
           {reservations.length === 0 ? (
@@ -83,12 +86,16 @@ export default async function MyPage({ searchParams }: PageProps) {
             </p>
           ) : (
             <ul className="mt-3 space-y-3">
-              {reservations.map((reservation) => {
-                // 승인 대기 예약만 조회·수정·취소 화면으로 넘어갈 수 있다.
-                const openable = reservation.reservationStatus === ReservationStatus.REQUESTED;
-
-                const body = (
-                  <>
+              {reservations.map((reservation) => (
+                <li key={reservation.reservationId}>
+                  {/*
+                    상태와 무관하게 모두 상세로 이동할 수 있다.
+                    수정·취소 가능 여부는 이동한 화면에서 판단해 안내한다.
+                  */}
+                  <Link
+                    href={`/mypage/reservations/${reservation.reservationId}`}
+                    className="hover:border-brand-500 block rounded-lg border border-slate-200 p-3 transition hover:bg-slate-50"
+                  >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="font-mono text-sm font-bold text-slate-900">
                         {reservation.reservationNo}
@@ -121,30 +128,14 @@ export default async function MyPage({ searchParams }: PageProps) {
                         </div>
                       )}
                     </dl>
-                  </>
-                );
-
-                return (
-                  <li key={reservation.reservationId}>
-                    {openable ? (
-                      <Link
-                        href={`/mypage/reservations/${reservation.reservationId}`}
-                        className="hover:border-brand-500 block rounded-lg border border-slate-200 p-3 transition hover:bg-slate-50"
-                      >
-                        {body}
-                      </Link>
-                    ) : (
-                      <div className="rounded-lg border border-slate-200 p-3">{body}</div>
-                    )}
-                  </li>
-                );
-              })}
+                  </Link>
+                </li>
+              ))}
             </ul>
           )}
 
           <p className="field-hint mt-4">
-            승인 완료된 예약의 변경이 필요하면 주차 관리 담당자에게 문의해 주세요. 위 목록에 없는
-            예약은{' '}
+            위 목록에 없는 예약은{' '}
             <Link href="/reservations/lookup" className="text-brand-700 font-semibold">
               예약 조회
             </Link>{' '}
