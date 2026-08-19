@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
+import { ClickableTableRow } from '@/components/admin/clickable-table-row';
 import { SpaceTypeBadge, StatusBadge } from '@/components/ui/status-badge';
 import { Alert } from '@/components/ui/alert';
 import { requireAdminPage } from '@/lib/admin-page-guard';
@@ -154,40 +155,43 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
               ) : null}
             </p>
           ) : (
-            <div className="table-scroll mt-3">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>방문 상호/지사</th>
-                    <th>신청자</th>
-                    <th>차량번호</th>
-                    <th>방문 시간</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dashboard.pendingReservations.map((reservation) => (
-                    <tr key={reservation.reservationId}>
-                      <td>{reservation.companyOrBranchName}</td>
-                      <td>{reservation.requesterName}</td>
-                      <td className="font-mono text-xs">{reservation.vehicleNo}</td>
-                      <td className="whitespace-nowrap">
-                        {formatKstTime(reservation.visitStartAt)} ~{' '}
-                        {formatKstTime(reservation.visitEndAt)}
-                      </td>
-                      <td>
-                        <Link
-                          href={`/admin/reservations/${reservation.reservationId}`}
-                          className="btn btn-primary min-h-9 px-3 py-1.5 text-xs"
-                        >
-                          처리
-                        </Link>
-                      </td>
+            <>
+              <p className="field-hint mt-2">행을 누르면 처리 화면으로 이동합니다.</p>
+              <div className="table-scroll mt-2">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>방문 시간</th>
+                      <th>방문 상호/지사</th>
+                      <th>신청자</th>
+                      <th>차량번호</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {dashboard.pendingReservations.map((reservation) => (
+                      <ClickableTableRow
+                        key={reservation.reservationId}
+                        href={`/admin/reservations/${reservation.reservationId}`}
+                      >
+                        <td className="whitespace-nowrap">
+                          {/* 키보드 이동과 새 탭 열기를 위해 실제 링크를 둔다. */}
+                          <Link
+                            href={`/admin/reservations/${reservation.reservationId}`}
+                            className="text-brand-700 font-bold hover:underline"
+                          >
+                            {formatKstTime(reservation.visitStartAt)} ~{' '}
+                            {formatKstTime(reservation.visitEndAt)}
+                          </Link>
+                        </td>
+                        <td>{reservation.companyOrBranchName}</td>
+                        <td>{reservation.requesterName}</td>
+                        <td className="font-mono text-xs">{reservation.vehicleNo}</td>
+                      </ClickableTableRow>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       </section>
