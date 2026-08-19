@@ -41,12 +41,11 @@ function extractToken(accessUrl: string): string {
 }
 
 describe('1. 비로그인 방문객 예약 신청', () => {
-  it('예약이 REQUESTED 상태로 생성되고 추천 주차면이 계산된다', async () => {
+  it('예약이 REQUESTED 상태로 생성되고 주차면을 점유하지 않는다', async () => {
     const { reservation } = await createReservation(baseReservationInput());
 
     expect(reservation.reservationStatus).toBe(ReservationStatus.REQUESTED);
     expect(reservation.reservationNo).toMatch(/^PK-\d{8}-[A-Z2-9]{6}$/);
-    expect(reservation.recommendedSpaceId).toBe(fixtures.normalSpaceIds[0]);
     // REQUESTED 상태는 주차면을 확정 점유하지 않는다.
     expect(reservation.assignedSpaceId).toBeNull();
   });
@@ -235,8 +234,6 @@ describe('10. 승인 후 신청자 수정', () => {
     expect(updated.assignedSpaceId).toBeNull();
     expect(updated.approvalAdminId).toBeNull();
     expect(updated.approvedAt).toBeNull();
-    // 새 시간대 기준으로 추천이 다시 계산된다.
-    expect(updated.recommendedSpaceId).toBe(fixtures.normalSpaceIds[0]);
   });
 
   it('변경 이력과 변경 메일이 남는다', async () => {
@@ -302,7 +299,6 @@ describe('11. 예약 취소', () => {
 
     expect(cancelled.reservationStatus).toBe(ReservationStatus.CANCELLED);
     expect(cancelled.assignedSpaceId).toBeNull();
-    expect(cancelled.recommendedSpaceId).toBeNull();
     expect(cancelled.cancelReason).toBe('방문 일정 취소');
     expect(cancelled.cancelledAt).not.toBeNull();
 

@@ -36,7 +36,7 @@ describe('7. 승인 대기 예약을 일반 주차면으로 승인', () => {
     fixtures = await seedFixtures({ normalSpaces: 2 });
   });
 
-  it('추천 주차면으로 승인되고 승인 메일이 발송된다', async () => {
+  it('빈 주차면이 자동 배정되어 승인되고 승인 메일이 발송된다', async () => {
     const { reservation } = await createReservation(baseReservationInput());
 
     const approved = await approveReservation({
@@ -56,7 +56,7 @@ describe('7. 승인 대기 예약을 일반 주차면으로 승인', () => {
     expect(approvedMails).toHaveLength(1);
   });
 
-  it('관리자가 추천과 다른 주차면을 직접 지정할 수 있다', async () => {
+  it('관리자가 기본값과 다른 주차면을 직접 지정할 수 있다', async () => {
     const { reservation } = await createReservation(baseReservationInput());
 
     const approved = await approveReservation({
@@ -104,7 +104,7 @@ describe('8. 일반 주차면 만차 시 이중주차로 승인', () => {
     fixtures = await seedFixtures({ normalSpaces: 1 });
   });
 
-  it('일반 주차면이 모두 차면 이중주차 위치를 추천하고 안내 메일을 추가 발송한다', async () => {
+  it('일반 주차면이 모두 차면 이중주차 위치를 배정하고 안내 메일을 추가 발송한다', async () => {
     const range = futureVisitRange({ startHour: 10, hours: 2 });
 
     const first = await createReservation(baseReservationInput(range));
@@ -116,8 +116,8 @@ describe('8. 일반 주차면 만차 시 이중주차로 승인', () => {
     const second = await createReservation(
       baseReservationInput({ ...range, vehicleNo: '34나5678', requesterEmail: 'b@example.com' }),
     );
-    expect(second.reservation.recommendedSpaceId).toBe(fixtures.doubleSpaceIds[0]);
 
+    // 배정 위치는 승인 시점에 정해진다. (일반이 다 찼으므로 이중주차)
     const approved = await approveReservation({
       reservationId: second.reservation.reservationId,
       adminUserId: fixtures.parkingAdminId,
@@ -152,7 +152,6 @@ describe('8. 일반 주차면 만차 시 이중주차로 승인', () => {
     const overflow = await createReservation(
       baseReservationInput({ ...range, vehicleNo: '78라1234', requesterEmail: 'over@example.com' }),
     );
-    expect(overflow.reservation.recommendedSpaceId).toBeNull();
 
     await expect(
       approveReservation({

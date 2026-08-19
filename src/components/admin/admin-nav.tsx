@@ -40,16 +40,15 @@ export function AdminNav({ adminName, roleCode }: Props) {
     <header className="border-b border-slate-200 bg-white">
       <div className="app-container-wide flex flex-wrap items-center justify-between gap-3 py-3">
         <div className="flex items-center gap-3">
-          <Link href="/admin" className="text-sm font-black text-slate-900">
-            관리자 페이지
+          <Link href="/admin" className="text-xl font-black text-slate-900">
+            시스템 관리
           </Link>
           <span className="badge bg-slate-100 text-slate-600">
-            {roleCode === 'SYSTEM_ADMIN' ? '시스템 관리자' : '주차 관리자'}
+            {roleCode === 'SYSTEM_ADMIN' ? '시스템 관리자' : '주차 관리자'}: {adminName}
           </span>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="hidden text-sm text-slate-600 sm:inline">{adminName}님</span>
           <button
             type="button"
             className="btn btn-secondary min-h-9 px-3 py-1.5 text-xs"

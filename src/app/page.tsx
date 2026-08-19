@@ -66,7 +66,7 @@ export default async function HomePage() {
             </li>
             <li>
               {settings.spaceAssignmentEnabled
-                ? '• 주차 위치는 시스템이 추천하고 관리자가 최종 확정합니다. 직접 선택할 수 없습니다.'
+                ? '• 주차 위치는 관리자가 배정합니다. 직접 선택할 수 없습니다.'
                 : '• 주차 위치는 지정되지 않습니다. 승인 후 현장 안내에 따라 주차해 주세요.'}
             </li>
             <li>• 신청 결과와 예약 조회 링크는 입력하신 이메일로 발송됩니다.</li>

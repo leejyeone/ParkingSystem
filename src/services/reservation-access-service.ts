@@ -1,4 +1,4 @@
-import { AccessTokenType, type Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 
 import { NotFoundError } from '@/lib/errors';
 import { prisma } from '@/lib/prisma';
@@ -10,7 +10,7 @@ type Db = Prisma.TransactionClient | typeof prisma;
  * 예약 접근 토큰 관리.
  *
  * 정책(README "보안 및 개인정보 처리 주의사항" 참고)
- *  - 예약 1건당 VIEW 토큰 1개를 발급하고, 조회·수정·취소에 동일 토큰을 사용한다.
+ *  - 예약 1건당 토큰 1개를 발급하고, 조회·수정·취소에 동일 토큰을 사용한다.
  *    (수정/취소는 조회 화면에서만 진입 가능하고 위험도가 동일하므로 토큰을 나눠도
  *     보안 이득이 없는 반면, 메일 본문에 링크가 3개 생겨 사용성이 나빠진다.)
  *  - 원본 토큰은 DB 에 저장하지 않고 HMAC-SHA256 해시만 저장한다.
@@ -36,7 +36,6 @@ export async function issueAccessToken(
   params: {
     reservationId: number;
     visitEndAt: Date;
-    tokenType?: AccessTokenType;
     /** 지정하면 방문 종료 기준 만료 대신 이 시각을 사용한다. */
     expiresAt?: Date;
   },
@@ -47,7 +46,6 @@ export async function issueAccessToken(
     data: {
       reservationId: params.reservationId,
       tokenHash: hashAccessToken(rawToken),
-      tokenType: params.tokenType ?? AccessTokenType.VIEW,
       expiresAt: params.expiresAt ?? calculateTokenExpiry(params.visitEndAt),
       isActive: true,
     },
@@ -70,7 +68,6 @@ export async function extendTokenExpiry(
 export type ResolvedAccessToken = {
   tokenId: number;
   reservationId: number;
-  tokenType: AccessTokenType;
 };
 
 /**
@@ -81,7 +78,6 @@ export type ResolvedAccessToken = {
  */
 export async function resolveAccessToken(
   rawToken: string,
-  options: { markUsed?: boolean } = {},
   db: Db = prisma,
 ): Promise<ResolvedAccessToken> {
   const invalid = new NotFoundError(
@@ -97,7 +93,6 @@ export async function resolveAccessToken(
     select: {
       tokenId: true,
       reservationId: true,
-      tokenType: true,
       isActive: true,
       expiresAt: true,
     },
@@ -107,16 +102,5 @@ export async function resolveAccessToken(
     throw invalid;
   }
 
-  if (options.markUsed) {
-    await db.reservationAccessToken.update({
-      where: { tokenId: token.tokenId },
-      data: { lastUsedAt: new Date() },
-    });
-  }
-
-  return {
-    tokenId: token.tokenId,
-    reservationId: token.reservationId,
-    tokenType: token.tokenType,
-  };
+  return { tokenId: token.tokenId, reservationId: token.reservationId };
 }

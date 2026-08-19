@@ -40,7 +40,7 @@ export type TestFixtures = {
 
 /**
  * 기본 픽스처를 만든다.
- * 추천 로직 검증을 쉽게 하기 위해 일반 주차면 수는 인자로 조절할 수 있다.
+ * 배정 로직 검증을 쉽게 하기 위해 일반 주차면 수는 인자로 조절할 수 있다.
  */
 export async function seedFixtures(options: { normalSpaces?: number } = {}): Promise<TestFixtures> {
   const normalSpaceCount = options.normalSpaces ?? 2;

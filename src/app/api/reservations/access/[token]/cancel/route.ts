@@ -30,7 +30,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       windowMs: 10 * 60 * 1000,
     });
 
-    const resolved = await resolveAccessToken(token, { markUsed: true });
+    const resolved = await resolveAccessToken(token);
     const payload = cancelReservationSchema.parse(await request.json());
 
     await cancelReservationByRequester(resolved.reservationId, payload.cancelReason);

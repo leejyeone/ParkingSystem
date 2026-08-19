@@ -49,8 +49,8 @@ import { SETTING_KEYS } from '@/domain/system-settings';
 import { getSystemSettings } from '@/services/settings-service';
 import {
   findConflictingReservation,
-  recommendSpace,
-} from '@/services/space-recommendation-service';
+  pickAvailableSpace,
+} from '@/services/space-assignment-service';
 
 /**
  * 예약 도메인 서비스.
@@ -67,7 +67,6 @@ const ACTIVE_STATUSES: ReservationStatus[] = [
 ];
 
 const RESERVATION_WITH_SPACES = {
-  recommendedSpace: { select: { spaceId: true, spaceCode: true, spaceType: true } },
   assignedSpace: { select: { spaceId: true, spaceCode: true, spaceType: true } },
 } satisfies Prisma.ParkingReservationInclude;
 
@@ -256,16 +255,6 @@ export async function createReservation(input: CreateReservationInput): Promise<
 
   const reservation = await createWithUniqueReservationNo(
     async (reservationNo, tx) => {
-      const recommended = await recommendSpace(
-        {
-          visitStartAt: input.visitStartAt,
-          visitEndAt: input.visitEndAt,
-          doubleParkingEnabled: settings.doubleParkingEnabled,
-          spaceAssignmentEnabled: settings.spaceAssignmentEnabled,
-        },
-        tx,
-      );
-
       const created = await tx.parkingReservation.create({
         data: {
           reservationNo,
@@ -279,7 +268,6 @@ export async function createReservation(input: CreateReservationInput): Promise<
           requestMemo: input.requestMemo ?? null,
           visitStartAt: input.visitStartAt,
           visitEndAt: input.visitEndAt,
-          recommendedSpaceId: recommended?.spaceId ?? null,
           reservationStatus: ReservationStatus.REQUESTED,
           privacyConsentAt: now,
         },
@@ -364,8 +352,8 @@ export type UpdateReservationInput = {
  * 신청자 예약 수정.
  *
  * 승인 완료 상태에서 수정하면
- *   1) assigned_space_id 해제 2) recommended_space_id 재계산
- *   3) 상태를 REQUESTED 로 복귀 4) 상태 이력 저장 5) 변경 메일 발송
+ *   1) assigned_space_id 해제 2) 상태를 REQUESTED 로 복귀
+ *   3) 상태 이력 저장 4) 변경 메일 발송
  */
 export async function updateReservationByRequester(
   reservationId: number,
@@ -405,17 +393,6 @@ export async function updateReservationByRequester(
   const previousVisitEndAt = current.visitEndAt;
 
   const updated = await prisma.$transaction(async (tx) => {
-    const recommended = await recommendSpace(
-      {
-        visitStartAt: input.visitStartAt,
-        visitEndAt: input.visitEndAt,
-        excludeReservationId: reservationId,
-        doubleParkingEnabled: settings.doubleParkingEnabled,
-        spaceAssignmentEnabled: settings.spaceAssignmentEnabled,
-      },
-      tx,
-    );
-
     const result = await tx.parkingReservation.update({
       where: { reservationId },
       data: {
@@ -428,7 +405,6 @@ export async function updateReservationByRequester(
         visitEndAt: input.visitEndAt,
         // 승인 상태였다면 배정 해제 후 다시 승인 대기로 되돌린다.
         assignedSpaceId: null,
-        recommendedSpaceId: recommended?.spaceId ?? null,
         reservationStatus: ReservationStatus.REQUESTED,
         approvalAdminId: null,
         approvedAt: null,
@@ -572,21 +548,6 @@ export async function updateReservationByAdmin(
       }
     }
 
-    // 아직 승인 전이라면 추천 위치를 새 시간대 기준으로 다시 계산한다.
-    const recommended =
-      current.reservationStatus === ReservationStatus.REQUESTED
-        ? await recommendSpace(
-            {
-              visitStartAt: input.visitStartAt,
-              visitEndAt: input.visitEndAt,
-              excludeReservationId: reservationId,
-              doubleParkingEnabled: settings.doubleParkingEnabled,
-              spaceAssignmentEnabled: settings.spaceAssignmentEnabled,
-            },
-            tx,
-          )
-        : null;
-
     const result = await tx.parkingReservation.update({
       where: { reservationId },
       data: {
@@ -597,9 +558,6 @@ export async function updateReservationByAdmin(
         requestMemo: input.requestMemo ?? null,
         visitStartAt: input.visitStartAt,
         visitEndAt: input.visitEndAt,
-        ...(current.reservationStatus === ReservationStatus.REQUESTED
-          ? { recommendedSpaceId: recommended?.spaceId ?? null }
-          : {}),
       },
       include: RESERVATION_WITH_SPACES,
     });
@@ -684,7 +642,6 @@ export async function cancelReservationByRequester(
         cancelledAt: now,
         cancelReason,
         assignedSpaceId: null,
-        recommendedSpaceId: null,
       },
       include: RESERVATION_WITH_SPACES,
     });
@@ -752,10 +709,12 @@ export async function approveReservation(
       return approveWithoutSpace(tx, current, params.adminUserId);
     }
 
-    let targetSpaceId = params.spaceId ?? current.recommendedSpaceId ?? null;
+    // 관리자가 고르지 않았으면 승인 시점에 빈 자리를 찾는다.
+    // (신청 시점 값을 저장해 두면 그 사이 다른 예약이 차지했을 때 낡은 값이 된다)
+    let targetSpaceId = params.spaceId ?? null;
 
     if (!targetSpaceId) {
-      const recommended = await recommendSpace(
+      const picked = await pickAvailableSpace(
         {
           visitStartAt: current.visitStartAt,
           visitEndAt: current.visitEndAt,
@@ -765,7 +724,7 @@ export async function approveReservation(
         },
         tx,
       );
-      targetSpaceId = recommended?.spaceId ?? null;
+      targetSpaceId = picked?.spaceId ?? null;
     }
 
     if (!targetSpaceId) {
@@ -931,7 +890,6 @@ export async function rejectReservation(
         rejectedAt: new Date(),
         rejectionReason: params.rejectionReason,
         assignedSpaceId: null,
-        recommendedSpaceId: null,
         approvalAdminId: params.adminUserId,
       },
       include: RESERVATION_WITH_SPACES,
@@ -1242,7 +1200,6 @@ export type ReservationListItem = {
   vehicleNo: string;
   visitStartAt: Date;
   visitEndAt: Date;
-  recommendedSpaceCode: string | null;
   assignedSpaceCode: string | null;
   assignedSpaceType: SpaceType | null;
   createdAt: Date;
@@ -1338,7 +1295,6 @@ export function toReservationListItem(reservation: ReservationWithSpaces): Reser
     vehicleNo: reservation.vehicleNo,
     visitStartAt: reservation.visitStartAt,
     visitEndAt: reservation.visitEndAt,
-    recommendedSpaceCode: reservation.recommendedSpace?.spaceCode ?? null,
     assignedSpaceCode: reservation.assignedSpace?.spaceCode ?? null,
     assignedSpaceType: reservation.assignedSpace?.spaceType ?? null,
     createdAt: reservation.createdAt,

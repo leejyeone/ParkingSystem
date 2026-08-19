@@ -28,7 +28,7 @@ describe('주차 신청 폼', () => {
 
     expect(screen.queryByLabelText(/주차면/)).toBeNull();
     expect(screen.queryByLabelText(/주차 위치/)).toBeNull();
-    expect(screen.getByText(/주차 위치는 시스템이 자동으로 추천/)).toBeInTheDocument();
+    expect(screen.getByText(/주차 위치는 관리자가 배정합니다/)).toBeInTheDocument();
   });
 
   it('차량번호 입력 중 공백과 하이픈을 자동으로 정리한다', async () => {

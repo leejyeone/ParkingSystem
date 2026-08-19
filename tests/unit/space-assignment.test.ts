@@ -1,11 +1,11 @@
 import { SpaceType, type Prisma } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 
-import { recommendSpace } from '@/services/space-recommendation-service';
+import { pickAvailableSpace } from '@/services/space-assignment-service';
 
 /**
- * recommendSpace 는 DB 클라이언트를 마지막 인자로 받으므로,
- * 최소한의 동작만 흉내내는 가짜 클라이언트로 추천 규칙을 단위 검증할 수 있다.
+ * pickAvailableSpace 는 DB 클라이언트를 마지막 인자로 받으므로,
+ * 최소한의 동작만 흉내내는 가짜 클라이언트로 배정 규칙을 단위 검증할 수 있다.
  */
 type FakeSpace = {
   spaceId: number;
@@ -59,47 +59,47 @@ const params = {
   doubleParkingEnabled: true,
 };
 
-describe('자동 주차면 추천', () => {
-  it('비어 있는 일반 주차면 중 display_order 가 가장 빠른 곳을 추천한다', async () => {
-    const result = await recommendSpace(params, createFakeDb([]));
+describe('자동 주차면 배정', () => {
+  it('비어 있는 일반 주차면 중 display_order 가 가장 빠른 곳을 고른다', async () => {
+    const result = await pickAvailableSpace(params, createFakeDb([]));
     expect(result?.spaceCode).toBe('A-01');
     expect(result?.spaceType).toBe(SpaceType.NORMAL);
   });
 
-  it('앞 순서 일반 주차면이 사용 중이면 다음 일반 주차면을 추천한다', async () => {
-    const result = await recommendSpace(params, createFakeDb([1]));
+  it('앞 순서 일반 주차면이 사용 중이면 다음 일반 주차면을 고른다', async () => {
+    const result = await pickAvailableSpace(params, createFakeDb([1]));
     expect(result?.spaceCode).toBe('A-02');
   });
 
-  it('일반 주차면이 모두 만차이면 이중주차 위치를 추천한다', async () => {
-    const result = await recommendSpace(params, createFakeDb([1, 2, 3]));
+  it('일반 주차면이 모두 만차이면 이중주차 위치를 고른다', async () => {
+    const result = await pickAvailableSpace(params, createFakeDb([1, 2, 3]));
     expect(result?.spaceCode).toBe('D-01');
     expect(result?.spaceType).toBe(SpaceType.DOUBLE);
   });
 
-  it('이중주차도 순서대로 추천한다', async () => {
-    const result = await recommendSpace(params, createFakeDb([1, 2, 3, 101]));
+  it('이중주차도 순서대로 고른다', async () => {
+    const result = await pickAvailableSpace(params, createFakeDb([1, 2, 3, 101]));
     expect(result?.spaceCode).toBe('D-02');
   });
 
-  it('모든 주차면이 만차이면 추천 위치가 없다(null)', async () => {
-    const result = await recommendSpace(params, createFakeDb([1, 2, 3, 101, 102]));
+  it('모든 주차면이 만차이면 배정 위치가 없다(null)', async () => {
+    const result = await pickAvailableSpace(params, createFakeDb([1, 2, 3, 101, 102]));
     expect(result).toBeNull();
   });
 
-  it('이중주차가 비활성화되어 있으면 일반 만차 시 추천하지 않는다', async () => {
-    const result = await recommendSpace(
+  it('이중주차가 비활성화되어 있으면 일반 만차 시 배정하지 않는다', async () => {
+    const result = await pickAvailableSpace(
       { ...params, doubleParkingEnabled: false },
       createFakeDb([1, 2, 3]),
     );
     expect(result).toBeNull();
   });
 
-  it('비활성 주차면은 추천 후보에서 제외한다', async () => {
+  it('비활성 주차면은 배정 후보에서 제외한다', async () => {
     const spaces = ALL_SPACES.map((space) =>
       space.spaceId === 1 ? { ...space, isActive: false } : space,
     );
-    const result = await recommendSpace(params, createFakeDb([], spaces));
+    const result = await pickAvailableSpace(params, createFakeDb([], spaces));
     expect(result?.spaceCode).toBe('A-02');
   });
 });

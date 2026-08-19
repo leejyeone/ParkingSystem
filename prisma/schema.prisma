@@ -62,12 +62,6 @@ enum ReservationStatus {
 }
 
 /// 예약 접근 토큰 유형
-enum AccessTokenType {
-  VIEW
-  EDIT
-  CANCEL
-}
-
 /// 상태 변경 주체
 enum ChangedByType {
   REQUESTER
@@ -210,9 +204,8 @@ model ParkingSpace {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  area                    ParkingArea          @relation(fields: [areaId], references: [areaId])
-  recommendedReservations ParkingReservation[] @relation("ReservationRecommendedSpace")
-  assignedReservations    ParkingReservation[] @relation("ReservationAssignedSpace")
+  area                 ParkingArea          @relation(fields: [areaId], references: [areaId])
+  assignedReservations ParkingReservation[] @relation("ReservationAssignedSpace")
 
   @@unique([areaId, spaceCode], map: "uq_parking_spaces_area_code")
   @@index([spaceType, isActive, displayOrder], map: "idx_parking_spaces_type_active_order")
@@ -247,8 +240,7 @@ model ParkingReservation {
   actualEntryAt DateTime? @map("actual_entry_at")
   actualExitAt  DateTime? @map("actual_exit_at")
 
-  recommendedSpaceId Int? @map("recommended_space_id")
-  assignedSpaceId    Int? @map("assigned_space_id")
+  assignedSpaceId Int? @map("assigned_space_id")
 
   reservationStatus ReservationStatus @default(REQUESTED) @map("reservation_status")
 
@@ -264,10 +256,9 @@ model ParkingReservation {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  recommendedSpace ParkingSpace? @relation("ReservationRecommendedSpace", fields: [recommendedSpaceId], references: [spaceId], onDelete: SetNull)
-  assignedSpace    ParkingSpace? @relation("ReservationAssignedSpace", fields: [assignedSpaceId], references: [spaceId], onDelete: SetNull)
-  approvalAdmin    AdminUser?    @relation("ReservationApprovalAdmin", fields: [approvalAdminId], references: [adminUserId], onDelete: SetNull)
-  user             SiteUser?     @relation(fields: [userId], references: [userId], onDelete: SetNull)
+  assignedSpace ParkingSpace? @relation("ReservationAssignedSpace", fields: [assignedSpaceId], references: [spaceId], onDelete: SetNull)
+  approvalAdmin AdminUser?    @relation("ReservationApprovalAdmin", fields: [approvalAdminId], references: [adminUserId], onDelete: SetNull)
+  user          SiteUser?     @relation(fields: [userId], references: [userId], onDelete: SetNull)
 
   accessTokens ReservationAccessToken[]
   statusLogs   ParkingReservationStatusLog[]
@@ -280,7 +271,6 @@ model ParkingReservation {
   @@index([assignedSpaceId, visitStartAt, visitEndAt, reservationStatus], map: "idx_reservations_space_range_status")
   @@index([vehicleNo, visitStartAt, visitEndAt], map: "idx_reservations_vehicle_range")
   @@index([requesterEmail, createdAt], map: "idx_reservations_email_created")
-  @@index([recommendedSpaceId], map: "idx_reservations_recommended_space")
   @@index([approvalAdminId], map: "idx_reservations_approval_admin")
   @@map("parking_reservations")
 }
@@ -290,19 +280,17 @@ model ParkingReservation {
 // ---------------------------------------------------------------------------
 
 model ReservationAccessToken {
-  tokenId       Int             @id @default(autoincrement()) @map("token_id")
-  reservationId Int             @map("reservation_id")
+  tokenId       Int      @id @default(autoincrement()) @map("token_id")
+  reservationId Int      @map("reservation_id")
   /// HMAC-SHA256(RESERVATION_TOKEN_SECRET, 원본토큰) hex. 원본은 저장하지 않는다.
-  tokenHash     String          @unique(map: "uq_reservation_access_tokens_hash") @map("token_hash") @db.VarChar(64)
-  tokenType     AccessTokenType @default(VIEW) @map("token_type")
-  expiresAt     DateTime        @map("expires_at")
-  lastUsedAt    DateTime?       @map("last_used_at")
-  isActive      Boolean         @default(true) @map("is_active")
-  createdAt     DateTime        @default(now()) @map("created_at")
+  tokenHash     String   @unique(map: "uq_reservation_access_tokens_hash") @map("token_hash") @db.VarChar(64)
+  expiresAt     DateTime @map("expires_at")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
 
   reservation ParkingReservation @relation(fields: [reservationId], references: [reservationId], onDelete: Cascade)
 
-  @@index([reservationId, tokenType, isActive], map: "idx_access_tokens_reservation")
+  @@index([reservationId, isActive], map: "idx_access_tokens_reservation")
   @@map("reservation_access_tokens")
 }
 

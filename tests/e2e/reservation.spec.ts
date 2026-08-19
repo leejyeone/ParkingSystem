@@ -147,8 +147,9 @@ test('관리자가 로그인해 예약을 승인하고 주차면을 배정한다
   await loginAsAdmin(page);
   await openPendingReservationDetail(page);
 
-  // 상세 화면에서 시스템 추천 위치가 안내된다.
-  await expect(page.getByText('시스템 추천 위치')).toBeVisible();
+  // 배정할 주차면 드롭다운에 기본값(A-01)이 이미 선택되어 있다.
+  await expect(page.getByLabel('배정할 주차면')).toHaveValue(/\d+/);
+  await expect(page.getByLabel('배정할 주차면').locator('option:checked')).toContainText('A-01');
 
   await page.getByRole('button', { name: '승인 및 위치 확정' }).click();
   await expect(page.getByText('처리되었습니다.')).toBeVisible();

@@ -28,7 +28,7 @@ export default async function ReservationAccessPage({ params }: PageProps) {
 
   let resolvedReservationId: number;
   try {
-    const resolved = await resolveAccessToken(token, { markUsed: true });
+    const resolved = await resolveAccessToken(token);
     resolvedReservationId = resolved.reservationId;
   } catch {
     return <InvalidTokenView />;

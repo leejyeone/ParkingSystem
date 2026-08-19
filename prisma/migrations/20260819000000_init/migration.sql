@@ -98,7 +98,6 @@ CREATE TABLE `parking_reservations` (
     `visit_end_at` DATETIME(3) NOT NULL,
     `actual_entry_at` DATETIME(3) NULL,
     `actual_exit_at` DATETIME(3) NULL,
-    `recommended_space_id` INTEGER NULL,
     `assigned_space_id` INTEGER NULL,
     `reservation_status` ENUM('REQUESTED', 'APPROVED', 'REJECTED', 'CANCELLED', 'PARKING', 'EXITED', 'NO_SHOW') NOT NULL DEFAULT 'REQUESTED',
     `approval_admin_id` INTEGER NULL,
@@ -119,7 +118,6 @@ CREATE TABLE `parking_reservations` (
     INDEX `idx_reservations_space_range_status`(`assigned_space_id`, `visit_start_at`, `visit_end_at`, `reservation_status`),
     INDEX `idx_reservations_vehicle_range`(`vehicle_no`, `visit_start_at`, `visit_end_at`),
     INDEX `idx_reservations_email_created`(`requester_email`, `created_at`),
-    INDEX `idx_reservations_recommended_space`(`recommended_space_id`),
     INDEX `idx_reservations_approval_admin`(`approval_admin_id`),
     PRIMARY KEY (`reservation_id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -129,14 +127,12 @@ CREATE TABLE `reservation_access_tokens` (
     `token_id` INTEGER NOT NULL AUTO_INCREMENT,
     `reservation_id` INTEGER NOT NULL,
     `token_hash` VARCHAR(64) NOT NULL,
-    `token_type` ENUM('VIEW', 'EDIT', 'CANCEL') NOT NULL DEFAULT 'VIEW',
     `expires_at` DATETIME(3) NOT NULL,
-    `last_used_at` DATETIME(3) NULL,
     `is_active` BOOLEAN NOT NULL DEFAULT true,
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
     UNIQUE INDEX `uq_reservation_access_tokens_hash`(`token_hash`),
-    INDEX `idx_access_tokens_reservation`(`reservation_id`, `token_type`, `is_active`),
+    INDEX `idx_access_tokens_reservation`(`reservation_id`, `is_active`),
     PRIMARY KEY (`token_id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -241,9 +237,6 @@ CREATE TABLE `admin_login_attempts` (
 
 -- AddForeignKey
 ALTER TABLE `parking_spaces` ADD CONSTRAINT `parking_spaces_area_id_fkey` FOREIGN KEY (`area_id`) REFERENCES `parking_areas`(`area_id`) ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `parking_reservations` ADD CONSTRAINT `parking_reservations_recommended_space_id_fkey` FOREIGN KEY (`recommended_space_id`) REFERENCES `parking_spaces`(`space_id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `parking_reservations` ADD CONSTRAINT `parking_reservations_assigned_space_id_fkey` FOREIGN KEY (`assigned_space_id`) REFERENCES `parking_spaces`(`space_id`) ON DELETE SET NULL ON UPDATE CASCADE;

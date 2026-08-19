@@ -20,8 +20,8 @@ type SpaceOption = {
 type Props = {
   reservationId: number;
   reservationStatus: string;
-  recommendedSpaceId: number | null;
-  recommendedSpaceCode: string | null;
+  /** 화면 진입 시점에 고른 기본 배정 위치. 드롭다운의 초기값으로만 쓴다. */
+  defaultSpaceId: number | null;
   assignedSpaceId: number | null;
   availableSpaces: SpaceOption[];
   /** 시스템 설정의 주차면 배정 사용 여부. false 면 위치 선택 UI 자체를 감춘다. */
@@ -33,8 +33,7 @@ type Props = {
 export function ReservationActionPanel({
   reservationId,
   reservationStatus,
-  recommendedSpaceId,
-  recommendedSpaceCode,
+  defaultSpaceId,
   assignedSpaceId,
   availableSpaces,
   spaceAssignmentEnabled,
@@ -42,7 +41,7 @@ export function ReservationActionPanel({
 }: Props) {
   const router = useRouter();
   const [selectedSpaceId, setSelectedSpaceId] = useState<string>(
-    String(assignedSpaceId ?? recommendedSpaceId ?? ''),
+    String(assignedSpaceId ?? defaultSpaceId ?? ''),
   );
   const [rejectionReason, setRejectionReason] = useState('');
   const [noShowReason, setNoShowReason] = useState('');
@@ -52,6 +51,7 @@ export function ReservationActionPanel({
   );
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
+  const hasAvailableSpace = availableSpaces.some((space) => space.available);
   const selectedSpace = availableSpaces.find((space) => String(space.spaceId) === selectedSpaceId);
   const isDoubleSelected = selectedSpace?.spaceType === 'DOUBLE';
 
@@ -117,17 +117,12 @@ export function ReservationActionPanel({
                 </Alert>
               ))}
 
-            {spaceAssignmentEnabled &&
-              (recommendedSpaceCode ? (
-                <Alert variant="info" title="시스템 추천 위치">
-                  {recommendedSpaceCode} — 관리자가 다른 위치로 변경할 수 있습니다.
-                </Alert>
-              ) : (
-                <Alert variant="warning" title="추천 가능한 위치가 없습니다">
-                  해당 시간대에 비어 있는 주차면이 없습니다. 시간 조정을 요청하거나 반려 처리해
-                  주세요.
-                </Alert>
-              ))}
+            {spaceAssignmentEnabled && !hasAvailableSpace && (
+              <Alert variant="warning" title="배정 가능한 주차면이 없습니다">
+                해당 시간대에 비어 있는 주차면이 없습니다. 시간 조정을 요청하거나 반려 처리해
+                주세요.
+              </Alert>
+            )}
 
             {spaceAssignmentEnabled && (
               <FormField
@@ -135,7 +130,7 @@ export function ReservationActionPanel({
                 htmlFor="space-select"
                 required
                 errors={fieldErrors.spaceId}
-                hint="사용 중인 주차면은 선택할 수 없습니다."
+                hint="기본값이 채워져 있습니다. 목록을 열어 다른 위치로 바꿀 수 있으며, 사용 중인 주차면은 고를 수 없습니다."
               >
                 <select
                   id="space-select"
@@ -143,7 +138,7 @@ export function ReservationActionPanel({
                   value={selectedSpaceId}
                   onChange={(event) => setSelectedSpaceId(event.target.value)}
                 >
-                  <option value="">선택 안 함 (추천 위치 사용)</option>
+                  <option value="">자동 배정</option>
                   {availableSpaces.map((space) => (
                     <option key={space.spaceId} value={space.spaceId} disabled={!space.available}>
                       {space.spaceCode} · {SPACE_TYPE_LABEL[space.spaceType]} · {space.areaName}

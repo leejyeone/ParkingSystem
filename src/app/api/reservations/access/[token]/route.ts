@@ -26,7 +26,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const { token } = await context.params;
     guardTokenRate(request);
 
-    const resolved = await resolveAccessToken(token, { markUsed: true });
+    const resolved = await resolveAccessToken(token);
     const reservation = await getReservationForRequester(resolved.reservationId);
 
     return apiSuccess(toRequesterReservationView(reservation));
@@ -44,7 +44,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     const { token } = await context.params;
     guardTokenRate(request);
 
-    const resolved = await resolveAccessToken(token, { markUsed: true });
+    const resolved = await resolveAccessToken(token);
     const payload = updateReservationSchema.parse(await request.json());
 
     await updateReservationByRequester(resolved.reservationId, payload);

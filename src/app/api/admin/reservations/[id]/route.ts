@@ -10,7 +10,7 @@ import {
   updateReservationByAdmin,
 } from '@/services/reservation-service';
 import { getSystemSettings } from '@/services/settings-service';
-import { listAvailableSpaces } from '@/services/space-recommendation-service';
+import { listAvailableSpaces } from '@/services/space-assignment-service';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

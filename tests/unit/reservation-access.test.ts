@@ -29,7 +29,6 @@ function tokenRow(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     tokenId: 1,
     reservationId: 10,
-    tokenType: 'VIEW',
     isActive: true,
     expiresAt: new Date(Date.now() + 60_000),
     ...overrides,
@@ -105,13 +104,9 @@ describe('토큰 검증', () => {
     expect(mocks.findUnique).not.toHaveBeenCalled();
   });
 
-  it('markUsed 옵션이 있으면 마지막 사용 시각을 갱신한다', async () => {
+  it('토큰 검증은 읽기만 한다', async () => {
     mocks.findUnique.mockResolvedValue(tokenRow());
 
-    await resolveAccessToken(RAW_TOKEN, { markUsed: true });
-    expect(mocks.update).toHaveBeenCalledTimes(1);
-
-    mocks.update.mockClear();
     await resolveAccessToken(RAW_TOKEN);
     expect(mocks.update).not.toHaveBeenCalled();
   });

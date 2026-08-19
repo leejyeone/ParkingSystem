@@ -40,7 +40,6 @@ export async function listEmailLogs(filter: EmailLogFilter) {
         sendStatus: true,
         providerMessageId: true,
         failReason: true,
-        retryCount: true,
         requestedAt: true,
         sentAt: true,
         reservation: { select: { reservationId: true, reservationNo: true } },

@@ -286,11 +286,7 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
                               )}
                             </span>
                           ) : (
-                            <span className="text-xs text-slate-400">
-                              {reservation.recommendedSpaceCode
-                                ? `추천 ${reservation.recommendedSpaceCode}`
-                                : '미배정'}
-                            </span>
+                            <span className="text-xs text-slate-400">미배정</span>
                           )}
                         </td>
                       )}

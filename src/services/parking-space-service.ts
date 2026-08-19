@@ -273,8 +273,9 @@ export async function deleteParkingSpace(
   });
   if (!current) throw new NotFoundError('주차면을 찾을 수 없습니다.');
 
+  // 실제로 배정된 이력만 막는다. (FK 가 SetNull 이라 그냥 지우면 배정 이력이 조용히 사라진다)
   const referenced = await prisma.parkingReservation.count({
-    where: { OR: [{ assignedSpaceId: spaceId }, { recommendedSpaceId: spaceId }] },
+    where: { assignedSpaceId: spaceId },
   });
   if (referenced > 0) {
     throw new ConflictError(

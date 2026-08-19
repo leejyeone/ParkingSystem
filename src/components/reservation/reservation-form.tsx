@@ -335,7 +335,7 @@ export function ReservationForm({
 
           <Alert variant="info" title="주차 위치 안내">
             {settings.spaceAssignmentEnabled
-              ? '주차 위치는 시스템이 자동으로 추천하고 관리자가 최종 확정합니다. 신청자가 직접 선택할 수 없습니다.'
+              ? '주차 위치는 관리자가 배정합니다. 신청자가 직접 선택할 수 없습니다.'
               : '주차 위치는 지정되지 않습니다. 관리자 승인 후 방문하시어 현장 안내에 따라 주차해 주세요.'}
           </Alert>
         </div>

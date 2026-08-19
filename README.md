@@ -13,7 +13,7 @@
 3. [사용자 유형 및 권한](#3-사용자-유형-및-권한)
 4. [사용자별 시스템 흐름](#4-사용자별-시스템-흐름)
 5. [예약 상태 흐름](#5-예약-상태-흐름)
-6. [자동 주차면 추천 규칙](#6-자동-주차면-추천-규칙)
+6. [자동 주차면 배정 규칙](#6-자동-주차면-배정-규칙)
 7. [기술 스택](#7-기술-스택)
 8. [프로젝트 폴더 구조](#8-프로젝트-폴더-구조)
 9. [사전 요구사항](#9-사전-요구사항)
@@ -51,7 +51,7 @@
 | -------------- | --------------------- | ---------------------------------------------- |
 | 신청 경로      | 담당자 경유 이메일    | 방문객·직원이 웹에서 직접 신청 (로그인 불필요) |
 | 등록 방식      | 차량 등록 담당자 수기 | 시스템 접수 후 관리자 승인                     |
-| 주차 위치 결정 | 현장 판단             | 시스템 자동 추천 + 관리자 최종 확정            |
+| 주차 위치 결정 | 현장 판단             | 관리자 배정 (빈 자리 자동 선택 후 확인)        |
 | 안내           | 담당자 수동 회신      | 8종 이메일 자동 발송 (Gmail API)               |
 | 현황 파악      | 없음                  | 날짜별 대시보드 / 주차면 현황 표               |
 | 모바일         | 고려되지 않음         | 모바일 우선 반응형 (최소 360px)                |
@@ -99,7 +99,7 @@
 
 ### 시스템
 
-- 방문 시간대 기준 주차면 자동 추천 (일반 → 이중주차 순)
+- 방문 시간대 기준 빈 주차면 자동 선택 (일반 → 이중주차 순)
 - 동일 차량번호 시간 중복 예약 차단
 - 동일 주차면 시간 중복 배정 차단 (행 잠금 + 트랜잭션 재검증)
 - 출차 예정 10분 전 알림 자동 발송 (중복 발송 DB 레벨 차단)
@@ -261,7 +261,7 @@ stateDiagram-v2
 
 | 상태        | 의미                        | 주차면 점유 | 신청자 수정·취소 |
 | ----------- | --------------------------- | ----------- | ---------------- |
-| `REQUESTED` | 승인 대기                   | ✘ (추천만)  | ✔ (마감 전까지)  |
+| `REQUESTED` | 승인 대기                   | ✘           | ✔ (마감 전까지)  |
 | `APPROVED`  | 승인 완료 및 주차 위치 확정 | ✔           | ✘                |
 | `REJECTED`  | 반려                        | ✘           | ✘                |
 | `CANCELLED` | 취소                        | ✘           | ✘                |
@@ -321,7 +321,7 @@ stateDiagram-v2
 | 가능 상태    | `REQUESTED` 만              | 종료 상태(반려·취소·출차·미방문) 제외 전부  |
 | 마감 시각    | 방문 시작 N분 전까지        | 제한 없음 (임박한 예약 정정이 목적)         |
 | 수정 후 상태 | `REQUESTED` 유지            | 기존 상태 그대로 유지 (재승인 불필요)       |
-| 주차면       | 추천 재계산                 | 배정 유지 + 새 시간대 충돌 재검증           |
+| 주차면       | 배정 해제                   | 배정 유지 + 새 시간대 충돌 재검증           |
 | 기록         | 상태 이력                   | 상태 이력 + 감사 로그(`RESERVATION_UPDATE`) |
 | 알림         | 신청자·관리자에게 변경 메일 | 신청자에게 "담당자가 변경했습니다" 메일     |
 
@@ -339,15 +339,14 @@ PARKING   → EXITED
 승인 대기(`REQUESTED`) 상태에서 신청자가 예약을 수정하면 다음이 하나의 트랜잭션으로 처리됩니다.
 
 1. `assigned_space_id`를 `NULL`로 해제 (방어적 처리 — 승인 대기에는 배정이 없음)
-2. `recommended_space_id`를 새 시간대 기준으로 재계산
-3. 상태를 `REQUESTED`로 유지 (`approval_admin_id`, `approved_at` 초기화)
-4. 상태 변경 이력 저장 (`changed_by_type = REQUESTER`)
-5. 신청자 및 관리자 알림 수신자에게 `UPDATED` 메일 발송
+2. 상태를 `REQUESTED`로 유지 (`approval_admin_id`, `approved_at` 초기화)
+3. 상태 변경 이력 저장 (`changed_by_type = REQUESTER`)
+4. 신청자 및 관리자 알림 수신자에게 `UPDATED` 메일 발송
 
 ### 취소 시 처리
 
 1. 상태를 `CANCELLED`로 변경
-2. `assigned_space_id`, `recommended_space_id`를 `NULL`로 해제
+2. `assigned_space_id`를 `NULL`로 해제
 3. 취소 사유(`cancel_reason`)와 취소 시각(`cancelled_at`) 저장
 4. 상태 이력 저장
 5. 신청자 및 관리자에게 `CANCELLED` 메일 발송
@@ -372,20 +371,25 @@ PARKING   → EXITED
 
 ---
 
-## 6. 자동 주차면 추천 규칙
+## 6. 자동 주차면 배정 규칙
 
-**사용자는 주차 위치를 선택할 수 없습니다.** 시스템이 추천하고 관리자가 최종 확정합니다.
+**사용자는 주차 위치를 선택할 수 없습니다.** 관리자가 배정합니다.
 
-구현: [`src/services/space-recommendation-service.ts`](src/services/space-recommendation-service.ts)
+구현: [`src/services/space-assignment-service.ts`](src/services/space-assignment-service.ts)
+
+> **배정 위치는 DB 에 저장하지 않습니다.** 예약 상세 화면을 열 때와 승인 처리 시점에 각각
+> 계산합니다. 신청 시점 결과를 저장해 두면 그 사이 다른 예약이 자리를 차지했을 때 낡은 값이
+> 되어, 빈 자리가 있는데도 충돌 오류가 납니다. 두 곳 모두 같은 함수(`pickAvailableSpace`)를 쓰므로
+> 화면에 보이는 기본값과 실제 배정 결과가 어긋나지 않습니다.
 
 ```
 1. 활성 상태(is_active = true)의 NORMAL 주차면을 우선 조회
 2. 해당 예약 시간대에 APPROVED / PARKING 예약과 겹치지 않는 주차면만 후보로 사용
-3. 후보 중 display_order 오름차순 첫 번째를 추천 (등록 순서. 화면에는 노출하지 않는다)
+3. 후보 중 display_order 오름차순 첫 번째를 선택 (등록 순서. 화면에는 노출하지 않는다)
 4. 일반 주차면이 없는 경우에만 DOUBLE 타입(이중주차) 조회
-5. 이중주차도 display_order 오름차순으로 추천
-6. 추천 가능한 위치가 없으면 recommended_space_id = NULL
-7. 관리자는 추천 위치를 변경하거나 추천 없이 직접 지정 가능
+5. 이중주차도 display_order 오름차순으로 선택
+6. 배정할 수 있는 위치가 없으면 null (승인 시 NO_AVAILABLE_SPACE 오류)
+7. 상세 화면 드롭다운에 이 결과가 기본값으로 채워지며, 관리자가 다른 위치로 변경 가능
 8. 최종 승인 시 선택한 주차면의 시간 중복을 트랜잭션 안에서 다시 검증
 9. 승인 + 주차면 배정은 Prisma transaction 으로 원자 처리
 10. DOUBLE 타입 승인 시 관리자 화면에 경고 배지(⚠) 표시
@@ -532,7 +536,7 @@ SynopexParking/
 │  │  └─ prisma.ts  rate-limit.ts …
 │  └─ services/                                   # 도메인 서비스 (DB 트랜잭션 포함)
 │     ├─ reservation-service.ts                   #   신청/수정/취소/승인/반려/입출차
-│     ├─ space-recommendation-service.ts          #   자동 주차면 추천
+│     ├─ space-assignment-service.ts              #   빈 주차면 선택·조회
 │     ├─ reservation-access-service.ts            #   예약 접근 토큰 발급/검증
 │     ├─ reservation-lookup-service.ts            #   예약번호 조회 → 단기 토큰 발급
 │     ├─ admin-auth-service.ts                    #   관리자 로그인/잠금/권한 확인
@@ -777,16 +781,16 @@ Seed는 모두 `upsert`이므로 **여러 번 실행해도 안전**합니다.
 [시스템 설정] → [주차장 정보] → **주차면 배정 사용** 체크박스로 전환합니다.
 끄면 특정 주차 위치를 지정하지 않고 **주차 가능 여부만** 관리하며, 다음이 함께 바뀝니다.
 
-| 영역           | 켠 상태                                    | 끈 상태                                       |
-| -------------- | ------------------------------------------ | --------------------------------------------- |
-| 신청           | 접수 시 주차면 자동 추천                   | 추천하지 않음 (`recommended_space_id` = NULL) |
-| 승인           | 주차면 확정 후 승인, 시간 중복 검증        | 위치 없이 승인 (`assigned_space_id` = NULL)   |
-| 주차 위치 변경 | 가능                                       | 차단 (`SPACE_ASSIGNMENT_DISABLED`)            |
-| 이메일         | "배정 주차 위치" 행 + 위치 안내 문구       | 해당 행·문구 생략, 현장 안내 문구로 대체      |
-| 예약 목록      | `배정 위치` 열 + `주차 위치` 검색 조건     | 열·검색 조건 모두 숨김                        |
-| 예약 상세      | 추천/배정 위치 표시, 주차면 선택 UI        | 표시·선택 UI 숨김, 승인 버튼만 노출           |
-| 대시보드       | 일반/이중주차 사용 카드, 주차면 현황, 도면 | 「당일 주차 차량」 카드로 대체, 나머지 숨김   |
-| 신청자 화면    | `/r/<token>`·마이페이지에 배정 위치 표시   | 배정 위치 항목 숨김                           |
+| 영역           | 켠 상태                                    | 끈 상태                                     |
+| -------------- | ------------------------------------------ | ------------------------------------------- |
+| 신청           | 접수만 (위치는 승인 시 결정)               | 접수만 (위치 개념 없음)                     |
+| 승인           | 주차면 확정 후 승인, 시간 중복 검증        | 위치 없이 승인 (`assigned_space_id` = NULL) |
+| 주차 위치 변경 | 가능                                       | 차단 (`SPACE_ASSIGNMENT_DISABLED`)          |
+| 이메일         | "배정 주차 위치" 행 + 위치 안내 문구       | 해당 행·문구 생략, 현장 안내 문구로 대체    |
+| 예약 목록      | `배정 위치` 열 + `주차 위치` 검색 조건     | 열·검색 조건 모두 숨김                      |
+| 예약 상세      | 배정 위치 표시, 주차면 선택 UI             | 표시·선택 UI 숨김, 승인 버튼만 노출         |
+| 대시보드       | 일반/이중주차 사용 카드, 주차면 현황, 도면 | 「당일 주차 차량」 카드로 대체, 나머지 숨김 |
+| 신청자 화면    | `/r/<token>`·마이페이지에 배정 위치 표시   | 배정 위치 항목 숨김                         |
 
 **정원 통제 (`PARKING_CAPACITY`)**
 
@@ -1143,23 +1147,23 @@ npm run test:coverage    # 커버리지 리포트 (coverage/index.html)
 
 ### 16-1. 단위 테스트 커버 항목
 
-| #   | 항목                                    | 파일                                      |
-| --- | --------------------------------------- | ----------------------------------------- |
-| 1   | 차량번호 정규화                         | `tests/unit/vehicle.test.ts`              |
-| 2   | 시간 중복 판정                          | `tests/unit/time-overlap.test.ts`         |
-| 3   | 예약 최소 60분 전 신청 검증             | `tests/unit/reservation-rules.test.ts`    |
-| 4   | 운영시간 검증                           | `tests/unit/reservation-rules.test.ts`    |
-| 5   | 수정·취소 가능 시간 검증                | `tests/unit/reservation-rules.test.ts`    |
-| 6   | 예약 상태 전이 검증                     | `tests/unit/reservation-status.test.ts`   |
-| 7   | 일반 주차면 우선 자동 추천              | `tests/unit/space-recommendation.test.ts` |
-| 8   | 일반 만차 시 이중주차 추천              | `tests/unit/space-recommendation.test.ts` |
-| 9   | 전체 만차 시 추천 없음 처리             | `tests/unit/space-recommendation.test.ts` |
-| 10  | 예약 토큰 원문 해시 처리                | `tests/unit/tokens.test.ts`               |
-| 11  | 토큰 만료 처리                          | `tests/unit/reservation-access.test.ts`   |
-| 12  | 회원/관리자 세션 토큰 교차 사용 차단    | `tests/unit/user-session.test.ts`         |
-| 13  | 이메일에 원문(성명·차량번호) 노출 확인  | `tests/unit/email-service.test.ts`        |
-| 14  | `EXIT_REMINDER` 중복 발송 차단 로직     | `tests/unit/email-service.test.ts`        |
-| 15  | Gmail Provider Mock 발송 성공/실패 처리 | `tests/unit/email-service.test.ts`        |
+| #   | 항목                                    | 파일                                    |
+| --- | --------------------------------------- | --------------------------------------- |
+| 1   | 차량번호 정규화                         | `tests/unit/vehicle.test.ts`            |
+| 2   | 시간 중복 판정                          | `tests/unit/time-overlap.test.ts`       |
+| 3   | 예약 최소 60분 전 신청 검증             | `tests/unit/reservation-rules.test.ts`  |
+| 4   | 운영시간 검증                           | `tests/unit/reservation-rules.test.ts`  |
+| 5   | 수정·취소 가능 시간 검증                | `tests/unit/reservation-rules.test.ts`  |
+| 6   | 예약 상태 전이 검증                     | `tests/unit/reservation-status.test.ts` |
+| 7   | 일반 주차면 우선 자동 선택              | `tests/unit/space-assignment.test.ts`   |
+| 8   | 일반 만차 시 이중주차 선택              | `tests/unit/space-assignment.test.ts`   |
+| 9   | 전체 만차 시 배정 불가 처리             | `tests/unit/space-assignment.test.ts`   |
+| 10  | 예약 토큰 원문 해시 처리                | `tests/unit/tokens.test.ts`             |
+| 11  | 토큰 만료 처리                          | `tests/unit/reservation-access.test.ts` |
+| 12  | 회원/관리자 세션 토큰 교차 사용 차단    | `tests/unit/user-session.test.ts`       |
+| 13  | 이메일에 원문(성명·차량번호) 노출 확인  | `tests/unit/email-service.test.ts`      |
+| 14  | `EXIT_REMINDER` 중복 발송 차단 로직     | `tests/unit/email-service.test.ts`      |
+| 15  | Gmail Provider Mock 발송 성공/실패 처리 | `tests/unit/email-service.test.ts`      |
 
 ### 16-2. 통합 테스트 DB 구성
 
@@ -1528,19 +1532,22 @@ Authorization: Bearer <CRON_SECRET>
 
 #### 토큰 정책: 조회/수정/취소에 동일 토큰 사용
 
-`reservation_access_tokens.token_type`은 `VIEW` / `EDIT` / `CANCEL`을 지원하지만,
-**현재 구현은 예약 1건당 `VIEW` 토큰 하나를 발급해 조회·수정·취소에 함께 사용합니다.**
+**예약 1건당 토큰 하나를 발급해 조회·수정·취소에 함께 사용합니다.**
 
 - **이유 1 (보안성 동일)**: 수정·취소는 조회 화면을 통해서만 진입할 수 있고, 세 동작 모두
   "해당 예약 1건"에 대한 권한입니다. 토큰을 3개로 나눠도 링크가 하나라도 유출되면
   같은 예약에 접근할 수 있으므로 실질적인 보안 이득이 없습니다.
 - **이유 2 (사용성·오발송 위험)**: 메일 본문에 링크가 3개 생기면 사용자가 혼동하고,
   잘못된 링크를 전달할 위험이 커집니다.
-- **대신 강화한 부분**: 토큰 만료 기한, 사용 이력(`last_used_at`), 레이트 리밋,
-  수정·취소 가능 시간(방문 60분 전) 서버 검증으로 위험을 통제합니다.
+- **대신 강화한 부분**: 토큰 만료 기한, 레이트 리밋, 수정·취소 가능 시간(방문 60분 전)
+  서버 검증으로 위험을 통제합니다.
 - **링크가 포함된 메일을 보낼 때마다 새 토큰을 발급**합니다(원본을 저장하지 않으므로 재사용 불가).
   이전 토큰은 만료 전까지 유효하게 두어 과거 메일의 링크도 계속 동작합니다.
-  향후 "링크 1회 사용 후 폐기"가 필요하면 `token_type`을 분리하는 방식으로 확장할 수 있습니다.
+
+> 토큰 용도를 구분하는 `token_type`(`VIEW`/`EDIT`/`CANCEL`)과 사용 이력 `last_used_at` 컬럼이
+> 있었지만 제거했습니다. `token_type`은 항상 `VIEW` 하나만 만들어졌고, `last_used_at`은
+> 기록만 하고 읽는 곳이 없어 예약 조회 때마다 쓸모없는 UPDATE 가 나갔습니다.
+> 용도 분리가 필요해지면 그때 컬럼을 추가하는 편이 낫습니다.
 
 ### 개인정보 보호
 

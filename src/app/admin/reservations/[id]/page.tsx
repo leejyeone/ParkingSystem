@@ -18,7 +18,7 @@ import { NotFoundError } from '@/lib/errors';
 import { getRequestContext } from '@/lib/request-context';
 import { getCapacityUsage, getReservationDetailForAdmin } from '@/services/reservation-service';
 import { getSystemSettings } from '@/services/settings-service';
-import { listAvailableSpaces } from '@/services/space-recommendation-service';
+import { listAvailableSpaces, pickAvailableSpace } from '@/services/space-assignment-service';
 import { headers } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
@@ -65,6 +65,21 @@ export default async function AdminReservationDetailPage({ params }: PageProps) 
       })
     : [];
 
+  /*
+   * 드롭다운 기본값은 화면을 열 때마다 계산한다.
+   * 승인 처리도 같은 함수를 쓰므로, 화면에 보이는 기본값과 실제 배정 결과가 어긋나지 않는다.
+   */
+  const defaultSpace =
+    showSpace && !reservation.assignedSpaceId
+      ? await pickAvailableSpace({
+          visitStartAt: reservation.visitStartAt,
+          visitEndAt: reservation.visitEndAt,
+          excludeReservationId: reservationId,
+          doubleParkingEnabled: settings.doubleParkingEnabled,
+          spaceAssignmentEnabled: settings.spaceAssignmentEnabled,
+        })
+      : null;
+
   // 배정을 쓰지 않을 때는 정원 잔여 대수를 대신 보여준다.
   const capacityUsage = showSpace
     ? null
@@ -103,10 +118,10 @@ export default async function AdminReservationDetailPage({ params }: PageProps) 
         </div>
       </div>
 
-      <Alert variant="warning" title="개인정보 열람 안내">
+      {/* <Alert variant="warning" title="개인정보 열람 안내">
         이 화면에는 신청자의 개인정보 원문이 표시됩니다. 열람 이력은 감사 로그(audit_logs)에
         기록되며, 업무 목적 외 사용이나 외부 공유는 금지됩니다.
-      </Alert>
+      </Alert> */}
 
       {/*
         grid-cols-1 을 명시해야 열이 minmax(0, 1fr) 이 되어 항목이 0까지 줄어든다.
@@ -140,83 +155,33 @@ export default async function AdminReservationDetailPage({ params }: PageProps) 
                 ? formatKstDateTime(reservation.actualExitAt)
                 : '-',
               spaceSection: showSpace ? (
-                <>
-                  <div className="definition-row">
-                    <dt className="definition-term">추천 위치</dt>
-                    <dd className="definition-desc">
-                      {reservation.recommendedSpace?.spaceCode ?? '추천 없음'}
-                    </dd>
-                  </div>
-                  <div className="definition-row">
-                    <dt className="definition-term">배정 위치</dt>
-                    <dd className="definition-desc flex flex-wrap items-center gap-2">
-                      {reservation.assignedSpace ? (
-                        <>
-                          <span className="font-mono font-bold">
-                            {reservation.assignedSpace.spaceCode}
-                          </span>
-                          <SpaceTypeBadge spaceType={reservation.assignedSpace.spaceType} />
-                        </>
-                      ) : (
-                        '미배정'
-                      )}
-                    </dd>
-                  </div>
-                </>
+                <div className="definition-row">
+                  <dt className="definition-term">배정 위치</dt>
+                  <dd className="definition-desc flex flex-wrap items-center gap-2">
+                    {reservation.assignedSpace ? (
+                      <>
+                        <span className="font-mono font-bold">
+                          {reservation.assignedSpace.spaceCode}
+                        </span>
+                        <SpaceTypeBadge spaceType={reservation.assignedSpace.spaceType} />
+                      </>
+                    ) : (
+                      '미배정'
+                    )}
+                  </dd>
+                </div>
               ) : null,
               rejectionReason: reservation.rejectionReason,
               cancelReason: reservation.cancelReason,
             }}
           />
-
-          <section className="card">
-            <div className="card-body">
-              <h2 className="card-title">상태 변경 이력</h2>
-              <div className="table-scroll mt-3">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>일시</th>
-                      <th>변경</th>
-                      <th>주체</th>
-                      <th>사유</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {reservation.statusLogs.map((log) => (
-                      <tr key={log.statusLogId}>
-                        <td className="text-xs whitespace-nowrap">
-                          {formatKstDateTime(log.createdAt)}
-                        </td>
-                        <td className="text-xs">
-                          {log.previousStatus
-                            ? `${RESERVATION_STATUS_LABEL[log.previousStatus]} → `
-                            : ''}
-                          <strong>{RESERVATION_STATUS_LABEL[log.currentStatus]}</strong>
-                        </td>
-                        <td className="text-xs">
-                          {log.changedByType === 'ADMIN'
-                            ? `관리자${log.adminName ? ` (${log.adminName})` : ''}`
-                            : log.changedByType === 'REQUESTER'
-                              ? '신청자'
-                              : '시스템'}
-                        </td>
-                        <td className="text-xs">{log.changeReason ?? '-'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </section>
         </div>
 
         <div className="min-w-0 lg:col-span-1">
           <ReservationActionPanel
             reservationId={reservation.reservationId}
             reservationStatus={reservation.reservationStatus}
-            recommendedSpaceId={reservation.recommendedSpaceId}
-            recommendedSpaceCode={reservation.recommendedSpace?.spaceCode ?? null}
+            defaultSpaceId={defaultSpace?.spaceId ?? null}
             assignedSpaceId={reservation.assignedSpaceId}
             availableSpaces={availableSpaces}
             spaceAssignmentEnabled={showSpace}
@@ -224,6 +189,48 @@ export default async function AdminReservationDetailPage({ params }: PageProps) 
           />
         </div>
       </div>
+
+      {/* 상태 변경 이력은 참고용이라 가장 아래에 둔다. */}
+      <section className="card">
+        <div className="card-body">
+          <h2 className="card-title">상태 변경 이력</h2>
+          <div className="table-scroll mt-3">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>일시</th>
+                  <th>변경</th>
+                  <th>주체</th>
+                  <th>사유</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reservation.statusLogs.map((log) => (
+                  <tr key={log.statusLogId}>
+                    <td className="text-xs whitespace-nowrap">
+                      {formatKstDateTime(log.createdAt)}
+                    </td>
+                    <td className="text-xs">
+                      {log.previousStatus
+                        ? `${RESERVATION_STATUS_LABEL[log.previousStatus]} → `
+                        : ''}
+                      <strong>{RESERVATION_STATUS_LABEL[log.currentStatus]}</strong>
+                    </td>
+                    <td className="text-xs">
+                      {log.changedByType === 'ADMIN'
+                        ? `관리자${log.adminName ? ` (${log.adminName})` : ''}`
+                        : log.changedByType === 'REQUESTER'
+                          ? '신청자'
+                          : '시스템'}
+                    </td>
+                    <td className="text-xs">{log.changeReason ?? '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
     </main>
   );
 }

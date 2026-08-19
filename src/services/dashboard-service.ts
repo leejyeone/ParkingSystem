@@ -122,7 +122,6 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
       prisma.parkingReservation.findMany({
         where: { reservationStatus: ReservationStatus.REQUESTED, ...buildOverlapWhere(start, end) },
         include: {
-          recommendedSpace: { select: { spaceId: true, spaceCode: true, spaceType: true } },
           assignedSpace: { select: { spaceId: true, spaceCode: true, spaceType: true } },
         },
         orderBy: [{ visitStartAt: 'asc' }, { reservationId: 'asc' }],

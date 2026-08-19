@@ -31,7 +31,7 @@ export type SystemSettingsValues = {
   /**
    * 주차면 배정 기능 사용 여부.
    *
-   * false 이면 특정 주차면을 추천/배정하지 않고 "주차 가능 여부"만 관리한다.
+   * false 이면 특정 주차면을 배정하지 않고 "주차 가능 여부"만 관리한다.
    * 승인 시 주차면을 잡지 않으므로 이메일·목록·상세·대시보드에서 주차 위치 관련 표시가 사라진다.
    */
   spaceAssignmentEnabled: boolean;
@@ -71,7 +71,7 @@ export const SETTING_DESCRIPTIONS: Record<SettingKey, string> = {
     '주차면 배정 기능 사용 여부(true/false). false 이면 주차 위치를 배정하지 않습니다.',
   PARKING_CAPACITY:
     '동시 주차 가능 최대 대수. 주차면 배정을 사용하지 않을 때 정원 초과 승인을 막는 기준입니다.',
-  DOUBLE_PARKING_ENABLED: '이중주차 위치 추천/배정 사용 여부(true/false).',
+  DOUBLE_PARKING_ENABLED: '이중주차 위치 배정 사용 여부(true/false).',
   APP_TIME_ZONE: '시스템 표시 기준 타임존.',
 };
 
