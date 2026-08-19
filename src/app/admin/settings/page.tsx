@@ -35,7 +35,10 @@ export default async function AdminSettingsPage() {
       <SettingsPanel
         initialSettings={settings}
         notificationEmails={notificationEmails}
-        areas={areas}
+        areas={areas.map((area) => ({
+          ...area,
+          mapImageUpdatedAt: area.mapImageUpdatedAt ? area.mapImageUpdatedAt.toISOString() : null,
+        }))}
         spaces={spaces}
         adminUsers={adminUsers.map((user) => ({
           ...user,

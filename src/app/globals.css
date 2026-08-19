@@ -108,6 +108,11 @@ button {
     @apply bg-red-600 text-white hover:bg-red-700;
   }
 
+  /* 표 안의 삭제처럼 자주 노출되는 위험 동작용. 채우지 않고 테두리와 글씨만 빨갛게 둔다. */
+  .btn-danger-outline {
+    @apply border border-red-300 bg-white text-red-600 hover:bg-red-50;
+  }
+
   .btn-ghost {
     @apply text-slate-600 hover:bg-slate-100;
   }

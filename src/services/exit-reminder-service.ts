@@ -76,12 +76,16 @@ export async function runExitReminderJob(now: Date = new Date()): Promise<ExitRe
     else failedCount += 1;
   }
 
-  logger.info('출차 예정 알림 작업 완료', {
-    targetCount: targets.length,
-    sentCount,
-    skippedCount,
-    failedCount,
-  });
+  // 스케줄러가 1분마다 호출하므로, 발송할 대상이 없었던 실행은 로그를 남기지 않는다.
+  // (cron 라우트 호출자는 아래 반환값을 JSON 응답으로 그대로 받는다)
+  if (targets.length > 0) {
+    logger.info('출차 예정 알림 작업 완료', {
+      targetCount: targets.length,
+      sentCount,
+      skippedCount,
+      failedCount,
+    });
+  }
 
   return { targetCount: targets.length, sentCount, skippedCount, failedCount };
 }

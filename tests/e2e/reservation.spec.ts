@@ -4,6 +4,7 @@ import {
   ADMIN_LOGIN_ID,
   ADMIN_PASSWORD,
   clearMailOutbox,
+  clientIpFor,
   prisma,
   resetE2eDatabase,
   tomorrowInput,
@@ -12,15 +13,19 @@ import {
 
 /**
  * 사용자 흐름 E2E
- *   방문객 예약 신청 → 관리자 로그인 → 승인 및 주차면 배정 → 상세 확인
- *   → 이메일 링크로 예약 조회 → 예약 수정 → 재승인
+ *   방문객 예약 신청 → 이메일 링크로 조회·수정 → 관리자 로그인 → 승인 및 주차면 배정
+ *   → 승인 후에는 신청자 수정 불가, 관리자만 수정
  *
  * 이메일은 FileEmailProvider(.mail-outbox)로 대체한다.
  */
 
 const REQUESTER_EMAIL = 'e2e-visitor@example.com';
 
-test.beforeEach(async () => {
+test.beforeEach(async ({ page }, testInfo) => {
+  // 테스트마다 다른 IP 로 접속해 레이트 리밋 버킷을 분리한다. (fixtures 주석 참고)
+  await page.setExtraHTTPHeaders({
+    'X-Forwarded-For': clientIpFor(`${testInfo.project.name}:${testInfo.title}`),
+  });
   await resetE2eDatabase();
   await clearMailOutbox();
 });
@@ -157,45 +162,71 @@ test('관리자가 로그인해 예약을 승인하고 주차면을 배정한다
   expect(reservation?.assignedSpace?.spaceCode).toBe('A-01');
 });
 
-test('신청자가 이메일 링크로 예약을 조회하고 수정하면 다시 승인 대기가 된다', async ({ page }) => {
+/**
+ * 수정 권한 정책 전체 흐름.
+ *
+ * 신청자는 승인 대기 상태에서만 스스로 고칠 수 있고, 승인된 뒤에는 관리자만 고칠 수 있다.
+ * (REQUESTER_MODIFIABLE_STATUSES = ['REQUESTED'])
+ */
+test('신청자는 승인 대기 상태에서만 수정할 수 있고, 승인 후에는 관리자가 수정한다', async ({
+  page,
+}) => {
   await submitReservation(page);
   await expect(page.getByTestId('reservation-complete')).toBeVisible();
 
-  // 관리자가 먼저 승인
-  await loginAsAdmin(page);
-  await openPendingReservationDetail(page);
-  await page.getByRole('button', { name: '승인 및 위치 확정' }).click();
-  await expect(page.getByText('처리되었습니다.')).toBeVisible();
-
-  // 신청자는 이메일 링크로 자기 예약 1건을 조회
+  // 1) 승인 대기 상태에서는 신청자가 이메일 링크로 직접 수정할 수 있다.
   const accessUrl = await waitForAccessUrl(REQUESTER_EMAIL);
   await page.goto(accessUrl);
 
   await expect(page.getByRole('heading', { name: '내 예약' })).toBeVisible();
-  await expect(page.getByText('승인 완료')).toBeVisible();
+  await expect(page.getByText('승인 대기')).toBeVisible();
 
-  // 수정하면 승인 대기로 되돌아가고 배정 위치가 해제된다.
   await page.getByRole('button', { name: '예약 수정하기' }).click();
   await page.getByLabel('입차 예정 시간').fill(tomorrowInput(14));
   await page.getByLabel('출차 예정 시간').fill(tomorrowInput(16));
   await page.getByRole('button', { name: '수정 내용 저장' }).click();
 
   await expect(page.getByText(/변경된 예약은 다시 관리자 승인/)).toBeVisible();
-  await expect(page.getByText('승인 대기')).toBeVisible();
 
-  const afterUpdate = await prisma.parkingReservation.findFirst();
-  expect(afterUpdate?.reservationStatus).toBe('REQUESTED');
-  expect(afterUpdate?.assignedSpaceId).toBeNull();
+  const afterRequesterEdit = await prisma.parkingReservation.findFirst();
+  expect(afterRequesterEdit?.reservationStatus).toBe('REQUESTED');
 
-  // 관리자가 재승인
+  // 2) 관리자가 승인한다.
   await loginAsAdmin(page);
   await openPendingReservationDetail(page);
+  const detailUrl = page.url();
   await page.getByRole('button', { name: '승인 및 위치 확정' }).click();
   await expect(page.getByText('처리되었습니다.')).toBeVisible();
 
-  const reApproved = await prisma.parkingReservation.findFirst();
-  expect(reApproved?.reservationStatus).toBe('APPROVED');
-  expect(reApproved?.assignedSpaceId).not.toBeNull();
+  // 3) 승인 후에는 신청자에게 수정 버튼이 없고 담당자 문의 안내만 보인다.
+  await page.goto(accessUrl);
+  // '승인 완료' 는 상태 배지와 차단 사유 문구 양쪽에 나오므로 정확히 일치하는 쪽만 고른다.
+  await expect(page.getByText('승인 완료', { exact: true })).toBeVisible();
+  await expect(page.getByText('수정·취소할 수 없습니다')).toBeVisible();
+  await expect(page.getByText(/담당자에게 문의해 주세요/)).toBeVisible();
+  await expect(page.getByRole('button', { name: '예약 수정하기' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '예약 취소하기' })).toHaveCount(0);
+
+  // 4) 대신 관리자가 상세 화면의 [일정 및 주차 위치] 카드에서 시간을 고친다.
+  await page.goto(detailUrl);
+  const scheduleCard = page.locator('section.card', { hasText: '일정 및 주차 위치' }).first();
+  await scheduleCard.getByRole('button', { name: '수정하기' }).click();
+
+  await page.getByLabel('입차 예정').fill(tomorrowInput(15));
+  await page.getByLabel('출차 예정').fill(tomorrowInput(17));
+  await scheduleCard.getByRole('button', { name: '저장' }).click();
+
+  // 저장이 끝나면 편집이 닫히고 [수정하기] 버튼이 다시 나타난다.
+  await expect(scheduleCard.getByRole('button', { name: '수정하기' })).toBeVisible();
+
+  // 관리자 수정은 상태를 유지한다. (승인 완료 → 승인 완료)
+  const afterAdminEdit = await prisma.parkingReservation.findFirst();
+  expect(afterAdminEdit?.reservationStatus).toBe('APPROVED');
+  expect(afterAdminEdit?.assignedSpaceId).not.toBeNull();
+  expect(afterAdminEdit?.visitStartAt.toISOString()).toBe(
+    // KST 15:00 = UTC 06:00
+    `${tomorrowInput(15).slice(0, 11)}06:00:00.000Z`,
+  );
 });
 
 test('유효하지 않은 토큰으로는 예약을 볼 수 없다', async ({ page }) => {

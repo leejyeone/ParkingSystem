@@ -32,6 +32,7 @@ const ACTION_LABEL: Record<string, string> = {
   PARKING_SPACE_CREATE: '주차면 생성',
   PARKING_SPACE_UPDATE: '주차면 수정',
   PARKING_SPACE_DEACTIVATE: '주차면 비활성화',
+  PARKING_SPACE_DELETE: '주차면 삭제',
   PARKING_AREA_CREATE: '구역 생성',
   PARKING_AREA_UPDATE: '구역 수정',
   SYSTEM_SETTING_CHANGE: '시스템 설정 변경',

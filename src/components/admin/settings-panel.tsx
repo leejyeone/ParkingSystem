@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import { MapImageUploader, type PendingMapImage } from '@/components/admin/map-image-uploader';
 import { Alert } from '@/components/ui/alert';
 import { FormField, inputClassName } from '@/components/ui/form-field';
 import { SpaceTypeBadge } from '@/components/ui/status-badge';
@@ -16,18 +17,18 @@ type NotificationEmail = {
   recipientName: string | null;
   receiveNewRequest: boolean;
   receiveApprovalAlert: boolean;
-  receiveDailySummary: boolean;
   receiveDoubleParkingAlert: boolean;
   isActive: boolean;
 };
 
+/** areaCode / displayOrder 는 DB 내부 구분·정렬용이라 화면 타입에서 제외한다. */
 type Area = {
   areaId: number;
-  areaCode: string;
   areaName: string;
   description: string | null;
-  mapImageUrl: string | null;
-  displayOrder: number;
+  /** 도면은 파일로 업로드해 DB 에 보관한다. 화면에는 파일명과 미리보기만 쓴다. */
+  mapImageName: string | null;
+  mapImageUpdatedAt: string | Date | null;
   isActive: boolean;
 };
 
@@ -36,10 +37,9 @@ type Space = {
   spaceCode: string;
   spaceName: string | null;
   spaceType: keyof typeof SPACE_TYPE_LABEL;
-  displayOrder: number;
   isActive: boolean;
   memo: string | null;
-  area: { areaId: number; areaCode: string; areaName: string };
+  area: { areaId: number; areaName: string };
 };
 
 type AdminUser = {
@@ -63,9 +63,8 @@ type Props = {
 
 const TABS = [
   { key: 'policy', label: '주차장 정보' },
-  { key: 'areas', label: '도면' },
-  { key: 'spaces', label: '주차면' },
-  { key: 'notification', label: '알림 이메일' },
+  { key: 'spaces', label: '구역·주차면' },
+  { key: 'notification', label: '관리자 이메일' },
   { key: 'admins', label: '관리자 계정' },
 ] as const;
 
@@ -93,7 +92,6 @@ export function SettingsPanel(props: Props) {
 
       {tab === 'policy' && <PolicySection initialSettings={props.initialSettings} />}
       {tab === 'notification' && <NotificationSection emails={props.notificationEmails} />}
-      {tab === 'areas' && <AreaSection areas={props.areas} />}
       {tab === 'spaces' && (
         <SpaceSection
           spaces={props.spaces}
@@ -114,12 +112,20 @@ function useMutation() {
   );
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
-  async function mutate(url: string, method: 'POST' | 'PUT', body: unknown, successText: string) {
+  async function mutate(
+    url: string,
+    method: 'POST' | 'PUT' | 'DELETE',
+    body: unknown,
+    successText: string,
+  ) {
     setPending(true);
     setMessage(null);
     setFieldErrors({});
 
-    const response = await apiRequest(url, { method, body: JSON.stringify(body) });
+    const response = await apiRequest(url, {
+      method,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
     setPending(false);
 
     if (response.ok) {
@@ -318,7 +324,6 @@ function NotificationSection({ emails }: { emails: NotificationEmail[] }) {
     recipientName: '',
     receiveNewRequest: true,
     receiveApprovalAlert: true,
-    receiveDailySummary: false,
     receiveDoubleParkingAlert: true,
     isActive: true,
   });
@@ -336,7 +341,6 @@ function NotificationSection({ emails }: { emails: NotificationEmail[] }) {
                   <th>수신자</th>
                   <th>신규신청</th>
                   <th>승인/변경</th>
-                  <th>이중주차</th>
                   <th>상태</th>
                 </tr>
               </thead>
@@ -347,8 +351,6 @@ function NotificationSection({ emails }: { emails: NotificationEmail[] }) {
                     <td className="text-xs">{item.recipientName ?? '-'}</td>
                     <td>{item.receiveNewRequest ? '✓' : '-'}</td>
                     <td>{item.receiveApprovalAlert ? '✓' : '-'}</td>
-                    <td>{item.receiveDoubleParkingAlert ? '✓' : '-'}</td>
-                    <td>{item.receiveDailySummary ? '✓' : '-'}</td>
                     <td>
                       <span
                         className={`badge ${item.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}
@@ -360,7 +362,7 @@ function NotificationSection({ emails }: { emails: NotificationEmail[] }) {
                 ))}
                 {emails.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="text-center text-sm text-slate-500">
+                    <td colSpan={6} className="text-center text-sm text-slate-500">
                       등록된 알림 이메일이 없습니다.
                     </td>
                   </tr>
@@ -406,7 +408,6 @@ function NotificationSection({ emails }: { emails: NotificationEmail[] }) {
               [
                 ['receiveNewRequest', '신규 신청 알림'],
                 ['receiveApprovalAlert', '변경/취소 알림'],
-                ['receiveDoubleParkingAlert', '이중주차 알림'],
                 ['isActive', '활성화'],
               ] as const
             ).map(([key, label]) => (
@@ -447,137 +448,12 @@ function NotificationSection({ emails }: { emails: NotificationEmail[] }) {
   );
 }
 
-function AreaSection({ areas }: { areas: Area[] }) {
-  const { pending, message, fieldErrors, mutate } = useMutation();
-  const [editing, setEditing] = useState<Area | null>(areas[0] ?? null);
-
-  return (
-    <div className="space-y-4">
-      <section className="card">
-        <div className="card-body">
-          <h2 className="card-title">주차 구역 및 도면</h2>
-          <p className="field-hint">
-            도면은 참고용 이미지 URL 로만 관리합니다. 좌표 기반 배정 기능은 제공하지 않습니다.
-          </p>
-          <div className="table-scroll mt-3">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>코드</th>
-                  <th>이름</th>
-                  <th>도면 이미지</th>
-                  <th>정렬</th>
-                  <th>상태</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {areas.map((area) => (
-                  <tr key={area.areaId}>
-                    <td className="font-mono text-xs">{area.areaCode}</td>
-                    <td>{area.areaName}</td>
-                    <td className="max-w-[240px] truncate text-xs text-slate-500">
-                      {area.mapImageUrl ?? '-'}
-                    </td>
-                    <td>{area.displayOrder}</td>
-                    <td>{area.isActive ? '활성' : '비활성'}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="btn btn-secondary min-h-9 px-3 py-1.5 text-xs"
-                        onClick={() => setEditing(area)}
-                      >
-                        수정
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      {editing && (
-        <section className="card">
-          <div className="card-body space-y-4">
-            <h2 className="card-title">{editing.areaCode} 구역 수정</h2>
-            {message && (
-              <Alert variant={message.variant === 'success' ? 'success' : 'error'}>
-                {message.text}
-              </Alert>
-            )}
-
-            <FormField label="구역 이름" htmlFor="area-name" required errors={fieldErrors.areaName}>
-              <input
-                id="area-name"
-                className={inputClassName(Boolean(fieldErrors.areaName))}
-                value={editing.areaName}
-                onChange={(event) => setEditing({ ...editing, areaName: event.target.value })}
-              />
-            </FormField>
-
-            <FormField
-              label="도면 이미지 URL"
-              htmlFor="area-map"
-              hint="/images/parking-map.svg 처럼 public 경로 또는 외부 URL 을 입력합니다."
-              errors={fieldErrors.mapImageUrl}
-            >
-              <input
-                id="area-map"
-                className={inputClassName(Boolean(fieldErrors.mapImageUrl))}
-                value={editing.mapImageUrl ?? ''}
-                onChange={(event) => setEditing({ ...editing, mapImageUrl: event.target.value })}
-              />
-            </FormField>
-
-            <FormField label="설명" htmlFor="area-desc" errors={fieldErrors.description}>
-              <input
-                id="area-desc"
-                className={inputClassName(Boolean(fieldErrors.description))}
-                value={editing.description ?? ''}
-                onChange={(event) => setEditing({ ...editing, description: event.target.value })}
-              />
-            </FormField>
-
-            <label className="flex min-h-12 items-center gap-3 rounded-lg border border-slate-300 px-3">
-              <input
-                type="checkbox"
-                className="accent-brand-700 size-5"
-                checked={editing.isActive}
-                onChange={(event) => setEditing({ ...editing, isActive: event.target.checked })}
-              />
-              <span className="text-sm font-semibold text-slate-800">활성화</span>
-            </label>
-
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={pending}
-              onClick={() =>
-                mutate(
-                  `/api/admin/parking-areas/${editing.areaId}`,
-                  'PUT',
-                  {
-                    areaName: editing.areaName,
-                    description: editing.description || null,
-                    mapImageUrl: editing.mapImageUrl || null,
-                    displayOrder: editing.displayOrder,
-                    isActive: editing.isActive,
-                  },
-                  '구역 정보를 저장했습니다.',
-                )
-              }
-            >
-              {pending ? '저장 중…' : '구역 저장'}
-            </button>
-          </div>
-        </section>
-      )}
-    </div>
-  );
-}
-
+/**
+ * 주차 구역(도면) + 주차면을 한 카드에서 관리한다.
+ *
+ * 구역 코드(area_code)와 정렬 순서(display_order)는 화면에 노출하지 않는다.
+ * DB 내부 구분/정렬용이며 서버가 자동으로 부여한다.
+ */
 function SpaceSection({
   spaces,
   areas,
@@ -587,16 +463,189 @@ function SpaceSection({
   areas: Area[];
   spaceAssignmentEnabled: boolean;
 }) {
-  const { pending, message, fieldErrors, mutate } = useMutation();
-  const [form, setForm] = useState({
-    areaId: areas[0]?.areaId ?? 0,
-    spaceCode: '',
-    spaceName: '',
-    spaceType: 'NORMAL' as keyof typeof SPACE_TYPE_LABEL,
-    displayOrder: 0,
-    isActive: true,
-    memo: '',
-  });
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState<{ variant: 'success' | 'error'; text: string } | null>(
+    null,
+  );
+  /** 편집 중인 구역 값 */
+  const [areaDrafts, setAreaDrafts] = useState<Record<number, AreaDraft>>({});
+  /** 선택했지만 아직 저장하지 않은 도면 파일 (구역별) */
+  const [mapFiles, setMapFiles] = useState<Record<number, PendingMapImage | null>>({});
+  /** 저장 시 도면을 지울 구역 */
+  const [mapRemovals, setMapRemovals] = useState<number[]>([]);
+  /** 도면 선택 단계에서 생긴 오류 (구역별) */
+  const [mapErrors, setMapErrors] = useState<Record<number, string>>({});
+  /** 편집 중인 기존 주차면 값. 상단 [저장]을 누를 때 한꺼번에 반영한다. */
+  const [drafts, setDrafts] = useState<Record<number, SpaceDraft>>({});
+  /** 삭제 표시된 주차면. 저장 시 함께 처리한다. */
+  const [removed, setRemoved] = useState<number[]>([]);
+  /** 새로 추가한 주차면. 표 맨 아래에 쌓인다. */
+  const [added, setAdded] = useState<SpaceDraft[]>([]);
+
+  function areaDraftOf(area: Area): AreaDraft {
+    return areaDrafts[area.areaId] ?? toAreaDraft(area);
+  }
+
+  function updateAreaDraft(areaId: number, patch: Partial<AreaDraft>) {
+    setAreaDrafts((previous) => ({
+      ...previous,
+      [areaId]: { ...(previous[areaId] ?? toAreaDraftById(areas, areaId)), ...patch },
+    }));
+  }
+
+  function draftOf(space: Space): SpaceDraft {
+    return drafts[space.spaceId] ?? toSpaceDraft(space);
+  }
+
+  function updateDraft(spaceId: number, patch: Partial<SpaceDraft>) {
+    setDrafts((previous) => ({
+      ...previous,
+      [spaceId]: { ...(previous[spaceId] ?? toSpaceDraftById(spaces, spaceId)), ...patch },
+    }));
+  }
+
+  function reset() {
+    setAreaDrafts({});
+    setMapFiles({});
+    setMapRemovals([]);
+    setMapErrors({});
+    setDrafts({});
+    setRemoved([]);
+    setAdded([]);
+    setMessage(null);
+  }
+
+  function closeEditing() {
+    reset();
+    setEditing(false);
+  }
+
+  const changedCount =
+    added.length +
+    removed.length +
+    Object.values(mapFiles).filter(Boolean).length +
+    mapRemovals.length +
+    areas.filter(
+      (area) => areaDrafts[area.areaId] && !isSameArea(areaDrafts[area.areaId], toAreaDraft(area)),
+    ).length +
+    spaces.filter(
+      (space) => drafts[space.spaceId] && !isSameDraft(drafts[space.spaceId], toSpaceDraft(space)),
+    ).length;
+
+  /** 변경된 것만 순서대로 반영한다. 일부가 실패해도 나머지는 계속 처리하고 결과를 알린다. */
+  async function saveAll() {
+    setPending(true);
+    setMessage(null);
+
+    const failures: string[] = [];
+    let done = 0;
+
+    // 도면은 multipart 라 JSON 요청과 함께 보낼 수 없다. 같은 [저장]에서 순서대로 처리한다.
+    for (const area of areas) {
+      if (mapRemovals.includes(area.areaId)) {
+        const response = await fetch(`/api/admin/parking-areas/${area.areaId}/map`, {
+          method: 'DELETE',
+        });
+        if (response.ok) done += 1;
+        else failures.push(`${area.areaName} 도면 삭제 실패`);
+        continue;
+      }
+
+      const selected = mapFiles[area.areaId];
+      if (!selected) continue;
+
+      const body = new FormData();
+      body.append('file', selected.file);
+      const response = await fetch(`/api/admin/parking-areas/${area.areaId}/map`, {
+        method: 'POST',
+        body,
+      });
+      if (response.ok) {
+        done += 1;
+      } else {
+        const payload = await response.json().catch(() => null);
+        failures.push(`${area.areaName} 도면: ${payload?.error?.message ?? '업로드 실패'}`);
+      }
+    }
+
+    for (const area of areas) {
+      const draft = areaDrafts[area.areaId];
+      if (!draft || isSameArea(draft, toAreaDraft(area))) continue;
+
+      const response = await apiRequest(`/api/admin/parking-areas/${area.areaId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          areaName: draft.areaName,
+          description: draft.description || null,
+          isActive: draft.isActive,
+        }),
+      });
+      if (response.ok) done += 1;
+      else failures.push(`${area.areaName} 구역: ${response.error.message}`);
+    }
+
+    for (const spaceId of removed) {
+      const target = spaces.find((space) => space.spaceId === spaceId);
+      const response = await apiRequest(`/api/admin/parking-spaces/${spaceId}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) done += 1;
+      else failures.push(`${target?.spaceCode ?? spaceId} 삭제: ${response.error.message}`);
+    }
+
+    for (const space of spaces) {
+      const draft = drafts[space.spaceId];
+      if (!draft || removed.includes(space.spaceId)) continue;
+      if (isSameDraft(draft, toSpaceDraft(space))) continue;
+
+      const response = await apiRequest(`/api/admin/parking-spaces/${space.spaceId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          areaId: draft.areaId,
+          spaceCode: draft.spaceCode,
+          spaceType: draft.spaceType,
+          isActive: draft.isActive,
+          memo: draft.memo || null,
+        }),
+      });
+      if (response.ok) done += 1;
+      else failures.push(`${space.spaceCode} 수정: ${response.error.message}`);
+    }
+
+    for (const draft of added) {
+      if (!draft.spaceCode.trim()) continue;
+      const response = await apiRequest('/api/admin/parking-spaces', {
+        method: 'POST',
+        body: JSON.stringify({
+          areaId: draft.areaId,
+          spaceCode: draft.spaceCode,
+          spaceName: null,
+          spaceType: draft.spaceType,
+          isActive: draft.isActive,
+          memo: draft.memo || null,
+        }),
+      });
+      if (response.ok) done += 1;
+      else failures.push(`${draft.spaceCode} 추가: ${response.error.message}`);
+    }
+
+    setPending(false);
+    router.refresh();
+
+    if (failures.length === 0) {
+      setMessage({ variant: 'success', text: `${done}건을 저장했습니다.` });
+      reset();
+      setEditing(false);
+      return;
+    }
+    setMessage({
+      variant: 'error',
+      text: `${done}건 저장, ${failures.length}건 실패 — ${failures.join(' / ')}`,
+    });
+    // 실패한 항목을 고칠 수 있도록 편집 상태는 유지한다.
+  }
 
   return (
     <div className="space-y-4">
@@ -609,164 +658,457 @@ function SpaceSection({
 
       <section className="card">
         <div className="card-body">
-          <h2 className="card-title">주차면 목록 ({spaces.length}면)</h2>
-          <div className="table-scroll mt-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="card-title">주차 구역 및 주차면 ({spaces.length}면)</h2>
+            {editing ? (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="btn btn-secondary min-h-9 px-3 py-1.5 text-xs"
+                  disabled={pending}
+                  onClick={() => setAdded((previous) => [...previous, emptySpaceDraft(areas)])}
+                >
+                  + 추가
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary min-h-9 px-3 py-1.5 text-xs"
+                  disabled={pending || changedCount === 0}
+                  onClick={saveAll}
+                >
+                  {pending ? '저장 중…' : `저장`}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary min-h-9 px-3 py-1.5 text-xs"
+                  disabled={pending}
+                  onClick={closeEditing}
+                >
+                  취소
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="btn btn-secondary min-h-9 px-3 py-1.5 text-xs"
+                onClick={() => setEditing(true)}
+              >
+                수정
+              </button>
+            )}
+          </div>
+
+          {message && (
+            <div className="mt-3">
+              <Alert variant={message.variant === 'success' ? 'success' : 'error'}>
+                {message.text}
+              </Alert>
+            </div>
+          )}
+
+          {editing && (
+            <p className="field-hint mt-2">
+              값을 고치고 [추가]·[삭제]로 주차면을 늘리거나 지운 뒤, 상단 [저장]을 한 번 누르면
+              구역과 주차면이 모두 반영됩니다. 예약에 사용된 적 있는 주차면은 이력 보존을 위해
+              삭제되지 않으니 상태를 &lsquo;비활성&rsquo;으로 바꿔 운영에서 제외하세요.
+            </p>
+          )}
+
+          {/* 구역·도면 — 주차면 표 위에 둔다. */}
+          <div className="mt-4 space-y-3">
+            <h3 className="text-sm font-bold text-slate-700">구역 및 도면</h3>
+            {areas.length === 0 && <p className="field-hint">등록된 구역이 없습니다.</p>}
+            {areas.map((area) => {
+              const draft = areaDraftOf(area);
+              return (
+                <div key={area.areaId} className="rounded-lg border border-slate-200 p-3">
+                  {editing ? (
+                    <div className="space-y-3">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <FormField label="구역 이름" htmlFor={`area-name-${area.areaId}`} required>
+                          <input
+                            id={`area-name-${area.areaId}`}
+                            className="input"
+                            value={draft.areaName}
+                            onChange={(event) =>
+                              updateAreaDraft(area.areaId, { areaName: event.target.value })
+                            }
+                          />
+                        </FormField>
+                        <FormField label="설명" htmlFor={`area-desc-${area.areaId}`}>
+                          <input
+                            id={`area-desc-${area.areaId}`}
+                            className="input"
+                            value={draft.description}
+                            onChange={(event) =>
+                              updateAreaDraft(area.areaId, { description: event.target.value })
+                            }
+                          />
+                        </FormField>
+                      </div>
+
+                      <MapImageUploader
+                        area={area}
+                        pending={mapFiles[area.areaId] ?? null}
+                        markedForRemoval={mapRemovals.includes(area.areaId)}
+                        disabled={pending}
+                        error={mapErrors[area.areaId]}
+                        onSelect={(selected) =>
+                          setMapFiles((previous) => ({ ...previous, [area.areaId]: selected }))
+                        }
+                        onToggleRemoval={() =>
+                          setMapRemovals((previous) =>
+                            previous.includes(area.areaId)
+                              ? previous.filter((id) => id !== area.areaId)
+                              : [...previous, area.areaId],
+                          )
+                        }
+                        onError={(text) =>
+                          setMapErrors((previous) => ({ ...previous, [area.areaId]: text }))
+                        }
+                      />
+
+                      <label className="flex min-h-12 items-center gap-3 rounded-lg border border-slate-300 px-3">
+                        <input
+                          type="checkbox"
+                          className="accent-brand-700 size-5"
+                          checked={draft.isActive}
+                          onChange={(event) =>
+                            updateAreaDraft(area.areaId, { isActive: event.target.checked })
+                          }
+                        />
+                        <span className="text-sm font-semibold text-slate-800">구역 활성화</span>
+                      </label>
+                    </div>
+                  ) : (
+                    <dl className="grid gap-1 text-sm">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-bold text-slate-900">{area.areaName}</span>
+                        <span
+                          className={`badge ${
+                            area.isActive
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-slate-200 text-slate-600'
+                          }`}
+                        >
+                          {area.isActive ? '활성' : '비활성'}
+                        </span>
+                      </div>
+                      {area.description && (
+                        <p className="text-xs text-slate-500">{area.description}</p>
+                      )}
+                      <p className="text-xs break-all text-slate-500">
+                        도면: {area.mapImageName ?? '등록 안 함'}
+                      </p>
+                    </dl>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <h3 className="mt-5 text-sm font-bold text-slate-700">주차면</h3>
+          <div className="table-scroll mt-2">
             <table className="data-table">
               <thead>
                 <tr>
                   <th>코드</th>
                   <th>유형</th>
                   <th>구역</th>
-                  <th>정렬</th>
                   <th>상태</th>
                   <th>메모</th>
-                  <th></th>
+                  {editing && <th></th>}
                 </tr>
               </thead>
               <tbody>
-                {spaces.map((space) => (
-                  <tr key={space.spaceId}>
-                    <td className="font-mono font-bold">{space.spaceCode}</td>
-                    <td>
-                      <SpaceTypeBadge spaceType={space.spaceType} />
-                    </td>
-                    <td className="text-xs">{space.area.areaName}</td>
-                    <td>{space.displayOrder}</td>
-                    <td>{space.isActive ? '활성' : '비활성'}</td>
-                    <td className="text-xs text-slate-500">{space.memo ?? '-'}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="btn btn-secondary min-h-9 px-3 py-1.5 text-xs"
-                        disabled={pending}
-                        onClick={() =>
-                          mutate(
-                            `/api/admin/parking-spaces/${space.spaceId}`,
-                            'PUT',
-                            { isActive: !space.isActive },
-                            space.isActive
-                              ? '주차면을 비활성화했습니다.'
-                              : '주차면을 활성화했습니다.',
-                          )
-                        }
-                      >
-                        {space.isActive ? '비활성화' : '활성화'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {spaces.map((space) => {
+                  const draft = draftOf(space);
+                  const isRemoved = removed.includes(space.spaceId);
+
+                  if (!editing) {
+                    return (
+                      <tr key={space.spaceId}>
+                        <td className="font-mono font-bold">{space.spaceCode}</td>
+                        <td>
+                          <SpaceTypeBadge spaceType={space.spaceType} />
+                        </td>
+                        <td className="text-xs">{space.area.areaName}</td>
+                        <td className="whitespace-nowrap">{space.isActive ? '활성' : '비활성'}</td>
+                        <td className="text-xs text-slate-500">{space.memo ?? '-'}</td>
+                      </tr>
+                    );
+                  }
+
+                  return (
+                    <tr key={space.spaceId} className={isRemoved ? 'bg-red-50 opacity-60' : ''}>
+                      <td>
+                        <input
+                          className="input"
+                          value={draft.spaceCode}
+                          disabled={isRemoved}
+                          onChange={(event) =>
+                            updateDraft(space.spaceId, { spaceCode: event.target.value })
+                          }
+                          aria-label={`${space.spaceCode} 코드`}
+                        />
+                      </td>
+                      <td>
+                        <select
+                          className="input"
+                          value={draft.spaceType}
+                          disabled={isRemoved}
+                          onChange={(event) =>
+                            updateDraft(space.spaceId, {
+                              spaceType: event.target.value as keyof typeof SPACE_TYPE_LABEL,
+                            })
+                          }
+                          aria-label={`${space.spaceCode} 유형`}
+                        >
+                          {Object.entries(SPACE_TYPE_LABEL).map(([value, label]) => (
+                            <option key={value} value={value}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        <select
+                          className="input"
+                          value={draft.areaId}
+                          disabled={isRemoved}
+                          onChange={(event) =>
+                            updateDraft(space.spaceId, { areaId: Number(event.target.value) })
+                          }
+                          aria-label={`${space.spaceCode} 구역`}
+                        >
+                          {areas.map((area) => (
+                            <option key={area.areaId} value={area.areaId}>
+                              {area.areaName}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        <select
+                          className="input"
+                          value={draft.isActive ? 'ACTIVE' : 'INACTIVE'}
+                          disabled={isRemoved}
+                          onChange={(event) =>
+                            updateDraft(space.spaceId, {
+                              isActive: event.target.value === 'ACTIVE',
+                            })
+                          }
+                          aria-label={`${space.spaceCode} 상태`}
+                        >
+                          <option value="ACTIVE">활성</option>
+                          <option value="INACTIVE">비활성</option>
+                        </select>
+                      </td>
+                      <td>
+                        <input
+                          className="input"
+                          value={draft.memo}
+                          disabled={isRemoved}
+                          onChange={(event) =>
+                            updateDraft(space.spaceId, { memo: event.target.value })
+                          }
+                          aria-label={`${space.spaceCode} 메모`}
+                        />
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className={`btn min-h-9 px-2 py-1.5 text-xs ${
+                            isRemoved ? 'btn-secondary' : 'btn-danger-outline'
+                          }`}
+                          disabled={pending}
+                          onClick={() =>
+                            setRemoved((previous) =>
+                              isRemoved
+                                ? previous.filter((id) => id !== space.spaceId)
+                                : [...previous, space.spaceId],
+                            )
+                          }
+                        >
+                          {isRemoved ? '취소' : '삭제'}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {/* 새로 추가한 행은 항상 표 맨 아래에 쌓인다. */}
+                {editing &&
+                  added.map((draft, index) => (
+                    <tr key={`new-${index}`} className="bg-brand-50">
+                      <td>
+                        <input
+                          className="input"
+                          value={draft.spaceCode}
+                          onChange={(event) =>
+                            setAdded((previous) =>
+                              previous.map((item, itemIndex) =>
+                                itemIndex === index
+                                  ? { ...item, spaceCode: event.target.value }
+                                  : item,
+                              ),
+                            )
+                          }
+                          placeholder="A-18"
+                          aria-label={`새 주차면 ${index + 1} 코드`}
+                        />
+                      </td>
+                      <td>
+                        <select
+                          className="input"
+                          value={draft.spaceType}
+                          onChange={(event) =>
+                            setAdded((previous) =>
+                              previous.map((item, itemIndex) =>
+                                itemIndex === index
+                                  ? {
+                                      ...item,
+                                      spaceType: event.target
+                                        .value as keyof typeof SPACE_TYPE_LABEL,
+                                    }
+                                  : item,
+                              ),
+                            )
+                          }
+                          aria-label={`새 주차면 ${index + 1} 유형`}
+                        >
+                          {Object.entries(SPACE_TYPE_LABEL).map(([value, label]) => (
+                            <option key={value} value={value}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        <select
+                          className="input"
+                          value={draft.areaId}
+                          onChange={(event) =>
+                            setAdded((previous) =>
+                              previous.map((item, itemIndex) =>
+                                itemIndex === index
+                                  ? { ...item, areaId: Number(event.target.value) }
+                                  : item,
+                              ),
+                            )
+                          }
+                          aria-label={`새 주차면 ${index + 1} 구역`}
+                        >
+                          {areas.map((area) => (
+                            <option key={area.areaId} value={area.areaId}>
+                              {area.areaName}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="text-xs whitespace-nowrap text-slate-500">활성</td>
+                      <td>
+                        <input
+                          className="input"
+                          value={draft.memo}
+                          onChange={(event) =>
+                            setAdded((previous) =>
+                              previous.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, memo: event.target.value } : item,
+                              ),
+                            )
+                          }
+                          aria-label={`새 주차면 ${index + 1} 메모`}
+                        />
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn btn-danger-outline min-h-9 px-2 py-1.5 text-xs"
+                          disabled={pending}
+                          onClick={() =>
+                            setAdded((previous) =>
+                              previous.filter((_, itemIndex) => itemIndex !== index),
+                            )
+                          }
+                        >
+                          삭제
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
         </div>
       </section>
-
-      <section className="card">
-        <div className="card-body space-y-4">
-          <h2 className="card-title">주차면 추가</h2>
-          {message && (
-            <Alert variant={message.variant === 'success' ? 'success' : 'error'}>
-              {message.text}
-            </Alert>
-          )}
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <FormField label="구역" htmlFor="space-area" required errors={fieldErrors.areaId}>
-              <select
-                id="space-area"
-                className="input"
-                value={form.areaId}
-                onChange={(event) => setForm({ ...form, areaId: Number(event.target.value) })}
-              >
-                {areas.map((area) => (
-                  <option key={area.areaId} value={area.areaId}>
-                    {area.areaName}
-                  </option>
-                ))}
-              </select>
-            </FormField>
-            <FormField
-              label="주차면 코드"
-              htmlFor="space-code"
-              required
-              errors={fieldErrors.spaceCode}
-            >
-              <input
-                id="space-code"
-                className={inputClassName(Boolean(fieldErrors.spaceCode))}
-                value={form.spaceCode}
-                onChange={(event) => setForm({ ...form, spaceCode: event.target.value })}
-                placeholder="A-18"
-              />
-            </FormField>
-            <FormField label="유형" htmlFor="space-type" required errors={fieldErrors.spaceType}>
-              <select
-                id="space-type"
-                className="input"
-                value={form.spaceType}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    spaceType: event.target.value as keyof typeof SPACE_TYPE_LABEL,
-                  })
-                }
-              >
-                {Object.entries(SPACE_TYPE_LABEL).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </FormField>
-            <FormField
-              label="정렬 순서"
-              htmlFor="space-order"
-              required
-              errors={fieldErrors.displayOrder}
-            >
-              <input
-                id="space-order"
-                type="number"
-                min={0}
-                className={inputClassName(Boolean(fieldErrors.displayOrder))}
-                value={form.displayOrder}
-                onChange={(event) => setForm({ ...form, displayOrder: Number(event.target.value) })}
-              />
-            </FormField>
-          </div>
-
-          <FormField label="메모" htmlFor="space-memo" errors={fieldErrors.memo}>
-            <input
-              id="space-memo"
-              className={inputClassName(Boolean(fieldErrors.memo))}
-              value={form.memo}
-              onChange={(event) => setForm({ ...form, memo: event.target.value })}
-            />
-          </FormField>
-
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={pending || !form.spaceCode}
-            onClick={async () => {
-              const saved = await mutate(
-                '/api/admin/parking-spaces',
-                'POST',
-                {
-                  ...form,
-                  spaceName: form.spaceName || null,
-                  memo: form.memo || null,
-                },
-                '주차면을 추가했습니다.',
-              );
-              if (saved) setForm({ ...form, spaceCode: '', memo: '' });
-            }}
-          >
-            {pending ? '저장 중…' : '주차면 추가'}
-          </button>
-        </div>
-      </section>
     </div>
+  );
+}
+
+type AreaDraft = {
+  areaName: string;
+  description: string;
+  isActive: boolean;
+};
+
+function toAreaDraft(area: Area): AreaDraft {
+  return {
+    areaName: area.areaName,
+    description: area.description ?? '',
+    isActive: area.isActive,
+  };
+}
+
+function toAreaDraftById(areas: Area[], areaId: number): AreaDraft {
+  const found = areas.find((area) => area.areaId === areaId);
+  return found ? toAreaDraft(found) : { areaName: '', description: '', isActive: true };
+}
+
+function isSameArea(a: AreaDraft, b: AreaDraft): boolean {
+  return a.areaName === b.areaName && a.description === b.description && a.isActive === b.isActive;
+}
+
+type SpaceDraft = {
+  areaId: number;
+  spaceCode: string;
+  spaceType: keyof typeof SPACE_TYPE_LABEL;
+  isActive: boolean;
+  memo: string;
+};
+
+function toSpaceDraft(space: Space): SpaceDraft {
+  return {
+    areaId: space.area.areaId,
+    spaceCode: space.spaceCode,
+    spaceType: space.spaceType,
+    isActive: space.isActive,
+    memo: space.memo ?? '',
+  };
+}
+
+function toSpaceDraftById(spaces: Space[], spaceId: number): SpaceDraft {
+  const found = spaces.find((space) => space.spaceId === spaceId);
+  return found ? toSpaceDraft(found) : emptySpaceDraft([]);
+}
+
+function emptySpaceDraft(areas: Area[]): SpaceDraft {
+  return {
+    areaId: areas[0]?.areaId ?? 0,
+    spaceCode: '',
+    spaceType: 'NORMAL',
+    isActive: true,
+    memo: '',
+  };
+}
+
+function isSameDraft(a: SpaceDraft, b: SpaceDraft): boolean {
+  return (
+    a.areaId === b.areaId &&
+    a.spaceCode === b.spaceCode &&
+    a.spaceType === b.spaceType &&
+    a.isActive === b.isActive &&
+    a.memo === b.memo
   );
 }
 

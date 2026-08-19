@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { ClickableTableRow } from '@/components/admin/clickable-table-row';
-import { SpaceTypeBadge, StatusBadge } from '@/components/ui/status-badge';
+import { SpaceTypeBadge } from '@/components/ui/status-badge';
 import { Alert } from '@/components/ui/alert';
 import { requireAdminPage } from '@/lib/admin-page-guard';
 import { formatKstTime, todayKstDateString } from '@/lib/datetime';
@@ -243,9 +243,8 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
                   <tr>
                     <th>주차면</th>
                     <th>유형</th>
-                    <th>구역</th>
                     <th>상태</th>
-                    <th>당일 예약</th>
+                    <th>상세</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -255,19 +254,33 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
                       <td>
                         <SpaceTypeBadge spaceType={space.spaceType} />
                       </td>
-                      <td className="text-xs text-slate-500">{space.areaName}</td>
+                      {/*
+                        상태 열과 상세 열은 같은 예약 목록을 행 단위로 나란히 보여준다.
+                        (상태 = 예약된 시간, 상세 = 그 예약의 차량번호)
+                      */}
                       <td>
-                        <div className="flex flex-col gap-1">
-                          <span className={`badge w-fit ${SPACE_STATUS_CLASS[space.status]}`}>
-                            {SPACE_STATUS_LABEL[space.status]}
+                        {space.occupancies.length === 0 ? (
+                          <span className={`badge ${SPACE_STATUS_CLASS.EMPTY}`}>
+                            {SPACE_STATUS_LABEL.EMPTY}
                           </span>
-                          {space.statusTimeRange && (
-                            <span className="text-xs whitespace-nowrap text-slate-500">
-                              {formatKstTime(space.statusTimeRange.visitStartAt)} ~{' '}
-                              {formatKstTime(space.statusTimeRange.visitEndAt)}
-                            </span>
-                          )}
-                        </div>
+                        ) : (
+                          <ul className="space-y-1">
+                            {space.occupancies.map((occupancy) => (
+                              <li
+                                key={occupancy.reservationId}
+                                className="flex items-center gap-2 text-xs whitespace-nowrap"
+                              >
+                                {formatKstTime(occupancy.visitStartAt)} ~{' '}
+                                {formatKstTime(occupancy.visitEndAt)}
+                                {space.inUseReservationId === occupancy.reservationId && (
+                                  <span className={`badge ${SPACE_STATUS_CLASS.IN_USE}`}>
+                                    {SPACE_STATUS_LABEL.IN_USE}
+                                  </span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </td>
                       <td>
                         {space.occupancies.length === 0 ? (
@@ -275,21 +288,12 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
                         ) : (
                           <ul className="space-y-1">
                             {space.occupancies.map((occupancy) => (
-                              <li
-                                key={occupancy.reservationId}
-                                className="flex flex-wrap items-center gap-2"
-                              >
-                                <StatusBadge status={occupancy.reservationStatus} />
-                                <span className="font-mono text-xs">{occupancy.vehicleNo}</span>
-                                <span className="text-xs text-slate-500">
-                                  {formatKstTime(occupancy.visitStartAt)} ~{' '}
-                                  {formatKstTime(occupancy.visitEndAt)}
-                                </span>
+                              <li key={occupancy.reservationId} className="text-xs">
                                 <Link
                                   href={`/admin/reservations/${occupancy.reservationId}`}
-                                  className="text-brand-700 text-xs font-bold"
+                                  className="text-brand-700 font-mono font-bold hover:underline"
                                 >
-                                  상세
+                                  {occupancy.vehicleNo}
                                 </Link>
                               </li>
                             ))}
@@ -316,7 +320,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
               {dashboard.mapImageUrls.map((area) => (
                 <figure key={area.areaName}>
                   <div className="relative w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
-                    {/* 도면은 관리자가 임의 URL 로 등록할 수 있는 참고용 이미지이므로
+                    {/* 도면은 관리자가 업로드한 임의 이미지를 DB 에서 내려주므로
                         next/image 최적화 대상에서 제외하고 일반 img 를 사용한다. */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img

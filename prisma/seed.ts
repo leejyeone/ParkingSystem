@@ -5,7 +5,7 @@
  *
  * 생성 데이터
  *   1) SYSTEM_ADMIN 계정 1개 (환경변수 기반, 기본값 admin)
- *   2) 주차장 구역 1개 (MAIN / 본사 주차장)
+ *   2) 주차장 구역 1개 (MAIN / 본사 주차장, 도면은 비워 둠 — 관리자가 직접 업로드)
  *   3) 일반 주차면 17개 (A-01 ~ A-17, NORMAL, display_order 1~17)
  *   4) 이중주차 위치 3개 (D-01 ~ D-03, DOUBLE, display_order 101~103)
  *   5) 시스템 설정 초기값
@@ -66,7 +66,6 @@ async function seedAreaAndSpaces(): Promise<void> {
       areaCode: 'MAIN',
       areaName: '본사 주차장',
       description: '본사 사옥 지상 주차장 (일반 17면 + 이중주차 3면)',
-      mapImageUrl: '/images/parking-map-sample.svg',
       displayOrder: 1,
       isActive: true,
     },
@@ -143,7 +142,6 @@ async function seedNotificationEmails(): Promise<void> {
         recipientName: '주차 관리 담당자',
         receiveNewRequest: true,
         receiveApprovalAlert: true,
-        receiveDailySummary: false,
         receiveDoubleParkingAlert: true,
         isActive: true,
       },

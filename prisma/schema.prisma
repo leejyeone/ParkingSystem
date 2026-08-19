@@ -172,16 +172,21 @@ model SiteUser {
 // ---------------------------------------------------------------------------
 
 model ParkingArea {
-  areaId       Int      @id @default(autoincrement()) @map("area_id")
-  areaCode     String   @unique(map: "uq_parking_areas_area_code") @map("area_code") @db.VarChar(20)
-  areaName     String   @map("area_name") @db.VarChar(100)
-  description  String?  @db.VarChar(500)
-  /// 참고용 도면 이미지 경로. 좌표 정보는 저장하지 않는다.
-  mapImageUrl  String?  @map("map_image_url") @db.VarChar(500)
-  displayOrder Int      @default(0) @map("display_order")
-  isActive     Boolean  @default(true) @map("is_active")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  areaId            Int       @id @default(autoincrement()) @map("area_id")
+  areaCode          String    @unique(map: "uq_parking_areas_area_code") @map("area_code") @db.VarChar(20)
+  areaName          String    @map("area_name") @db.VarChar(100)
+  description       String?   @db.VarChar(500)
+  /// 참고용 도면 이미지. 파일 자체를 DB 에 보관한다(별도 스토리지·업로드 디렉터리 불필요).
+  /// 좌표 정보는 저장하지 않는다.
+  mapImageData      Bytes?    @map("map_image_data")
+  mapImageMimeType  String?   @map("map_image_mime_type") @db.VarChar(100)
+  mapImageName      String?   @map("map_image_name") @db.VarChar(255)
+  /// 도면이 바뀌면 갱신한다. 브라우저 캐시를 무효화하는 데 쓴다.
+  mapImageUpdatedAt DateTime? @map("map_image_updated_at")
+  displayOrder      Int       @default(0) @map("display_order")
+  isActive          Boolean   @default(true) @map("is_active")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
   spaces ParkingSpace[]
 
@@ -333,7 +338,6 @@ model AdminNotificationEmail {
 
   receiveNewRequest         Boolean @default(true) @map("receive_new_request")
   receiveApprovalAlert      Boolean @default(true) @map("receive_approval_alert")
-  receiveDailySummary       Boolean @default(false) @map("receive_daily_summary")
   receiveDoubleParkingAlert Boolean @default(true) @map("receive_double_parking_alert")
 
   isActive  Boolean  @default(true) @map("is_active")

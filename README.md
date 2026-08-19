@@ -76,7 +76,7 @@
   - **예약번호 입력** (`/reservations/lookup`)
   - 안내 메일의 **보안 토큰 링크** (`/r/<token>`)
 - 방문 시작 60분 전까지 예약 수정 / 취소
-- 승인·반려·변경·취소·이중주차 안내·출차 예정 알림 메일 수신
+- 승인·반려·변경·취소·이중주차 안내·출차 예정 알림 메일 수신 (이중주차 안내는 신청자에게만 발송)
 
 ### 회원 (선택 기능)
 
@@ -355,7 +355,7 @@ PARKING   → EXITED
 ```
 1. 활성 상태(is_active = true)의 NORMAL 주차면을 우선 조회
 2. 해당 예약 시간대에 APPROVED / PARKING 예약과 겹치지 않는 주차면만 후보로 사용
-3. 후보 중 display_order 오름차순 첫 번째를 추천
+3. 후보 중 display_order 오름차순 첫 번째를 추천 (등록 순서. 화면에는 노출하지 않는다)
 4. 일반 주차면이 없는 경우에만 DOUBLE 타입(이중주차) 조회
 5. 이중주차도 display_order 오름차순으로 추천
 6. 추천 가능한 위치가 없으면 recommended_space_id = NULL
@@ -407,6 +407,48 @@ AND existing.visit_end_at > new.visit_start_at
 - **`bcryptjs` 사용**: 알고리즘은 bcrypt와 동일하며, 순수 JS 구현이라 Windows/Linux/컨테이너에서
   네이티브 빌드 도구 없이 동일하게 동작합니다.
 - **좌표 컬럼 없음**: 도면은 참고용 이미지로만 사용하고, 배정은 주차면 코드(`A-01` 등)로만 처리합니다.
+
+#### 도면 이미지 관리
+
+도면은 URL 입력이 아니라 **파일 업로드**로 등록합니다.
+[시스템 설정] → [구역·주차면] 에서 카드 우상단 `수정` 을 누르면 구역마다 파일 선택 칸이 나타납니다.
+
+**저장 흐름** — 다른 항목과 동일하게 "고르고 → 확인하고 → 저장" 입니다.
+
+1. `파일 선택` 으로 이미지를 고릅니다.
+2. 화면에 **미리보기가 즉시 표시**됩니다. 이 시점에는 아직 DB 에 저장되지 않았습니다.
+   (안내 문구에 `상단 [저장]을 눌러야 반영됩니다` 가 함께 표시됩니다)
+3. 잘못 골랐으면 `선택 취소`, 기존 도면을 지우려면 `도면 삭제` 를 누릅니다.
+   삭제도 표시만 되고 저장 전에는 반영되지 않습니다.
+4. 상단 **[저장]** 을 누르면 구역·주차면 변경분과 함께 한 번에 반영됩니다.
+   상단 버튼의 변경 건수에 도면 변경도 포함됩니다.
+
+| 항목      | 내용                                                                         |
+| --------- | ---------------------------------------------------------------------------- |
+| 저장 위치 | `parking_areas.map_image_data` (LONGBLOB). 서버 디스크에는 저장하지 않습니다 |
+| 허용 형식 | PNG, JPEG, WebP, GIF, SVG                                                    |
+| 최대 크기 | 2MB (선택 시 브라우저에서 1차 검사, 서버에서 다시 검증)                      |
+| 미리보기  | 선택한 파일은 `FileReader` 로 만든 data URL, 저장된 도면은 아래 API 로 조회  |
+
+**API**
+
+| 메서드   | 경로                                | 권한         | 용도             |
+| -------- | ----------------------------------- | ------------ | ---------------- |
+| `GET`    | `/api/admin/parking-areas/[id]/map` | 관리자       | 도면 내려받기    |
+| `POST`   | `/api/admin/parking-areas/[id]/map` | SYSTEM_ADMIN | 도면 업로드·교체 |
+| `DELETE` | `/api/admin/parking-areas/[id]/map` | SYSTEM_ADMIN | 도면 삭제        |
+
+파일을 DB 에 두는 이유는 배포 환경마다 업로드 경로·권한을 맞출 필요가 없고, DB 백업 하나에
+도면까지 함께 담기며, `public/` 에 두었을 때처럼 **URL 만 알면 누구나 열람하는 상황**을
+막을 수 있기 때문입니다(위 GET 은 관리자 인증을 요구합니다).
+
+SVG 도 허용하므로 응답에 `Content-Security-Policy: default-src 'none'; sandbox` 와
+`X-Content-Type-Options: nosniff` 를 함께 내려 스크립트 실행을 막습니다.
+도면 URL 에는 갱신 시각(`?v=`)이 붙어 파일을 바꾸면 브라우저 캐시가 자동으로 무효화됩니다.
+
+**업로드된 도면이 없으면 대시보드의 도면 영역은 표시되지 않습니다.**
+Seed 도 도면을 넣지 않으므로, 최초 설치 후 관리자가 직접 올려야 나타납니다.
+
 - **`vehicles` / 일반 사용자 `users` 테이블 없음**: 차량번호는 `parking_reservations`에 직접 저장하며,
   차량번호로 과거 이력·개인정보를 자동완성하거나 조회하는 기능은 제공하지 않습니다.
 
@@ -421,12 +463,10 @@ SynopexParking/
 │  ├─ seed.ts                        # Seed 데이터 (관리자/구역/주차면/설정/알림 이메일)
 │  └─ migrations/
 │     ├─ migration_lock.toml
-│     ├─ 20260818000000_init/migration.sql
-│     └─ 20260818120000_remove_contact_fields_add_user_accounts/migration.sql
+│     └─ 20260819000000_init/migration.sql   # 전체 스키마 1개로 통합 (12-1 참고)
 ├─ prisma.config.ts                  # Prisma CLI 설정 (schema 경로, seed 명령)
-├─ public/
-│  └─ images/parking-map-sample.svg  # 참고용 도면 샘플 (좌표 정보 없음)
 ├─ src/
+│  ├─ instrumentation.ts             # 서버 기동 훅 (내장 스케줄러 시작, 17절 참고)
 │  ├─ proxy.ts                       # 관리자/회원 화면 접근 1차 가드 (Next 16 proxy 규약)
 │  ├─ app/
 │  │  ├─ layout.tsx  globals.css  page.tsx        # 공통 레이아웃 / 디자인 시스템 / 메인
@@ -619,7 +659,31 @@ npx prisma db pull --print   # 접속 성공 시 현재 스키마를 출력합�
 - 스키마: [`prisma/schema.prisma`](prisma/schema.prisma)
 - CLI 설정: [`prisma.config.ts`](prisma.config.ts) — 스키마 경로, 마이그레이션 경로, seed 명령을 지정하며
   `dotenv/config`로 `.env`를 직접 로드합니다.
-- 초기 마이그레이션: `prisma/migrations/20260818000000_init/migration.sql`
+- 마이그레이션: `prisma/migrations/20260819000000_init/migration.sql` **1개**
+
+> **마이그레이션을 하나로 합쳐 둔 이유**
+>
+> 마이그레이션 파일은 설계도가 아니라 "각 DB에 무엇을 실행했는지" 적은 장부입니다. DB마다
+> `_prisma_migrations` 테이블이 적용한 이름과 체크섬을 들고 있어서, **운영 DB가 생긴 뒤에는
+> 파일을 합치거나 고칠 수 없습니다.** 기존 DB가 아는 기록과 어긋나 `migrate deploy`가 거부합니다.
+>
+> 아직 운영 배포 전이라 개발 중 생긴 중간 변경(컬럼 추가 후 삭제 등)을 정리해 **빈 DB → 현재
+> 스키마** 하나로 합쳐 두었습니다. 개별 변경 이력은 git 로그에 남아 있습니다.
+>
+> **첫 배포 이후에는 절대 합치지 마세요.** 그때부터는 컬럼 하나를 바꿔도 파일이 하나씩 늘어나는
+> 것이 정상입니다.
+>
+> 이미 예전 마이그레이션을 적용해 둔 DB가 있다면, 데이터를 지우지 않고 아래처럼 기준을 다시
+> 잡을 수 있습니다.
+>
+> ```sql
+> DELETE FROM _prisma_migrations;
+> ```
+>
+> ```bash
+> npx prisma migrate resolve --applied 20260819000000_init   # 실행하지 않고 '적용됨'으로만 표시
+> npx prisma migrate status                                  # up to date 확인
+> ```
 
 ### 12-2. 마이그레이션 적용
 
@@ -656,7 +720,7 @@ npm run db:seed
 | 대상               | 내용                                                                |
 | ------------------ | ------------------------------------------------------------------- |
 | 관리자 계정        | `SEED_ADMIN_LOGIN_ID` (기본 `admin`), 역할 `SYSTEM_ADMIN`           |
-| 주차 구역          | `MAIN` / 본사 주차장 (참고용 도면 `/images/parking-map-sample.svg`) |
+| 주차 구역          | `MAIN` / 본사 주차장 (도면은 비워 둠 — 관리자가 직접 업로드)        |
 | 일반 주차면 17개   | `A-01` ~ `A-17`, `NORMAL`, `display_order` 1~17                     |
 | 이중주차 위치 3개  | `D-01` ~ `D-03`, `DOUBLE`, `display_order` 101~103                  |
 | 시스템 설정        | 아래 표 참고                                                        |
@@ -673,6 +737,11 @@ npm run db:seed
 | `PARKING_CAPACITY`             | `17`         |
 | `DOUBLE_PARKING_ENABLED`       | `true`       |
 | `APP_TIME_ZONE`                | `Asia/Seoul` |
+
+**`area_code` 와 `display_order` 는 화면에 노출하지 않습니다.** DB 안에서 구역을 구분하고
+목록 순서를 잡기 위한 내부 값이며, 새로 등록할 때 서버가 자동으로 부여합니다
+(구역 코드는 `AREA-001` 형식, 정렬 순서는 마지막 순서 다음 번호).
+관리자는 [시스템 설정] → [구역·주차면] 에서 이름·도면·유형·상태·메모만 다룹니다.
 
 Seed는 모두 `upsert`이므로 **여러 번 실행해도 안전**합니다.
 이미 존재하는 관리자 계정의 비밀번호와 이미 저장된 설정값은 덮어쓰지 않습니다.
@@ -718,7 +787,7 @@ Seed는 모두 `upsert`이므로 **여러 번 실행해도 안전**합니다.
 | --------------------------------- | ----------------------------------------------- |
 | `admin_users`                     | 관리자 계정 (bcrypt 해시, 잠금 상태)            |
 | `users`                           | 회원 계정 (선택 로그인, 자동완성용 정보)        |
-| `parking_areas`                   | 주차 구역 + 참고용 도면 이미지 URL              |
+| `parking_areas`                   | 주차 구역 + 참고용 도면 이미지 파일             |
 | `parking_spaces`                  | 주차면 (코드/유형/정렬순서), **좌표 컬럼 없음** |
 | `parking_reservations`            | 예약 (차량번호·개인정보 직접 저장)              |
 | `reservation_access_tokens`       | 예약 조회 토큰 **해시만** 저장                  |
@@ -907,7 +976,8 @@ LIMIT 50;
 
 ## 14. 환경변수 설명
 
-전체 목록과 예시는 [`.env.example`](.env.example)에 있습니다.
+[`.env.example`](.env.example)에는 **직접 채워 넣어야 하는 값만** 담겨 있습니다.
+기본값이 있어 비워 둬도 되는 값은 아래 "선택" 표에만 정리했습니다.
 
 ### 필수
 
@@ -935,19 +1005,30 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 | `APP_TIME_ZONE`           | `Asia/Seoul`            | 화면·이메일 표시 기준 타임존 |
 | `SESSION_MAX_AGE_MINUTES` | `480`                   | 관리자 세션 유효시간(분)     |
 
+### 선택 (`.env.example`에 없음 — 비워 두면 기본값)
+
+아래 값들은 기본값만으로 정상 동작하므로 `.env.example`에 넣지 않았습니다.
+동작을 바꿔야 할 때만 `.env`에 직접 추가하세요.
+
+| 변수                         | 기본값           | 설명                                                                         |
+| ---------------------------- | ---------------- | ---------------------------------------------------------------------------- |
+| `INTERNAL_SCHEDULER_ENABLED` | 활성화           | `false`면 앱 내장 스케줄러를 끕니다. 플랫폼 cron을 쓸 때만 (17절 참고)       |
+| `SCHEDULER_INTERVAL_SECONDS` | `60`             | 내장 스케줄러 실행 주기(초). 최소 10초                                       |
+| `AUDIT_LOG_RETENTION_DAYS`   | `365`            | 감사 로그 보관 기간. **법정 최소 1년**이라 낮추면 경고가 남습니다 (19절)     |
+| `MAIL_OUTBOX_DIR`            | `./.mail-outbox` | `EMAIL_PROVIDER=file` 일 때 메일 JSON 저장 경로                              |
+| `ALLOW_FILE_EMAIL_PROVIDER`  | 비활성           | 운영 빌드에서 `file` 공급자 허용. **E2E 전용 — 실제 운영에서는 켜지 마세요** |
+
 ### Gmail API
 
-| 변수                        | 설명                                                               |
-| --------------------------- | ------------------------------------------------------------------ |
-| `GMAIL_CLIENT_ID`           | OAuth 2.0 클라이언트 ID                                            |
-| `GMAIL_CLIENT_SECRET`       | OAuth 2.0 클라이언트 보안 비밀번호                                 |
-| `GMAIL_REDIRECT_URI`        | 토큰 발급에 사용한 리디렉션 URI                                    |
-| `GMAIL_REFRESH_TOKEN`       | 발송 계정의 Refresh Token                                          |
-| `GMAIL_SENDER_EMAIL`        | 발신 주소 (OAuth 동의한 계정)                                      |
-| `GMAIL_SENDER_NAME`         | 발신자 표시 이름 (기본 `본사 주차관리`)                            |
-| `EMAIL_PROVIDER`            | `gmail` / `file` / `log` / `mock`                                  |
-| `MAIL_OUTBOX_DIR`           | `file` 공급자의 저장 경로 (기본 `./.mail-outbox`)                  |
-| `ALLOW_FILE_EMAIL_PROVIDER` | 운영 빌드에서 `file` 공급자 허용 (E2E 전용, 운영에서는 비워 둘 것) |
+| 변수                  | 설명                                    |
+| --------------------- | --------------------------------------- |
+| `GMAIL_CLIENT_ID`     | OAuth 2.0 클라이언트 ID                 |
+| `GMAIL_CLIENT_SECRET` | OAuth 2.0 클라이언트 보안 비밀번호      |
+| `GMAIL_REDIRECT_URI`  | 토큰 발급에 사용한 리디렉션 URI         |
+| `GMAIL_REFRESH_TOKEN` | 발송 계정의 Refresh Token               |
+| `GMAIL_SENDER_EMAIL`  | 발신 주소 (OAuth 동의한 계정)           |
+| `GMAIL_SENDER_NAME`   | 발신자 표시 이름 (기본 `본사 주차관리`) |
+| `EMAIL_PROVIDER`      | `gmail` / `file` / `log` / `mock`       |
 
 ### Seed (개발 편의)
 
@@ -1123,11 +1204,19 @@ npx playwright test --ui
   테스트는 여기서 예약 조회 링크를 읽어 신청자 흐름을 재현합니다.
   (프로덕션 빌드에서 파일 공급자를 쓰기 위해 `ALLOW_FILE_EMAIL_PROVIDER=true` 를 함께 설정합니다)
 - 데스크톱(Chromium)과 모바일(Pixel 7) 두 프로젝트로 실행되어 반응형도 함께 확인합니다.
+- 내장 스케줄러는 `INTERNAL_SCHEDULER_ENABLED=false` 로 꺼 둡니다. 테스트가 만든 예약에
+  출차 알림 메일이 끼어들면 아웃박스에서 조회 링크를 찾는 픽스처가 엉뚱한 메일을 집을 수 있습니다.
+- **테스트마다 다른 클라이언트 IP(`X-Forwarded-For`)로 접속합니다.** 예약 생성 API 는 IP 단위로
+  10분에 10회 제한이 걸려 있고([`rate-limit.ts`](src/lib/rate-limit.ts)) 이 리미터는 프로세스
+  메모리에 있어 DB 초기화로 비워지지 않습니다. 모두 같은 IP 로 접속하면 두 번째 브라우저
+  프로젝트에서 한도를 넘겨 실패하므로, `clientIpFor()`(`tests/e2e/fixtures.ts`)로 테스트마다
+  고유한 사설 IP 를 부여합니다.
 
 커버하는 흐름
 
 - 방문객 예약 신청 → 관리자 로그인 → 승인 및 주차면 배정 → 상세 확인
-- 이메일 링크로 예약 조회 → 수정 → 재승인
+- 이메일 링크로 예약 조회 → **승인 대기 상태에서 신청자 수정** → 관리자 승인
+  → 승인 후에는 신청자 수정 버튼이 사라지고 **관리자가 상세 화면에서 수정**
 - 예약번호만으로 조회 → 수정
 - 회원가입 → 신청 폼 자동완성 → 신청 → 마이페이지 내 예약 목록
 - 미인증 접근 차단(관리자/회원 각각의 로그인 페이지로 이동), 잘못된 토큰·예약번호 차단
@@ -1138,7 +1227,36 @@ npx playwright test --ui
 
 출차 예정 `EXIT_REMINDER_MINUTES`(기본 10)분 전인 예약에 알림 메일을 보냅니다.
 
-### 엔드포인트
+### 기본 동작: 앱 내장 스케줄러
+
+**별도 cron 등록 없이 서버가 뜨면 자동으로 발송됩니다.** `src/instrumentation.ts`가 서버 기동 시
+`startScheduler()`([`src/lib/scheduler.ts`](src/lib/scheduler.ts))를 호출해 주기적으로
+`runExitReminderJob()`을 실행합니다.
+
+입·출차 관리(`ENTRY_EXIT_MANAGEMENT_ENABLED`)를 꺼도 출차 알림은 그대로 동작합니다.
+관리자의 입·출차 처리 없이 **예약된 종료 시각**만으로 발송되기 때문입니다.
+
+| 환경변수                     | 기본값 | 설명                                                   |
+| ---------------------------- | ------ | ------------------------------------------------------ |
+| `INTERNAL_SCHEDULER_ENABLED` | `true` | `false`면 내장 스케줄러를 끕니다(플랫폼 cron 사용 시). |
+| `SCHEDULER_INTERVAL_SECONDS` | `60`   | 실행 주기(초). 최소 10초로 제한합니다.                 |
+
+안전장치
+
+- **중복 등록 방지**: 전역 심볼 플래그로 개발 모드의 모듈 리로드 시에도 타이머가 하나만 생성됩니다.
+- **실행 겹침 방지**: 앞선 주기가 끝나지 않았으면 이번 주기를 건너뜁니다.
+- **예외 격리**: 작업이 실패해도 예외를 삼키고 다음 주기를 계속 돕니다(스케줄러가 죽지 않음).
+- **다중 인스턴스**: 인스턴스가 여러 개여도 아래 `dedupe_key` UNIQUE 제약이 중복 발송을 막습니다.
+- **빌드 단계 제외**: `NEXT_RUNTIME=nodejs`이고 프로덕션 빌드 단계가 아닐 때만 시작합니다.
+
+> 로그: 기동 시 `내장 스케줄러 시작`이 한 번 남고, 이후에는 **실제로 보냈거나 실패했을 때만**
+> `출차 예정 알림 스케줄러 실행`을 남깁니다. 대상이 없는 주기는 조용히 지나갑니다.
+
+### 엔드포인트 (외부 스케줄러용)
+
+내장 스케줄러 대신 플랫폼 cron을 쓰려면 `INTERNAL_SCHEDULER_ENABLED=false`로 끄고
+아래 엔드포인트를 호출하세요. 두 방식을 동시에 켜도 중복 발송은 되지 않지만, 불필요한 조회가
+두 배로 발생하므로 한쪽만 쓰는 것을 권장합니다.
 
 ```
 POST /api/cron/exit-reminders
@@ -1271,33 +1389,37 @@ Authorization: Bearer <CRON_SECRET>
 
 ### 관리자 API
 
-| 메서드 | 경로                                   | 권한         | 설명                       |
-| ------ | -------------------------------------- | ------------ | -------------------------- |
-| `POST` | `/api/admin/auth/login`                | -            | 로그인                     |
-| `POST` | `/api/admin/auth/logout`               | 관리자       | 로그아웃                   |
-| `GET`  | `/api/admin/dashboard`                 | 관리자       | 대시보드 데이터            |
-| `GET`  | `/api/admin/reservations`              | 관리자       | 예약 목록 (감사 로그 기록) |
-| `GET`  | `/api/admin/reservations/[id]`         | 관리자       | 예약 상세 (감사 로그 기록) |
-| `PUT`  | `/api/admin/reservations/[id]`         | 관리자       | 예약 내용 수정             |
-| `POST` | `/api/admin/reservations/[id]/approve` | 관리자       | 승인 + 주차면 확정         |
-| `POST` | `/api/admin/reservations/[id]/reject`  | 관리자       | 반려                       |
-| `POST` | `/api/admin/reservations/[id]/entry`   | 관리자       | 입차 처리                  |
-| `POST` | `/api/admin/reservations/[id]/exit`    | 관리자       | 출차 처리                  |
-| `POST` | `/api/admin/reservations/[id]/no-show` | 관리자       | 미방문 처리                |
-| `PUT`  | `/api/admin/reservations/[id]/space`   | 관리자       | 주차 위치 변경             |
-| `GET`  | `/api/admin/parking-spaces`            | 관리자       | 주차면 목록                |
-| `POST` | `/api/admin/parking-spaces`            | SYSTEM_ADMIN | 주차면 생성                |
-| `PUT`  | `/api/admin/parking-spaces/[id]`       | SYSTEM_ADMIN | 주차면 수정·비활성화       |
-| `GET`  | `/api/admin/parking-areas`             | 관리자       | 주차 구역 목록             |
-| `POST` | `/api/admin/parking-areas`             | SYSTEM_ADMIN | 주차 구역 생성             |
-| `PUT`  | `/api/admin/parking-areas/[id]`        | SYSTEM_ADMIN | 구역·도면 URL 수정         |
-| `GET`  | `/api/admin/settings`                  | SYSTEM_ADMIN | 설정 + 알림 이메일 조회    |
-| `PUT`  | `/api/admin/settings`                  | SYSTEM_ADMIN | 설정 / 알림 이메일 저장    |
-| `GET`  | `/api/admin/admin-users`               | SYSTEM_ADMIN | 관리자 계정 목록           |
-| `POST` | `/api/admin/admin-users`               | SYSTEM_ADMIN | 관리자 계정 생성           |
-| `PUT`  | `/api/admin/admin-users/[id]`          | SYSTEM_ADMIN | 관리자 계정 수정·비활성화  |
-| `GET`  | `/api/admin/email-logs`                | 관리자       | 이메일 발송 이력           |
-| `GET`  | `/api/admin/audit-logs`                | SYSTEM_ADMIN | 감사 로그 (감사 로그 기록) |
+| 메서드   | 경로                                   | 권한         | 설명                       |
+| -------- | -------------------------------------- | ------------ | -------------------------- |
+| `POST`   | `/api/admin/auth/login`                | -            | 로그인                     |
+| `POST`   | `/api/admin/auth/logout`               | 관리자       | 로그아웃                   |
+| `GET`    | `/api/admin/dashboard`                 | 관리자       | 대시보드 데이터            |
+| `GET`    | `/api/admin/reservations`              | 관리자       | 예약 목록 (감사 로그 기록) |
+| `GET`    | `/api/admin/reservations/[id]`         | 관리자       | 예약 상세 (감사 로그 기록) |
+| `PUT`    | `/api/admin/reservations/[id]`         | 관리자       | 예약 내용 수정             |
+| `POST`   | `/api/admin/reservations/[id]/approve` | 관리자       | 승인 + 주차면 확정         |
+| `POST`   | `/api/admin/reservations/[id]/reject`  | 관리자       | 반려                       |
+| `POST`   | `/api/admin/reservations/[id]/entry`   | 관리자       | 입차 처리                  |
+| `POST`   | `/api/admin/reservations/[id]/exit`    | 관리자       | 출차 처리                  |
+| `POST`   | `/api/admin/reservations/[id]/no-show` | 관리자       | 미방문 처리                |
+| `PUT`    | `/api/admin/reservations/[id]/space`   | 관리자       | 주차 위치 변경             |
+| `GET`    | `/api/admin/parking-spaces`            | 관리자       | 주차면 목록                |
+| `POST`   | `/api/admin/parking-spaces`            | SYSTEM_ADMIN | 주차면 생성                |
+| `PUT`    | `/api/admin/parking-spaces/[id]`       | SYSTEM_ADMIN | 주차면 수정·비활성화       |
+| `DELETE` | `/api/admin/parking-spaces/[id]`       | SYSTEM_ADMIN | 주차면 삭제 (미사용분만)   |
+| `GET`    | `/api/admin/parking-areas`             | 관리자       | 주차 구역 목록             |
+| `POST`   | `/api/admin/parking-areas`             | SYSTEM_ADMIN | 주차 구역 생성             |
+| `PUT`    | `/api/admin/parking-areas/[id]`        | SYSTEM_ADMIN | 구역 정보 수정             |
+| `GET`    | `/api/admin/parking-areas/[id]/map`    | 관리자       | 도면 내려받기              |
+| `POST`   | `/api/admin/parking-areas/[id]/map`    | SYSTEM_ADMIN | 도면 업로드·교체           |
+| `DELETE` | `/api/admin/parking-areas/[id]/map`    | SYSTEM_ADMIN | 도면 삭제                  |
+| `GET`    | `/api/admin/settings`                  | SYSTEM_ADMIN | 설정 + 알림 이메일 조회    |
+| `PUT`    | `/api/admin/settings`                  | SYSTEM_ADMIN | 설정 / 알림 이메일 저장    |
+| `GET`    | `/api/admin/admin-users`               | SYSTEM_ADMIN | 관리자 계정 목록           |
+| `POST`   | `/api/admin/admin-users`               | SYSTEM_ADMIN | 관리자 계정 생성           |
+| `PUT`    | `/api/admin/admin-users/[id]`          | SYSTEM_ADMIN | 관리자 계정 수정·비활성화  |
+| `GET`    | `/api/admin/email-logs`                | 관리자       | 이메일 발송 이력           |
+| `GET`    | `/api/admin/audit-logs`                | SYSTEM_ADMIN | 감사 로그 (감사 로그 기록) |
 
 ### 스케줄러 API
 
@@ -1309,16 +1431,16 @@ Authorization: Bearer <CRON_SECRET>
 
 ### 이메일 종류
 
-| #   | 종류                    | 수신자                        | 주요 내용                                   |
-| --- | ----------------------- | ----------------------------- | ------------------------------------------- |
-| 1   | `REQUEST_RECEIVED`      | 신청자                        | 예약번호, 일정, 승인 대기, 조회 링크        |
-| 2   | `NEW_REQUEST_TO_ADMIN`  | 관리자 알림 수신자            | 구분, 시간, 차량번호, 관리자 상세 링크      |
-| 3   | `APPROVED`              | 신청자                        | 방문 시간, 배정 주차면 코드, 유의사항       |
-| 4   | `REJECTED`              | 신청자                        | 반려 사유, 문의 안내                        |
-| 5   | `UPDATED`               | 신청자 + 관리자               | 변경 전후 일정, 재승인 안내                 |
-| 6   | `CANCELLED`             | 신청자 + 관리자               | 취소 처리 결과                              |
-| 7   | `EXIT_REMINDER`         | 신청자                        | 출차 예정 10분 전 안내 (**중복 발송 금지**) |
-| 8   | `DOUBLE_PARKING_NOTICE` | 신청자 + 이중주차 알림 관리자 | 차량 이동 요청 가능성, 현장 안내 확인 요청  |
+| #   | 종류                    | 수신자             | 주요 내용                                   |
+| --- | ----------------------- | ------------------ | ------------------------------------------- |
+| 1   | `REQUEST_RECEIVED`      | 신청자             | 예약번호, 일정, 승인 대기, 조회 링크        |
+| 2   | `NEW_REQUEST_TO_ADMIN`  | 관리자 알림 수신자 | 구분, 시간, 차량번호, 관리자 상세 링크      |
+| 3   | `APPROVED`              | 신청자             | 방문 시간, 배정 주차면 코드, 유의사항       |
+| 4   | `REJECTED`              | 신청자             | 반려 사유, 문의 안내                        |
+| 5   | `UPDATED`               | 신청자 + 관리자    | 변경 전후 일정, 재승인 안내                 |
+| 6   | `CANCELLED`             | 신청자 + 관리자    | 취소 처리 결과                              |
+| 7   | `EXIT_REMINDER`         | 신청자             | 출차 예정 10분 전 안내 (**중복 발송 금지**) |
+| 8   | `DOUBLE_PARKING_NOTICE` | 신청자             | 차량 이동 요청 가능성, 현장 안내 확인 요청  |
 
 모든 메일은 **HTML과 Text 본문을 함께** 제공합니다.
 성명·차량번호는 **마스킹하지 않고 원문으로** 표시하며, 한 통의 메일에는 해당 예약 1건의 정보만 담습니다.
@@ -1420,11 +1542,11 @@ Authorization: Bearer <CRON_SECRET>
 
 **기록 대상** — [`src/services/audit-service.ts`](src/services/audit-service.ts) `AUDIT_ACTIONS`
 
-| 구분          | 액션                                                                                                                                                   |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 열람          | 예약 목록 조회 / 예약 상세 개인정보 조회 / 감사 로그 열람                                                                                              |
-| 예약 상태변경 | 예약 내용 수정 / 승인 / 반려 / 주차 위치 변경 / 입차 / 출차 / 미방문 처리                                                                              |
-| 설정·계정     | 관리자 알림 이메일 변경 / 주차면 생성·수정·비활성화 / 주차 구역 생성·수정 / 시스템 설정 변경 / 관리자 계정 생성·수정·비활성화 / 관리자 로그인·로그아웃 |
+| 구분          | 액션                                                                                                                                                        |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 열람          | 예약 목록 조회 / 예약 상세 개인정보 조회 / 감사 로그 열람                                                                                                   |
+| 예약 상태변경 | 예약 내용 수정 / 승인 / 반려 / 주차 위치 변경 / 입차 / 출차 / 미방문 처리                                                                                   |
+| 설정·계정     | 관리자 알림 이메일 변경 / 주차면 생성·수정·비활성화·삭제 / 주차 구역 생성·수정 / 시스템 설정 변경 / 관리자 계정 생성·수정·비활성화 / 관리자 로그인·로그아웃 |
 
 **중복 열람 묶기.** 같은 관리자가 같은 대상을 **5분 안에** 반복 열람하면 한 건으로 묶습니다.
 새로고침·페이지 이동마다 행이 쌓이면 감사 로그가 조회 기록으로 도배되어 오히려 점검이 어려워지기
@@ -1452,8 +1574,9 @@ proxy_set_header X-Forwarded-For  $proxy_add_x_forwarded_for;
 저장하지 않고** 입력 여부만 남깁니다. 대신 실제로 화면에 노출된 `reservationIds`를 남겨
 "어떤 정보주체를 처리했는지" 추적할 수 있게 합니다.
 
-**보관 기간.** 기본 **365일**(`AUDIT_LOG_RETENTION_DAYS`)이며, 기간이 지난 기록은 아래 cron으로
-삭제합니다. 365 미만 값을 설정하면 서버 로그에 경고가 남습니다.
+**보관 기간.** 기본 **365일**이며, 기간이 지난 기록은 아래 cron으로 삭제합니다.
+`AUDIT_LOG_RETENTION_DAYS`는 `.env.example`에 없는 선택 값이라 설정하지 않으면 365일이 적용됩니다.
+365 미만 값을 설정하면 서버 로그에 경고가 남습니다.
 
 ```cron
 # 매일 04:10 감사 로그 정리
@@ -1486,7 +1609,8 @@ proxy_set_header X-Forwarded-For  $proxy_add_x_forwarded_for;
 - [ ] `admin_notification_emails`에 예시 주소(`@example.com`)가 남아 있지 않은지 확인
 - [ ] `prisma migrate deploy` 수행 및 스키마 반영 확인
 - [ ] HTTPS 적용 (세션 쿠키 `Secure` 속성이 운영에서만 활성화됨)
-- [ ] 출차 알림 cron 등록 및 `CRON_SECRET` 인증 동작 확인
+- [ ] **출차 알림 발송 경로 확인** — 내장 스케줄러(기본)를 쓸지, `INTERNAL_SCHEDULER_ENABLED=false`로
+      끄고 외부 cron을 쓸지 하나로 정했는지 확인. 외부 cron이면 `CRON_SECRET` 인증 동작까지 확인 (17절 참고)
 - [ ] **감사 로그 정리 cron 등록** (`/api/cron/audit-log-cleanup`, 1일 1회) 및
       `AUDIT_LOG_RETENTION_DAYS`가 365 이상인지 확인 (19절 "접속기록" 참고)
 - [ ] **리버스 프록시가 `X-Forwarded-For` / `X-Real-IP`를 넣는지 확인** —
@@ -1498,8 +1622,9 @@ proxy_set_header X-Forwarded-For  $proxy_add_x_forwarded_for;
 
 ### 권장
 
-- [ ] 주차장 도면 이미지를 실제 도면으로 교체 ([시스템 설정] → [구역·도면])
+- [ ] 주차장 도면 이미지를 실제 도면으로 교체 ([시스템 설정] → [구역·주차면])
 - [ ] 주차면 코드/개수를 실제 현장과 일치시키기 (기본 A-01~~A-17, D-01~~D-03)
+      ([시스템 설정] → [구역·주차면] 카드 우상단 `수정`)
 - [ ] 운영시간·최소 사전 신청 시간·최대 예약 시간을 실제 운영 정책에 맞게 조정
 - [ ] DB 정기 백업 및 복구 절차 수립
 - [ ] 개인정보 보유 기간 정책 수립 및 만료 데이터 파기 배치 준비
@@ -1519,7 +1644,6 @@ proxy_set_header X-Forwarded-For  $proxy_add_x_forwarded_for;
 | 높음     | 자동 NO_SHOW 스케줄링       | `/api/cron/auto-no-show`를 정식 운영 스케줄에 편입                           |
 | 높음     | 이메일 재발송 배치          | `email_send_logs`의 `FAILED` 건을 백오프 재시도                              |
 | 높음     | 분산 레이트 리밋            | in-memory → Redis 등 공유 저장소                                             |
-| 중간     | 일일 요약 메일              | `receive_daily_summary` 플래그를 사용하는 일일 현황 요약 발송                |
 | 중간     | 관리자 대시보드 통계 확장   | 주간/월간 이용률, 부서별·지사별 통계, NO_SHOW 비율                           |
 | 중간     | 예약 반복 신청              | 정기 방문(주간/월간) 반복 예약                                               |
 | 중간     | 카카오 알림톡 / SMS 연동    | 이메일 미확인 사용자를 위한 보조 채널 (`EmailProvider`와 동일한 어댑터 구조) |

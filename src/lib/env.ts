@@ -75,6 +75,26 @@ export function getCronSecret(): string {
   return getRequiredEnv('CRON_SECRET');
 }
 
+/**
+ * 앱 내장 스케줄러 사용 여부. 기본 활성화.
+ *
+ * 플랫폼 cron 으로 /api/cron/* 을 직접 호출하는 환경에서는 false 로 꺼서
+ * 같은 작업이 두 경로로 실행되지 않게 한다.
+ */
+export function isInternalSchedulerEnabled(): boolean {
+  return (getOptionalEnv('INTERNAL_SCHEDULER_ENABLED') ?? 'true').toLowerCase() !== 'false';
+}
+
+/**
+ * 내장 스케줄러 실행 주기(초). 기본 60초.
+ *
+ * 출차 알림은 "몇 분 전"이 기준이므로 분 단위보다 촘촘할 필요가 없다.
+ * 너무 짧으면 빈 조회만 반복되므로 최소 10초로 제한한다.
+ */
+export function getSchedulerIntervalSeconds(): number {
+  return Math.max(10, getNumberEnv('SCHEDULER_INTERVAL_SECONDS', 60));
+}
+
 export type EmailProviderKind = 'gmail' | 'mock' | 'log' | 'file';
 
 export function getEmailProviderKind(): EmailProviderKind {

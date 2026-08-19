@@ -23,12 +23,37 @@ CREATE TABLE `admin_users` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+CREATE TABLE `users` (
+    `user_id` INTEGER NOT NULL AUTO_INCREMENT,
+    `email` VARCHAR(255) NOT NULL,
+    `password_hash` VARCHAR(255) NOT NULL,
+    `name` VARCHAR(50) NOT NULL,
+    `company_or_branch_name` VARCHAR(100) NOT NULL,
+    `vehicle_no` VARCHAR(20) NULL,
+    `account_status` ENUM('ACTIVE', 'INACTIVE', 'LOCKED') NOT NULL DEFAULT 'ACTIVE',
+    `login_fail_count` INTEGER NOT NULL DEFAULT 0,
+    `locked_until` DATETIME(3) NULL,
+    `last_login_at` DATETIME(3) NULL,
+    `password_changed_at` DATETIME(3) NULL,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updated_at` DATETIME(3) NOT NULL,
+    `deleted_at` DATETIME(3) NULL,
+
+    UNIQUE INDEX `uq_users_email`(`email`),
+    INDEX `idx_users_account_status`(`account_status`),
+    PRIMARY KEY (`user_id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
 CREATE TABLE `parking_areas` (
     `area_id` INTEGER NOT NULL AUTO_INCREMENT,
     `area_code` VARCHAR(20) NOT NULL,
     `area_name` VARCHAR(100) NOT NULL,
     `description` VARCHAR(500) NULL,
-    `map_image_url` VARCHAR(500) NULL,
+    `map_image_data` LONGBLOB NULL,
+    `map_image_mime_type` VARCHAR(100) NULL,
+    `map_image_name` VARCHAR(255) NULL,
+    `map_image_updated_at` DATETIME(3) NULL,
     `display_order` INTEGER NOT NULL DEFAULT 0,
     `is_active` BOOLEAN NOT NULL DEFAULT true,
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -61,14 +86,12 @@ CREATE TABLE `parking_spaces` (
 CREATE TABLE `parking_reservations` (
     `reservation_id` INTEGER NOT NULL AUTO_INCREMENT,
     `reservation_no` VARCHAR(30) NOT NULL,
+    `user_id` INTEGER NULL,
     `requester_type` ENUM('VISITOR', 'EMPLOYEE') NOT NULL,
     `company_or_branch_name` VARCHAR(100) NOT NULL,
-    `department_name` VARCHAR(100) NULL,
     `requester_name` VARCHAR(50) NOT NULL,
     `requester_email` VARCHAR(255) NOT NULL,
-    `requester_phone` VARCHAR(20) NOT NULL,
     `vehicle_no` VARCHAR(20) NOT NULL,
-    `vehicle_no_masked` VARCHAR(20) NOT NULL,
     `visit_purpose` VARCHAR(200) NULL,
     `request_memo` TEXT NULL,
     `visit_start_at` DATETIME(3) NOT NULL,
@@ -89,6 +112,7 @@ CREATE TABLE `parking_reservations` (
     `updated_at` DATETIME(3) NOT NULL,
 
     UNIQUE INDEX `uq_parking_reservations_no`(`reservation_no`),
+    INDEX `idx_reservations_user_created`(`user_id`, `created_at`),
     INDEX `idx_reservations_status`(`reservation_status`),
     INDEX `idx_reservations_visit_range`(`visit_start_at`, `visit_end_at`),
     INDEX `idx_reservations_space_range_status`(`assigned_space_id`, `visit_start_at`, `visit_end_at`, `reservation_status`),
@@ -138,7 +162,6 @@ CREATE TABLE `admin_notification_emails` (
     `recipient_name` VARCHAR(50) NULL,
     `receive_new_request` BOOLEAN NOT NULL DEFAULT true,
     `receive_approval_alert` BOOLEAN NOT NULL DEFAULT true,
-    `receive_daily_summary` BOOLEAN NOT NULL DEFAULT false,
     `receive_double_parking_alert` BOOLEAN NOT NULL DEFAULT true,
     `is_active` BOOLEAN NOT NULL DEFAULT true,
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -185,6 +208,7 @@ CREATE TABLE `audit_logs` (
     INDEX `idx_audit_logs_actor_created`(`actor_admin_id`, `created_at`),
     INDEX `idx_audit_logs_action_created`(`action_type`, `created_at`),
     INDEX `idx_audit_logs_target`(`target_type`, `target_id`),
+    INDEX `idx_audit_logs_created_at`(`created_at`),
     PRIMARY KEY (`audit_log_id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -225,6 +249,9 @@ ALTER TABLE `parking_reservations` ADD CONSTRAINT `parking_reservations_assigned
 
 -- AddForeignKey
 ALTER TABLE `parking_reservations` ADD CONSTRAINT `parking_reservations_approval_admin_id_fkey` FOREIGN KEY (`approval_admin_id`) REFERENCES `admin_users`(`admin_user_id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `parking_reservations` ADD CONSTRAINT `parking_reservations_user_id_fkey` FOREIGN KEY (`user_id`) REFERENCES `users`(`user_id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `reservation_access_tokens` ADD CONSTRAINT `reservation_access_tokens_reservation_id_fkey` FOREIGN KEY (`reservation_id`) REFERENCES `parking_reservations`(`reservation_id`) ON DELETE CASCADE ON UPDATE CASCADE;

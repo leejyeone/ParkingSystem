@@ -182,10 +182,7 @@ export function buildAccessUrl(rawToken: string): string {
 }
 
 type AdminRecipientFlag =
-  | 'receiveNewRequest'
-  | 'receiveApprovalAlert'
-  | 'receiveDailySummary'
-  | 'receiveDoubleParkingAlert';
+  'receiveNewRequest' | 'receiveApprovalAlert' | 'receiveDoubleParkingAlert';
 
 /** 활성화된 관리자 알림 수신자 목록 */
 export async function getAdminRecipients(flag: AdminRecipientFlag): Promise<string[]> {
@@ -350,7 +347,7 @@ export async function sendExitReminderEmail(
   });
 }
 
-/** 8. 이중주차 안내 (신청자 + 이중주차 알림 수신 관리자) */
+/** 8. 이중주차 안내 (신청자 전용) */
 export async function sendDoubleParkingNoticeEmails(
   reservation: ReservationForEmail,
   options: { accessUrl: string },
@@ -359,14 +356,9 @@ export async function sendDoubleParkingNoticeEmails(
     EmailType.DOUBLE_PARKING_NOTICE,
     await toEmailData(reservation, { accessUrl: options.accessUrl }),
   );
-  const adminRendered = renderReservationEmail(
-    EmailType.DOUBLE_PARKING_NOTICE,
-    await toEmailData(reservation, {
-      adminDetailUrl: buildAdminDetailUrl(reservation.reservationId),
-    }),
-  );
-  const admins = await getAdminRecipients('receiveDoubleParkingAlert');
 
+  // 이중주차 안내는 차량 이동 요청을 받게 되는 신청자에게만 보낸다.
+  // 관리자는 배정 시점에 이미 화면에서 이중주차 여부를 확인하므로 별도 메일이 필요 없다.
   return Promise.all([
     sendEmailWithLog({
       reservationId: reservation.reservationId,
@@ -374,14 +366,6 @@ export async function sendDoubleParkingNoticeEmails(
       to: reservation.requesterEmail,
       rendered,
     }),
-    ...admins.map((to) =>
-      sendEmailWithLog({
-        reservationId: reservation.reservationId,
-        emailType: EmailType.DOUBLE_PARKING_NOTICE,
-        to,
-        rendered: adminRendered,
-      }),
-    ),
   ]);
 }
 

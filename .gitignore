@@ -14,8 +14,8 @@
 /coverage
 
 # next.js
-/.next/
-/.next-e2e/
+# NEXT_DIST_DIR 로 분리하는 산출물(.next-e2e 등)까지 한 번에 무시한다.
+/.next*/
 /out/
 
 # production

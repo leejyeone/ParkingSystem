@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { clearMailOutbox, prisma, resetE2eDatabase, tomorrowInput } from './fixtures';
+import { clearMailOutbox, clientIpFor, prisma, resetE2eDatabase, tomorrowInput } from './fixtures';
 
 /**
  * 회원(선택 로그인) 흐름 E2E
@@ -16,7 +16,11 @@ const MEMBER = {
   vehicleNo: '34나5678',
 };
 
-test.beforeEach(async () => {
+test.beforeEach(async ({ page }, testInfo) => {
+  // 테스트마다 다른 IP 로 접속해 레이트 리밋 버킷을 분리한다. (fixtures 주석 참고)
+  await page.setExtraHTTPHeaders({
+    'X-Forwarded-For': clientIpFor(`${testInfo.project.name}:${testInfo.title}`),
+  });
   await resetE2eDatabase();
   await clearMailOutbox();
 });

@@ -18,7 +18,6 @@ export type NotificationEmailInput = {
   recipientName?: string | null;
   receiveNewRequest: boolean;
   receiveApprovalAlert: boolean;
-  receiveDailySummary: boolean;
   receiveDoubleParkingAlert: boolean;
   isActive: boolean;
 };
@@ -37,7 +36,6 @@ export async function upsertNotificationEmail(
         recipientName: input.recipientName?.trim() || null,
         receiveNewRequest: input.receiveNewRequest,
         receiveApprovalAlert: input.receiveApprovalAlert,
-        receiveDailySummary: input.receiveDailySummary,
         receiveDoubleParkingAlert: input.receiveDoubleParkingAlert,
         isActive: input.isActive,
       },
@@ -45,7 +43,6 @@ export async function upsertNotificationEmail(
         recipientName: input.recipientName?.trim() || null,
         receiveNewRequest: input.receiveNewRequest,
         receiveApprovalAlert: input.receiveApprovalAlert,
-        receiveDailySummary: input.receiveDailySummary,
         receiveDoubleParkingAlert: input.receiveDoubleParkingAlert,
         isActive: input.isActive,
       },

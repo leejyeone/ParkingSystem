@@ -46,6 +46,9 @@ export default defineConfig({
     timeout: 300_000,
     env: {
       NEXT_DIST_DIR: '.next-e2e',
+      // 내장 스케줄러를 끈다. 테스트가 만든 예약에 출차 알림 메일이 끼어들면
+      // 아웃박스에서 예약 조회 링크를 찾는 픽스처가 엉뚱한 메일을 집을 수 있다.
+      INTERNAL_SCHEDULER_ENABLED: 'false',
       // 실제 메일을 보내지 않고 파일로 저장한다. (예약 조회 링크 추출용)
       EMAIL_PROVIDER: 'file',
       MAIL_OUTBOX_DIR: process.env.MAIL_OUTBOX_DIR,

@@ -60,24 +60,21 @@ export const assignSpaceSchema = z.object({
   spaceId: z.coerce.number().int().positive('주차면을 선택해 주세요.'),
 });
 
+/** 구역 코드와 정렬 순서는 화면에서 입력받지 않는다(내부 구분용, 서버가 자동 부여). */
 export const parkingAreaCreateSchema = z.object({
-  areaCode: requiredText(20, '구역 코드'),
   areaName: requiredText(100, '구역 이름'),
   description: optionalText(500, '설명'),
-  /** 참고용 도면 이미지 경로 (좌표 정보는 저장하지 않음) */
-  mapImageUrl: optionalText(500, '도면 이미지 URL'),
-  displayOrder: z.coerce.number().int().min(0).max(10_000),
   isActive: z.boolean().default(true),
 });
 
 export const parkingAreaUpdateSchema = parkingAreaCreateSchema.partial();
 
+/** 정렬 순서는 화면에서 입력받지 않는다(내부 구분용, 서버가 자동 부여). */
 export const parkingSpaceCreateSchema = z.object({
   areaId: z.coerce.number().int().positive('주차 구역을 선택해 주세요.'),
   spaceCode: requiredText(20, '주차면 코드'),
   spaceName: optionalText(100, '주차면 명칭'),
   spaceType: z.enum(SpaceType, { error: '주차면 유형을 선택해 주세요.' }),
-  displayOrder: z.coerce.number().int().min(0).max(10_000),
   isActive: z.boolean().default(true),
   memo: optionalText(500, '메모'),
 });
@@ -140,7 +137,6 @@ export const notificationEmailSchema = z.object({
   recipientName: optionalText(50, '수신자 이름'),
   receiveNewRequest: z.boolean().default(true),
   receiveApprovalAlert: z.boolean().default(true),
-  receiveDailySummary: z.boolean().default(false),
   receiveDoubleParkingAlert: z.boolean().default(true),
   isActive: z.boolean().default(true),
 });

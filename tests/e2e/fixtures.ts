@@ -135,3 +135,22 @@ export function tomorrowInput(hour: number): string {
   }).format(base);
   return `${dateString}T${String(hour).padStart(2, '0')}:00`;
 }
+
+/**
+ * 테스트마다 서로 다른 클라이언트 IP 를 흉내 낸다.
+ *
+ * 신청/조회 API 는 IP 단위 레이트 리밋을 건다(예약 생성 10회 / 10분,
+ * src/lib/rate-limit.ts). 리미터는 프로세스 메모리에 있어 DB 초기화로 비워지지 않으므로,
+ * 모든 테스트가 같은 IP 로 접속하면 스위트 후반(특히 두 번째 브라우저 프로젝트)에서
+ * 한도를 넘겨 실패한다. 실제 환경에서는 방문자마다 IP 가 다르니, 그 조건을 맞춰 준다.
+ *
+ * 값은 (프로젝트명 + 테스트명) 해시라 재실행해도 같고, 테스트끼리 겹치지 않는다.
+ */
+export function clientIpFor(key: string): string {
+  let hash = 0;
+  for (let index = 0; index < key.length; index += 1) {
+    hash = (hash * 31 + key.charCodeAt(index)) >>> 0;
+  }
+  // 사설 대역 10.x.y.z 로 만든다. 마지막 옥텟이 0 이면 1 로 올린다.
+  return `10.${(hash >>> 16) & 0xff}.${(hash >>> 8) & 0xff}.${hash & 0xff || 1}`;
+}

@@ -4,6 +4,7 @@ import { ENTRY_EXIT_MANAGEMENT_ENABLED } from '@/domain/feature-flags';
 import { SPACE_OCCUPYING_STATUSES } from '@/domain/reservation-status';
 import { buildOverlapWhere } from '@/domain/time-overlap';
 import { kstDayRangeUtc, parseTimeOfDayToMinutes } from '@/lib/datetime';
+import { buildMapImageUrl } from '@/lib/map-image';
 import { prisma } from '@/lib/prisma';
 import { toReservationListItem, type ReservationListItem } from '@/services/reservation-service';
 import { getSystemSettings } from '@/services/settings-service';
@@ -44,11 +45,8 @@ export type SpaceStatusRow = {
     visitEndAt: Date;
   }[];
   status: SpaceOccupancyStatus;
-  /**
-   * 상태 옆에 함께 보여줄 시간대.
-   * IN_USE 면 사용 중인 예약, RESERVED 면 가장 이른 예약의 시간이다. EMPTY 면 null.
-   */
-  statusTimeRange: { visitStartAt: Date; visitEndAt: Date } | null;
+  /** 지금 사용 중인 예약 ID. 화면에서 해당 시간 행에만 "사용 중" 표시를 붙인다. */
+  inUseReservationId: number | null;
 };
 
 export type HourlyUsage = { hour: number; usedCount: number };
@@ -86,8 +84,8 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
   const [areas, spaces, dayReservations, pendingReservations, pendingTotalCount] =
     await Promise.all([
       prisma.parkingArea.findMany({
-        where: { isActive: true, mapImageUrl: { not: null } },
-        select: { areaName: true, mapImageUrl: true },
+        where: { isActive: true, mapImageData: { not: null } },
+        select: { areaId: true, areaName: true, mapImageUpdatedAt: true },
         orderBy: { displayOrder: 'asc' },
       }),
       prisma.parkingSpace.findMany({
@@ -164,8 +162,6 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
       : occupancies.length > 0
         ? 'RESERVED'
         : 'EMPTY';
-    const target = inUse ?? occupancies[0];
-
     return {
       spaceId: space.spaceId,
       spaceCode: space.spaceCode,
@@ -176,9 +172,7 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
       memo: space.memo,
       occupancies,
       status,
-      statusTimeRange: target
-        ? { visitStartAt: target.visitStartAt, visitEndAt: target.visitEndAt }
-        : null,
+      inUseReservationId: inUse?.reservationId ?? null,
     };
   });
 
@@ -211,11 +205,10 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
     doubleTotalCount: doubleSpaces.length,
     pendingCount: pendingReservations.length,
     pendingTotalCount,
-    mapImageUrls: areas
-      .filter(
-        (area): area is { areaName: string; mapImageUrl: string } => area.mapImageUrl !== null,
-      )
-      .map((area) => ({ areaName: area.areaName, mapImageUrl: area.mapImageUrl })),
+    mapImageUrls: areas.map((area) => ({
+      areaName: area.areaName,
+      mapImageUrl: buildMapImageUrl(area.areaId, area.mapImageUpdatedAt),
+    })),
     spaces: spaceRows,
     pendingReservations: pendingReservations.map(toReservationListItem),
     hourlyUsage,

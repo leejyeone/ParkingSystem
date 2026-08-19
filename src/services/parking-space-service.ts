@@ -15,9 +15,11 @@ export async function listParkingAreas() {
       areaCode: true,
       areaName: true,
       description: true,
-      mapImageUrl: true,
       displayOrder: true,
       isActive: true,
+      mapImageMimeType: true,
+      mapImageName: true,
+      mapImageUpdatedAt: true,
     },
   });
 }
@@ -40,28 +42,55 @@ export async function listParkingSpaces(options: { includeInactive?: boolean } =
 }
 
 export type ParkingAreaInput = {
-  areaCode: string;
+  /** 화면에 노출하지 않는 내부 구분자. 비우면 자동 생성한다. */
+  areaCode?: string | null;
   areaName: string;
   description?: string | null;
-  /** 참고용 도면 이미지 경로. 좌표 정보는 저장하지 않는다. */
-  mapImageUrl?: string | null;
-  displayOrder: number;
-  isActive: boolean;
+  /** 화면에 노출하지 않는 내부 정렬값. 비우면 마지막 순서로 붙인다. */
+  displayOrder?: number;
+  isActive?: boolean;
 };
+
+/**
+ * 구역 코드와 정렬 순서는 화면에서 입력받지 않는다(내부 구분용).
+ * 코드는 AREA-001 형태로, 정렬은 마지막 순서로 자동 부여한다.
+ */
+async function nextAreaDefaults(): Promise<{ areaCode: string; displayOrder: number }> {
+  const last = await prisma.parkingArea.findFirst({
+    orderBy: { areaId: 'desc' },
+    select: { areaId: true },
+  });
+  const maxOrder = await prisma.parkingArea.aggregate({ _max: { displayOrder: true } });
+  const nextId = (last?.areaId ?? 0) + 1;
+  return {
+    areaCode: `AREA-${String(nextId).padStart(3, '0')}`,
+    displayOrder: (maxOrder._max.displayOrder ?? 0) + 1,
+  };
+}
+
+/** 주차면 정렬 순서도 화면에서 받지 않는다. 같은 구역의 마지막 순서 다음으로 붙인다. */
+async function nextSpaceDisplayOrder(areaId: number): Promise<number> {
+  const maxOrder = await prisma.parkingSpace.aggregate({
+    where: { areaId },
+    _max: { displayOrder: true },
+  });
+  return (maxOrder._max.displayOrder ?? 0) + 1;
+}
 
 export async function createParkingArea(
   input: ParkingAreaInput,
   actor: { adminUserId: number; requestContext?: RequestContext },
 ) {
+  const defaults = await nextAreaDefaults();
+
   try {
     const created = await prisma.parkingArea.create({
       data: {
-        areaCode: input.areaCode.trim().toUpperCase(),
+        areaCode: input.areaCode?.trim().toUpperCase() || defaults.areaCode,
         areaName: input.areaName.trim(),
         description: input.description?.trim() || null,
-        mapImageUrl: input.mapImageUrl?.trim() || null,
-        displayOrder: input.displayOrder,
-        isActive: input.isActive,
+        displayOrder: input.displayOrder ?? defaults.displayOrder,
+        isActive: input.isActive ?? true,
       },
     });
 
@@ -98,9 +127,6 @@ export async function updateParkingArea(
       ...(input.description !== undefined
         ? { description: input.description?.trim() || null }
         : {}),
-      ...(input.mapImageUrl !== undefined
-        ? { mapImageUrl: input.mapImageUrl?.trim() || null }
-        : {}),
       ...(input.displayOrder !== undefined ? { displayOrder: input.displayOrder } : {}),
       ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
     },
@@ -113,7 +139,6 @@ export async function updateParkingArea(
     targetId: areaId,
     detail: {
       areaCode: updated.areaCode,
-      mapImageUrlChanged: current.mapImageUrl !== updated.mapImageUrl,
       isActive: updated.isActive,
     },
     context: actor.requestContext,
@@ -127,8 +152,9 @@ export type ParkingSpaceInput = {
   spaceCode: string;
   spaceName?: string | null;
   spaceType: SpaceType;
-  displayOrder: number;
-  isActive: boolean;
+  /** 화면에 노출하지 않는 내부 정렬값. 비우면 같은 구역의 마지막 순서로 붙인다. */
+  displayOrder?: number;
+  isActive?: boolean;
   memo?: string | null;
 };
 
@@ -146,8 +172,8 @@ export async function createParkingSpace(
         spaceCode: input.spaceCode.trim(),
         spaceName: input.spaceName?.trim() || null,
         spaceType: input.spaceType,
-        displayOrder: input.displayOrder,
-        isActive: input.isActive,
+        displayOrder: input.displayOrder ?? (await nextSpaceDisplayOrder(input.areaId)),
+        isActive: input.isActive ?? true,
         memo: input.memo?.trim() || null,
       },
     });
@@ -229,4 +255,133 @@ export async function updateParkingSpace(
     }
     throw error;
   }
+}
+
+/**
+ * 주차면 삭제.
+ *
+ * 예약이 참조한 적 있는 주차면은 지우지 않는다. FK 가 onDelete: SetNull 이라 지우면
+ * 과거 예약의 배정 이력이 조용히 사라지기 때문이다. 이 경우 비활성화를 안내한다.
+ */
+export async function deleteParkingSpace(
+  spaceId: number,
+  actor: { adminUserId: number; requestContext?: RequestContext },
+) {
+  const current = await prisma.parkingSpace.findUnique({
+    where: { spaceId },
+    select: { spaceId: true, spaceCode: true, spaceType: true },
+  });
+  if (!current) throw new NotFoundError('주차면을 찾을 수 없습니다.');
+
+  const referenced = await prisma.parkingReservation.count({
+    where: { OR: [{ assignedSpaceId: spaceId }, { recommendedSpaceId: spaceId }] },
+  });
+  if (referenced > 0) {
+    throw new ConflictError(
+      `이 주차면을 사용한 예약이 ${referenced}건 있어 삭제할 수 없습니다. 대신 비활성화해 주세요.`,
+      'SPACE_IN_USE',
+    );
+  }
+
+  await prisma.parkingSpace.delete({ where: { spaceId } });
+
+  await writeAuditLog({
+    actorAdminId: actor.adminUserId,
+    actionType: AUDIT_ACTIONS.PARKING_SPACE_DELETE,
+    targetType: AUDIT_TARGETS.PARKING_SPACE,
+    targetId: spaceId,
+    detail: { spaceCode: current.spaceCode, spaceType: current.spaceType },
+    context: actor.requestContext,
+  });
+
+  return { spaceId };
+}
+
+// ---------------------------------------------------------------------------
+// 도면 이미지 (parking_areas.map_image_*)
+//
+// 파일 자체를 DB 에 보관한다. 별도 스토리지나 업로드 디렉터리를 두지 않아
+// 배포 환경마다 경로·권한을 맞출 필요가 없고, DB 백업에 도면이 함께 포함된다.
+// ---------------------------------------------------------------------------
+
+export async function getParkingAreaMapImage(
+  areaId: number,
+): Promise<{ data: Uint8Array<ArrayBuffer>; mimeType: string } | null> {
+  const area = await prisma.parkingArea.findUnique({
+    where: { areaId },
+    select: { mapImageData: true, mapImageMimeType: true },
+  });
+
+  if (!area?.mapImageData || !area.mapImageMimeType) return null;
+  return { data: area.mapImageData, mimeType: area.mapImageMimeType };
+}
+
+export async function saveParkingAreaMapImage(
+  areaId: number,
+  file: { data: Uint8Array<ArrayBuffer>; mimeType: string; fileName: string },
+  actor: { adminUserId: number; requestContext?: RequestContext },
+) {
+  const area = await prisma.parkingArea.findUnique({
+    where: { areaId },
+    select: { areaId: true, areaName: true },
+  });
+  if (!area) throw new NotFoundError('주차 구역을 찾을 수 없습니다.');
+
+  const updated = await prisma.parkingArea.update({
+    where: { areaId },
+    data: {
+      mapImageData: file.data,
+      mapImageMimeType: file.mimeType,
+      mapImageName: file.fileName.slice(0, 255),
+      mapImageUpdatedAt: new Date(),
+    },
+    select: { areaId: true, mapImageName: true, mapImageUpdatedAt: true },
+  });
+
+  await writeAuditLog({
+    actorAdminId: actor.adminUserId,
+    actionType: AUDIT_ACTIONS.PARKING_AREA_UPDATE,
+    targetType: AUDIT_TARGETS.PARKING_AREA,
+    targetId: areaId,
+    detail: {
+      areaName: area.areaName,
+      mapImage: 'UPLOADED',
+      fileName: updated.mapImageName,
+      byteSize: file.data.length,
+      mimeType: file.mimeType,
+    },
+    context: actor.requestContext,
+  });
+
+  return updated;
+}
+
+export async function clearParkingAreaMapImage(
+  areaId: number,
+  actor: { adminUserId: number; requestContext?: RequestContext },
+) {
+  const area = await prisma.parkingArea.findUnique({
+    where: { areaId },
+    select: { areaId: true, areaName: true },
+  });
+  if (!area) throw new NotFoundError('주차 구역을 찾을 수 없습니다.');
+
+  await prisma.parkingArea.update({
+    where: { areaId },
+    data: {
+      mapImageData: null,
+      mapImageMimeType: null,
+      mapImageName: null,
+      mapImageUpdatedAt: null,
+    },
+  });
+
+  await writeAuditLog({
+    actorAdminId: actor.adminUserId,
+    actionType: AUDIT_ACTIONS.PARKING_AREA_UPDATE,
+    targetType: AUDIT_TARGETS.PARKING_AREA,
+    targetId: areaId,
+    detail: { areaName: area.areaName, mapImage: 'REMOVED' },
+    context: actor.requestContext,
+  });
 }
