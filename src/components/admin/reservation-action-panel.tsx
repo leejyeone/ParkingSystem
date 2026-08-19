@@ -130,7 +130,7 @@ export function ReservationActionPanel({
                 htmlFor="space-select"
                 required
                 errors={fieldErrors.spaceId}
-                hint="기본값이 채워져 있습니다. 목록을 열어 다른 위치로 바꿀 수 있으며, 사용 중인 주차면은 고를 수 없습니다."
+                hint="사용 중인 주차면은 선택할 수 없습니다."
               >
                 <select
                   id="space-select"
@@ -138,7 +138,7 @@ export function ReservationActionPanel({
                   value={selectedSpaceId}
                   onChange={(event) => setSelectedSpaceId(event.target.value)}
                 >
-                  <option value="">자동 배정</option>
+                  
                   {availableSpaces.map((space) => (
                     <option key={space.spaceId} value={space.spaceId} disabled={!space.available}>
                       {space.spaceCode} · {SPACE_TYPE_LABEL[space.spaceType]} · {space.areaName}
