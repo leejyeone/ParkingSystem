@@ -885,7 +885,16 @@ export type ReservationListItem = {
   createdAt: Date;
 };
 
-export async function listReservationsForAdmin(filter: ReservationListFilter): Promise<{
+/**
+ * 관리자 예약 목록 조회.
+ *
+ * 목록에도 성명/이메일/차량번호 원문이 포함되므로, actor 가 주어지면 감사 로그를 남긴다.
+ * (actor 를 선택 인자로 둔 것은 내부 통계 등 감사 대상이 아닌 호출을 허용하기 위함이다)
+ */
+export async function listReservationsForAdmin(
+  filter: ReservationListFilter,
+  actor?: AdminActionContext,
+): Promise<{
   items: ReservationListItem[];
   totalCount: number;
   page: number;
@@ -916,6 +925,32 @@ export async function listReservationsForAdmin(filter: ReservationListFilter): P
       take: pageSize,
     }),
   ]);
+
+  if (actor) {
+    await writeAuditLog({
+      actorAdminId: actor.adminUserId,
+      actionType: AUDIT_ACTIONS.RESERVATION_LIST_VIEW,
+      targetType: AUDIT_TARGETS.RESERVATION,
+      targetId: null,
+      // 검색어 원문(성명/차량번호)은 그 자체가 개인정보이므로 입력 여부만 남긴다.
+      // 대신 실제로 노출된 예약 ID 를 남겨 "어떤 정보주체를 처리했는지" 추적할 수 있게 한다.
+      detail: {
+        page,
+        resultCount: rows.length,
+        totalCount,
+        filters: {
+          date: Boolean(filter.dateFrom),
+          status: filter.status ?? null,
+          requesterType: filter.requesterType ?? null,
+          spaceCode: filter.spaceCode ?? null,
+          vehicleNoKeyword: Boolean(filter.vehicleNo),
+          requesterNameKeyword: Boolean(filter.requesterName),
+        },
+        reservationIds: rows.map((row) => row.reservationId),
+      },
+      context: actor.requestContext,
+    });
+  }
 
   return {
     items: rows.map(toReservationListItem),

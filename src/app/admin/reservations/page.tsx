@@ -1,16 +1,22 @@
 import { ReservationStatus, RequesterType } from '@prisma/client';
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
 import Link from 'next/link';
 
+import { ClickableTableRow } from '@/components/admin/clickable-table-row';
+import { ReservationFilterBar, type FilterChip } from '@/components/admin/reservation-filter-bar';
 import { SpaceTypeBadge, StatusBadge } from '@/components/ui/status-badge';
 import { REQUESTER_TYPE_LABEL, RESERVATION_STATUS_LABEL } from '@/domain/reservation-status';
 import { requireAdminPage } from '@/lib/admin-page-guard';
 import { formatKstDateTime, kstDayRangeUtc } from '@/lib/datetime';
+import { getRequestContext } from '@/lib/request-context';
 import { listReservationsForAdmin } from '@/services/reservation-service';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = { title: '예약 목록' };
+
+const BASE_PATH = '/admin/reservations';
 
 type PageProps = {
   searchParams: Promise<{
@@ -25,8 +31,9 @@ type PageProps = {
 };
 
 export default async function AdminReservationListPage({ searchParams }: PageProps) {
-  await requireAdminPage('/admin/reservations');
+  const session = await requireAdminPage(BASE_PATH);
   const params = await searchParams;
+  const requestHeaders = await headers();
 
   const date = params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date) ? params.date : undefined;
   const range = date ? kstDayRangeUtc(date) : null;
@@ -38,31 +45,72 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
     params.requesterType && params.requesterType in RequesterType
       ? (params.requesterType as RequesterType)
       : undefined;
+  // 공백만 입력된 값이 조건 칩으로 뜨지 않도록 정규화한다.
+  const vehicleNo = params.vehicleNo?.trim() || undefined;
+  const requesterName = params.requesterName?.trim() || undefined;
+  const spaceCode = params.spaceCode?.trim() || undefined;
   const page = Number(params.page) > 0 ? Number(params.page) : 1;
 
-  const result = await listReservationsForAdmin({
-    dateFrom: range?.start,
-    dateTo: range?.end,
+  const result = await listReservationsForAdmin(
+    {
+      dateFrom: range?.start,
+      dateTo: range?.end,
+      status,
+      requesterType,
+      vehicleNo,
+      requesterName,
+      spaceCode,
+      page,
+      pageSize: 20,
+    },
+    {
+      adminUserId: session.adminUserId,
+      requestContext: getRequestContext(requestHeaders),
+    },
+  );
+
+  /** 현재 적용된 검색 조건. page 는 넣지 않아 조건이 바뀌면 1페이지부터 다시 본다. */
+  const currentFilters: Record<string, string | undefined> = {
+    date,
     status,
     requesterType,
-    vehicleNo: params.vehicleNo || undefined,
-    requesterName: params.requesterName || undefined,
-    spaceCode: params.spaceCode || undefined,
-    page,
-    pageSize: 20,
-  });
-
-  const buildPageHref = (targetPage: number) => {
-    const query = new URLSearchParams();
-    if (date) query.set('date', date);
-    if (status) query.set('status', status);
-    if (requesterType) query.set('requesterType', requesterType);
-    if (params.vehicleNo) query.set('vehicleNo', params.vehicleNo);
-    if (params.requesterName) query.set('requesterName', params.requesterName);
-    if (params.spaceCode) query.set('spaceCode', params.spaceCode);
-    query.set('page', String(targetPage));
-    return `/admin/reservations?${query.toString()}`;
+    vehicleNo,
+    requesterName,
+    spaceCode,
   };
+
+  const buildHref = (overrides: Record<string, string | undefined> = {}) => {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries({ ...currentFilters, ...overrides })) {
+      if (value) query.set(key, value);
+    }
+    const queryString = query.toString();
+    return queryString ? `${BASE_PATH}?${queryString}` : BASE_PATH;
+  };
+
+  const buildPageHref = (targetPage: number) => buildHref({ page: String(targetPage) });
+
+  // 적용된 조건만 칩으로 노출한다. (모바일에서 입력 폼이 화면을 다 차지하지 않도록)
+  const chips: FilterChip[] = [
+    { key: 'date', label: '날짜', value: date },
+    { key: 'status', label: '상태', value: status ? RESERVATION_STATUS_LABEL[status] : undefined },
+    {
+      key: 'requesterType',
+      label: '구분',
+      value: requesterType ? REQUESTER_TYPE_LABEL[requesterType] : undefined,
+    },
+    { key: 'vehicleNo', label: '차량번호', value: vehicleNo },
+    { key: 'requesterName', label: '성명', value: requesterName },
+    { key: 'spaceCode', label: '주차 위치', value: spaceCode },
+  ]
+    .filter((filter): filter is { key: string; label: string; value: string } =>
+      Boolean(filter.value),
+    )
+    .map((filter) => ({
+      label: filter.label,
+      value: filter.value,
+      removeHref: buildHref({ [filter.key]: undefined }),
+    }));
 
   return (
     <main className="app-container-wide space-y-4">
@@ -74,107 +122,99 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
         </p>
       </div>
 
-      <section className="card">
-        <div className="card-body">
-          <form method="get" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-            <div>
-              <label htmlFor="filter-date" className="label">
-                날짜
-              </label>
-              <input
-                id="filter-date"
-                name="date"
-                type="date"
-                defaultValue={date}
-                className="input"
-              />
-            </div>
-            <div>
-              <label htmlFor="filter-status" className="label">
-                예약 상태
-              </label>
-              <select
-                id="filter-status"
-                name="status"
-                defaultValue={status ?? ''}
-                className="input"
-              >
-                <option value="">전체</option>
-                {Object.values(ReservationStatus).map((value) => (
-                  <option key={value} value={value}>
-                    {RESERVATION_STATUS_LABEL[value]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="filter-type" className="label">
-                신청 구분
-              </label>
-              <select
-                id="filter-type"
-                name="requesterType"
-                defaultValue={requesterType ?? ''}
-                className="input"
-              >
-                <option value="">전체</option>
-                {Object.values(RequesterType).map((value) => (
-                  <option key={value} value={value}>
-                    {REQUESTER_TYPE_LABEL[value]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="filter-vehicle" className="label">
-                차량번호
-              </label>
-              <input
-                id="filter-vehicle"
-                name="vehicleNo"
-                defaultValue={params.vehicleNo ?? ''}
-                className="input"
-                placeholder="12가3456"
-              />
-            </div>
-            <div>
-              <label htmlFor="filter-name" className="label">
-                성명
-              </label>
-              <input
-                id="filter-name"
-                name="requesterName"
-                defaultValue={params.requesterName ?? ''}
-                className="input"
-              />
-            </div>
-            <div>
-              <label htmlFor="filter-space" className="label">
-                주차 위치
-              </label>
-              <input
-                id="filter-space"
-                name="spaceCode"
-                defaultValue={params.spaceCode ?? ''}
-                className="input"
-                placeholder="A-01"
-              />
-            </div>
-            <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-6">
-              <button type="submit" className="btn btn-primary px-6">
-                검색
-              </button>
-              <Link href="/admin/reservations" className="btn btn-secondary">
-                초기화
-              </Link>
-            </div>
-          </form>
-        </div>
-      </section>
+      <ReservationFilterBar chips={chips} resetHref={BASE_PATH}>
+        <form method="get" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div>
+            <label htmlFor="filter-date" className="label">
+              날짜
+            </label>
+            <input id="filter-date" name="date" type="date" defaultValue={date} className="input" />
+          </div>
+          <div>
+            <label htmlFor="filter-status" className="label">
+              예약 상태
+            </label>
+            <select id="filter-status" name="status" defaultValue={status ?? ''} className="input">
+              <option value="">전체</option>
+              {Object.values(ReservationStatus).map((value) => (
+                <option key={value} value={value}>
+                  {RESERVATION_STATUS_LABEL[value]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="filter-type" className="label">
+              신청 구분
+            </label>
+            <select
+              id="filter-type"
+              name="requesterType"
+              defaultValue={requesterType ?? ''}
+              className="input"
+            >
+              <option value="">전체</option>
+              {Object.values(RequesterType).map((value) => (
+                <option key={value} value={value}>
+                  {REQUESTER_TYPE_LABEL[value]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="filter-vehicle" className="label">
+              차량번호
+            </label>
+            <input
+              id="filter-vehicle"
+              name="vehicleNo"
+              defaultValue={vehicleNo ?? ''}
+              className="input"
+              placeholder="12가3456"
+            />
+          </div>
+          <div>
+            <label htmlFor="filter-name" className="label">
+              성명
+            </label>
+            <input
+              id="filter-name"
+              name="requesterName"
+              defaultValue={requesterName ?? ''}
+              className="input"
+            />
+          </div>
+          <div>
+            <label htmlFor="filter-space" className="label">
+              주차 위치
+            </label>
+            <input
+              id="filter-space"
+              name="spaceCode"
+              defaultValue={spaceCode ?? ''}
+              className="input"
+              placeholder="A-01"
+            />
+          </div>
+          <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-3">
+            <button type="submit" className="btn btn-primary px-6">
+              검색
+            </button>
+            <Link href={BASE_PATH} className="btn btn-secondary">
+              초기화
+            </Link>
+          </div>
+        </form>
+      </ReservationFilterBar>
 
       <section className="card">
         <div className="card-body">
-          <p className="text-sm font-bold text-slate-700">전체 {result.totalCount}건</p>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="text-sm font-bold text-slate-700">전체 {result.totalCount}건</p>
+            {result.items.length > 0 && (
+              <p className="text-xs text-slate-500">행을 누르면 상세 화면으로 이동합니다.</p>
+            )}
+          </div>
 
           {result.items.length === 0 ? (
             <p className="mt-4 text-sm text-slate-500">조건에 해당하는 예약이 없습니다.</p>
@@ -192,13 +232,23 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
                     <th>차량번호</th>
                     <th>방문 시간</th>
                     <th>배정 위치</th>
-                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {result.items.map((reservation) => (
-                    <tr key={reservation.reservationId}>
-                      <td className="font-mono text-xs">{reservation.reservationNo}</td>
+                    <ClickableTableRow
+                      key={reservation.reservationId}
+                      href={`${BASE_PATH}/${reservation.reservationId}`}
+                    >
+                      <td className="font-mono text-xs">
+                        {/* 키보드 이동과 새 탭 열기를 위해 실제 링크를 둔다. */}
+                        <Link
+                          href={`${BASE_PATH}/${reservation.reservationId}`}
+                          className="text-brand-700 font-bold hover:underline"
+                        >
+                          {reservation.reservationNo}
+                        </Link>
+                      </td>
                       <td>
                         <StatusBadge status={reservation.reservationStatus} />
                       </td>
@@ -229,15 +279,7 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
                           </span>
                         )}
                       </td>
-                      <td>
-                        <Link
-                          href={`/admin/reservations/${reservation.reservationId}`}
-                          className="btn btn-secondary min-h-9 px-3 py-1.5 text-xs"
-                        >
-                          상세
-                        </Link>
-                      </td>
-                    </tr>
+                    </ClickableTableRow>
                   ))}
                 </tbody>
               </table>

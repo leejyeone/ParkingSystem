@@ -86,7 +86,12 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
           value={`${dashboard.doubleUsedCount} / ${dashboard.doubleTotalCount}`}
           tone="warning"
         />
-        <StatCard label="승인 대기" value={`${dashboard.pendingCount} 건`} tone="amber" />
+        <StatCard
+          label="승인 대기"
+          value={`${dashboard.pendingCount} 건`}
+          tone="amber"
+          hint={`전체 ${dashboard.pendingTotalCount} 건`}
+        />
         <StatCard
           label="운영시간"
           value={`${dashboard.operatingHours.open} ~ ${dashboard.operatingHours.close}`}
@@ -97,7 +102,12 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
       <section className="card">
         <div className="card-body">
           <div className="flex items-center justify-between">
-            <h2 className="card-title">승인 대기 목록</h2>
+            <h2 className="card-title">
+              승인 대기 목록
+              <span className="ml-2 text-xs font-bold text-slate-500">
+                이 날짜 {dashboard.pendingCount}건 / 전체 {dashboard.pendingTotalCount}건
+              </span>
+            </h2>
             <Link
               href="/admin/reservations?status=REQUESTED"
               className="text-brand-700 text-sm font-bold"
@@ -107,7 +117,21 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
           </div>
 
           {dashboard.pendingReservations.length === 0 ? (
-            <p className="mt-4 text-sm text-slate-500">승인 대기 중인 예약이 없습니다.</p>
+            <p className="mt-4 text-sm text-slate-500">
+              이 날짜에는 승인 대기 중인 예약이 없습니다.
+              {dashboard.pendingTotalCount > 0 ? (
+                <>
+                  {' '}
+                  다른 날짜에 {dashboard.pendingTotalCount}건이 대기 중입니다.{' '}
+                  <Link
+                    href="/admin/reservations?status=REQUESTED"
+                    className="text-brand-700 font-bold"
+                  >
+                    전체 보기
+                  </Link>
+                </>
+              ) : null}
+            </p>
           ) : (
             <div className="table-scroll mt-3">
               <table className="data-table">
@@ -277,10 +301,12 @@ function StatCard({
   label,
   value,
   tone,
+  hint,
 }: {
   label: string;
   value: string;
   tone: 'brand' | 'warning' | 'amber' | 'slate';
+  hint?: string;
 }) {
   const toneClass = {
     brand: 'text-brand-700',
@@ -294,6 +320,7 @@ function StatCard({
       <div className="p-4">
         <p className="text-xs font-bold text-slate-500">{label}</p>
         <p className={`mt-1 text-xl font-black sm:text-2xl ${toneClass}`}>{value}</p>
+        {hint ? <p className="mt-0.5 text-xs font-bold text-slate-500">{hint}</p> : null}
       </div>
     </div>
   );

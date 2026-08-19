@@ -393,6 +393,8 @@ model AuditLog {
   @@index([actorAdminId, createdAt], map: "idx_audit_logs_actor_created")
   @@index([actionType, createdAt], map: "idx_audit_logs_action_created")
   @@index([targetType, targetId], map: "idx_audit_logs_target")
+  // 보관 기간이 지난 기록을 정리(DELETE ... WHERE created_at < ?)할 때 사용한다.
+  @@index([createdAt], map: "idx_audit_logs_created_at")
   @@map("audit_logs")
 }
 

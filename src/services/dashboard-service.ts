@@ -40,7 +40,10 @@ export type DashboardData = {
   normalTotalCount: number;
   doubleUsedCount: number;
   doubleTotalCount: number;
+  /** 선택한 날짜에 걸치는 승인 대기 건수 */
   pendingCount: number;
+  /** 날짜와 무관한 전체 승인 대기 건수. 다른 날짜 신청을 놓치지 않도록 함께 보여준다. */
+  pendingTotalCount: number;
   mapImageUrls: { areaName: string; mapImageUrl: string }[];
   spaces: SpaceStatusRow[];
   pendingReservations: ReservationListItem[];
@@ -52,51 +55,56 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
   const settings = await getSystemSettings();
   const { start, end } = kstDayRangeUtc(dateString, settings.appTimeZone);
 
-  const [areas, spaces, dayReservations, pendingReservations] = await Promise.all([
-    prisma.parkingArea.findMany({
-      where: { isActive: true, mapImageUrl: { not: null } },
-      select: { areaName: true, mapImageUrl: true },
-      orderBy: { displayOrder: 'asc' },
-    }),
-    prisma.parkingSpace.findMany({
-      where: { isActive: true, area: { isActive: true } },
-      orderBy: [{ displayOrder: 'asc' }, { spaceId: 'asc' }],
-      select: {
-        spaceId: true,
-        spaceCode: true,
-        spaceName: true,
-        spaceType: true,
-        isActive: true,
-        memo: true,
-        area: { select: { areaName: true } },
-      },
-    }),
-    prisma.parkingReservation.findMany({
-      where: {
-        reservationStatus: { in: [...SPACE_OCCUPYING_STATUSES] },
-        assignedSpaceId: { not: null },
-        ...buildOverlapWhere(start, end),
-      },
-      select: {
-        reservationId: true,
-        reservationNo: true,
-        reservationStatus: true,
-        vehicleNo: true,
-        visitStartAt: true,
-        visitEndAt: true,
-        assignedSpaceId: true,
-      },
-      orderBy: { visitStartAt: 'asc' },
-    }),
-    prisma.parkingReservation.findMany({
-      where: { reservationStatus: ReservationStatus.REQUESTED, ...buildOverlapWhere(start, end) },
-      include: {
-        recommendedSpace: { select: { spaceId: true, spaceCode: true, spaceType: true } },
-        assignedSpace: { select: { spaceId: true, spaceCode: true, spaceType: true } },
-      },
-      orderBy: [{ visitStartAt: 'asc' }, { reservationId: 'asc' }],
-    }),
-  ]);
+  const [areas, spaces, dayReservations, pendingReservations, pendingTotalCount] =
+    await Promise.all([
+      prisma.parkingArea.findMany({
+        where: { isActive: true, mapImageUrl: { not: null } },
+        select: { areaName: true, mapImageUrl: true },
+        orderBy: { displayOrder: 'asc' },
+      }),
+      prisma.parkingSpace.findMany({
+        where: { isActive: true, area: { isActive: true } },
+        orderBy: [{ displayOrder: 'asc' }, { spaceId: 'asc' }],
+        select: {
+          spaceId: true,
+          spaceCode: true,
+          spaceName: true,
+          spaceType: true,
+          isActive: true,
+          memo: true,
+          area: { select: { areaName: true } },
+        },
+      }),
+      prisma.parkingReservation.findMany({
+        where: {
+          reservationStatus: { in: [...SPACE_OCCUPYING_STATUSES] },
+          assignedSpaceId: { not: null },
+          ...buildOverlapWhere(start, end),
+        },
+        select: {
+          reservationId: true,
+          reservationNo: true,
+          reservationStatus: true,
+          vehicleNo: true,
+          visitStartAt: true,
+          visitEndAt: true,
+          assignedSpaceId: true,
+        },
+        orderBy: { visitStartAt: 'asc' },
+      }),
+      prisma.parkingReservation.findMany({
+        where: { reservationStatus: ReservationStatus.REQUESTED, ...buildOverlapWhere(start, end) },
+        include: {
+          recommendedSpace: { select: { spaceId: true, spaceCode: true, spaceType: true } },
+          assignedSpace: { select: { spaceId: true, spaceCode: true, spaceType: true } },
+        },
+        orderBy: [{ visitStartAt: 'asc' }, { reservationId: 'asc' }],
+      }),
+      // 날짜 필터 없이 전체 승인 대기 건수를 센다.
+      prisma.parkingReservation.count({
+        where: { reservationStatus: ReservationStatus.REQUESTED },
+      }),
+    ]);
 
   const bySpace = new Map<number, SpaceStatusRow['occupancies']>();
   for (const reservation of dayReservations) {
@@ -148,6 +156,7 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
     doubleUsedCount: doubleSpaces.filter((row) => row.occupancies.length > 0).length,
     doubleTotalCount: doubleSpaces.length,
     pendingCount: pendingReservations.length,
+    pendingTotalCount,
     mapImageUrls: areas
       .filter(
         (area): area is { areaName: string; mapImageUrl: string } => area.mapImageUrl !== null,

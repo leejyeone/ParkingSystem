@@ -60,6 +60,8 @@ export type AuditLogFilter = {
   actionType?: string;
   targetType?: string;
   actorAdminId?: number;
+  /** 이 액션들은 결과에서 제외한다. (예: 열람 기록을 빼고 변경 이력만 보기) */
+  excludeActionTypes?: readonly string[];
   page?: number;
   pageSize?: number;
 };
@@ -69,7 +71,12 @@ export async function listAuditLogs(filter: AuditLogFilter) {
   const pageSize = Math.min(100, Math.max(1, filter.pageSize ?? 20));
 
   const where: Prisma.AuditLogWhereInput = {
-    ...(filter.actionType ? { actionType: filter.actionType } : {}),
+    // 특정 행위 유형을 고른 경우가 우선한다. 제외 목록은 유형을 고르지 않았을 때만 적용된다.
+    ...(filter.actionType
+      ? { actionType: filter.actionType }
+      : filter.excludeActionTypes?.length
+        ? { actionType: { notIn: [...filter.excludeActionTypes] } }
+        : {}),
     ...(filter.targetType ? { targetType: filter.targetType } : {}),
     ...(filter.actorAdminId ? { actorAdminId: filter.actorAdminId } : {}),
   };

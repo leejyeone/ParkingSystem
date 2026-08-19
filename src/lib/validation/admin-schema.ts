@@ -151,6 +151,8 @@ export const auditLogQuerySchema = z.object({
   actionType: z.string().trim().max(50).optional(),
   targetType: z.string().trim().max(50).optional(),
   actorAdminId: z.coerce.number().int().positive().optional(),
+  /** '1' 이면 개인정보 열람 계열 액션을 결과에서 제외한다. */
+  excludeViews: z.literal('1').optional(),
   page: pageSchema,
   pageSize: pageSizeSchema,
 });

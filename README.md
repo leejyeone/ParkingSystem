@@ -1185,7 +1185,7 @@ Authorization: Bearer <CRON_SECRET>
 | `POST` | `/api/admin/auth/login`                | -            | 로그인                     |
 | `POST` | `/api/admin/auth/logout`               | 관리자       | 로그아웃                   |
 | `GET`  | `/api/admin/dashboard`                 | 관리자       | 대시보드 데이터            |
-| `GET`  | `/api/admin/reservations`              | 관리자       | 예약 목록                  |
+| `GET`  | `/api/admin/reservations`              | 관리자       | 예약 목록 (감사 로그 기록) |
 | `GET`  | `/api/admin/reservations/[id]`         | 관리자       | 예약 상세 (감사 로그 기록) |
 | `POST` | `/api/admin/reservations/[id]/approve` | 관리자       | 승인 + 주차면 확정         |
 | `POST` | `/api/admin/reservations/[id]/reject`  | 관리자       | 반려                       |
@@ -1205,14 +1205,15 @@ Authorization: Bearer <CRON_SECRET>
 | `POST` | `/api/admin/admin-users`               | SYSTEM_ADMIN | 관리자 계정 생성           |
 | `PUT`  | `/api/admin/admin-users/[id]`          | SYSTEM_ADMIN | 관리자 계정 수정·비활성화  |
 | `GET`  | `/api/admin/email-logs`                | 관리자       | 이메일 발송 이력           |
-| `GET`  | `/api/admin/audit-logs`                | SYSTEM_ADMIN | 감사 로그                  |
+| `GET`  | `/api/admin/audit-logs`                | SYSTEM_ADMIN | 감사 로그 (감사 로그 기록) |
 
 ### 스케줄러 API
 
-| 메서드       | 경로                       | 인증                   |
-| ------------ | -------------------------- | ---------------------- |
-| `POST`/`GET` | `/api/cron/exit-reminders` | `Bearer <CRON_SECRET>` |
-| `POST`       | `/api/cron/auto-no-show`   | `Bearer <CRON_SECRET>` |
+| 메서드       | 경로                          | 인증                   |
+| ------------ | ----------------------------- | ---------------------- |
+| `POST`/`GET` | `/api/cron/exit-reminders`    | `Bearer <CRON_SECRET>` |
+| `POST`       | `/api/cron/auto-no-show`      | `Bearer <CRON_SECRET>` |
+| `POST`/`GET` | `/api/cron/audit-log-cleanup` | `Bearer <CRON_SECRET>` |
 
 ### 이메일 종류
 
@@ -1307,8 +1308,8 @@ Authorization: Bearer <CRON_SECRET>
 대신 아래 방식으로 노출 범위를 통제합니다.
 
 - **수집 최소화**: 부서명과 휴대전화 번호는 아예 받지 않습니다. 예약에 꼭 필요한 항목만 저장합니다.
-- **열람 통제**: 관리자 예약 상세 조회는 즉시 `audit_logs`에 열람 이력이 기록됩니다.
-  목록 화면 상단에도 업무 목적 외 사용 금지를 안내합니다.
+- **열람 통제**: 관리자 예약 **목록·상세 조회 모두** `audit_logs`에 열람 이력이 기록됩니다.
+  목록 화면 상단에도 업무 목적 외 사용 금지를 안내합니다. 자세한 내용은 아래 "접속기록" 참고.
 - **범위 격리**: 일반 사용자에게 **다른 예약자의** 정보(차량번호, 주차 위치, 방문 시간, 회사명, 성명)를
   노출하지 않습니다. 토큰 1개는 예약 1건, 회원 목록은 자기 예약만 조회합니다.
 - **로그 위생**: 서버 콘솔 로그는 [`src/lib/logger.ts`](src/lib/logger.ts)가 이메일·차량번호·토큰 패턴을
@@ -1317,11 +1318,42 @@ Authorization: Bearer <CRON_SECRET>
 - 감사 로그의 `detail_json`에도 개인정보 원문 대신 식별자·변경 요약만 저장합니다
   (예: 알림 이메일 변경 시 도메인만 기록).
 
-### 필수 감사 로그 항목
+### 접속기록(감사 로그)
 
-예약 상세 개인정보 조회 / 예약 승인 / 예약 반려 / 주차 위치 변경 / 입차 / 출차 / 미방문 처리 /
-관리자 알림 이메일 변경 / 주차면 생성·수정·비활성화 / 주차 구역 생성·수정 / 시스템 설정 변경 /
-관리자 계정 생성·수정·비활성화 / 관리자 로그인·로그아웃
+**근거.** 「개인정보의 안전성 확보조치 기준」(개인정보보호위원회 고시) 제8조는 개인정보취급자가
+개인정보처리시스템에 접속한 기록을 **1년 이상 보관**하도록 하고, 기록 항목으로 계정 / 접속일시 /
+접속지 정보 / 처리한 정보주체 정보 / **수행업무(조회 포함)** 를 요구합니다.
+이 시스템은 마스킹 없이 성명·이메일·차량번호를 표시하므로, **화면 열람 = 개인정보 원문 접근**입니다.
+따라서 변경 행위뿐 아니라 **조회 행위도 반드시 기록**합니다.
+
+**기록 대상** — [`src/services/audit-service.ts`](src/services/audit-service.ts) `AUDIT_ACTIONS`
+
+| 구분          | 액션                                                                                                                                                   |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 열람          | 예약 목록 조회 / 예약 상세 개인정보 조회 / 감사 로그 열람                                                                                              |
+| 예약 상태변경 | 승인 / 반려 / 주차 위치 변경 / 입차 / 출차 / 미방문 처리                                                                                               |
+| 설정·계정     | 관리자 알림 이메일 변경 / 주차면 생성·수정·비활성화 / 주차 구역 생성·수정 / 시스템 설정 변경 / 관리자 계정 생성·수정·비활성화 / 관리자 로그인·로그아웃 |
+
+**중복 열람 묶기.** 같은 관리자가 같은 대상을 **5분 안에** 반복 열람하면 한 건으로 묶습니다.
+새로고침·페이지 이동마다 행이 쌓이면 감사 로그가 조회 기록으로 도배되어 오히려 점검이 어려워지기
+때문입니다. 상태를 바꾸는 행위는 **절대 묶지 않습니다**. 감사 로그 화면의 `열람 기록 제외`
+체크박스로 변경 이력만 따로 볼 수도 있습니다.
+
+**목록 조회 기록의 `detail_json`.** 검색어(성명·차량번호)는 그 자체가 개인정보이므로 **원문을
+저장하지 않고** 입력 여부만 남깁니다. 대신 실제로 화면에 노출된 `reservationIds`를 남겨
+"어떤 정보주체를 처리했는지" 추적할 수 있게 합니다.
+
+**보관 기간.** 기본 **365일**(`AUDIT_LOG_RETENTION_DAYS`)이며, 기간이 지난 기록은 아래 cron으로
+삭제합니다. 365 미만 값을 설정하면 서버 로그에 경고가 남습니다.
+
+```cron
+# 매일 04:10 감사 로그 정리
+10 4 * * * curl -fsS -X POST https://parking.example.com/api/cron/audit-log-cleanup \
+  -H "Authorization: Bearer ${CRON_SECRET}" >> /var/log/parking-cron.log 2>&1
+```
+
+한 번 실행에서 최대 10만 건까지 1,000건씩 나눠 삭제하며(락 시간 최소화), 남은 기록이 있으면
+응답의 `hasMore`가 `true`가 되고 다음 실행에서 이어서 지웁니다.
 
 ### 비밀값 취급
 
@@ -1346,6 +1378,8 @@ Authorization: Bearer <CRON_SECRET>
 - [ ] `prisma migrate deploy` 수행 및 스키마 반영 확인
 - [ ] HTTPS 적용 (세션 쿠키 `Secure` 속성이 운영에서만 활성화됨)
 - [ ] 출차 알림 cron 등록 및 `CRON_SECRET` 인증 동작 확인
+- [ ] **감사 로그 정리 cron 등록** (`/api/cron/audit-log-cleanup`, 1일 1회) 및
+      `AUDIT_LOG_RETENTION_DAYS`가 365 이상인지 확인 (19절 "접속기록" 참고)
 - [ ] `EMAIL_PROVIDER`가 `file`/`log`/`mock`이 아닌지, `ALLOW_FILE_EMAIL_PROVIDER`가 비어 있는지 확인
 - [ ] **예약번호 조회 정책 확인** — 예약번호만으로 신청자 정보가 조회된다는 점을
       개인정보 담당 부서와 합의했는지, 레이트 리밋이 실제로 동작하는지 확인 (19절 참고)
@@ -1358,7 +1392,8 @@ Authorization: Bearer <CRON_SECRET>
 - [ ] 운영시간·최소 사전 신청 시간·최대 예약 시간을 실제 운영 정책에 맞게 조정
 - [ ] DB 정기 백업 및 복구 절차 수립
 - [ ] 개인정보 보유 기간 정책 수립 및 만료 데이터 파기 배치 준비
-- [ ] `audit_logs` / `email_send_logs` 보관 기간 및 아카이빙 정책 수립
+- [ ] `email_send_logs` 보관 기간 및 아카이빙 정책 수립
+      (`audit_logs`는 365일 자동 정리가 적용되어 있음)
 - [ ] 다중 인스턴스로 운영한다면 레이트 리밋을 Redis 등 공유 저장소 기반으로 교체
       (현재는 프로세스 단위 in-memory 구현)
 - [ ] 애플리케이션 로그 수집 및 에러 모니터링 연동

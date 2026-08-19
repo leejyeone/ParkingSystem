@@ -1,10 +1,7 @@
-import { timingSafeEqual } from 'node:crypto';
-
 import type { NextRequest } from 'next/server';
 
 import { apiSuccess, handleApiError } from '@/lib/api-response';
-import { getCronSecret } from '@/lib/env';
-import { UnauthorizedError } from '@/lib/errors';
+import { assertCronAuthorized } from '@/lib/cron-auth';
 import { runExitReminderJob } from '@/services/exit-reminder-service';
 
 export const runtime = 'nodejs';
@@ -32,22 +29,4 @@ export async function POST(request: NextRequest) {
 /** 플랫폼 스케줄러(Vercel Cron 등)가 GET 으로 호출하는 경우를 위한 별칭 */
 export async function GET(request: NextRequest) {
   return POST(request);
-}
-
-function assertCronAuthorized(request: NextRequest): void {
-  const expected = getCronSecret();
-  const header = request.headers.get('authorization') ?? '';
-  const provided = header.startsWith('Bearer ')
-    ? header.slice('Bearer '.length).trim()
-    : (request.headers.get('x-cron-secret') ?? '').trim();
-
-  const expectedBuffer = Buffer.from(expected, 'utf8');
-  const providedBuffer = Buffer.from(provided, 'utf8');
-
-  if (
-    providedBuffer.length !== expectedBuffer.length ||
-    !timingSafeEqual(providedBuffer, expectedBuffer)
-  ) {
-    throw new UnauthorizedError('스케줄러 인증에 실패했습니다.');
-  }
 }

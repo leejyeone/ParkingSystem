@@ -8,6 +8,7 @@ import {
   changeAssignedSpace,
   createReservation,
   getReservationDetailForAdmin,
+  listReservationsForAdmin,
   markEntry,
   markExit,
   markNoShow,
@@ -327,6 +328,75 @@ describe('반려 / 입차 / 출차 / 미방문 처리', () => {
       where: { actionType: AUDIT_ACTIONS.RESERVATION_DETAIL_VIEW },
     });
     expect(audit?.ipAddress).toBe('10.0.0.1');
+  });
+
+  it('목록 조회도 감사 로그에 기록되며 검색어 원문은 남지 않는다', async () => {
+    const { reservation } = await createReservation(baseReservationInput());
+
+    await listReservationsForAdmin(
+      { requesterName: '홍길동', vehicleNo: '12가3456' },
+      {
+        adminUserId: fixtures.parkingAdminId,
+        requestContext: { ipAddress: '10.0.0.2', userAgent: 'vitest' },
+      },
+    );
+
+    const audit = await prisma.auditLog.findFirst({
+      where: { actionType: AUDIT_ACTIONS.RESERVATION_LIST_VIEW },
+    });
+    expect(audit?.ipAddress).toBe('10.0.0.2');
+
+    // 검색어(성명/차량번호)는 그 자체가 개인정보이므로 입력 여부만 남아야 한다.
+    const serialized = JSON.stringify(audit?.detailJson);
+    expect(serialized).not.toContain('홍길동');
+    expect(serialized).not.toContain('12가3456');
+    expect(audit?.detailJson).toMatchObject({
+      filters: { requesterNameKeyword: true, vehicleNoKeyword: true },
+    });
+
+    // 어떤 정보주체를 처리했는지는 추적할 수 있어야 한다.
+    const detail = audit?.detailJson as { reservationIds?: number[] } | null;
+    expect(detail?.reservationIds).toContain(reservation.reservationId);
+  });
+
+  it('같은 관리자가 5분 안에 같은 대상을 반복 열람하면 한 건으로 묶인다', async () => {
+    const { reservation } = await createReservation(baseReservationInput());
+    const actor = {
+      adminUserId: fixtures.parkingAdminId,
+      requestContext: { ipAddress: '10.0.0.3', userAgent: 'vitest' },
+    };
+
+    await getReservationDetailForAdmin(reservation.reservationId, actor);
+    await getReservationDetailForAdmin(reservation.reservationId, actor);
+    await getReservationDetailForAdmin(reservation.reservationId, actor);
+
+    const viewCount = await prisma.auditLog.count({
+      where: { actionType: AUDIT_ACTIONS.RESERVATION_DETAIL_VIEW },
+    });
+    expect(viewCount).toBe(1);
+  });
+
+  it('상태 변경 행위는 반복해도 묶이지 않는다', async () => {
+    const first = await createReservation(baseReservationInput());
+    const second = await createReservation(
+      baseReservationInput({ vehicleNo: '34나5678', ...futureVisitRange({ daysFromToday: 2 }) }),
+    );
+
+    await approveReservation({
+      reservationId: first.reservation.reservationId,
+      spaceId: fixtures.normalSpaceIds[0],
+      adminUserId: fixtures.parkingAdminId,
+    });
+    await approveReservation({
+      reservationId: second.reservation.reservationId,
+      spaceId: fixtures.normalSpaceIds[1],
+      adminUserId: fixtures.parkingAdminId,
+    });
+
+    const approveCount = await prisma.auditLog.count({
+      where: { actionType: AUDIT_ACTIONS.RESERVATION_APPROVE },
+    });
+    expect(approveCount).toBe(2);
   });
 });
 

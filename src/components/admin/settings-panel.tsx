@@ -62,10 +62,10 @@ type Props = {
 };
 
 const TABS = [
-  { key: 'policy', label: '운영 정책' },
-  { key: 'notification', label: '알림 이메일' },
-  { key: 'areas', label: '구역 · 도면' },
+  { key: 'policy', label: '주차장 정보' },
+  { key: 'areas', label: '도면' },
   { key: 'spaces', label: '주차면' },
+  { key: 'notification', label: '알림 이메일' },
   { key: 'admins', label: '관리자 계정' },
 ] as const;
 
@@ -136,7 +136,7 @@ function PolicySection({ initialSettings }: { initialSettings: SystemSettingsVal
   return (
     <section className="card">
       <div className="card-body space-y-5">
-        <h2 className="card-title">주차장 운영 정책</h2>
+        <h2 className="card-title">주차 시스템 정보</h2>
         {message && (
           <Alert variant={message.variant === 'success' ? 'success' : 'error'}>
             {message.text}
@@ -227,14 +227,6 @@ function PolicySection({ initialSettings }: { initialSettings: SystemSettingsVal
               }
             />
           </FormField>
-          <FormField label="타임존" htmlFor="tz" required errors={fieldErrors.appTimeZone}>
-            <input
-              id="tz"
-              className={inputClassName(Boolean(fieldErrors.appTimeZone))}
-              value={form.appTimeZone}
-              onChange={(event) => setForm({ ...form, appTimeZone: event.target.value })}
-            />
-          </FormField>
         </div>
 
         <label className="flex min-h-12 items-center gap-3 rounded-lg border border-slate-300 px-3">
@@ -288,7 +280,6 @@ function NotificationSection({ emails }: { emails: NotificationEmail[] }) {
                   <th>신규신청</th>
                   <th>승인/변경</th>
                   <th>이중주차</th>
-                  <th>일일요약</th>
                   <th>상태</th>
                 </tr>
               </thead>
@@ -359,7 +350,6 @@ function NotificationSection({ emails }: { emails: NotificationEmail[] }) {
                 ['receiveNewRequest', '신규 신청 알림'],
                 ['receiveApprovalAlert', '변경/취소 알림'],
                 ['receiveDoubleParkingAlert', '이중주차 알림'],
-                ['receiveDailySummary', '일일 요약'],
                 ['isActive', '활성화'],
               ] as const
             ).map(([key, label]) => (

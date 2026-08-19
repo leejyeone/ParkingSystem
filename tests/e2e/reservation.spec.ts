@@ -108,7 +108,8 @@ test('예약 목록의 검색 조건은 기본으로 접혀 있고 적용된 조
 
   // 조건을 적용하면 폼은 다시 접히고 칩으로만 표시된다.
   await page.getByLabel('예약 상태').selectOption('REQUESTED');
-  await page.getByRole('button', { name: '검색' }).click();
+  // '검색 조건' 토글 버튼과 구분하기 위해 정확히 일치하는 이름으로 찾는다.
+  await page.getByRole('button', { name: '검색', exact: true }).click();
 
   await expect(page.getByLabel('차량번호')).toBeHidden();
   await expect(page.getByRole('link', { name: /상태.*승인 대기/ })).toBeVisible();

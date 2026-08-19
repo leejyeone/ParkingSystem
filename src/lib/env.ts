@@ -54,6 +54,22 @@ export function getSessionMaxAgeMinutes(): number {
   return getNumberEnv('SESSION_MAX_AGE_MINUTES', 480);
 }
 
+/**
+ * 감사 로그(접속기록) 보관 기간(일). 기본 365일.
+ *
+ * 「개인정보의 안전성 확보조치 기준」 제8조상 최소 1년이므로, 더 짧은 값이 들어오면
+ * 값은 그대로 쓰되 경고를 남긴다. (운영자가 의도적으로 낮춘 것인지 드러나야 한다)
+ */
+export function getAuditLogRetentionDays(): number {
+  const days = getNumberEnv('AUDIT_LOG_RETENTION_DAYS', 365);
+  if (days < 365) {
+    console.warn(
+      `[WARN] AUDIT_LOG_RETENTION_DAYS=${days} 는 법정 최소 보관 기간(365일)보다 짧습니다.`,
+    );
+  }
+  return days;
+}
+
 /** cron 엔드포인트 인증용 비밀값 */
 export function getCronSecret(): string {
   return getRequiredEnv('CRON_SECRET');

@@ -1,8 +1,15 @@
 import type { NextRequest } from 'next/server';
 
 import { apiSuccess, handleApiError } from '@/lib/api-response';
+import { getRequestContext } from '@/lib/request-context';
 import { auditLogQuerySchema } from '@/lib/validation/admin-schema';
 import { requireSystemAdmin } from '@/services/admin-auth-service';
+import {
+  AUDIT_ACTIONS,
+  AUDIT_TARGETS,
+  VIEW_AUDIT_ACTIONS,
+  writeAuditLog,
+} from '@/services/audit-service';
 import { listAuditLogs } from '@/services/log-query-service';
 
 export const runtime = 'nodejs';
@@ -11,12 +18,26 @@ export const dynamic = 'force-dynamic';
 /** GET /api/admin/audit-logs — 감사 로그 조회 (SYSTEM_ADMIN 전용) */
 export async function GET(request: NextRequest) {
   try {
-    await requireSystemAdmin();
+    const session = await requireSystemAdmin();
     const query = auditLogQuerySchema.parse(
       Object.fromEntries(request.nextUrl.searchParams.entries()),
     );
 
-    const result = await listAuditLogs(query);
+    // 감사 기록을 누가 열어봤는지도 추적 대상이다.
+    await writeAuditLog({
+      actorAdminId: session.adminUserId,
+      actionType: AUDIT_ACTIONS.AUDIT_LOG_VIEW,
+      targetType: AUDIT_TARGETS.AUDIT_LOG,
+      targetId: null,
+      detail: { actionTypeFilter: query.actionType ?? null, page: query.page },
+      context: getRequestContext(request.headers),
+    });
+
+    const { excludeViews, ...filter } = query;
+    const result = await listAuditLogs({
+      ...filter,
+      excludeActionTypes: excludeViews === '1' ? VIEW_AUDIT_ACTIONS : undefined,
+    });
     return apiSuccess(result.items, {
       page: result.page,
       pageSize: result.pageSize,
