@@ -116,7 +116,6 @@ export async function seedFixtures(options: { normalSpaces?: number } = {}): Pro
       isActive: true,
       receiveNewRequest: true,
       receiveApprovalAlert: true,
-      receiveDoubleParkingAlert: true,
     },
   });
 

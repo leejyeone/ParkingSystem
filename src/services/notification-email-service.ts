@@ -18,7 +18,6 @@ export type NotificationEmailInput = {
   recipientName?: string | null;
   receiveNewRequest: boolean;
   receiveApprovalAlert: boolean;
-  receiveDoubleParkingAlert: boolean;
   isActive: boolean;
 };
 
@@ -36,14 +35,12 @@ export async function upsertNotificationEmail(
         recipientName: input.recipientName?.trim() || null,
         receiveNewRequest: input.receiveNewRequest,
         receiveApprovalAlert: input.receiveApprovalAlert,
-        receiveDoubleParkingAlert: input.receiveDoubleParkingAlert,
         isActive: input.isActive,
       },
       update: {
         recipientName: input.recipientName?.trim() || null,
         receiveNewRequest: input.receiveNewRequest,
         receiveApprovalAlert: input.receiveApprovalAlert,
-        receiveDoubleParkingAlert: input.receiveDoubleParkingAlert,
         isActive: input.isActive,
       },
     });
@@ -59,7 +56,6 @@ export async function upsertNotificationEmail(
         isActive: saved.isActive,
         receiveNewRequest: saved.receiveNewRequest,
         receiveApprovalAlert: saved.receiveApprovalAlert,
-        receiveDoubleParkingAlert: saved.receiveDoubleParkingAlert,
       },
       context: actor.requestContext,
     });

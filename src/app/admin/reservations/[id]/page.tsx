@@ -180,6 +180,7 @@ export default async function AdminReservationDetailPage({ params }: PageProps) 
         <div className="min-w-0 lg:col-span-1">
           <ReservationActionPanel
             reservationId={reservation.reservationId}
+            reservationNo={reservation.reservationNo}
             reservationStatus={reservation.reservationStatus}
             defaultSpaceId={defaultSpace?.spaceId ?? null}
             assignedSpaceId={reservation.assignedSpaceId}

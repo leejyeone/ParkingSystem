@@ -19,6 +19,8 @@ type SpaceOption = {
 
 type Props = {
   reservationId: number;
+  /** 승인 완료 안내에 표시할 예약번호 */
+  reservationNo: string;
   reservationStatus: string;
   /** 화면 진입 시점에 고른 기본 배정 위치. 드롭다운의 초기값으로만 쓴다. */
   defaultSpaceId: number | null;
@@ -32,6 +34,7 @@ type Props = {
 
 export function ReservationActionPanel({
   reservationId,
+  reservationNo,
   reservationStatus,
   defaultSpaceId,
   assignedSpaceId,
@@ -55,7 +58,13 @@ export function ReservationActionPanel({
   const selectedSpace = availableSpaces.find((space) => String(space.spaceId) === selectedSpaceId);
   const isDoubleSelected = selectedSpace?.spaceType === 'DOUBLE';
 
-  async function run(action: string, url: string, method: 'POST' | 'PUT', body?: unknown) {
+  async function run(
+    action: string,
+    url: string,
+    method: 'POST' | 'PUT',
+    body?: unknown,
+    options: { redirectTo?: string } = {},
+  ) {
     setPending(action);
     setMessage(null);
     setFieldErrors({});
@@ -65,13 +74,20 @@ export function ReservationActionPanel({
       body: body === undefined ? undefined : JSON.stringify(body),
     });
 
-    setPending(null);
-
     if (response.ok) {
+      // 처리를 끝내고 다음 건으로 넘어가는 흐름이면 목록으로 돌려보낸다.
+      if (options.redirectTo) {
+        router.push(options.redirectTo);
+        router.refresh();
+        return; // 화면이 곧 바뀌므로 pending 을 풀지 않아 버튼 재클릭을 막는다.
+      }
+      setPending(null);
       setMessage({ variant: 'success', text: '처리되었습니다.' });
       router.refresh();
       return;
     }
+
+    setPending(null);
     setFieldErrors(response.error.fieldErrors ?? {});
     setMessage({ variant: 'error', text: response.error.message });
   }
@@ -85,6 +101,13 @@ export function ReservationActionPanel({
   const canExit = ENTRY_EXIT_MANAGEMENT_ENABLED && reservationStatus === 'PARKING';
   const canNoShow = ENTRY_EXIT_MANAGEMENT_ENABLED && reservationStatus === 'APPROVED';
   const isTerminal = ['REJECTED', 'CANCELLED', 'EXITED', 'NO_SHOW'].includes(reservationStatus);
+
+  /*
+   * 배정할 자리가 하나도 없으면 주차면 선택과 승인 버튼을 아예 감춘다.
+   * 눌러도 서버에서 NO_AVAILABLE_SPACE 로 막히므로, 누를 수 있게 두면
+   * 실패할 걸 알면서 시도하게 만드는 셈이다. 안내만 남기고 반려로 유도한다.
+   */
+  const canAssignSpace = !spaceAssignmentEnabled || hasAvailableSpace;
 
   return (
     <div className="space-y-4">
@@ -124,7 +147,7 @@ export function ReservationActionPanel({
               </Alert>
             )}
 
-            {spaceAssignmentEnabled && (
+            {spaceAssignmentEnabled && canAssignSpace && (
               <FormField
                 label="배정할 주차면"
                 htmlFor="space-select"
@@ -148,47 +171,59 @@ export function ReservationActionPanel({
               </FormField>
             )}
 
-            {spaceAssignmentEnabled && isDoubleSelected && (
+            {spaceAssignmentEnabled && canAssignSpace && isDoubleSelected && (
               <Alert variant="warning" title="⚠ 이중주차 위치를 선택했습니다">
                 승인 시 신청자에게 이중주차 안내 메일이 추가 발송됩니다.
               </Alert>
             )}
 
-            <div className="grid gap-2 sm:grid-cols-2">
-              {canApprove && (
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={pending !== null}
-                  onClick={() =>
-                    run('approve', `/api/admin/reservations/${reservationId}/approve`, 'POST', {
-                      spaceId:
-                        spaceAssignmentEnabled && selectedSpaceId ? Number(selectedSpaceId) : null,
-                    })
-                  }
-                >
-                  {pending === 'approve'
-                    ? '승인 중…'
-                    : spaceAssignmentEnabled
-                      ? '승인 및 위치 확정'
-                      : '승인'}
-                </button>
-              )}
-              {canChangeSpace && (
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  disabled={pending !== null || !selectedSpaceId}
-                  onClick={() =>
-                    run('space', `/api/admin/reservations/${reservationId}/space`, 'PUT', {
-                      spaceId: Number(selectedSpaceId),
-                    })
-                  }
-                >
-                  {pending === 'space' ? '변경 중…' : '주차 위치 변경'}
-                </button>
-              )}
-            </div>
+            {canAssignSpace && (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {canApprove && (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={pending !== null}
+                    onClick={() =>
+                      run(
+                        'approve',
+                        `/api/admin/reservations/${reservationId}/approve`,
+                        'POST',
+                        {
+                          spaceId:
+                            spaceAssignmentEnabled && selectedSpaceId
+                              ? Number(selectedSpaceId)
+                              : null,
+                        },
+                        {
+                          redirectTo: `/admin/reservations?approved=${encodeURIComponent(reservationNo)}`,
+                        },
+                      )
+                    }
+                  >
+                    {pending === 'approve'
+                      ? '승인 중…'
+                      : spaceAssignmentEnabled
+                        ? '승인 및 위치 확정'
+                        : '승인'}
+                  </button>
+                )}
+                {canChangeSpace && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={pending !== null || !selectedSpaceId}
+                    onClick={() =>
+                      run('space', `/api/admin/reservations/${reservationId}/space`, 'PUT', {
+                        spaceId: Number(selectedSpaceId),
+                      })
+                    }
+                  >
+                    {pending === 'space' ? '변경 중…' : '주차 위치 변경'}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </section>
       )}
@@ -218,9 +253,15 @@ export function ReservationActionPanel({
               className="btn btn-danger"
               disabled={pending !== null || rejectionReason.trim() === ''}
               onClick={() =>
-                run('reject', `/api/admin/reservations/${reservationId}/reject`, 'POST', {
-                  rejectionReason,
-                })
+                run(
+                  'reject',
+                  `/api/admin/reservations/${reservationId}/reject`,
+                  'POST',
+                  { rejectionReason },
+                  {
+                    redirectTo: `/admin/reservations?rejected=${encodeURIComponent(reservationNo)}`,
+                  },
+                )
               }
             >
               {pending === 'reject' ? '반려 중…' : '반려 처리'}

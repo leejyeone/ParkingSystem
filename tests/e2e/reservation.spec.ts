@@ -70,8 +70,8 @@ async function loginAsAdmin(page: import('@playwright/test').Page) {
 async function openPendingReservationDetail(page: import('@playwright/test').Page) {
   await page.goto('/admin/reservations?status=REQUESTED');
   await expect(page.getByRole('heading', { name: '예약 목록' })).toBeVisible();
-  // 목록의 예약번호 링크로 상세에 진입한다. (행 아무 곳이나 눌러도 동일하게 이동한다)
-  await page.getByRole('link', { name: /^PK-/ }).first().click();
+  // 목록의 예약번호는 링크가 아니므로 행을 눌러 상세에 진입한다.
+  await page.getByTestId('reservation-row').first().click();
   await expect(page.getByRole('heading', { name: /^PK-/ })).toBeVisible();
 }
 
@@ -152,8 +152,11 @@ test('관리자가 로그인해 예약을 승인하고 주차면을 배정한다
   await expect(page.getByLabel('배정할 주차면').locator('option:checked')).toContainText('A-01');
 
   await page.getByRole('button', { name: '승인 및 위치 확정' }).click();
-  await expect(page.getByText('처리되었습니다.')).toBeVisible();
 
+  // 승인이 끝나면 목록으로 돌아가고, 완료 안내와 함께 그 건이 승인 완료로 보인다.
+  await expect(page).toHaveURL(/\/admin\/reservations\?approved=PK-/);
+  await expect(page.getByText('승인 처리를 완료했습니다')).toBeVisible();
+  await expect(page.getByRole('heading', { name: '예약 목록' })).toBeVisible();
   await expect(page.getByTestId('status-badge').first()).toHaveText('승인 완료');
 
   const reservation = await prisma.parkingReservation.findFirst({
@@ -197,7 +200,7 @@ test('신청자는 승인 대기 상태에서만 수정할 수 있고, 승인 �
   await openPendingReservationDetail(page);
   const detailUrl = page.url();
   await page.getByRole('button', { name: '승인 및 위치 확정' }).click();
-  await expect(page.getByText('처리되었습니다.')).toBeVisible();
+  await expect(page.getByText('승인 처리를 완료했습니다')).toBeVisible();
 
   // 3) 승인 후에는 신청자에게 수정 버튼이 없고 담당자 문의 안내만 보인다.
   await page.goto(accessUrl);

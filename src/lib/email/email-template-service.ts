@@ -276,6 +276,13 @@ export function renderReservationEmail(
     }
 
     case EmailType.APPROVED: {
+      /*
+       * 이중주차로 배정된 경우 별도 안내 메일을 따로 보내지 않고 이 메일에 합친다.
+       * 같은 시점에 같은 사람에게 두 통이 도착하면 하나를 놓치기 쉽고, 정작 중요한
+       * 차량 이동 안내가 두 번째 메일에만 있으면 전달되지 않을 수 있다.
+       */
+      const isDoubleParking = data.assignedSpaceType === SpaceType.DOUBLE;
+
       const notices = [
         '입차 시 차량번호와 예약 정보가 일치해야 합니다.',
         '승인 완료된 예약은 신청자가 직접 수정·취소할 수 없습니다. 변경이 필요하면 주차 관리 담당자에게 문의해 주세요.',
@@ -283,19 +290,31 @@ export function renderReservationEmail(
       if (!usesSpaceAssignment(data)) {
         notices.push('주차 위치는 지정되지 않습니다. 방문 시 현장 안내에 따라 주차해 주세요.');
       }
-      if (data.assignedSpaceType === SpaceType.DOUBLE) {
-        notices.push('이중주차 구역으로 배정되었습니다. 차량 이동 요청이 있을 수 있습니다.');
+      if (isDoubleParking) {
+        // 차량 이동 요청을 받게 되므로 가장 먼저 읽히도록 앞에 둔다.
+        notices.unshift(
+          '⚠ 이중주차 위치로 배정되었습니다. 앞 차량 출차를 위해 차량 이동 요청을 받으실 수 있습니다.',
+          '차량 이동 요청은 현장 안내 방송 또는 안내 데스크를 통해 전달됩니다. 방문 중 확인이 가능하도록 해 주세요.',
+          '기어는 중립(N)에 두고 주차 브레이크는 해제해 주시기 바랍니다.',
+        );
       }
+
       const params = {
-        title: '주차 신청이 승인되었습니다',
-        lead: `${data.requesterName}님, 신청하신 주차 예약이 승인되었습니다.`,
+        title: isDoubleParking
+          ? '주차 신청이 승인되었습니다 (이중주차 배정)'
+          : '주차 신청이 승인되었습니다',
+        lead: isDoubleParking
+          ? `${data.requesterName}님, 신청하신 주차 예약이 승인되었습니다. 주차 공간 사정으로 이중주차 위치가 배정되었으니 아래 안내를 반드시 확인해 주세요.`
+          : `${data.requesterName}님, 신청하신 주차 예약이 승인되었습니다.`,
         rows: [...rows, ...spaceRows(data), { label: '예약 상태', value: '승인 완료' }],
         notices,
         buttonLabel: '내 예약 조회하기',
         buttonUrl: data.accessUrl,
       };
       return {
-        subject: `[시노펙스] 주차 신청이 승인되었습니다${suffix}`,
+        subject: isDoubleParking
+          ? `[시노펙스] 주차 신청 승인 및 이중주차 배정 안내${suffix}`
+          : `[시노펙스] 주차 신청이 승인되었습니다${suffix}`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };
@@ -400,23 +419,13 @@ export function renderReservationEmail(
     }
 
     case EmailType.DOUBLE_PARKING_NOTICE: {
-      const params = {
-        title: '이중주차 위치로 배정되었습니다',
-        lead: `${data.requesterName}님, 주차 공간 사정으로 이중주차 위치가 배정되었습니다. 아래 내용을 반드시 확인해 주세요.`,
-        rows: [...rows, { label: '배정 주차 위치', value: spaceGuideText(data) }],
-        notices: [
-          '앞 차량 출차를 위해 차량 이동 요청을 받으실 수 있습니다.',
-          '차량 이동 요청은 현장 안내 방송 또는 안내 데스크를 통해 전달됩니다. 방문 중 확인이 가능하도록 해 주세요.',
-          '기어는 중립(N)에 두고 주차 브레이크는 해제해 주시기 바랍니다.',
-        ],
-        buttonLabel: '내 예약 조회하기',
-        buttonUrl: data.accessUrl,
-      };
-      return {
-        subject: `[시노펙스] 이중주차 배정 안내${suffix}`,
-        html: renderHtmlLayout(params),
-        text: renderTextLayout(params),
-      };
+      /*
+       * 더 이상 단독으로 발송하지 않는다. 승인 메일(APPROVED)에 안내를 합쳤다.
+       * 이미 쌓인 발송 로그가 이 값을 참조하므로 enum 자체는 남겨 둔다.
+       */
+      throw new Error(
+        '이중주차 안내는 승인 메일에 포함되어 발송됩니다. 별도로 렌더링하지 않습니다.',
+      );
     }
 
     default: {

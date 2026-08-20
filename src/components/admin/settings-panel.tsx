@@ -17,7 +17,6 @@ type NotificationEmail = {
   recipientName: string | null;
   receiveNewRequest: boolean;
   receiveApprovalAlert: boolean;
-  receiveDoubleParkingAlert: boolean;
   isActive: boolean;
 };
 
@@ -324,7 +323,6 @@ function NotificationSection({ emails }: { emails: NotificationEmail[] }) {
     recipientName: '',
     receiveNewRequest: true,
     receiveApprovalAlert: true,
-    receiveDoubleParkingAlert: true,
     isActive: true,
   });
 

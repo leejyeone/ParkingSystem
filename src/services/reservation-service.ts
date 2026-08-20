@@ -31,7 +31,6 @@ import {
   dispatchQuietly,
   sendApprovedEmail,
   sendCancelledEmails,
-  sendDoubleParkingNoticeEmails,
   sendNewRequestToAdminEmails,
   sendRejectedEmail,
   sendRequestReceivedEmail,
@@ -798,10 +797,8 @@ export async function approveReservation(
 
   await dispatchQuietly(
     (async () => {
+      // 이중주차 배정 안내는 승인 메일 본문에 포함된다. (별도 발송하지 않음)
       await sendApprovedEmail(forEmail, { accessUrl });
-      if (approved.assignedSpace?.spaceType === SpaceType.DOUBLE) {
-        await sendDoubleParkingNoticeEmails(forEmail, { accessUrl });
-      }
     })(),
   );
 
@@ -1007,9 +1004,6 @@ export async function changeAssignedSpace(
   await dispatchQuietly(
     (async () => {
       await sendApprovedEmail(forEmail, { accessUrl });
-      if (updated.assignedSpace?.spaceType === SpaceType.DOUBLE) {
-        await sendDoubleParkingNoticeEmails(forEmail, { accessUrl });
-      }
     })(),
   );
 
@@ -1217,6 +1211,8 @@ export async function listReservationsForAdmin(
 ): Promise<{
   items: ReservationListItem[];
   totalCount: number;
+  /** 같은 검색 조건에서 승인 대기(REQUESTED)인 건수 */
+  pendingCount: number;
   page: number;
   pageSize: number;
   totalPages: number;
@@ -1224,19 +1220,32 @@ export async function listReservationsForAdmin(
   const page = Math.max(1, filter.page ?? 1);
   const pageSize = Math.min(100, Math.max(1, filter.pageSize ?? 20));
 
-  const where: Prisma.ParkingReservationWhereInput = {
+  // 상태 외의 조건. 미승인 건수는 상태 조건만 바꿔서 같은 범위로 센다.
+  const whereWithoutStatus: Prisma.ParkingReservationWhereInput = {
     ...(filter.dateFrom && filter.dateTo
       ? { visitStartAt: { lt: filter.dateTo }, visitEndAt: { gt: filter.dateFrom } }
       : {}),
-    ...buildStatusWhere(filter.status),
     ...(filter.requesterType ? { requesterType: filter.requesterType } : {}),
     ...(filter.vehicleNo ? { vehicleNo: { contains: normalizeVehicleNo(filter.vehicleNo) } } : {}),
     ...(filter.requesterName ? { requesterName: { contains: filter.requesterName } } : {}),
     ...(filter.spaceCode ? { assignedSpace: { spaceCode: { contains: filter.spaceCode } } } : {}),
   };
 
-  const [totalCount, rows] = await Promise.all([
+  const where: Prisma.ParkingReservationWhereInput = {
+    ...whereWithoutStatus,
+    ...buildStatusWhere(filter.status),
+  };
+
+  const [totalCount, pendingCount, rows] = await Promise.all([
     prisma.parkingReservation.count({ where }),
+    /*
+     * 같은 검색 조건에서 아직 승인 대기인 건수.
+     * 상태 조건만 REQUESTED 로 바꿔 세므로, 관리자가 상태 필터를 걸어 둔 상태에서도
+     * "처리할 게 남아 있다" 는 사실이 보인다.
+     */
+    prisma.parkingReservation.count({
+      where: { ...whereWithoutStatus, reservationStatus: ReservationStatus.REQUESTED },
+    }),
     prisma.parkingReservation.findMany({
       where,
       include: RESERVATION_WITH_SPACES,
@@ -1276,6 +1285,7 @@ export async function listReservationsForAdmin(
   return {
     items: rows.map(toReservationListItem),
     totalCount,
+    pendingCount,
     page,
     pageSize,
     totalPages: Math.max(1, Math.ceil(totalCount / pageSize)),

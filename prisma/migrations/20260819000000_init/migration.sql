@@ -159,7 +159,6 @@ CREATE TABLE `admin_notification_emails` (
     `recipient_name` VARCHAR(50) NULL,
     `receive_new_request` BOOLEAN NOT NULL DEFAULT true,
     `receive_approval_alert` BOOLEAN NOT NULL DEFAULT true,
-    `receive_double_parking_alert` BOOLEAN NOT NULL DEFAULT true,
     `is_active` BOOLEAN NOT NULL DEFAULT true,
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updated_at` DATETIME(3) NOT NULL,

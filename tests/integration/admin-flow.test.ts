@@ -104,7 +104,7 @@ describe('8. 일반 주차면 만차 시 이중주차로 승인', () => {
     fixtures = await seedFixtures({ normalSpaces: 1 });
   });
 
-  it('일반 주차면이 모두 차면 이중주차 위치를 배정하고 안내 메일을 추가 발송한다', async () => {
+  it('일반 주차면이 모두 차면 이중주차로 배정하고 승인 메일 한 통에 안내를 담는다', async () => {
     const range = futureVisitRange({ startHour: 10, hours: 2 });
 
     const first = await createReservation(baseReservationInput(range));
@@ -125,14 +125,24 @@ describe('8. 일반 주차면 만차 시 이중주차로 승인', () => {
 
     expect(approved.assignedSpace?.spaceType).toBe(SpaceType.DOUBLE);
 
-    const doubleMails = await prisma.emailSendLog.findMany({
+    // 별도의 이중주차 안내 메일은 더 이상 발송하지 않는다.
+    const doubleMails = await prisma.emailSendLog.count({
       where: {
         reservationId: second.reservation.reservationId,
         emailType: EmailType.DOUBLE_PARKING_NOTICE,
       },
     });
-    // 신청자 1건 + 이중주차 알림 수신 관리자 1건
-    expect(doubleMails).toHaveLength(2);
+    expect(doubleMails).toBe(0);
+
+    // 승인 메일 한 통에 이중주차 안내가 함께 담긴다.
+    const approvedMails = await prisma.emailSendLog.findMany({
+      where: {
+        reservationId: second.reservation.reservationId,
+        emailType: EmailType.APPROVED,
+      },
+    });
+    expect(approvedMails).toHaveLength(1);
+    expect(approvedMails[0].subject).toContain('이중주차');
   });
 
   it('모든 주차면이 만차이면 승인할 수 없다', async () => {

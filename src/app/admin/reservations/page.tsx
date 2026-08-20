@@ -4,8 +4,9 @@ import { headers } from 'next/headers';
 import Link from 'next/link';
 
 import { ClickableTableRow } from '@/components/admin/clickable-table-row';
+import { Alert } from '@/components/ui/alert';
 import { FilterBar, type FilterChip } from '@/components/admin/filter-bar';
-import { SpaceTypeBadge, StatusBadge } from '@/components/ui/status-badge';
+import { StatusBadge } from '@/components/ui/status-badge';
 import {
   DISPLAY_STATUS_LABEL,
   REQUESTER_TYPE_LABEL,
@@ -34,6 +35,9 @@ type PageProps = {
     requesterName?: string;
     spaceCode?: string;
     page?: string;
+    /** 승인·반려 처리 후 목록으로 돌아올 때 붙는 예약번호. 완료 안내에만 쓴다. */
+    approved?: string;
+    rejected?: string;
   }>;
 };
 
@@ -100,6 +104,15 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
 
   const buildPageHref = (targetPage: number) => buildHref({ page: String(targetPage) });
 
+  /*
+   * 승인 직후 목록으로 돌아왔을 때만 완료 안내를 띄운다.
+   * 값은 화면에 그대로 찍히므로 예약번호 형식이 맞을 때만 쓴다.
+   */
+  const isReservationNo = (value?: string) =>
+    Boolean(value && /^PK-\d{8}-[A-Z2-9]{6}$/.test(value));
+  const approvedNo = isReservationNo(params.approved) ? params.approved : null;
+  const rejectedNo = isReservationNo(params.rejected) ? params.rejected : null;
+
   // 적용된 조건만 칩으로 노출한다. (모바일에서 입력 폼이 화면을 다 차지하지 않도록)
   const chips: FilterChip[] = [
     { key: 'date', label: '날짜', value: date },
@@ -131,6 +144,20 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
           외 사용이나 외부 공유는 금지됩니다.
         </p>
       </div>
+
+      {approvedNo && (
+        <Alert variant="success" title="승인 처리를 완료했습니다">
+          예약 <span className="font-mono font-bold">{approvedNo}</span> 이(가) 승인되었습니다.
+          신청자에게 승인 안내 메일이 발송되었습니다.
+        </Alert>
+      )}
+
+      {rejectedNo && (
+        <Alert variant="warning" title="반려 처리를 완료했습니다">
+          예약 <span className="font-mono font-bold">{rejectedNo}</span> 이(가) 반려되었습니다.
+          신청자에게 반려 사유가 메일로 발송되었습니다.
+        </Alert>
+      )}
 
       <FilterBar chips={chips} resetHref={BASE_PATH} emptyLabel="전체 예약을 보고 있습니다.">
         <form method="get" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -222,7 +249,13 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
       <section className="card">
         <div className="card-body">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <p className="text-sm font-bold text-slate-700">전체 {result.totalCount}건</p>
+            <p className="flex flex-wrap items-center gap-2 text-sm font-bold text-slate-700">
+              <span>전체 {result.totalCount}건</span>
+              {/* 같은 검색 조건에서 아직 승인하지 않은 건수 (상태 필터와 무관하게 센다) */}
+              <span className={result.pendingCount > 0 ? 'text-amber-700' : 'text-slate-400'}>
+                · 미승인 {result.pendingCount}건
+              </span>
+            </p>
             {result.items.length > 0 && (
               <p className="text-xs text-slate-500">행을 누르면 상세 화면으로 이동합니다.</p>
             )}
@@ -235,15 +268,14 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>예약번호</th>
                     <th>상태</th>
-                    <th>구분</th>
                     <th>방문 상호/지사</th>
                     <th>성명</th>
-                    <th>이메일</th>
                     <th>차량번호</th>
                     <th>방문 시간</th>
-                    {showSpace && <th>배정 위치</th>}
+                    <th>구분</th>
+                    <th>이메일</th>
+                    <th>예약번호</th>
                     <th>신청일시</th>
                   </tr>
                 </thead>
@@ -253,43 +285,30 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
                       key={reservation.reservationId}
                       href={`${BASE_PATH}/${reservation.reservationId}`}
                     >
-                      <td className="font-mono text-xs">
-                        {/* 키보드 이동과 새 탭 열기를 위해 실제 링크를 둔다. */}
-                        <Link
-                          href={`${BASE_PATH}/${reservation.reservationId}`}
-                          className="text-brand-700 font-bold hover:underline"
-                        >
-                          {reservation.reservationNo}
-                        </Link>
-                      </td>
                       <td>
                         <StatusBadge status={reservation.displayStatus} />
                       </td>
-                      <td>{REQUESTER_TYPE_LABEL[reservation.requesterType]}</td>
-                      <td>{reservation.companyOrBranchName}</td>
+                      <td>
+                        {/*
+                          키보드 이동과 새 탭 열기를 위해 행 안에 실제 링크를 하나 둔다.
+                          행 전체가 이미 눌리므로 평문처럼 보이게 두고, 초점이 갔을 때만 드러낸다.
+                        */}
+                        <Link
+                          href={`${BASE_PATH}/${reservation.reservationId}`}
+                          className="text-inherit no-underline focus-visible:underline"
+                        >
+                          {reservation.companyOrBranchName}
+                        </Link>
+                      </td>
                       <td>{reservation.requesterName}</td>
-                      <td className="text-xs">{reservation.requesterEmail}</td>
                       <td className="font-mono text-xs">{reservation.vehicleNo}</td>
                       <td className="text-xs whitespace-nowrap">
                         {formatKstDateTime(reservation.visitStartAt)}
                         <br />~ {formatKstDateTime(reservation.visitEndAt)}
                       </td>
-                      {showSpace && (
-                        <td>
-                          {reservation.assignedSpaceCode ? (
-                            <span className="flex flex-wrap items-center gap-1">
-                              <span className="font-mono font-bold">
-                                {reservation.assignedSpaceCode}
-                              </span>
-                              {reservation.assignedSpaceType && (
-                                <SpaceTypeBadge spaceType={reservation.assignedSpaceType} />
-                              )}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-slate-400">미배정</span>
-                          )}
-                        </td>
-                      )}
+                      <td>{REQUESTER_TYPE_LABEL[reservation.requesterType]}</td>
+                      <td className="text-xs">{reservation.requesterEmail}</td>
+                      <td className="font-mono text-xs">{reservation.reservationNo}</td>
                       <td className="text-xs whitespace-nowrap text-slate-500">
                         {formatKstDateTime(reservation.createdAt)}
                       </td>

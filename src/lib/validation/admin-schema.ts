@@ -138,7 +138,6 @@ export const notificationEmailSchema = z.object({
   recipientName: optionalText(50, '수신자 이름'),
   receiveNewRequest: z.boolean().default(true),
   receiveApprovalAlert: z.boolean().default(true),
-  receiveDoubleParkingAlert: z.boolean().default(true),
   isActive: z.boolean().default(true),
 });
 

@@ -325,9 +325,8 @@ model AdminNotificationEmail {
   email               String  @unique(map: "uq_admin_notification_emails_email") @db.VarChar(255)
   recipientName       String? @map("recipient_name") @db.VarChar(50)
 
-  receiveNewRequest         Boolean @default(true) @map("receive_new_request")
-  receiveApprovalAlert      Boolean @default(true) @map("receive_approval_alert")
-  receiveDoubleParkingAlert Boolean @default(true) @map("receive_double_parking_alert")
+  receiveNewRequest    Boolean @default(true) @map("receive_new_request")
+  receiveApprovalAlert Boolean @default(true) @map("receive_approval_alert")
 
   isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")
