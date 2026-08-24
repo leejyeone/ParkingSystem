@@ -1087,15 +1087,21 @@ function SpaceSection({
 
           <h3 className="mt-5 text-sm font-bold text-slate-700">주차면</h3>
           <div className="table-scroll mt-2">
-            <table className="data-table">
+            {/*
+              편집 모드는 칸마다 입력·선택이 들어가서 보기 모드와 필요한 폭이 다르다. auto
+              레이아웃에 그대로 맡기면 좁은 화면에서 select 의 화살표만 남고 내용이 잘린다.
+              편집할 때만 table-fixed + 열별 고정 폭을 주고 가로 스크롤로 보게 한다.
+              메모는 내용 길이가 다양해 고정하지 않고 남는 폭을 가져가게 둔다.
+            */}
+            <table className={`data-table ${editing ? 'min-w-[860px] table-fixed' : ''}`}>
               <thead>
                 <tr>
-                  <th>코드</th>
-                  <th>유형</th>
-                  <th>구역</th>
-                  <th>상태</th>
+                  <th className={editing ? 'w-28' : ''}>코드</th>
+                  <th className={editing ? 'w-32' : ''}>유형</th>
+                  <th className={editing ? 'w-28' : ''}>상태</th>
+                  <th className={editing ? 'w-56' : ''}>구역</th>
                   <th>메모</th>
-                  {editing && <th></th>}
+                  {editing && <th className="w-20"></th>}
                 </tr>
               </thead>
               <tbody>
@@ -1110,8 +1116,8 @@ function SpaceSection({
                         <td>
                           <SpaceTypeBadge spaceType={space.spaceType} />
                         </td>
-                        <td className="text-xs">{space.area.areaName}</td>
                         <td className="whitespace-nowrap">{space.isActive ? '활성' : '비활성'}</td>
+                        <td className="text-xs">{space.area.areaName}</td>
                         <td className="text-xs text-slate-500">{space.memo ?? '-'}</td>
                       </tr>
                     );
@@ -1152,6 +1158,22 @@ function SpaceSection({
                       <td>
                         <select
                           className="input"
+                          value={draft.isActive ? 'ACTIVE' : 'INACTIVE'}
+                          disabled={isRemoved}
+                          onChange={(event) =>
+                            updateDraft(space.spaceId, {
+                              isActive: event.target.value === 'ACTIVE',
+                            })
+                          }
+                          aria-label={`${space.spaceCode} 상태`}
+                        >
+                          <option value="ACTIVE">활성</option>
+                          <option value="INACTIVE">비활성</option>
+                        </select>
+                      </td>
+                      <td>
+                        <select
+                          className="input"
                           value={draft.areaId}
                           disabled={isRemoved}
                           onChange={(event) =>
@@ -1164,22 +1186,6 @@ function SpaceSection({
                               {area.areaName}
                             </option>
                           ))}
-                        </select>
-                      </td>
-                      <td>
-                        <select
-                          className="input"
-                          value={draft.isActive ? 'ACTIVE' : 'INACTIVE'}
-                          disabled={isRemoved}
-                          onChange={(event) =>
-                            updateDraft(space.spaceId, {
-                              isActive: event.target.value === 'ACTIVE',
-                            })
-                          }
-                          aria-label={`${space.spaceCode} 상태`}
-                        >
-                          <option value="ACTIVE">활성</option>
-                          <option value="INACTIVE">비활성</option>
                         </select>
                       </td>
                       <td>
@@ -1262,6 +1268,7 @@ function SpaceSection({
                           ))}
                         </select>
                       </td>
+                      <td className="text-xs whitespace-nowrap text-slate-500">활성</td>
                       <td>
                         <select
                           className="input"
@@ -1284,7 +1291,6 @@ function SpaceSection({
                           ))}
                         </select>
                       </td>
-                      <td className="text-xs whitespace-nowrap text-slate-500">활성</td>
                       <td>
                         <input
                           className="input"
