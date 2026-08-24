@@ -255,13 +255,24 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
             </p>
 
             <div className="table-scroll mt-3">
-              <table className="data-table">
+              {/*
+                table-fixed 로 두는 이유.
+
+                기본값인 auto 레이아웃에서 `width` 는 강제가 아니라 선호값이다. 표가 내용보다
+                넓으면 브라우저가 재량껏 열을 늘리는데, 그 방식이 엔진마다 달라 Safari 에서는
+                폭을 지정한 유형 열까지 같이 늘어났다.
+                fixed 레이아웃은 첫 행에 지정한 폭을 그대로 따르므로 엔진이 달라도 같아진다.
+
+                주차면·유형은 내용이 짧아 고정 폭(`B1-01`, `사용불가` 기준)으로 두고,
+                남는 폭은 정보가 많은 상태·상세가 절반씩 나눠 갖는다.
+              */}
+              <table className="data-table table-fixed">
                 <thead>
                   <tr>
-                    <th>주차면</th>
-                    <th>유형</th>
-                    <th>상태</th>
-                    <th>상세</th>
+                    <th className="w-24">주차면</th>
+                    <th className="w-24">유형</th>
+                    <th className="w-1/2">상태</th>
+                    <th className="w-1/2">상세</th>
                   </tr>
                 </thead>
                 <tbody>

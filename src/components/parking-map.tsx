@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 
 import {
   MAP_BUILDING,
@@ -23,6 +26,9 @@ import type { SpaceStatusRow } from '@/services/dashboard-service';
  *    본인에게 배정된 한 면만 강조한다. 코드(B1-02)만 알려주면 현장에서 찾기 어렵기 때문이다.
  *
  * viewBox 만 지정하고 width 를 지정하지 않아 컨테이너 폭에 맞춰 늘어난다.
+ *
+ * 클라이언트 컴포넌트인 이유는 한 주차면에 예약이 여러 건일 때 고를 패널이 필요해서다.
+ * 신청자 화면에서는 상호작용이 없지만, 정적인 SVG 라 전송 비용이 크지 않다.
  */
 
 /** 1 SVG unit = 0.1 m */
@@ -70,6 +76,19 @@ type Props =
 export function ParkingMap({ spaces, highlightCode }: Props) {
   const byCode = new Map((spaces ?? []).map((space) => [space.spaceCode, space]));
   const requesterView = spaces === undefined;
+
+  /** 예약이 여러 건인 주차면을 눌렀을 때 목록을 띄울 대상. */
+  const [pickerCode, setPickerCode] = useState<string | null>(null);
+  const picker = pickerCode ? byCode.get(pickerCode) : undefined;
+
+  useEffect(() => {
+    if (!pickerCode) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setPickerCode(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [pickerCode]);
 
   /*
    * 도면은 이 사업장 배치에 맞춰 그려져 있다. 표시할 주차면이 도면과 하나도 맞지 않으면
@@ -197,6 +216,7 @@ export function ParkingMap({ spaces, highlightCode }: Props) {
           const style = requesterView ? (mine ? MINE : NEUTRAL) : styleFor(space);
           const cx = u(stall.x + stall.w / 2);
           const cy = u(stall.y + stall.h / 2) + 3.5;
+          const occupancies = requesterView ? [] : (space?.occupancies ?? []);
           const label = (
             <>
               <rect
@@ -219,26 +239,145 @@ export function ParkingMap({ spaces, highlightCode }: Props) {
               >
                 {stall.code}
               </text>
+              {/*
+                예약이 두 건 이상이면 눌렀을 때 바로 넘어가지 않고 목록이 뜬다.
+                누르기 전에 알 수 있도록 건수를 표시한다.
+              */}
+              {occupancies.length > 1 && (
+                <>
+                  <circle
+                    cx={u(stall.x + stall.w) - 7}
+                    cy={u(stall.y) + 7}
+                    r={6.5}
+                    fill="#ffffff"
+                    stroke={style.stroke}
+                    strokeWidth={1.2}
+                  />
+                  <text
+                    x={u(stall.x + stall.w) - 7}
+                    y={u(stall.y) + 10}
+                    fontSize={8.5}
+                    fontWeight={700}
+                    fill={style.stroke}
+                    textAnchor="middle"
+                  >
+                    {occupancies.length}
+                  </text>
+                </>
+              )}
               {/* 신청자 화면에서는 다른 예약자의 정보를 툴팁으로도 노출하지 않는다. */}
               {!requesterView && <title>{tooltipFor(stall.code, space)}</title>}
             </>
           );
 
-          if (requesterView) {
-            return <g key={stall.code}>{label}</g>;
+          // 예약이 한 건이면 바로 상세로, 여러 건이면 골라야 하므로 패널을 띄운다.
+          if (occupancies.length === 1) {
+            return (
+              <Link key={stall.code} href={`/admin/reservations/${occupancies[0].reservationId}`}>
+                {label}
+              </Link>
+            );
           }
-
-          // 예약이 있으면 눌러서 해당 예약 상세로 넘어갈 수 있게 한다.
-          const reservationId = space?.occupancies[0]?.reservationId;
-          return reservationId ? (
-            <Link key={stall.code} href={`/admin/reservations/${reservationId}`}>
-              {label}
-            </Link>
-          ) : (
-            <g key={stall.code}>{label}</g>
-          );
+          if (occupancies.length > 1) {
+            /*
+             * `<g onClick>` 이 아니라 링크로 두는 이유.
+             *
+             * iOS Safari 는 원래 누를 수 있는 요소(a, button, input)가 아니면 click 이벤트를
+             * 위로 전달하지 않는다. React 는 루트 컨테이너에 리스너를 하나 걸어 두고 처리하므로
+             * `<g>` 에 붙인 onClick 이 아이폰에서는 아예 호출되지 않았다.
+             *
+             * 링크로 두면 네이티브로 누를 수 있는 요소가 되어 아이폰에서도 동작하고,
+             * 키보드 조작(Tab/Enter)도 브라우저가 알아서 해 준다. href 는 첫 예약을 가리켜
+             * 스크립트가 실패해도 최소한 이동은 되게 남겨 둔다.
+             */
+            return (
+              <Link
+                key={stall.code}
+                href={`/admin/reservations/${occupancies[0].reservationId}`}
+                className="cursor-pointer"
+                aria-label={`${stall.code} 예약 ${occupancies.length}건 선택`}
+                onClick={(event) => {
+                  event.preventDefault();
+                  setPickerCode(stall.code);
+                }}
+              >
+                {label}
+              </Link>
+            );
+          }
+          return <g key={stall.code}>{label}</g>;
         })}
       </svg>
+
+      {picker && <ReservationPicker space={picker} onClose={() => setPickerCode(null)} />}
+    </div>
+  );
+}
+
+/** 한 주차면에 걸린 예약이 여러 건일 때 고르는 패널. */
+function ReservationPicker({ space, onClose }: { space: SpaceStatusRow; onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="parking-map-picker-title"
+    >
+      {/*
+        배경도 버튼으로 둔다. div 에 onClick 을 걸면 위 주차면과 같은 이유로
+        아이폰에서 눌리지 않는다. 겸사겸사 패널 안쪽 클릭을 막을 필요도 없어진다.
+      */}
+      <button
+        type="button"
+        className="absolute inset-0 bg-slate-900/50"
+        aria-label="닫기"
+        onClick={onClose}
+      />
+
+      <div className="card relative w-full max-w-md">
+        <div className="card-body space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 id="parking-map-picker-title" className="card-title">
+                {space.spaceCode}
+              </h3>
+              <p className="field-hint">
+                예약 {space.occupancies.length}건이 걸려 있습니다. 볼 예약을 선택하세요.
+              </p>
+            </div>
+            <button type="button" className="btn btn-ghost" onClick={onClose}>
+              닫기
+            </button>
+          </div>
+
+          <ul className="space-y-2">
+            {space.occupancies.map((occupancy) => (
+              <li key={occupancy.reservationId}>
+                <Link
+                  href={`/admin/reservations/${occupancy.reservationId}`}
+                  className="hover:border-brand-500 hover:bg-brand-50 block rounded-lg border border-slate-200 px-3 py-2.5 transition"
+                >
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="text-brand-700 text-sm font-bold">
+                      {formatKstTime(occupancy.visitStartAt)} ~{' '}
+                      {formatKstTime(occupancy.visitEndAt)}
+                    </span>
+                    {occupancy.reservationId === space.inUseReservationId && (
+                      <span className="badge bg-emerald-100 text-emerald-800">사용 중</span>
+                    )}
+                  </span>
+                  <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                    <span className="font-mono font-bold text-slate-800">
+                      {occupancy.vehicleNo}
+                    </span>
+                    <span className="font-mono">{occupancy.reservationNo}</span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
     </div>
   );
 }

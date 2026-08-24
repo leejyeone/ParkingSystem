@@ -46,6 +46,20 @@ button {
   font-size: 16px;
 }
 
+/*
+ * iOS Safari 는 날짜/시간 입력에 네이티브 컨트롤 기준의 고유 너비를 주는데,
+ * 이 값이 `width: 100%` 보다 우선해서 좁은 화면에서 입력칸이 카드 밖으로 넘친다.
+ * 고유 너비를 풀어 부모 폭을 넘지 않게 한다.
+ */
+input[type='date'],
+input[type='time'],
+input[type='datetime-local'] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  max-width: 100%;
+}
+
 @layer components {
   .app-container {
     @apply mx-auto w-full max-w-3xl px-4 py-6 sm:px-6;
