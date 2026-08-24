@@ -139,6 +139,16 @@ export function ReservationForm({
     return <CompletionView result={result} />;
   }
 
+  // 방문 목적/요청 메모는 선택 입력이라 뺀다. 서버가 최종 검증하며, 이건 버튼 활성화용 힌트일 뿐이다.
+  const isFormValid =
+    form.companyOrBranchName.trim() !== '' &&
+    form.requesterName.trim() !== '' &&
+    form.requesterEmail.trim() !== '' &&
+    form.vehicleNo.trim() !== '' &&
+    form.visitStartAt !== '' &&
+    form.visitEndAt !== '' &&
+    form.privacyConsent;
+
   return (
     <form onSubmit={handleSubmit} noValidate>
       {formError && (
@@ -333,11 +343,11 @@ export function ReservationForm({
             />
           </FormField>
 
-          <Alert variant="info" title="주차 위치 안내">
+          {/* <Alert variant="info" title="주차 위치 안내">
             {settings.spaceAssignmentEnabled
               ? '주차 위치는 관리자가 배정합니다. 신청자가 직접 선택할 수 없습니다.'
               : '주차 위치는 지정되지 않습니다. 관리자 승인 후 방문하시어 현장 안내에 따라 주차해 주세요.'}
-          </Alert>
+          </Alert> */}
         </div>
       </div>
 
@@ -388,7 +398,11 @@ export function ReservationForm({
       </div>
 
       <div className="sticky-actions mt-4">
-        <button type="submit" className="btn btn-primary btn-lg w-full" disabled={submitting}>
+        <button
+          type="submit"
+          className="btn btn-primary btn-lg w-full"
+          disabled={submitting || !isFormValid}
+        >
           {submitting ? '신청 중…' : '주차 신청하기'}
         </button>
       </div>
