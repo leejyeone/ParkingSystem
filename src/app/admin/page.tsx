@@ -248,7 +248,12 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
       {showSpace && (
         <section className="card">
           <div className="card-body">
-            <h2 className="card-title">주차면 현황</h2>
+            <h2 className="card-title">
+              주차면 현황
+              <span className="ml-2 text-xs font-bold text-slate-500">
+                {dashboard.spaces.filter((space) => space.status === 'IN_USE').length}면 사용 중
+              </span>
+            </h2>
             <p className="field-hint">
               주차면 배정은 예약 상세 화면의 선택 목록에서 수행합니다. 도면 위 클릭 배정은 제공하지
               않습니다.

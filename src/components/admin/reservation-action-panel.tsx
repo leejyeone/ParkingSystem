@@ -196,7 +196,7 @@ export function ReservationActionPanel({
                               : null,
                         },
                         {
-                          redirectTo: `/admin/reservations?approved=${encodeURIComponent(reservationNo)}`,
+                          redirectTo: `/admin/reservations?status=REQUESTED&approved=${encodeURIComponent(reservationNo)}`,
                         },
                       )
                     }
@@ -259,7 +259,7 @@ export function ReservationActionPanel({
                   'POST',
                   { rejectionReason },
                   {
-                    redirectTo: `/admin/reservations?rejected=${encodeURIComponent(reservationNo)}`,
+                    redirectTo: `/admin/reservations?status=REQUESTED&rejected=${encodeURIComponent(reservationNo)}`,
                   },
                 )
               }
