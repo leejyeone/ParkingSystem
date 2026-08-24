@@ -93,6 +93,8 @@ export async function sendEmailWithLog(params: {
         emailType,
         recipientEmail: to,
         subject: rendered.subject.slice(0, 300),
+        bodyHtml: rendered.html,
+        bodyText: rendered.text,
         sendStatus: EmailSendStatus.PENDING,
         dedupeKey,
       },

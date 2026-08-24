@@ -11,15 +11,16 @@ type Props = {
   roleCode: 'PARKING_ADMIN' | 'SYSTEM_ADMIN';
 };
 
-const BASE_MENU = [
+/**
+ * 시스템 설정·감사 로그는 SYSTEM_ADMIN 전용이다(페이지 쪽 requireSystemAdminPage 와 짝을 맞춤).
+ * 이메일 이력은 주차 관리자도 승인/반려 처리 중 발송 여부를 확인해야 해서 두 역할 모두에게 연다.
+ */
+const MENU: { href: string; label: string; systemOnly?: boolean }[] = [
   { href: '/admin', label: '대시보드' },
   { href: '/admin/reservations', label: '예약 목록' },
+  { href: '/admin/settings', label: '시스템 설정', systemOnly: true },
   { href: '/admin/email-logs', label: '이메일 이력' },
-];
-
-const SYSTEM_MENU = [
-  { href: '/admin/settings', label: '시스템 설정' },
-  { href: '/admin/audit-logs', label: '감사 로그' },
+  { href: '/admin/audit-logs', label: '감사 로그', systemOnly: true },
 ];
 
 export function AdminNav({ adminName, roleCode }: Props) {
@@ -27,7 +28,7 @@ export function AdminNav({ adminName, roleCode }: Props) {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
 
-  const menu = roleCode === 'SYSTEM_ADMIN' ? [...BASE_MENU, ...SYSTEM_MENU] : BASE_MENU;
+  const menu = MENU.filter((item) => !item.systemOnly || roleCode === 'SYSTEM_ADMIN');
 
   async function handleLogout() {
     setLoggingOut(true);

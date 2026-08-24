@@ -4,6 +4,7 @@ import { SPACE_OCCUPYING_STATUSES } from '@/domain/reservation-status';
 import { buildOverlapWhere } from '@/domain/time-overlap';
 import { kstDayRangeUtc, parseTimeOfDayToMinutes } from '@/lib/datetime';
 import { prisma } from '@/lib/prisma';
+import { countUnresolvedFailedEmails } from '@/services/log-query-service';
 import { toReservationListItem, type ReservationListItem } from '@/services/reservation-service';
 import { getSystemSettings } from '@/services/settings-service';
 
@@ -67,6 +68,8 @@ export type DashboardData = {
   pendingCount: number;
   /** 날짜와 무관한 전체 승인 대기 건수. 다른 날짜 신청을 놓치지 않도록 함께 보여준다. */
   pendingTotalCount: number;
+  /** 발송 실패한 이메일 건수(날짜 무관, 전체). 신청자에게 안내 메일이 못 갔을 수 있어 경고로 띄운다. */
+  failedEmailCount: number;
   spaces: SpaceStatusRow[];
   pendingReservations: ReservationListItem[];
   hourlyUsage: HourlyUsage[];
@@ -78,51 +81,54 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
   const spaceAssignmentEnabled = settings.spaceAssignmentEnabled;
   const { start, end } = kstDayRangeUtc(dateString, settings.appTimeZone);
 
-  const [spaces, dayReservations, pendingReservations, pendingTotalCount] = await Promise.all([
-    prisma.parkingSpace.findMany({
-      // 비활성 주차면도 도면에 회색으로 표시해야 하므로 함께 가져온다.
-      where: { area: { isActive: true } },
-      orderBy: [{ displayOrder: 'asc' }, { spaceId: 'asc' }],
-      select: {
-        spaceId: true,
-        spaceCode: true,
-        spaceName: true,
-        spaceType: true,
-        isActive: true,
-        memo: true,
-        area: { select: { areaName: true } },
-      },
-    }),
-    prisma.parkingReservation.findMany({
-      where: {
-        reservationStatus: { in: [...SPACE_OCCUPYING_STATUSES] },
-        // 배정을 쓰지 않으면 주차면이 없는 예약도 "당일 주차 차량" 으로 세야 한다.
-        ...(spaceAssignmentEnabled ? { assignedSpaceId: { not: null } } : {}),
-        ...buildOverlapWhere(start, end),
-      },
-      select: {
-        reservationId: true,
-        reservationNo: true,
-        reservationStatus: true,
-        vehicleNo: true,
-        visitStartAt: true,
-        visitEndAt: true,
-        assignedSpaceId: true,
-      },
-      orderBy: { visitStartAt: 'asc' },
-    }),
-    prisma.parkingReservation.findMany({
-      where: { reservationStatus: ReservationStatus.REQUESTED, ...buildOverlapWhere(start, end) },
-      include: {
-        assignedSpace: { select: { spaceId: true, spaceCode: true, spaceType: true } },
-      },
-      orderBy: [{ visitStartAt: 'asc' }, { reservationId: 'asc' }],
-    }),
-    // 날짜 필터 없이 전체 승인 대기 건수를 센다.
-    prisma.parkingReservation.count({
-      where: { reservationStatus: ReservationStatus.REQUESTED },
-    }),
-  ]);
+  const [spaces, dayReservations, pendingReservations, pendingTotalCount, failedEmailCount] =
+    await Promise.all([
+      prisma.parkingSpace.findMany({
+        // 비활성 주차면도 도면에 회색으로 표시해야 하므로 함께 가져온다.
+        where: { area: { isActive: true } },
+        orderBy: [{ displayOrder: 'asc' }, { spaceId: 'asc' }],
+        select: {
+          spaceId: true,
+          spaceCode: true,
+          spaceName: true,
+          spaceType: true,
+          isActive: true,
+          memo: true,
+          area: { select: { areaName: true } },
+        },
+      }),
+      prisma.parkingReservation.findMany({
+        where: {
+          reservationStatus: { in: [...SPACE_OCCUPYING_STATUSES] },
+          // 배정을 쓰지 않으면 주차면이 없는 예약도 "당일 주차 차량" 으로 세야 한다.
+          ...(spaceAssignmentEnabled ? { assignedSpaceId: { not: null } } : {}),
+          ...buildOverlapWhere(start, end),
+        },
+        select: {
+          reservationId: true,
+          reservationNo: true,
+          reservationStatus: true,
+          vehicleNo: true,
+          visitStartAt: true,
+          visitEndAt: true,
+          assignedSpaceId: true,
+        },
+        orderBy: { visitStartAt: 'asc' },
+      }),
+      prisma.parkingReservation.findMany({
+        where: { reservationStatus: ReservationStatus.REQUESTED, ...buildOverlapWhere(start, end) },
+        include: {
+          assignedSpace: { select: { spaceId: true, spaceCode: true, spaceType: true } },
+        },
+        orderBy: [{ visitStartAt: 'asc' }, { reservationId: 'asc' }],
+      }),
+      // 날짜 필터 없이 전체 승인 대기 건수를 센다.
+      prisma.parkingReservation.count({
+        where: { reservationStatus: ReservationStatus.REQUESTED },
+      }),
+      // 날짜 필터 없이, 아직 해결되지 않은 발송 실패 건수를 센다.
+      countUnresolvedFailedEmails(),
+    ]);
 
   const nowMs = Date.now();
   const bySpace = new Map<number, SpaceStatusRow['occupancies']>();
@@ -198,6 +204,7 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
     doubleTotalCount: doubleSpaces.length,
     pendingCount: pendingReservations.length,
     pendingTotalCount,
+    failedEmailCount,
     spaces: spaceRows,
     pendingReservations: pendingReservations.map((r) =>
       toReservationListItem(r, settings.entryExitManagementEnabled),

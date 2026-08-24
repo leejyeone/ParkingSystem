@@ -134,6 +134,14 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
         />
       </section>
 
+      {dashboard.failedEmailCount > 0 && (
+        <Alert variant="error">
+          <Link href="/admin/email-logs?sendStatus=FAILED" className="font-bold hover:underline">
+            ⚠ 발송 실패한 이메일이 {dashboard.failedEmailCount}건 있습니다. 눌러서 확인하세요.
+          </Link>
+        </Alert>
+      )}
+
       <section className="card">
         <div className="card-body">
           <div className="flex items-center justify-between">

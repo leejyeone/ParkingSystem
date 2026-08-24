@@ -2,6 +2,7 @@ import { EmailSendStatus, EmailType } from '@prisma/client';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
+import { EmailLogResendButton } from '@/components/admin/email-log-resend-button';
 import { FilterBar, type FilterChip } from '@/components/admin/filter-bar';
 import { requireAdminPage } from '@/lib/admin-page-guard';
 import { formatKstDateTime } from '@/lib/datetime';
@@ -29,6 +30,17 @@ const STATUS_LABEL: Record<EmailSendStatus, string> = {
   SUCCESS: '성공',
   FAILED: '실패',
 };
+
+const RESEND_STATUS_LABEL: Record<EmailSendStatus, string> = {
+  PENDING: '재발송 중',
+  SUCCESS: '재발송 성공',
+  FAILED: '재발송 실패',
+};
+
+/** 재발송 시도 행이면 "재발송 성공/실패/중"으로, 원본 행이면 그대로 성공/실패/발송 중으로 보여준다. */
+function statusLabel(log: { sendStatus: EmailSendStatus; resendOfLogId: number | null }): string {
+  return log.resendOfLogId ? RESEND_STATUS_LABEL[log.sendStatus] : STATUS_LABEL[log.sendStatus];
+}
 
 type PageProps = {
   searchParams: Promise<{
@@ -174,6 +186,7 @@ export default async function AdminEmailLogsPage({ searchParams }: PageProps) {
                   <th>제목</th>
                   <th>상태</th>
                   <th>실패 사유</th>
+                  <th className="text-xs">재발송</th>
                 </tr>
               </thead>
               <tbody>
@@ -207,17 +220,26 @@ export default async function AdminEmailLogsPage({ searchParams }: PageProps) {
                               : 'bg-slate-100 text-slate-600'
                         }`}
                       >
-                        {STATUS_LABEL[log.sendStatus]}
+                        {statusLabel(log)}
                       </span>
                     </td>
                     <td className="max-w-[280px] text-xs break-words text-red-600">
                       {log.failReason ?? '-'}
                     </td>
+                    <td className="text-xs">
+                      {log.canResend ? (
+                        <EmailLogResendButton emailLogId={log.emailLogId} />
+                      ) : log.resolved ? (
+                        <span className="text-slate-500">완료</span>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
                   </tr>
                 ))}
                 {result.items.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="py-6 text-center text-sm text-slate-500">
+                    <td colSpan={8} className="py-6 text-center text-sm text-slate-500">
                       발송 이력이 없습니다.
                     </td>
                   </tr>

@@ -346,6 +346,10 @@ model EmailSendLog {
   emailType         EmailType       @map("email_type")
   recipientEmail    String          @map("recipient_email") @db.VarChar(255)
   subject           String          @db.VarChar(300)
+  /// 실제 발송한 HTML 본문. 실패 건 재발송 시 원문 그대로 다시 보내는 데 쓴다.
+  bodyHtml          String?         @map("body_html") @db.LongText
+  /// 실제 발송한 텍스트 본문.
+  bodyText          String?         @map("body_text") @db.LongText
   sendStatus        EmailSendStatus @default(PENDING) @map("send_status")
   providerMessageId String?         @map("provider_message_id") @db.VarChar(255)
   failReason        String?         @map("fail_reason") @db.Text
@@ -358,10 +362,18 @@ model EmailSendLog {
   /// MySQL 의 UNIQUE 인덱스는 NULL 을 중복 허용하므로 부분 유니크처럼 동작한다.
   dedupeKey String? @unique(map: "uq_email_send_logs_dedupe_key") @map("dedupe_key") @db.VarChar(100)
 
+  /// 이 행이 어느 실패 건의 재발송인지. 원본(최초 발송)은 항상 NULL이다.
+  /// 재발송을 다시 재발송해도 이 값은 항상 최초 원본을 가리킨다(체인이 아니라 트리 루트) —
+  /// 한 실패 건의 재발송 이력을 한 번의 조회로 모을 수 있다.
+  resendOfLogId Int?           @map("resend_of_log_id")
+  resendOf      EmailSendLog?  @relation("EmailResend", fields: [resendOfLogId], references: [emailLogId], onDelete: SetNull)
+  resends       EmailSendLog[] @relation("EmailResend")
+
   reservation ParkingReservation? @relation(fields: [reservationId], references: [reservationId], onDelete: SetNull)
 
   @@index([reservationId, emailType, sendStatus], map: "idx_email_logs_reservation_type_status")
   @@index([sendStatus, requestedAt], map: "idx_email_logs_status_requested")
+  @@index([resendOfLogId], map: "idx_email_logs_resend_of")
   @@map("email_send_logs")
 }
 

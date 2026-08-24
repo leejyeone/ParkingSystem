@@ -175,6 +175,8 @@ CREATE TABLE `email_send_logs` (
     `email_type` ENUM('REQUEST_RECEIVED', 'NEW_REQUEST_TO_ADMIN', 'APPROVED', 'REJECTED', 'UPDATED', 'CANCELLED', 'EXIT_REMINDER', 'DOUBLE_PARKING_NOTICE') NOT NULL,
     `recipient_email` VARCHAR(255) NOT NULL,
     `subject` VARCHAR(300) NOT NULL,
+    `body_html` LONGTEXT NULL,
+    `body_text` LONGTEXT NULL,
     `send_status` ENUM('PENDING', 'SUCCESS', 'FAILED') NOT NULL DEFAULT 'PENDING',
     `provider_message_id` VARCHAR(255) NULL,
     `fail_reason` TEXT NULL,
@@ -182,10 +184,12 @@ CREATE TABLE `email_send_logs` (
     `requested_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `sent_at` DATETIME(3) NULL,
     `dedupe_key` VARCHAR(100) NULL,
+    `resend_of_log_id` INTEGER NULL,
 
     UNIQUE INDEX `uq_email_send_logs_dedupe_key`(`dedupe_key`),
     INDEX `idx_email_logs_reservation_type_status`(`reservation_id`, `email_type`, `send_status`),
     INDEX `idx_email_logs_status_requested`(`send_status`, `requested_at`),
+    INDEX `idx_email_logs_resend_of`(`resend_of_log_id`),
     PRIMARY KEY (`email_log_id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -254,6 +258,9 @@ ALTER TABLE `parking_reservation_status_logs` ADD CONSTRAINT `parking_reservatio
 
 -- AddForeignKey
 ALTER TABLE `parking_reservation_status_logs` ADD CONSTRAINT `parking_reservation_status_logs_changed_by_admin_id_fkey` FOREIGN KEY (`changed_by_admin_id`) REFERENCES `admin_users`(`admin_user_id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `email_send_logs` ADD CONSTRAINT `email_send_logs_resend_of_log_id_fkey` FOREIGN KEY (`resend_of_log_id`) REFERENCES `email_send_logs`(`email_log_id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `email_send_logs` ADD CONSTRAINT `email_send_logs_reservation_id_fkey` FOREIGN KEY (`reservation_id`) REFERENCES `parking_reservations`(`reservation_id`) ON DELETE SET NULL ON UPDATE CASCADE;
