@@ -53,6 +53,14 @@ export const rejectReservationSchema = z.object({
   rejectionReason: requiredText(500, '반려 사유'),
 });
 
+export const bulkRejectReservationSchema = z.object({
+  reservationIds: z
+    .array(z.coerce.number().int().positive())
+    .min(1, '반려할 예약을 하나 이상 선택해 주세요.')
+    .max(200, '한 번에 최대 200건까지 처리할 수 있습니다.'),
+  rejectionReason: requiredText(500, '반려 사유'),
+});
+
 export const noShowReservationSchema = z.object({
   reason: optionalText(500, '처리 사유'),
 });

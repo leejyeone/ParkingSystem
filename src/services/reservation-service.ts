@@ -917,6 +917,44 @@ export async function rejectReservation(
   return rejected;
 }
 
+export type BulkRejectResult = {
+  succeeded: number[];
+  failed: { reservationId: number; message: string }[];
+};
+
+/**
+ * 여러 예약을 같은 사유로 한 번에 반려한다.
+ *
+ * 한 건씩 순서대로 처리하고 실패한 건은 건너뛴다 — 목록을 고른 뒤 실제 처리 사이에
+ * 다른 관리자가 먼저 승인/반려했을 수 있어(REQUESTED 가 아니게 됨), 그런 건만 빼고
+ * 나머지는 정상 처리되게 하기 위함이다. rejectReservation 을 그대로 재사용해
+ * 감사 로그·이메일 발송 등 단건 반려와 동작이 완전히 같다.
+ */
+export async function bulkRejectReservations(
+  params: { reservationIds: number[]; rejectionReason: string } & AdminActionContext,
+): Promise<BulkRejectResult> {
+  const result: BulkRejectResult = { succeeded: [], failed: [] };
+
+  for (const reservationId of params.reservationIds) {
+    try {
+      const rejected = await rejectReservation({
+        reservationId,
+        rejectionReason: params.rejectionReason,
+        adminUserId: params.adminUserId,
+        requestContext: params.requestContext,
+      });
+      result.succeeded.push(rejected.reservationId);
+    } catch (error) {
+      result.failed.push({
+        reservationId,
+        message: error instanceof Error ? error.message : '반려 처리에 실패했습니다.',
+      });
+    }
+  }
+
+  return result;
+}
+
 /** 배정 주차면 변경 (승인/입차 상태에서만 가능) */
 export async function changeAssignedSpace(
   params: { reservationId: number; spaceId: number } & AdminActionContext,

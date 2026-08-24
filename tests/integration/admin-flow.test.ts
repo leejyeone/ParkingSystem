@@ -130,15 +130,6 @@ describe('8. 일반 주차면 만차 시 이중주차로 승인', () => {
 
     expect(approved.assignedSpace?.spaceType).toBe(SpaceType.DOUBLE);
 
-    // 별도의 이중주차 안내 메일은 더 이상 발송하지 않는다.
-    const doubleMails = await prisma.emailSendLog.count({
-      where: {
-        reservationId: second.reservation.reservationId,
-        emailType: EmailType.DOUBLE_PARKING_NOTICE,
-      },
-    });
-    expect(doubleMails).toBe(0);
-
     // 승인 메일 한 통에 이중주차 안내가 함께 담긴다.
     const approvedMails = await prisma.emailSendLog.findMany({
       where: {

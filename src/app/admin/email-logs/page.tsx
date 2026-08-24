@@ -22,7 +22,6 @@ const EMAIL_TYPE_LABEL: Record<EmailType, string> = {
   UPDATED: '변경',
   CANCELLED: '취소',
   EXIT_REMINDER: '출차 예정 알림',
-  DOUBLE_PARKING_NOTICE: '이중주차 안내',
 };
 
 const STATUS_LABEL: Record<EmailSendStatus, string> = {

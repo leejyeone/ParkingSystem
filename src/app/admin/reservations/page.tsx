@@ -3,10 +3,9 @@ import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import Link from 'next/link';
 
-import { ClickableTableRow } from '@/components/admin/clickable-table-row';
+import { ReservationBulkRejectTable } from '@/components/admin/reservation-bulk-reject-table';
 import { Alert } from '@/components/ui/alert';
 import { FilterBar, type FilterChip } from '@/components/admin/filter-bar';
-import { StatusBadge } from '@/components/ui/status-badge';
 import {
   REQUESTER_TYPE_LABEL,
   RESERVATION_STATUS_FILTER_OPTIONS,
@@ -247,76 +246,24 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
 
       <section className="card">
         <div className="card-body">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <p className="flex flex-wrap items-center gap-2 text-sm font-bold text-slate-700">
-              <span>전체 {result.totalCount}건</span>
-              {/* 같은 검색 조건에서 아직 승인하지 않은 건수 (상태 필터와 무관하게 센다) */}
-              <span className={result.pendingCount > 0 ? 'text-amber-700' : 'text-slate-400'}>
-                · 미승인 {result.pendingCount}건
-              </span>
-            </p>
-            {result.items.length > 0 && (
-              <p className="text-xs text-slate-500">행을 누르면 상세 화면으로 이동합니다.</p>
-            )}
-          </div>
-
-          {result.items.length === 0 ? (
-            <p className="mt-4 text-sm text-slate-500">조건에 해당하는 예약이 없습니다.</p>
-          ) : (
-            <div className="table-scroll mt-3">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>상태</th>
-                    <th>방문 상호/지사</th>
-                    <th>성명</th>
-                    <th>차량번호</th>
-                    <th>방문 시간</th>
-                    <th>구분</th>
-                    <th>이메일</th>
-                    <th>예약번호</th>
-                    <th>신청일시</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.items.map((reservation) => (
-                    <ClickableTableRow
-                      key={reservation.reservationId}
-                      href={`${BASE_PATH}/${reservation.reservationId}`}
-                    >
-                      <td>
-                        <StatusBadge status={reservation.reservationStatus} />
-                      </td>
-                      <td>
-                        {/*
-                          키보드 이동과 새 탭 열기를 위해 행 안에 실제 링크를 하나 둔다.
-                          행 전체가 이미 눌리므로 평문처럼 보이게 두고, 초점이 갔을 때만 드러낸다.
-                        */}
-                        <Link
-                          href={`${BASE_PATH}/${reservation.reservationId}`}
-                          className="text-inherit no-underline focus-visible:underline"
-                        >
-                          {reservation.companyOrBranchName}
-                        </Link>
-                      </td>
-                      <td>{reservation.requesterName}</td>
-                      <td className="font-mono text-xs">{reservation.vehicleNo}</td>
-                      <td className="text-xs whitespace-nowrap">
-                        {formatKstDateTime(reservation.visitStartAt)}
-                        <br />~ {formatKstDateTime(reservation.visitEndAt)}
-                      </td>
-                      <td>{REQUESTER_TYPE_LABEL[reservation.requesterType]}</td>
-                      <td className="text-xs">{reservation.requesterEmail}</td>
-                      <td className="font-mono text-xs">{reservation.reservationNo}</td>
-                      <td className="text-xs whitespace-nowrap text-slate-500">
-                        {formatKstDateTime(reservation.createdAt)}
-                      </td>
-                    </ClickableTableRow>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <ReservationBulkRejectTable
+            basePath={BASE_PATH}
+            totalCount={result.totalCount}
+            pendingCount={result.pendingCount}
+            items={result.items.map((reservation) => ({
+              reservationId: reservation.reservationId,
+              reservationNo: reservation.reservationNo,
+              reservationStatus: reservation.reservationStatus,
+              requesterType: reservation.requesterType,
+              companyOrBranchName: reservation.companyOrBranchName,
+              requesterName: reservation.requesterName,
+              requesterEmail: reservation.requesterEmail,
+              vehicleNo: reservation.vehicleNo,
+              visitStartText: formatKstDateTime(reservation.visitStartAt),
+              visitEndText: formatKstDateTime(reservation.visitEndAt),
+              createdAtText: formatKstDateTime(reservation.createdAt),
+            }))}
+          />
 
           {result.totalPages > 1 && (
             <nav className="mt-4 flex items-center justify-center gap-2">

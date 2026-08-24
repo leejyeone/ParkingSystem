@@ -78,7 +78,6 @@ enum EmailType {
   UPDATED
   CANCELLED
   EXIT_REMINDER
-  DOUBLE_PARKING_NOTICE
 }
 
 /// 이메일 발송 상태

@@ -427,16 +427,6 @@ export function renderReservationEmail(
       };
     }
 
-    case EmailType.DOUBLE_PARKING_NOTICE: {
-      /*
-       * 더 이상 단독으로 발송하지 않는다. 승인 메일(APPROVED)에 안내를 합쳤다.
-       * 이미 쌓인 발송 로그가 이 값을 참조하므로 enum 자체는 남겨 둔다.
-       */
-      throw new Error(
-        '이중주차 안내는 승인 메일에 포함되어 발송됩니다. 별도로 렌더링하지 않습니다.',
-      );
-    }
-
     default: {
       const exhaustiveCheck: never = emailType;
       throw new Error(`지원하지 않는 이메일 종류입니다: ${String(exhaustiveCheck)}`);
