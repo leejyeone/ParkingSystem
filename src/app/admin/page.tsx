@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { ClickableTableRow } from '@/components/admin/clickable-table-row';
+import { ParkingMap } from '@/components/parking-map';
 import { SpaceTypeBadge } from '@/components/ui/status-badge';
 import { Alert } from '@/components/ui/alert';
 import { requireAdminPage } from '@/lib/admin-page-guard';
@@ -315,29 +316,15 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
         </section>
       )}
 
-      {showSpace && dashboard.mapImageUrls.length > 0 && (
+      {showSpace && (
         <section className="card">
           <div className="card-body">
-            <h2 className="card-title">주차장 도면 (참고용)</h2>
+            <h2 className="card-title">주차 평면도</h2>
             <p className="field-hint">
-              도면은 위치 확인용 참고 이미지입니다. 주차면 배정은 주차면 코드로만 처리됩니다.
+              선택한 날짜 기준 현황입니다. 예약이 있는 주차면을 누르면 해당 예약 상세로 이동합니다.
             </p>
-            <div className="mt-3 space-y-4">
-              {dashboard.mapImageUrls.map((area) => (
-                <figure key={area.areaName}>
-                  <div className="relative w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
-                    {/* 도면은 관리자가 업로드한 임의 이미지를 DB 에서 내려주므로
-                        next/image 최적화 대상에서 제외하고 일반 img 를 사용한다. */}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={area.mapImageUrl}
-                      alt={`${area.areaName} 참고용 도면`}
-                      className="h-auto w-full object-contain"
-                    />
-                  </div>
-                  <figcaption className="mt-1 text-xs text-slate-500">{area.areaName}</figcaption>
-                </figure>
-              ))}
+            <div className="mt-3">
+              <ParkingMap spaces={dashboard.spaces} />
             </div>
           </div>
         </section>

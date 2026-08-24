@@ -59,56 +59,56 @@ async function seedAdminUser(): Promise<number> {
   return admin.adminUserId;
 }
 
+/**
+ * 지하 1층 주차 구역 구성.
+ *
+ * 실제 도면(동탄사업장 지하 1층 LAYOUT)에서 확인한 55면을 그대로 반영한다.
+ * 주차면 규격은 2,300 x 5,000mm 이며, 블록은 기둥으로 끊긴 단위다.
+ * 번호는 램프(우측)에서 가까운 블록부터 붙여, 자동 배정이 진입 동선 순서를 따르게 한다.
+ */
+const SPACE_BLOCKS: readonly { name: string; count: number }[] = [
+  { name: '우상단', count: 7 }, // 4 + 3
+  { name: '우측 중단', count: 7 }, // 상 3 + 하 4
+  { name: '우측 세로', count: 5 }, // 90도 회전 배치
+  { name: '중앙', count: 8 }, // 4 + 4
+  { name: '남측 장변', count: 28 }, // 4면 x 7그룹
+];
+
 async function seedAreaAndSpaces(): Promise<void> {
   const area = await prisma.parkingArea.upsert({
     where: { areaCode: 'MAIN' },
     create: {
       areaCode: 'MAIN',
-      areaName: '본사 주차장',
-      description: '본사 사옥 지상 주차장 (일반 17면 + 이중주차 3면)',
+      areaName: '동탄사업장 지하 1층',
+      description: '지하 1층 주차장 (55면)',
       displayOrder: 1,
       isActive: true,
     },
-    update: { areaName: '본사 주차장', isActive: true },
+    update: { areaName: '동탄사업장 지하 1층', isActive: true },
     select: { areaId: true },
   });
 
-  // 일반 주차면 A-01 ~ A-17
-  for (let index = 1; index <= 17; index += 1) {
-    const spaceCode = `A-${String(index).padStart(2, '0')}`;
-    await prisma.parkingSpace.upsert({
-      where: { areaId_spaceCode: { areaId: area.areaId, spaceCode } },
-      create: {
-        areaId: area.areaId,
-        spaceCode,
-        spaceName: `일반 ${index}번`,
-        spaceType: SpaceType.NORMAL,
-        displayOrder: index,
-        isActive: true,
-      },
-      update: { spaceType: SpaceType.NORMAL, displayOrder: index, isActive: true },
-    });
+  let order = 0;
+  for (const block of SPACE_BLOCKS) {
+    for (let index = 0; index < block.count; index += 1) {
+      order += 1;
+      const spaceCode = `B1-${String(order).padStart(2, '0')}`;
+      await prisma.parkingSpace.upsert({
+        where: { areaId_spaceCode: { areaId: area.areaId, spaceCode } },
+        create: {
+          areaId: area.areaId,
+          spaceCode,
+          spaceType: SpaceType.NORMAL,
+          displayOrder: order,
+          isActive: true,
+          memo: block.name,
+        },
+        update: { spaceType: SpaceType.NORMAL, displayOrder: order, isActive: true },
+      });
+    }
   }
 
-  // 이중주차 위치 D-01 ~ D-03
-  for (let index = 1; index <= 3; index += 1) {
-    const spaceCode = `D-${String(index).padStart(2, '0')}`;
-    await prisma.parkingSpace.upsert({
-      where: { areaId_spaceCode: { areaId: area.areaId, spaceCode } },
-      create: {
-        areaId: area.areaId,
-        spaceCode,
-        spaceName: `이중주차 ${index}번`,
-        spaceType: SpaceType.DOUBLE,
-        displayOrder: 100 + index,
-        isActive: true,
-        memo: '앞 차량 출차 시 이동 요청이 필요할 수 있는 위치',
-      },
-      update: { spaceType: SpaceType.DOUBLE, displayOrder: 100 + index, isActive: true },
-    });
-  }
-
-  console.log('✔ 주차 구역(MAIN) / 일반 17면 / 이중주차 3면 준비 완료');
+  console.log(`✔ 주차 구역(MAIN) / 주차면 ${order}면 준비 완료`);
 }
 
 async function seedSystemSettings(adminUserId: number): Promise<void> {

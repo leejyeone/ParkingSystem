@@ -102,6 +102,11 @@ describe('8. 일반 주차면 만차 시 이중주차로 승인', () => {
   beforeEach(async () => {
     await resetDatabase();
     fixtures = await seedFixtures({ normalSpaces: 1 });
+    // 이중주차는 기본값이 꺼져 있으므로(실제 도면에 이중주차 구역 없음) 이 묶음에서만 켠다.
+    await prisma.systemSetting.update({
+      where: { settingKey: 'DOUBLE_PARKING_ENABLED' },
+      data: { settingValue: 'true' },
+    });
   });
 
   it('일반 주차면이 모두 차면 이중주차로 배정하고 승인 메일 한 통에 안내를 담는다', async () => {

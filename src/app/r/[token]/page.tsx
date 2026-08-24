@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
+import { ParkingMap } from '@/components/parking-map';
 import { ReservationAccessPanel } from '@/components/reservation/reservation-access-panel';
 import { Alert } from '@/components/ui/alert';
 import { toRequesterReservationView } from '@/lib/serializers/reservation-view';
@@ -39,6 +40,8 @@ export default async function ReservationAccessPage({ params }: PageProps) {
     getSystemSettings(),
   ]);
 
+  const view = toRequesterReservationView(reservation);
+
   return (
     <main className="app-container">
       <div className="mb-4">
@@ -50,13 +53,32 @@ export default async function ReservationAccessPage({ params }: PageProps) {
 
       <ReservationAccessPanel
         token={token}
-        initialReservation={toRequesterReservationView(reservation)}
+        initialReservation={view}
         settings={{
           reservationMinLeadMinutes: settings.reservationMinLeadMinutes,
           maxReservationHours: settings.maxReservationHours,
           spaceAssignmentEnabled: settings.spaceAssignmentEnabled,
         }}
       />
+
+      {/*
+        배정 코드만으로는 현장에서 자리를 찾기 어려우므로 평면도에 위치를 표시한다.
+        다른 예약자의 이용 현황은 그리지 않는다.
+      */}
+      {settings.spaceAssignmentEnabled && view.assignedSpaceCode && (
+        <section className="card mt-4">
+          <div className="card-body">
+            <h2 className="card-title">주차 위치 안내</h2>
+            <p className="field-hint">
+              배정된 <strong>{view.assignedSpaceCode}</strong> 위치입니다. 차량 출입구로 들어와
+              표시된 자리에 주차해 주세요.
+            </p>
+            <div className="mt-3">
+              <ParkingMap highlightCode={view.assignedSpaceCode} />
+            </div>
+          </div>
+        </section>
+      )}
     </main>
   );
 }

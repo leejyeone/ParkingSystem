@@ -266,14 +266,23 @@ export async function sendRejectedEmail(
   });
 }
 
-/** 5. 변경 (신청자 + 관리자) */
+/**
+ * 5. 변경 (신청자 + 관리자)
+ *
+ * 관리자가 직접 고친 경우에는 관리자에게 보내지 않는다. 본인이 화면에서 한 일을
+ * 다시 메일로 통보받는 셈이라 알림 가치가 없고, 처리해야 할 신규 신청 메일 사이에
+ * 섞여 노이즈가 된다. 변경 이력은 감사 로그와 상태 이력에 이미 남는다.
+ */
 export async function sendUpdatedEmails(
   reservation: ReservationForEmail,
   options: {
     accessUrl: string;
     previousVisitStartAt: Date;
     previousVisitEndAt: Date;
-    /** 신청자가 아니라 관리자가 수정한 경우 (본문 안내 문구가 달라진다) */
+    /**
+     * 신청자가 아니라 관리자가 수정한 경우.
+     * 본문 안내 문구가 달라지고, 관리자 수신자에게는 보내지 않는다.
+     */
     changedByAdmin?: boolean;
   },
 ): Promise<EmailDispatchResult[]> {
@@ -290,7 +299,7 @@ export async function sendUpdatedEmails(
     adminDetailUrl: buildAdminDetailUrl(reservation.reservationId),
   });
 
-  const admins = await getAdminRecipients('receiveApprovalAlert');
+  const admins = options.changedByAdmin ? [] : await getAdminRecipients('receiveApprovalAlert');
   return Promise.all([
     sendEmailWithLog({
       reservationId: reservation.reservationId,

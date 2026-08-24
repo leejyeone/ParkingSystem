@@ -289,6 +289,11 @@ export function renderReservationEmail(
       ];
       if (!usesSpaceAssignment(data)) {
         notices.push('주차 위치는 지정되지 않습니다. 방문 시 현장 안내에 따라 주차해 주세요.');
+      } else if (data.assignedSpaceCode) {
+        // 코드만으로는 현장에서 찾기 어려우므로 도면이 있는 조회 화면으로 안내한다.
+        notices.push(
+          `배정된 주차 위치는 ${data.assignedSpaceCode} 입니다. 아래 [내 예약 조회하기] 에서 평면도로 위치를 확인하실 수 있습니다.`,
+        );
       }
       if (isDoubleParking) {
         // 차량 이동 요청을 받게 되므로 가장 먼저 읽히도록 앞에 둔다.

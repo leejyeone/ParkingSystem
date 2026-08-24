@@ -55,8 +55,10 @@ export const DEFAULT_SETTINGS: SystemSettingsValues = {
   exitReminderMinutes: 10,
   maxReservationHours: 12,
   spaceAssignmentEnabled: true,
-  parkingCapacity: 17,
-  doubleParkingEnabled: true,
+  // 실제 주차면 수(지하 1층 55면). 주차면 배정을 껐을 때의 상한으로 쓰인다.
+  parkingCapacity: 55,
+  // 도면상 이중주차 구역이 없어 기본값은 끔. 필요하면 시스템 설정에서 켠다.
+  doubleParkingEnabled: false,
   appTimeZone: 'Asia/Seoul',
 };
 
