@@ -41,9 +41,16 @@ function useReservationEdit(reservationId: number, initial: EditableFields) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<EditableFields>(initial);
   const [state, setState] = useState<SaveState>(IDLE);
+  /** 방금 저장에 성공했는지. [수정하기]를 다시 누르면 지운다. */
+  const [saved, setSaved] = useState(false);
 
   function update(key: keyof EditableFields, value: string) {
     setForm((previous) => ({ ...previous, [key]: value }));
+  }
+
+  function startEditing() {
+    setSaved(false);
+    setEditing(true);
   }
 
   function cancel() {
@@ -67,6 +74,7 @@ function useReservationEdit(reservationId: number, initial: EditableFields) {
     if (response.ok) {
       setState(IDLE);
       setEditing(false);
+      setSaved(true);
       router.refresh();
       return;
     }
@@ -78,7 +86,7 @@ function useReservationEdit(reservationId: number, initial: EditableFields) {
     });
   }
 
-  return { editing, setEditing, form, update, state, save, cancel };
+  return { editing, setEditing: startEditing, form, update, state, saved, save, cancel };
 }
 
 function CardShell({
@@ -87,6 +95,7 @@ function CardShell({
   editing,
   pending,
   error,
+  saved,
   onEdit,
   onCancel,
   onSave,
@@ -97,6 +106,8 @@ function CardShell({
   editing: boolean;
   pending: boolean;
   error: string | null;
+  /** 방금 저장에 성공했는지. 성공 안내를 잠깐 보여주는 데만 쓴다. */
+  saved: boolean;
   onEdit: () => void;
   onCancel: () => void;
   onSave: () => void;
@@ -144,6 +155,12 @@ function CardShell({
           </div>
         )}
 
+        {saved && !editing && (
+          <div className="mt-3">
+            <Alert variant="success">저장되었습니다.</Alert>
+          </div>
+        )}
+
         {children}
       </div>
     </section>
@@ -176,7 +193,7 @@ export function RequesterInfoCard({
     createdAtText: string;
   };
 }) {
-  const { editing, setEditing, form, update, state, save, cancel } = useReservationEdit(
+  const { editing, setEditing, form, update, state, saved, save, cancel } = useReservationEdit(
     reservationId,
     initial,
   );
@@ -188,7 +205,8 @@ export function RequesterInfoCard({
       editing={editing}
       pending={state.pending}
       error={state.error}
-      onEdit={() => setEditing(true)}
+      saved={saved}
+      onEdit={setEditing}
       onCancel={cancel}
       onSave={save}
     >
@@ -290,11 +308,14 @@ export function ScheduleCard({
   reservationId,
   editable,
   initial,
+  /** 시스템 설정의 입·출차 관리 사용 여부. false 면 "실제 입차/출차" 행을 감춘다. */
+  entryExitManagementEnabled,
   readOnly,
 }: {
   reservationId: number;
   editable: boolean;
   initial: EditableFields;
+  entryExitManagementEnabled: boolean;
   readOnly: {
     title: string;
     visitRangeText: string;
@@ -306,7 +327,7 @@ export function ScheduleCard({
     cancelReason: string | null;
   };
 }) {
-  const { editing, setEditing, form, update, state, save, cancel } = useReservationEdit(
+  const { editing, setEditing, form, update, state, saved, save, cancel } = useReservationEdit(
     reservationId,
     initial,
   );
@@ -318,7 +339,8 @@ export function ScheduleCard({
       editing={editing}
       pending={state.pending}
       error={state.error}
-      onEdit={() => setEditing(true)}
+      saved={saved}
+      onEdit={setEditing}
       onCancel={cancel}
       onSave={save}
     >
@@ -363,8 +385,17 @@ export function ScheduleCard({
       ) : (
         <dl className="mt-3">
           <Row term="방문 예정" desc={readOnly.visitRangeText} />
-          <Row term="실제 입차" desc={readOnly.actualEntryText} />
-          <Row term="실제 출차" desc={readOnly.actualExitText} />
+          {/*
+            입·출차 관리를 쓰지 않는 동안에는 실제 입/출차 기록이 절대 남지 않아
+            이 두 행이 항상 "-" 로만 보인다. 마치 실제 출입을 추적하는 것처럼 오해할 수 있어
+            시스템 설정에서 기능을 켰을 때만 보여준다.
+          */}
+          {entryExitManagementEnabled && (
+            <>
+              <Row term="실제 입차" desc={readOnly.actualEntryText} />
+              <Row term="실제 출차" desc={readOnly.actualExitText} />
+            </>
+          )}
           {readOnly.spaceSection}
           {readOnly.rejectionReason && <Row term="반려 사유" desc={readOnly.rejectionReason} />}
           {readOnly.cancelReason && <Row term="취소 사유" desc={readOnly.cancelReason} />}

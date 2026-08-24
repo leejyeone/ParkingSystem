@@ -166,7 +166,9 @@ describe('회원 예약 연결 / 내 예약 목록', () => {
     );
     expect(reservation.userId).toBe(session.userId);
 
-    const myReservations = await listReservationsForUser(session.userId);
+    const myReservations = await listReservationsForUser(session.userId, {
+      entryExitManagementEnabled: false,
+    });
     expect(myReservations).toHaveLength(1);
     expect(myReservations[0].reservationNo).toBe(reservation.reservationNo);
   });
@@ -177,14 +179,18 @@ describe('회원 예약 연결 / 내 예약 목록', () => {
 
     await createReservation(baseReservationInput({ userId: other.userId }));
 
-    expect(await listReservationsForUser(mine.userId)).toHaveLength(0);
+    expect(
+      await listReservationsForUser(mine.userId, { entryExitManagementEnabled: false }),
+    ).toHaveLength(0);
   });
 
   it('비로그인 신청은 어떤 회원 목록에도 포함되지 않는다', async () => {
     const session = await signUpUser(SIGN_UP);
     await createReservation(baseReservationInput());
 
-    expect(await listReservationsForUser(session.userId)).toHaveLength(0);
+    expect(
+      await listReservationsForUser(session.userId, { entryExitManagementEnabled: false }),
+    ).toHaveLength(0);
   });
 });
 

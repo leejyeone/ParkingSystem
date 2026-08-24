@@ -40,7 +40,7 @@ export default async function ReservationAccessPage({ params }: PageProps) {
     getSystemSettings(),
   ]);
 
-  const view = toRequesterReservationView(reservation);
+  const view = toRequesterReservationView(reservation, settings.entryExitManagementEnabled);
 
   return (
     <main className="app-container">

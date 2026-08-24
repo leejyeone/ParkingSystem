@@ -37,10 +37,10 @@ export default async function MyPage({ searchParams }: PageProps) {
     name: profile.name,
   });
 
-  const [reservations, settings] = await Promise.all([
-    listReservationsForUser(session.userId),
-    getSystemSettings(),
-  ]);
+  const settings = await getSystemSettings();
+  const reservations = await listReservationsForUser(session.userId, {
+    entryExitManagementEnabled: settings.entryExitManagementEnabled,
+  });
   const showSpace = settings.spaceAssignmentEnabled;
 
   return (

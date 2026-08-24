@@ -13,6 +13,7 @@ export const SETTING_KEYS = {
   PARKING_CAPACITY: 'PARKING_CAPACITY',
   DOUBLE_PARKING_ENABLED: 'DOUBLE_PARKING_ENABLED',
   APP_TIME_ZONE: 'APP_TIME_ZONE',
+  ENTRY_EXIT_MANAGEMENT_ENABLED: 'ENTRY_EXIT_MANAGEMENT_ENABLED',
 } as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS];
@@ -46,6 +47,18 @@ export type SystemSettingsValues = {
   doubleParkingEnabled: boolean;
   /** 표시 기준 타임존 */
   appTimeZone: string;
+  /**
+   * 입차 / 출차 / 미방문(NO_SHOW) 처리 사용 여부.
+   *
+   * false 이면
+   *  - 관리자 예약 상세의 [입·출차 처리] 영역과 "실제 입차/출차" 표시가 나타나지 않는다.
+   *  - 관련 API(entry / exit / no-show)가 거부된다.
+   *  - 자동 NO_SHOW 배치가 아무것도 처리하지 않는다.
+   *  - 신청자 화면의 "사용 중/사용 완료"는 방문 예정 시간만 보고 추정한다.
+   *
+   * 현장에서 입출차를 확인할 수단(차단기 연동, 상주 인력 등)이 갖춰졌을 때 관리자가 직접 켠다.
+   */
+  entryExitManagementEnabled: boolean;
 };
 
 export const DEFAULT_SETTINGS: SystemSettingsValues = {
@@ -60,6 +73,8 @@ export const DEFAULT_SETTINGS: SystemSettingsValues = {
   // 도면상 이중주차 구역이 없어 기본값은 끔. 필요하면 시스템 설정에서 켠다.
   doubleParkingEnabled: false,
   appTimeZone: 'Asia/Seoul',
+  // 현장에 차단기 연동·상주 인력 등 실제 입출차를 확인할 수단이 없어 기본은 끔.
+  entryExitManagementEnabled: false,
 };
 
 export const SETTING_DESCRIPTIONS: Record<SettingKey, string> = {
@@ -75,6 +90,8 @@ export const SETTING_DESCRIPTIONS: Record<SettingKey, string> = {
     '동시 주차 가능 최대 대수. 주차면 배정을 사용하지 않을 때 정원 초과 승인을 막는 기준입니다.',
   DOUBLE_PARKING_ENABLED: '이중주차 위치 배정 사용 여부(true/false).',
   APP_TIME_ZONE: '시스템 표시 기준 타임존.',
+  ENTRY_EXIT_MANAGEMENT_ENABLED:
+    '실제 입·출차/미방문 처리 사용 여부(true/false). false 이면 관련 화면·API가 비활성화됩니다.',
 };
 
 /** DB 의 key/value 목록을 타입이 있는 설정 객체로 변환 */
@@ -127,6 +144,10 @@ export function toSettingsValues(
       DEFAULT_SETTINGS.doubleParkingEnabled,
     ),
     appTimeZone: readString(SETTING_KEYS.APP_TIME_ZONE, DEFAULT_SETTINGS.appTimeZone),
+    entryExitManagementEnabled: readBoolean(
+      SETTING_KEYS.ENTRY_EXIT_MANAGEMENT_ENABLED,
+      DEFAULT_SETTINGS.entryExitManagementEnabled,
+    ),
   };
 }
 
@@ -162,5 +183,9 @@ export function toSettingRows(
       settingValue: String(values.doubleParkingEnabled),
     },
     { settingKey: SETTING_KEYS.APP_TIME_ZONE, settingValue: values.appTimeZone },
+    {
+      settingKey: SETTING_KEYS.ENTRY_EXIT_MANAGEMENT_ENABLED,
+      settingValue: String(values.entryExitManagementEnabled),
+    },
   ];
 }

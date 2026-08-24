@@ -1,5 +1,6 @@
 import { apiSuccess, handleApiError } from '@/lib/api-response';
 import { listReservationsForUser } from '@/services/reservation-service';
+import { getSystemSettings } from '@/services/settings-service';
 import { requireActiveUser } from '@/services/user-auth-service';
 
 export const runtime = 'nodejs';
@@ -9,7 +10,11 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     const session = await requireActiveUser();
-    return apiSuccess(await listReservationsForUser(session.userId));
+    const settings = await getSystemSettings();
+    const reservations = await listReservationsForUser(session.userId, {
+      entryExitManagementEnabled: settings.entryExitManagementEnabled,
+    });
+    return apiSuccess(reservations);
   } catch (error) {
     return handleApiError(error);
   }

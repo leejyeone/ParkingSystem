@@ -10,6 +10,7 @@ import {
   cancelReservationByRequester,
   getReservationForRequester,
 } from '@/services/reservation-service';
+import { getSystemSettings } from '@/services/settings-service';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -34,9 +35,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const payload = cancelReservationSchema.parse(await request.json());
 
     await cancelReservationByRequester(resolved.reservationId, payload.cancelReason);
-    const reservation = await getReservationForRequester(resolved.reservationId);
+    const [reservation, settings] = await Promise.all([
+      getReservationForRequester(resolved.reservationId),
+      getSystemSettings(),
+    ]);
 
-    return apiSuccess(toRequesterReservationView(reservation));
+    return apiSuccess(toRequesterReservationView(reservation, settings.entryExitManagementEnabled));
   } catch (error) {
     return handleApiError(error);
   }

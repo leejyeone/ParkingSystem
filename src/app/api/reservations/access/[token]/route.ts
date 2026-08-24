@@ -10,6 +10,7 @@ import {
   getReservationForRequester,
   updateReservationByRequester,
 } from '@/services/reservation-service';
+import { getSystemSettings } from '@/services/settings-service';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -27,9 +28,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
     guardTokenRate(request);
 
     const resolved = await resolveAccessToken(token);
-    const reservation = await getReservationForRequester(resolved.reservationId);
+    const [reservation, settings] = await Promise.all([
+      getReservationForRequester(resolved.reservationId),
+      getSystemSettings(),
+    ]);
 
-    return apiSuccess(toRequesterReservationView(reservation));
+    return apiSuccess(toRequesterReservationView(reservation, settings.entryExitManagementEnabled));
   } catch (error) {
     return handleApiError(error);
   }
@@ -48,9 +52,12 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     const payload = updateReservationSchema.parse(await request.json());
 
     await updateReservationByRequester(resolved.reservationId, payload);
-    const reservation = await getReservationForRequester(resolved.reservationId);
+    const [reservation, settings] = await Promise.all([
+      getReservationForRequester(resolved.reservationId),
+      getSystemSettings(),
+    ]);
 
-    return apiSuccess(toRequesterReservationView(reservation));
+    return apiSuccess(toRequesterReservationView(reservation, settings.entryExitManagementEnabled));
   } catch (error) {
     return handleApiError(error);
   }

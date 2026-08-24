@@ -50,8 +50,9 @@ export type RequesterReservationView = {
 
 export function toRequesterReservationView(
   reservation: RequesterReservation,
+  entryExitManagementEnabled: boolean,
 ): RequesterReservationView {
-  const displayStatus = resolveDisplayStatus(reservation);
+  const displayStatus = resolveDisplayStatus(reservation, entryExitManagementEnabled);
 
   return {
     reservationNo: reservation.reservationNo,

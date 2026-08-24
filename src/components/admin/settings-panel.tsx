@@ -301,6 +301,27 @@ function PolicySection({ initialSettings }: { initialSettings: SystemSettingsVal
           )}
         </div>
 
+        <div className="space-y-2">
+          <label className="flex min-h-12 items-center gap-3 rounded-lg border border-slate-300 px-3">
+            <input
+              type="checkbox"
+              className="accent-brand-700 size-5"
+              checked={form.entryExitManagementEnabled}
+              onChange={(event) =>
+                setForm({ ...form, entryExitManagementEnabled: event.target.checked })
+              }
+            />
+            <span className="text-sm font-semibold text-slate-800">실제 입·출차 관리 사용</span>
+          </label>
+          <p className="text-xs text-slate-500">
+            켜면 관리자 예약 상세에 [입·출차 처리] 영역이 나타나고, 실제 입차/출차 시각을
+            기록합니다. 신청자 화면의 &ldquo;사용 중&rdquo;/&ldquo;사용 완료&rdquo; 표시도 이 기록을
+            기준으로 바뀝니다. 끄면(기본값) 실제 출입을 확인할 수단이 없다는 뜻이므로, 이와 관련된
+            화면·기능이 모두 숨겨집니다. 현장에 차단기 연동이나 상주 인력 등 확인 수단이 갖춰졌을 때
+            켜세요.
+          </p>
+        </div>
+
         <button
           type="button"
           className="btn btn-primary"

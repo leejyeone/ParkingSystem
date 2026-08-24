@@ -6,7 +6,6 @@ import { useState } from 'react';
 import { Alert } from '@/components/ui/alert';
 import { FormField, inputClassName } from '@/components/ui/form-field';
 import { apiRequest } from '@/lib/client/api-client';
-import { ENTRY_EXIT_MANAGEMENT_ENABLED } from '@/domain/feature-flags';
 import { SPACE_TYPE_LABEL } from '@/domain/reservation-status';
 
 type SpaceOption = {
@@ -30,6 +29,8 @@ type Props = {
   spaceAssignmentEnabled: boolean;
   /** 배정을 쓰지 않을 때의 정원 사용 현황. 배정을 쓰면 null. */
   capacityUsage: { used: number; capacity: number; remaining: number } | null;
+  /** 시스템 설정의 입·출차/미방문 처리 사용 여부. false 면 [입·출차 처리] 영역을 감춘다. */
+  entryExitManagementEnabled: boolean;
 };
 
 export function ReservationActionPanel({
@@ -41,6 +42,7 @@ export function ReservationActionPanel({
   availableSpaces,
   spaceAssignmentEnabled,
   capacityUsage,
+  entryExitManagementEnabled,
 }: Props) {
   const router = useRouter();
   const [selectedSpaceId, setSelectedSpaceId] = useState<string>(
@@ -96,10 +98,10 @@ export function ReservationActionPanel({
   const canReject = reservationStatus === 'REQUESTED';
   const canChangeSpace =
     spaceAssignmentEnabled && (reservationStatus === 'APPROVED' || reservationStatus === 'PARKING');
-  // 입·출차/미방문 처리는 현재 사용하지 않는 기능이라 영역 자체를 감춘다.
-  const canEntry = ENTRY_EXIT_MANAGEMENT_ENABLED && reservationStatus === 'APPROVED';
-  const canExit = ENTRY_EXIT_MANAGEMENT_ENABLED && reservationStatus === 'PARKING';
-  const canNoShow = ENTRY_EXIT_MANAGEMENT_ENABLED && reservationStatus === 'APPROVED';
+  // 입·출차/미방문 처리는 시스템 설정에서 껐으면 영역 자체를 감춘다.
+  const canEntry = entryExitManagementEnabled && reservationStatus === 'APPROVED';
+  const canExit = entryExitManagementEnabled && reservationStatus === 'PARKING';
+  const canNoShow = entryExitManagementEnabled && reservationStatus === 'APPROVED';
   const isTerminal = ['REJECTED', 'CANCELLED', 'EXITED', 'NO_SHOW'].includes(reservationStatus);
 
   /*

@@ -1,6 +1,5 @@
 import { ReservationStatus, SpaceType } from '@prisma/client';
 
-import { ENTRY_EXIT_MANAGEMENT_ENABLED } from '@/domain/feature-flags';
 import { SPACE_OCCUPYING_STATUSES } from '@/domain/reservation-status';
 import { buildOverlapWhere } from '@/domain/time-overlap';
 import { kstDayRangeUtc, parseTimeOfDayToMinutes } from '@/lib/datetime';
@@ -145,7 +144,7 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
     // 조회 결과는 visitStartAt 오름차순이므로 첫 항목이 가장 이른 예약이다.
     const occupancies = bySpace.get(space.spaceId) ?? [];
     const inUse = occupancies.find((occupancy) =>
-      ENTRY_EXIT_MANAGEMENT_ENABLED
+      settings.entryExitManagementEnabled
         ? occupancy.reservationStatus === ReservationStatus.PARKING
         : occupancy.visitStartAt.getTime() <= nowMs && occupancy.visitEndAt.getTime() > nowMs,
     );
@@ -200,7 +199,9 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
     pendingCount: pendingReservations.length,
     pendingTotalCount,
     spaces: spaceRows,
-    pendingReservations: pendingReservations.map(toReservationListItem),
+    pendingReservations: pendingReservations.map((r) =>
+      toReservationListItem(r, settings.entryExitManagementEnabled),
+    ),
     hourlyUsage,
     operatingHours: { open: settings.parkingOpenTime, close: settings.parkingCloseTime },
   };

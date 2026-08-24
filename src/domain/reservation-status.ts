@@ -1,13 +1,6 @@
 import { ReservationStatus } from '@prisma/client';
 
-import { ENTRY_EXIT_MANAGEMENT_ENABLED } from '@/domain/feature-flags';
 import { InvalidStateTransitionError } from '@/lib/errors';
-
-/**
- * 시간 기반 파생 상태(사용 중 / 사용 완료) 사용 여부.
- * 입·출차 관리를 켜면 실제 입차 기록으로 상태가 붙으므로 파생 상태를 쓰지 않는다.
- */
-export const DERIVED_STATUS_ENABLED = !ENTRY_EXIT_MANAGEMENT_ENABLED;
 
 /**
  * 예약 상태 전이 규칙.
@@ -98,49 +91,29 @@ export function isDerivedReservationStatus(value: string): value is DerivedReser
   return (DERIVED_RESERVATION_STATUSES as readonly string[]).includes(value);
 }
 
-/** 검색 조건으로 넘어올 수 있는 모든 값. (검증 스키마용) */
-export const SELECTABLE_RESERVATION_STATUSES = [
-  ReservationStatus.REQUESTED,
-  ReservationStatus.APPROVED,
-  ReservationStatus.REJECTED,
-  ReservationStatus.CANCELLED,
-  ReservationStatus.PARKING,
-  ReservationStatus.EXITED,
-  ReservationStatus.NO_SHOW,
-  ...DERIVED_RESERVATION_STATUSES,
-] as const satisfies readonly DisplayReservationStatus[];
-
 /**
- * 상태 필터 드롭다운에 실제로 노출할 값.
+ * 관리자 예약 목록/상세에서 노출·검색에 쓰는 상태 값. (필터 드롭다운 + 검증 스키마 공용)
  *
- * 입·출차 관리를 쓰지 않는 동안에는 입차/출차/미방문으로 넘어갈 경로가 없어 항상 0건이 나온다.
- * 담당자가 "데이터가 안 들어갔나" 하고 헷갈리지 않도록 선택지에서 뺀다.
- * (이미 만들어진 링크로 들어오는 값은 검증 스키마가 그대로 받아 준다)
+ * 저장된 실제 상태만 포함한다. "사용 중"/"사용 완료"는 실제 입·출차 기록이 아니라 방문 예정
+ * 시간만 보고 추측한 값이라, 관리자 화면에서는 실제로 관리되는 정보로 오해할 수 있어 빼둔다.
+ * (신청자 조회 화면은 계속 이 파생 상태를 보여준다 — resolveDisplayStatus 참고)
  */
-export const RESERVATION_STATUS_FILTER_OPTIONS: readonly DisplayReservationStatus[] =
-  DERIVED_STATUS_ENABLED
-    ? [
-        ReservationStatus.REQUESTED,
-        ReservationStatus.APPROVED,
-        'IN_USE',
-        'USED',
-        ReservationStatus.REJECTED,
-        ReservationStatus.CANCELLED,
-      ]
-    : Object.values(ReservationStatus);
+export const RESERVATION_STATUS_FILTER_OPTIONS: readonly ReservationStatus[] =
+  Object.values(ReservationStatus);
 
 /**
- * 저장된 상태와 방문 예정 시간으로 화면 표시용 상태를 구한다.
+ * 저장된 상태와 방문 예정 시간으로 화면 표시용 상태를 구한다. (신청자 조회 화면 전용)
  *
- * 입·출차 관리를 쓰는 경우에는 실제 입차 기록으로 PARKING/EXITED 가 붙으므로,
- * 시간만 보고 "사용 중" 이라고 단정하면 미방문 차량까지 사용 중으로 보인다.
- * 그래서 입·출차 관리가 꺼져 있을 때만 시간으로 판단한다.
+ * 입·출차 관리를 켜면 실제 입차 기록으로 PARKING/EXITED 가 붙으므로 저장된 상태를 그대로 쓴다.
+ * 껐을 때는 실제 출입 기록이 없으므로, 시간만 보고 "사용 중"이라고 추정한다.
+ * (관리자 예약 목록/상세는 이 함수를 쓰지 않는다 — 저장된 상태만 보여준다)
  */
 export function resolveDisplayStatus(
   reservation: { reservationStatus: ReservationStatus; visitStartAt: Date; visitEndAt: Date },
+  entryExitManagementEnabled: boolean,
   now: Date = new Date(),
 ): DisplayReservationStatus {
-  if (!DERIVED_STATUS_ENABLED) return reservation.reservationStatus;
+  if (entryExitManagementEnabled) return reservation.reservationStatus;
   if (reservation.reservationStatus !== ReservationStatus.APPROVED) {
     return reservation.reservationStatus;
   }

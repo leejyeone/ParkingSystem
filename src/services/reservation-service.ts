@@ -16,14 +16,12 @@ import {
 } from '@/domain/reservation-rules';
 import {
   assertTransition,
-  DERIVED_STATUS_ENABLED,
   isTerminalStatus,
   resolveDisplayStatus,
   RESERVATION_STATUS_LABEL,
   SPACE_OCCUPYING_STATUSES,
   type DisplayReservationStatus,
 } from '@/domain/reservation-status';
-import { ENTRY_EXIT_MANAGEMENT_ENABLED } from '@/domain/feature-flags';
 import { buildOverlapWhere } from '@/domain/time-overlap';
 import { formatKstDate, formatKstRange } from '@/lib/datetime';
 import {
@@ -1010,10 +1008,10 @@ export async function changeAssignedSpace(
   return updated;
 }
 
-/** 실제 입차 처리 */
-/** 입·출차/미방문 처리가 꺼져 있으면 호출 자체를 막는다. */
-function assertEntryExitEnabled(): void {
-  if (!ENTRY_EXIT_MANAGEMENT_ENABLED) {
+/** 입·출차/미방문 처리가 꺼져 있으면 호출 자체를 막는다. (시스템 설정, 관리자가 켠다) */
+async function assertEntryExitEnabled(): Promise<void> {
+  const settings = await getSystemSettings();
+  if (!settings.entryExitManagementEnabled) {
     throw new ConflictError(
       '입·출차 및 미방문 처리는 현재 사용하지 않는 기능입니다.',
       'ENTRY_EXIT_DISABLED',
@@ -1021,10 +1019,11 @@ function assertEntryExitEnabled(): void {
   }
 }
 
+/** 실제 입차 처리 */
 export async function markEntry(
   params: { reservationId: number } & AdminActionContext,
 ): Promise<ReservationWithSpaces> {
-  assertEntryExitEnabled();
+  await assertEntryExitEnabled();
 
   const updated = await changeStatusByAdmin({
     reservationId: params.reservationId,
@@ -1050,7 +1049,7 @@ export async function markEntry(
 export async function markExit(
   params: { reservationId: number } & AdminActionContext,
 ): Promise<ReservationWithSpaces> {
-  assertEntryExitEnabled();
+  await assertEntryExitEnabled();
 
   const updated = await changeStatusByAdmin({
     reservationId: params.reservationId,
@@ -1076,7 +1075,7 @@ export async function markExit(
 export async function markNoShow(
   params: { reservationId: number; reason?: string } & AdminActionContext,
 ): Promise<ReservationWithSpaces> {
-  assertEntryExitEnabled();
+  await assertEntryExitEnabled();
 
   const updated = await changeStatusByAdmin({
     reservationId: params.reservationId,
@@ -1137,29 +1136,13 @@ async function changeStatusByAdmin(params: {
 /**
  * 상태 필터를 where 절로 바꾼다.
  *
- * 사용 중 / 사용 완료는 DB 에 없는 파생 상태라 시간 조건으로 푼다. 이때 "승인 완료"는
- * **아직 시작 전인 건**만 뜻하도록 좁힌다. 그러지 않으면 승인 완료를 골랐는데 목록에는
- * 사용 중으로 표시된 행이 섞여 나온다.
+ * 관리자 목록은 저장된 실제 상태만 필터로 받는다("사용 중"/"사용 완료" 파생 상태는 쓰지 않음).
+ * 승인 완료를 고르면 방문 시간과 무관하게 승인 완료인 예약이 전부 나온다.
  */
 function buildStatusWhere(
-  status: DisplayReservationStatus | undefined,
-  now: Date = new Date(),
+  status: ReservationStatus | undefined,
 ): Prisma.ParkingReservationWhereInput {
   if (!status) return {};
-
-  if (status === 'IN_USE') {
-    return {
-      reservationStatus: ReservationStatus.APPROVED,
-      visitStartAt: { lte: now },
-      visitEndAt: { gt: now },
-    };
-  }
-  if (status === 'USED') {
-    return { reservationStatus: ReservationStatus.APPROVED, visitEndAt: { lte: now } };
-  }
-  if (status === ReservationStatus.APPROVED && DERIVED_STATUS_ENABLED) {
-    return { reservationStatus: ReservationStatus.APPROVED, visitStartAt: { gt: now } };
-  }
   return { reservationStatus: status };
 }
 
@@ -1167,11 +1150,8 @@ export type ReservationListFilter = {
   date?: string;
   dateFrom?: Date;
   dateTo?: Date;
-  /**
-   * 저장된 상태 또는 파생 상태(IN_USE / USED).
-   * 파생 상태는 승인 완료 + 방문 시간 조건으로 풀어서 조회한다.
-   */
-  status?: DisplayReservationStatus;
+  /** 저장된 상태. 관리자 목록 필터는 파생 상태(IN_USE / USED)를 쓰지 않는다. */
+  status?: ReservationStatus;
   requesterType?: RequesterType;
   vehicleNo?: string;
   requesterName?: string;
@@ -1236,7 +1216,7 @@ export async function listReservationsForAdmin(
     ...buildStatusWhere(filter.status),
   };
 
-  const [totalCount, pendingCount, rows] = await Promise.all([
+  const [totalCount, pendingCount, rows, settings] = await Promise.all([
     prisma.parkingReservation.count({ where }),
     /*
      * 같은 검색 조건에서 아직 승인 대기인 건수.
@@ -1254,6 +1234,7 @@ export async function listReservationsForAdmin(
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
+    getSystemSettings(),
   ]);
 
   if (actor) {
@@ -1283,7 +1264,7 @@ export async function listReservationsForAdmin(
   }
 
   return {
-    items: rows.map(toReservationListItem),
+    items: rows.map((row) => toReservationListItem(row, settings.entryExitManagementEnabled)),
     totalCount,
     pendingCount,
     page,
@@ -1292,13 +1273,16 @@ export async function listReservationsForAdmin(
   };
 }
 
-export function toReservationListItem(reservation: ReservationWithSpaces): ReservationListItem {
+export function toReservationListItem(
+  reservation: ReservationWithSpaces,
+  entryExitManagementEnabled: boolean,
+): ReservationListItem {
   return {
     reservationId: reservation.reservationId,
     reservationNo: reservation.reservationNo,
     requesterType: reservation.requesterType,
     reservationStatus: reservation.reservationStatus,
-    displayStatus: resolveDisplayStatus(reservation),
+    displayStatus: resolveDisplayStatus(reservation, entryExitManagementEnabled),
     companyOrBranchName: reservation.companyOrBranchName,
     requesterName: reservation.requesterName,
     requesterEmail: reservation.requesterEmail,
@@ -1317,7 +1301,7 @@ export function toReservationListItem(reservation: ReservationWithSpaces): Reser
  */
 export async function listReservationsForUser(
   userId: number,
-  options: { limit?: number } = {},
+  options: { limit?: number; entryExitManagementEnabled: boolean },
 ): Promise<ReservationListItem[]> {
   const rows = await prisma.parkingReservation.findMany({
     where: { userId },
@@ -1326,7 +1310,7 @@ export async function listReservationsForUser(
     take: Math.min(100, Math.max(1, options.limit ?? 50)),
   });
 
-  return rows.map(toReservationListItem);
+  return rows.map((row) => toReservationListItem(row, options.entryExitManagementEnabled));
 }
 
 /**

@@ -1,4 +1,4 @@
-import { RequesterType } from '@prisma/client';
+import { RequesterType, ReservationStatus } from '@prisma/client';
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import Link from 'next/link';
@@ -8,11 +8,9 @@ import { Alert } from '@/components/ui/alert';
 import { FilterBar, type FilterChip } from '@/components/admin/filter-bar';
 import { StatusBadge } from '@/components/ui/status-badge';
 import {
-  DISPLAY_STATUS_LABEL,
   REQUESTER_TYPE_LABEL,
   RESERVATION_STATUS_FILTER_OPTIONS,
-  SELECTABLE_RESERVATION_STATUSES,
-  type DisplayReservationStatus,
+  RESERVATION_STATUS_LABEL,
 } from '@/domain/reservation-status';
 import { requireAdminPage } from '@/lib/admin-page-guard';
 import { getSystemSettings } from '@/services/settings-service';
@@ -51,8 +49,9 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
   const date = params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date) ? params.date : undefined;
   const range = date ? kstDayRangeUtc(date) : null;
   const status =
-    params.status && (SELECTABLE_RESERVATION_STATUSES as readonly string[]).includes(params.status)
-      ? (params.status as DisplayReservationStatus)
+    params.status &&
+    (RESERVATION_STATUS_FILTER_OPTIONS as readonly string[]).includes(params.status)
+      ? (params.status as ReservationStatus)
       : undefined;
   const requesterType =
     params.requesterType && params.requesterType in RequesterType
@@ -116,7 +115,7 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
   // 적용된 조건만 칩으로 노출한다. (모바일에서 입력 폼이 화면을 다 차지하지 않도록)
   const chips: FilterChip[] = [
     { key: 'date', label: '날짜', value: date },
-    { key: 'status', label: '상태', value: status ? DISPLAY_STATUS_LABEL[status] : undefined },
+    { key: 'status', label: '상태', value: status ? RESERVATION_STATUS_LABEL[status] : undefined },
     {
       key: 'requesterType',
       label: '구분',
@@ -175,7 +174,7 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
               <option value="">전체</option>
               {RESERVATION_STATUS_FILTER_OPTIONS.map((value) => (
                 <option key={value} value={value}>
-                  {DISPLAY_STATUS_LABEL[value]}
+                  {RESERVATION_STATUS_LABEL[value]}
                 </option>
               ))}
             </select>
@@ -286,7 +285,7 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
                       href={`${BASE_PATH}/${reservation.reservationId}`}
                     >
                       <td>
-                        <StatusBadge status={reservation.displayStatus} />
+                        <StatusBadge status={reservation.reservationStatus} />
                       </td>
                       <td>
                         {/*

@@ -3,12 +3,12 @@ import {
   AdminRole,
   EmailSendStatus,
   EmailType,
+  ReservationStatus,
   RequesterType,
   SpaceType,
 } from '@prisma/client';
 import { z } from 'zod';
 
-import { SELECTABLE_RESERVATION_STATUSES } from '@/domain/reservation-status';
 import {
   dateStringSchema,
   emailSchema,
@@ -35,8 +35,8 @@ export const adminLoginSchema = z.object({
 
 export const reservationListQuerySchema = z.object({
   date: dateStringSchema.optional(),
-  // 저장된 상태 + 파생 상태(사용 중 / 사용 완료)
-  status: z.enum(SELECTABLE_RESERVATION_STATUSES).optional(),
+  // 저장된 상태만 받는다. "사용 중"/"사용 완료"는 관리자 화면에서 쓰지 않는 파생 상태다.
+  status: z.enum(ReservationStatus).optional(),
   requesterType: z.enum(RequesterType).optional(),
   vehicleNo: z.string().trim().max(20).optional(),
   requesterName: z.string().trim().max(50).optional(),
@@ -109,6 +109,7 @@ export const systemSettingsSchema = z
       .max(999, '최대 주차 가능 대수는 999대 이하로 설정해 주세요.'),
     doubleParkingEnabled: z.boolean(),
     appTimeZone: requiredText(50, '타임존'),
+    entryExitManagementEnabled: z.boolean(),
   })
   .refine((values) => values.parkingOpenTime < values.parkingCloseTime, {
     error: '운영 종료 시간은 운영 시작 시간보다 늦어야 합니다.',
