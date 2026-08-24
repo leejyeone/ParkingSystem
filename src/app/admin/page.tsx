@@ -213,16 +213,32 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
         <div className="card-body">
           <h2 className="card-title">시간대별 예약 현황</h2>
           <p className="field-hint">승인 완료 및 입차 상태 예약 기준입니다.</p>
-          <div className="mt-4 flex items-end gap-1 overflow-x-auto pb-2">
+          {/*
+            막대 수는 운영시간에 따라 달라지므로(예: 07~22시면 15개) 고정 폭 대신
+            남는 가로를 균등하게 나눠 갖게 한다. minmax(0, 1fr) 이라야 좁은 화면에서
+            내용 폭에 밀려 넘치지 않는다.
+          */}
+          <div
+            className="mt-4 grid items-end gap-x-0.5 sm:gap-x-1"
+            style={{
+              gridTemplateColumns: `repeat(${dashboard.hourlyUsage.length}, minmax(0, 1fr))`,
+            }}
+          >
             {dashboard.hourlyUsage.map((slot) => (
-              <div key={slot.hour} className="flex w-9 shrink-0 flex-col items-center gap-1">
-                <span className="text-[10px] font-bold text-slate-500">{slot.usedCount}</span>
+              <div key={slot.hour} className="flex min-w-0 flex-col items-center gap-1">
+                <span className="text-[10px] font-bold text-slate-500 tabular-nums">
+                  {slot.usedCount}
+                </span>
                 <div
                   className="bg-brand-500 w-full rounded-t"
                   style={{ height: `${Math.max(4, (slot.usedCount / maxHourlyUsage) * 96)}px` }}
                   aria-hidden
                 />
-                <span className="text-[10px] text-slate-500">{slot.hour}시</span>
+                {/* 좁은 화면에서는 "시" 를 빼야 숫자가 겹치지 않는다. */}
+                <span className="text-[10px] text-slate-500 tabular-nums">
+                  {slot.hour}
+                  <span className="hidden sm:inline">시</span>
+                </span>
               </div>
             ))}
           </div>
