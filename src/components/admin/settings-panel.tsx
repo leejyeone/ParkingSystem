@@ -316,6 +316,327 @@ function PolicySection({ initialSettings }: { initialSettings: SystemSettingsVal
   );
 }
 
+type NotificationDraft = {
+  recipientName: string;
+  receiveNewRequest: boolean;
+  receiveApprovalAlert: boolean;
+  isActive: boolean;
+};
+
+function toNotificationDraft(item: NotificationEmail): NotificationDraft {
+  return {
+    recipientName: item.recipientName ?? '',
+    receiveNewRequest: item.receiveNewRequest,
+    receiveApprovalAlert: item.receiveApprovalAlert,
+    isActive: item.isActive,
+  };
+}
+
+function toNotificationDraftById(emails: NotificationEmail[], id: number): NotificationDraft {
+  const found = emails.find((item) => item.notificationEmailId === id);
+  return found
+    ? toNotificationDraft(found)
+    : { recipientName: '', receiveNewRequest: true, receiveApprovalAlert: true, isActive: true };
+}
+
+function isSameNotification(a: NotificationDraft, b: NotificationDraft): boolean {
+  return (
+    a.recipientName === b.recipientName &&
+    a.receiveNewRequest === b.receiveNewRequest &&
+    a.receiveApprovalAlert === b.receiveApprovalAlert &&
+    a.isActive === b.isActive
+  );
+}
+
+/**
+ * 알림 수신자 목록. 구역·주차면과 같은 편집 모드로 수정·삭제한다.
+ *
+ * 이메일 주소는 편집 대상에서 뺀다. 등록/수정에 쓰는 `PUT /api/admin/settings` 가 **주소를 키로**
+ * upsert 하기 때문에, 주소를 고치면 수정이 아니라 새 행이 생긴다.
+ * 주소를 바꿔야 하면 지우고 아래 카드에서 다시 등록한다.
+ */
+function NotificationTable({ emails }: { emails: NotificationEmail[] }) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState<{ variant: 'success' | 'error'; text: string } | null>(
+    null,
+  );
+  /** 편집 중인 값. 상단 [저장]을 누를 때 한꺼번에 반영한다. */
+  const [drafts, setDrafts] = useState<Record<number, NotificationDraft>>({});
+  /** 삭제 표시된 수신자. 저장 시 함께 처리한다. */
+  const [removed, setRemoved] = useState<number[]>([]);
+
+  function draftOf(item: NotificationEmail): NotificationDraft {
+    return drafts[item.notificationEmailId] ?? toNotificationDraft(item);
+  }
+
+  function updateDraft(id: number, patch: Partial<NotificationDraft>) {
+    setDrafts((previous) => ({
+      ...previous,
+      [id]: { ...(previous[id] ?? toNotificationDraftById(emails, id)), ...patch },
+    }));
+  }
+
+  function reset() {
+    setDrafts({});
+    setRemoved([]);
+    setMessage(null);
+  }
+
+  const changedCount =
+    removed.length +
+    emails.filter(
+      (item) =>
+        drafts[item.notificationEmailId] &&
+        !isSameNotification(drafts[item.notificationEmailId], toNotificationDraft(item)),
+    ).length;
+
+  /** 변경된 것만 순서대로 반영한다. 일부가 실패해도 나머지는 계속 처리하고 결과를 알린다. */
+  async function saveAll() {
+    setPending(true);
+    setMessage(null);
+
+    const failures: string[] = [];
+    let done = 0;
+
+    for (const id of removed) {
+      const target = emails.find((item) => item.notificationEmailId === id);
+      const response = await apiRequest(`/api/admin/notification-emails/${id}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) done += 1;
+      else failures.push(`${target?.email ?? id} 삭제: ${response.error.message}`);
+    }
+
+    for (const item of emails) {
+      const draft = drafts[item.notificationEmailId];
+      if (!draft || removed.includes(item.notificationEmailId)) continue;
+      if (isSameNotification(draft, toNotificationDraft(item))) continue;
+
+      const response = await apiRequest('/api/admin/settings', {
+        method: 'PUT',
+        body: JSON.stringify({
+          notificationEmail: {
+            email: item.email,
+            recipientName: draft.recipientName || null,
+            receiveNewRequest: draft.receiveNewRequest,
+            receiveApprovalAlert: draft.receiveApprovalAlert,
+            isActive: draft.isActive,
+          },
+        }),
+      });
+      if (response.ok) done += 1;
+      else failures.push(`${item.email} 수정: ${response.error.message}`);
+    }
+
+    setPending(false);
+    router.refresh();
+
+    if (failures.length === 0) {
+      setMessage({ variant: 'success', text: `${done}건을 저장했습니다.` });
+      reset();
+      setEditing(false);
+      return;
+    }
+    setMessage({
+      variant: 'error',
+      text: `${done}건 저장, ${failures.length}건 실패 — ${failures.join(' / ')}`,
+    });
+    // 실패한 항목을 고칠 수 있도록 편집 상태는 유지한다.
+  }
+
+  return (
+    <section className="card">
+      <div className="card-body">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="card-title">관리자 알림 이메일 ({emails.length}명)</h2>
+          {editing ? (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="btn btn-primary min-h-9 px-3 py-1.5 text-xs"
+                disabled={pending || changedCount === 0}
+                onClick={saveAll}
+              >
+                {pending ? '저장 중…' : '저장'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary min-h-9 px-3 py-1.5 text-xs"
+                disabled={pending}
+                onClick={() => {
+                  reset();
+                  setEditing(false);
+                }}
+              >
+                취소
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-secondary min-h-9 px-3 py-1.5 text-xs"
+              disabled={emails.length === 0}
+              onClick={() => setEditing(true)}
+            >
+              수정
+            </button>
+          )}
+        </div>
+
+        {message && (
+          <div className="mt-3">
+            <Alert variant={message.variant === 'success' ? 'success' : 'error'}>
+              {message.text}
+            </Alert>
+          </div>
+        )}
+
+        {editing && (
+          <p className="field-hint mt-2">
+            값을 고치고 [삭제]로 수신자를 지운 뒤, 상단 [저장]을 한 번 누르면 모두 반영됩니다. 이미
+            등록된 주소는 바꿀 수 없으니, 주소를 바꾸려면 지우고 아래에서 다시 등록하세요.
+          </p>
+        )}
+
+        <div className="table-scroll mt-3">
+          {/* 편집 모드는 칸마다 입력이 들어가 보기 모드보다 넓은 폭이 필요하다. */}
+          <table className={`data-table ${editing ? 'min-w-[820px] table-fixed' : ''}`}>
+            <thead>
+              <tr>
+                <th className={editing ? 'w-64' : ''}>이메일</th>
+                <th className={editing ? 'w-40' : ''}>수신자</th>
+                <th className={editing ? 'w-24' : ''}>신규신청</th>
+                <th className={editing ? 'w-24' : ''}>승인/변경</th>
+                <th className={editing ? 'w-32' : ''}>상태</th>
+                {editing && <th className="w-20"></th>}
+              </tr>
+            </thead>
+            <tbody>
+              {emails.map((item) => {
+                const draft = draftOf(item);
+                const isRemoved = removed.includes(item.notificationEmailId);
+
+                if (!editing) {
+                  return (
+                    <tr key={item.notificationEmailId}>
+                      <td className="text-xs">{item.email}</td>
+                      <td className="text-xs">{item.recipientName ?? '-'}</td>
+                      <td>{item.receiveNewRequest ? '✓' : '-'}</td>
+                      <td>{item.receiveApprovalAlert ? '✓' : '-'}</td>
+                      <td>
+                        <span
+                          className={`badge ${item.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}
+                        >
+                          {item.isActive ? '활성' : '비활성'}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                }
+
+                return (
+                  <tr
+                    key={item.notificationEmailId}
+                    className={isRemoved ? 'bg-red-50 opacity-60' : ''}
+                  >
+                    {/* 주소는 upsert 의 키라 고치면 새 행이 생긴다. 읽기 전용으로 둔다. */}
+                    <td className="text-xs break-all">{item.email}</td>
+                    <td>
+                      <input
+                        className="input"
+                        value={draft.recipientName}
+                        disabled={isRemoved}
+                        onChange={(event) =>
+                          updateDraft(item.notificationEmailId, {
+                            recipientName: event.target.value,
+                          })
+                        }
+                        aria-label={`${item.email} 수신자 이름`}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="checkbox"
+                        className="accent-brand-700 size-5"
+                        checked={draft.receiveNewRequest}
+                        disabled={isRemoved}
+                        onChange={(event) =>
+                          updateDraft(item.notificationEmailId, {
+                            receiveNewRequest: event.target.checked,
+                          })
+                        }
+                        aria-label={`${item.email} 신규 신청 알림`}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="checkbox"
+                        className="accent-brand-700 size-5"
+                        checked={draft.receiveApprovalAlert}
+                        disabled={isRemoved}
+                        onChange={(event) =>
+                          updateDraft(item.notificationEmailId, {
+                            receiveApprovalAlert: event.target.checked,
+                          })
+                        }
+                        aria-label={`${item.email} 승인/변경 알림`}
+                      />
+                    </td>
+                    <td>
+                      <select
+                        className="input"
+                        value={draft.isActive ? 'ACTIVE' : 'INACTIVE'}
+                        disabled={isRemoved}
+                        onChange={(event) =>
+                          updateDraft(item.notificationEmailId, {
+                            isActive: event.target.value === 'ACTIVE',
+                          })
+                        }
+                        aria-label={`${item.email} 상태`}
+                      >
+                        <option value="ACTIVE">활성</option>
+                        <option value="INACTIVE">비활성</option>
+                      </select>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className={`btn min-h-9 px-2 py-1.5 text-xs ${
+                          isRemoved ? 'btn-secondary' : 'btn-danger-outline'
+                        }`}
+                        disabled={pending}
+                        onClick={() =>
+                          setRemoved((previous) =>
+                            isRemoved
+                              ? previous.filter((id) => id !== item.notificationEmailId)
+                              : [...previous, item.notificationEmailId],
+                          )
+                        }
+                      >
+                        {isRemoved ? '취소' : '삭제'}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {emails.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="text-center text-sm text-slate-500">
+                    등록된 알림 이메일이 없습니다.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function NotificationSection({ emails }: { emails: NotificationEmail[] }) {
   const { pending, message, fieldErrors, mutate } = useMutation();
   const [form, setForm] = useState({
@@ -328,48 +649,7 @@ function NotificationSection({ emails }: { emails: NotificationEmail[] }) {
 
   return (
     <div className="space-y-4">
-      <section className="card">
-        <div className="card-body">
-          <h2 className="card-title">관리자 알림 이메일</h2>
-          <div className="table-scroll mt-3">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>이메일</th>
-                  <th>수신자</th>
-                  <th>신규신청</th>
-                  <th>승인/변경</th>
-                  <th>상태</th>
-                </tr>
-              </thead>
-              <tbody>
-                {emails.map((item) => (
-                  <tr key={item.notificationEmailId}>
-                    <td className="text-xs">{item.email}</td>
-                    <td className="text-xs">{item.recipientName ?? '-'}</td>
-                    <td>{item.receiveNewRequest ? '✓' : '-'}</td>
-                    <td>{item.receiveApprovalAlert ? '✓' : '-'}</td>
-                    <td>
-                      <span
-                        className={`badge ${item.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}
-                      >
-                        {item.isActive ? '활성' : '비활성'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-                {emails.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="text-center text-sm text-slate-500">
-                      등록된 알림 이메일이 없습니다.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
+      <NotificationTable emails={emails} />
 
       <section className="card">
         <div className="card-body space-y-4">
@@ -1110,6 +1390,371 @@ function isSameDraft(a: SpaceDraft, b: SpaceDraft): boolean {
   );
 }
 
+type AdminUserDraft = {
+  adminName: string;
+  email: string;
+  phone: string;
+  roleCode: 'PARKING_ADMIN' | 'SYSTEM_ADMIN';
+  accountStatus: 'ACTIVE' | 'INACTIVE' | 'LOCKED';
+  /** 비우면 비밀번호를 바꾸지 않는다. */
+  password: string;
+};
+
+function toAdminUserDraft(user: AdminUser): AdminUserDraft {
+  return {
+    adminName: user.adminName,
+    email: user.email,
+    phone: user.phone ?? '',
+    roleCode: user.roleCode,
+    accountStatus: user.accountStatus,
+    password: '',
+  };
+}
+
+function toAdminUserDraftById(users: AdminUser[], id: number): AdminUserDraft {
+  const found = users.find((user) => user.adminUserId === id);
+  return found
+    ? toAdminUserDraft(found)
+    : {
+        adminName: '',
+        email: '',
+        phone: '',
+        roleCode: 'PARKING_ADMIN',
+        accountStatus: 'ACTIVE',
+        password: '',
+      };
+}
+
+function isSameAdminUser(a: AdminUserDraft, b: AdminUserDraft): boolean {
+  return (
+    a.adminName === b.adminName &&
+    a.email === b.email &&
+    a.phone === b.phone &&
+    a.roleCode === b.roleCode &&
+    a.accountStatus === b.accountStatus &&
+    a.password === b.password
+  );
+}
+
+const ACCOUNT_STATUS_LABEL = { ACTIVE: '활성', INACTIVE: '비활성', LOCKED: '잠금' } as const;
+
+/**
+ * 관리자 계정 목록. 구역·주차면과 같은 편집 모드로 수정·삭제한다.
+ *
+ * 생성은 아래 [관리자 계정 추가] 카드에 그대로 둔다. 로그인 ID 는 감사 로그 추적의 기준이라
+ * 수정 대상에서 제외한다.
+ */
+function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState<{ variant: 'success' | 'error'; text: string } | null>(
+    null,
+  );
+  const [drafts, setDrafts] = useState<Record<number, AdminUserDraft>>({});
+  const [removed, setRemoved] = useState<number[]>([]);
+
+  function draftOf(user: AdminUser): AdminUserDraft {
+    return drafts[user.adminUserId] ?? toAdminUserDraft(user);
+  }
+
+  function updateDraft(id: number, patch: Partial<AdminUserDraft>) {
+    setDrafts((previous) => ({
+      ...previous,
+      [id]: { ...(previous[id] ?? toAdminUserDraftById(adminUsers, id)), ...patch },
+    }));
+  }
+
+  function reset() {
+    setDrafts({});
+    setRemoved([]);
+    setMessage(null);
+  }
+
+  const changedCount =
+    removed.length +
+    adminUsers.filter(
+      (user) =>
+        drafts[user.adminUserId] &&
+        !isSameAdminUser(drafts[user.adminUserId], toAdminUserDraft(user)),
+    ).length;
+
+  /** 변경된 것만 순서대로 반영한다. 일부가 실패해도 나머지는 계속 처리하고 결과를 알린다. */
+  async function saveAll() {
+    setPending(true);
+    setMessage(null);
+
+    const failures: string[] = [];
+    let done = 0;
+
+    for (const id of removed) {
+      const target = adminUsers.find((user) => user.adminUserId === id);
+      const response = await apiRequest(`/api/admin/admin-users/${id}`, { method: 'DELETE' });
+      if (response.ok) done += 1;
+      else failures.push(`${target?.loginId ?? id} 삭제: ${response.error.message}`);
+    }
+
+    for (const user of adminUsers) {
+      const draft = drafts[user.adminUserId];
+      if (!draft || removed.includes(user.adminUserId)) continue;
+      if (isSameAdminUser(draft, toAdminUserDraft(user))) continue;
+
+      const response = await apiRequest(`/api/admin/admin-users/${user.adminUserId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          adminName: draft.adminName,
+          email: draft.email,
+          phone: draft.phone || null,
+          roleCode: draft.roleCode,
+          accountStatus: draft.accountStatus,
+          // 비워 두면 아예 보내지 않아 기존 비밀번호가 유지된다.
+          ...(draft.password ? { password: draft.password } : {}),
+        }),
+      });
+      if (response.ok) done += 1;
+      else failures.push(`${user.loginId} 수정: ${response.error.message}`);
+    }
+
+    setPending(false);
+    router.refresh();
+
+    if (failures.length === 0) {
+      setMessage({ variant: 'success', text: `${done}건을 저장했습니다.` });
+      reset();
+      setEditing(false);
+      return;
+    }
+    setMessage({
+      variant: 'error',
+      text: `${done}건 저장, ${failures.length}건 실패 — ${failures.join(' / ')}`,
+    });
+    // 실패한 항목을 고칠 수 있도록 편집 상태는 유지한다.
+  }
+
+  return (
+    <section className="card">
+      <div className="card-body">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="card-title">관리자 계정 ({adminUsers.length}명)</h2>
+          {editing ? (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="btn btn-primary min-h-9 px-3 py-1.5 text-xs"
+                disabled={pending || changedCount === 0}
+                onClick={saveAll}
+              >
+                {pending ? '저장 중…' : '저장'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary min-h-9 px-3 py-1.5 text-xs"
+                disabled={pending}
+                onClick={() => {
+                  reset();
+                  setEditing(false);
+                }}
+              >
+                취소
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-secondary min-h-9 px-3 py-1.5 text-xs"
+              onClick={() => setEditing(true)}
+            >
+              수정
+            </button>
+          )}
+        </div>
+
+        {message && (
+          <div className="mt-3">
+            <Alert variant={message.variant === 'success' ? 'success' : 'error'}>
+              {message.text}
+            </Alert>
+          </div>
+        )}
+
+        {editing && (
+          <p className="field-hint mt-2">
+            값을 고치고 [삭제]로 계정을 지운 뒤, 상단 [저장]을 한 번 누르면 모두 반영됩니다. 새
+            비밀번호를 비워 두면 기존 비밀번호가 유지됩니다. 계정 추가는 아래 카드에서 하세요.
+            삭제한 계정의 로그인 ID·이메일은 이력 보존을 위해 다시 사용할 수 없습니다.
+          </p>
+        )}
+
+        <div className="table-scroll mt-3">
+          {/* 편집 모드는 칸마다 입력이 들어가 보기 모드보다 넓은 폭이 필요하다. */}
+          <table className={`data-table ${editing ? 'min-w-[1180px] table-fixed' : ''}`}>
+            <thead>
+              <tr>
+                <th className={editing ? 'w-28' : ''}>로그인 ID</th>
+                <th className={editing ? 'w-32' : ''}>이름</th>
+                <th className={editing ? 'w-60' : ''}>이메일</th>
+                <th className={editing ? 'w-36' : ''}>연락처</th>
+                <th className={editing ? 'w-40' : ''}>권한</th>
+                <th className={editing ? 'w-32' : ''}>상태</th>
+                {editing && <th className="w-44">새 비밀번호</th>}
+                {editing && <th className="w-20"></th>}
+              </tr>
+            </thead>
+            <tbody>
+              {/* 삭제 표시로 계정이 0개가 되는 걸 막는다. 마지막 1개는 삭제 버튼을 비활성화한다. */}
+              {adminUsers.map((user) => {
+                const draft = draftOf(user);
+                const isRemoved = removed.includes(user.adminUserId);
+                const remainingCount = adminUsers.length - removed.length;
+                const isLastRemaining = !isRemoved && remainingCount <= 1;
+
+                if (!editing) {
+                  return (
+                    <tr key={user.adminUserId}>
+                      <td className="font-mono text-xs">{user.loginId}</td>
+                      <td>{user.adminName}</td>
+                      <td className="text-xs">{user.email}</td>
+                      <td className="text-xs">{user.phone ?? '-'}</td>
+                      <td>{user.roleCode === 'SYSTEM_ADMIN' ? '시스템 관리자' : '주차 관리자'}</td>
+                      <td>
+                        <span
+                          className={`badge ${
+                            user.accountStatus === 'ACTIVE'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : user.accountStatus === 'LOCKED'
+                                ? 'bg-orange-100 text-orange-800'
+                                : 'bg-slate-200 text-slate-600'
+                          }`}
+                        >
+                          {ACCOUNT_STATUS_LABEL[user.accountStatus]}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                }
+
+                return (
+                  <tr key={user.adminUserId} className={isRemoved ? 'bg-red-50 opacity-60' : ''}>
+                    {/* 로그인 ID 는 감사 로그 추적의 기준이라 바꾸지 않는다. */}
+                    <td className="font-mono text-xs">{user.loginId}</td>
+                    <td>
+                      <input
+                        className="input"
+                        value={draft.adminName}
+                        disabled={isRemoved}
+                        onChange={(event) =>
+                          updateDraft(user.adminUserId, { adminName: event.target.value })
+                        }
+                        aria-label={`${user.loginId} 이름`}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="email"
+                        className="input"
+                        value={draft.email}
+                        disabled={isRemoved}
+                        onChange={(event) =>
+                          updateDraft(user.adminUserId, { email: event.target.value })
+                        }
+                        aria-label={`${user.loginId} 이메일`}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        className="input"
+                        value={draft.phone}
+                        disabled={isRemoved}
+                        onChange={(event) =>
+                          updateDraft(user.adminUserId, { phone: event.target.value })
+                        }
+                        aria-label={`${user.loginId} 연락처`}
+                      />
+                    </td>
+                    <td>
+                      <select
+                        className="input"
+                        value={draft.roleCode}
+                        disabled={isRemoved}
+                        onChange={(event) =>
+                          updateDraft(user.adminUserId, {
+                            roleCode: event.target.value as AdminUserDraft['roleCode'],
+                          })
+                        }
+                        aria-label={`${user.loginId} 권한`}
+                      >
+                        <option value="PARKING_ADMIN">주차 관리자</option>
+                        <option value="SYSTEM_ADMIN">시스템 관리자</option>
+                      </select>
+                    </td>
+                    <td>
+                      <select
+                        className="input"
+                        value={draft.accountStatus}
+                        disabled={isRemoved}
+                        onChange={(event) =>
+                          updateDraft(user.adminUserId, {
+                            accountStatus: event.target.value as AdminUserDraft['accountStatus'],
+                          })
+                        }
+                        aria-label={`${user.loginId} 상태`}
+                      >
+                        <option value="ACTIVE">활성</option>
+                        <option value="INACTIVE">비활성</option>
+                        {/*
+                          잠금은 로그인 연속 실패로 시스템이 거는 상태라 직접 고를 일은 없지만,
+                          현재 값이 잠금이면 선택지에 있어야 select 가 빈 값이 되지 않는다.
+                          활성으로 바꾸면 서버가 실패 횟수와 잠금 시각을 함께 푼다.
+                        */}
+                        {user.accountStatus === 'LOCKED' && <option value="LOCKED">잠금</option>}
+                      </select>
+                    </td>
+                    <td>
+                      <input
+                        type="password"
+                        className="input"
+                        value={draft.password}
+                        disabled={isRemoved}
+                        onChange={(event) =>
+                          updateDraft(user.adminUserId, { password: event.target.value })
+                        }
+                        placeholder="변경 시에만"
+                        autoComplete="new-password"
+                        aria-label={`${user.loginId} 새 비밀번호`}
+                      />
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className={`btn min-h-9 px-2 py-1.5 text-xs ${
+                          isRemoved ? 'btn-secondary' : 'btn-danger-outline'
+                        }`}
+                        disabled={pending || isLastRemaining}
+                        title={
+                          isLastRemaining ? '관리자 계정이 최소 1개는 있어야 합니다.' : undefined
+                        }
+                        onClick={() =>
+                          setRemoved((previous) =>
+                            isRemoved
+                              ? previous.filter((id) => id !== user.adminUserId)
+                              : [...previous, user.adminUserId],
+                          )
+                        }
+                      >
+                        {isRemoved ? '취소' : '삭제'}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function AdminUserSection({ adminUsers }: { adminUsers: AdminUser[] }) {
   const { pending, message, fieldErrors, mutate } = useMutation();
   const [form, setForm] = useState({
@@ -1123,74 +1768,7 @@ function AdminUserSection({ adminUsers }: { adminUsers: AdminUser[] }) {
 
   return (
     <div className="space-y-4">
-      <section className="card">
-        <div className="card-body">
-          <h2 className="card-title">관리자 계정</h2>
-          <div className="table-scroll mt-3">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>로그인 ID</th>
-                  <th>이름</th>
-                  <th>이메일</th>
-                  <th>연락처</th>
-                  <th>권한</th>
-                  <th>상태</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {adminUsers.map((user) => (
-                  <tr key={user.adminUserId}>
-                    <td className="font-mono text-xs">{user.loginId}</td>
-                    <td>{user.adminName}</td>
-                    <td className="text-xs">{user.email}</td>
-                    <td className="text-xs">{user.phone ?? '-'}</td>
-                    <td>{user.roleCode === 'SYSTEM_ADMIN' ? '시스템 관리자' : '주차 관리자'}</td>
-                    <td>
-                      <span
-                        className={`badge ${
-                          user.accountStatus === 'ACTIVE'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : user.accountStatus === 'LOCKED'
-                              ? 'bg-orange-100 text-orange-800'
-                              : 'bg-slate-200 text-slate-600'
-                        }`}
-                      >
-                        {user.accountStatus === 'ACTIVE'
-                          ? '활성'
-                          : user.accountStatus === 'LOCKED'
-                            ? '잠금'
-                            : '비활성'}
-                      </span>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="btn btn-secondary min-h-9 px-3 py-1.5 text-xs"
-                        disabled={pending}
-                        onClick={() =>
-                          mutate(
-                            `/api/admin/admin-users/${user.adminUserId}`,
-                            'PUT',
-                            {
-                              accountStatus:
-                                user.accountStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE',
-                            },
-                            '계정 상태를 변경했습니다.',
-                          )
-                        }
-                      >
-                        {user.accountStatus === 'ACTIVE' ? '비활성화' : '활성화'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
+      <AdminUserTable adminUsers={adminUsers} />
 
       <section className="card">
         <div className="card-body space-y-4">

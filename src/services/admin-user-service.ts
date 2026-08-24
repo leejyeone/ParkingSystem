@@ -103,6 +103,24 @@ export async function createAdminUser(
   }
 }
 
+/** 마지막 남은 활성 시스템 관리자를 잃게 되는지 확인한다. 잃으면 아무도 설정에 못 들어간다. */
+async function assertNotLastSystemAdmin(adminUserId: number): Promise<void> {
+  const activeSystemAdmins = await prisma.adminUser.count({
+    where: {
+      roleCode: AdminRole.SYSTEM_ADMIN,
+      accountStatus: AccountStatus.ACTIVE,
+      deletedAt: null,
+      adminUserId: { not: adminUserId },
+    },
+  });
+  if (activeSystemAdmins === 0) {
+    throw new ConflictError(
+      '활성 상태의 시스템 관리자가 최소 1명은 있어야 합니다.',
+      'LAST_SYSTEM_ADMIN',
+    );
+  }
+}
+
 export type UpdateAdminUserInput = {
   adminName?: string;
   email?: string;
@@ -131,22 +149,7 @@ export async function updateAdminUser(
     ((input.roleCode !== undefined && input.roleCode !== AdminRole.SYSTEM_ADMIN) ||
       (input.accountStatus !== undefined && input.accountStatus !== AccountStatus.ACTIVE));
 
-  if (losingSystemAdmin) {
-    const activeSystemAdmins = await prisma.adminUser.count({
-      where: {
-        roleCode: AdminRole.SYSTEM_ADMIN,
-        accountStatus: AccountStatus.ACTIVE,
-        deletedAt: null,
-        adminUserId: { not: adminUserId },
-      },
-    });
-    if (activeSystemAdmins === 0) {
-      throw new ConflictError(
-        '활성 상태의 시스템 관리자가 최소 1명은 있어야 합니다.',
-        'LAST_SYSTEM_ADMIN',
-      );
-    }
-  }
+  if (losingSystemAdmin) await assertNotLastSystemAdmin(adminUserId);
 
   try {
     const updated = await prisma.adminUser.update({
@@ -203,4 +206,43 @@ export async function updateAdminUser(
     }
     throw error;
   }
+}
+
+/**
+ * 관리자 계정 삭제.
+ *
+ * 행을 지우지 않고 deleted_at 을 채운다. 이 계정은 감사 로그(actor_admin_id), 예약 승인자,
+ * 상태 변경 이력에서 참조되므로 실제로 지우면 "누가 했는지" 가 사라진다.
+ * 조회는 전부 `deletedAt: null` 조건을 쓰므로 화면에서는 사라진다.
+ *
+ * 다만 login_id 와 email 이 UNIQUE 라 같은 값으로 다시 만들 수는 없다.
+ */
+export async function deleteAdminUser(
+  adminUserId: number,
+  actor: { adminUserId: number; requestContext?: RequestContext },
+) {
+  const current = await prisma.adminUser.findFirst({ where: { adminUserId, deletedAt: null } });
+  if (!current) throw new NotFoundError('관리자 계정을 찾을 수 없습니다.');
+
+  // 자기 계정을 지우면 그 자리에서 로그아웃되고 되돌릴 수단도 없어진다.
+  if (adminUserId === actor.adminUserId) {
+    throw new ConflictError('본인 계정은 삭제할 수 없습니다.', 'CANNOT_DELETE_SELF');
+  }
+  if (current.roleCode === AdminRole.SYSTEM_ADMIN) await assertNotLastSystemAdmin(adminUserId);
+
+  await prisma.adminUser.update({
+    where: { adminUserId },
+    data: { deletedAt: new Date(), accountStatus: AccountStatus.INACTIVE },
+  });
+
+  await writeAuditLog({
+    actorAdminId: actor.adminUserId,
+    actionType: AUDIT_ACTIONS.ADMIN_USER_DELETE,
+    targetType: AUDIT_TARGETS.ADMIN_USER,
+    targetId: adminUserId,
+    detail: { loginId: current.loginId, roleCode: current.roleCode },
+    context: actor.requestContext,
+  });
+
+  return { adminUserId };
 }

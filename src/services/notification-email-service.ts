@@ -69,6 +69,36 @@ export async function upsertNotificationEmail(
   }
 }
 
+/**
+ * 수신자를 목록에서 지운다.
+ *
+ * 이 테이블을 참조하는 다른 테이블이 없어 실제로 삭제해도 이력이 깨지지 않는다.
+ * 발송 기록은 email_send_logs 에 수신 주소가 그대로 남으므로 추적에도 문제가 없다.
+ */
+export async function deleteNotificationEmail(
+  notificationEmailId: number,
+  actor: { adminUserId: number; requestContext?: RequestContext },
+) {
+  const current = await prisma.adminNotificationEmail.findUnique({
+    where: { notificationEmailId },
+  });
+  if (!current) throw new NotFoundError('알림 이메일을 찾을 수 없습니다.');
+
+  await prisma.adminNotificationEmail.delete({ where: { notificationEmailId } });
+
+  await writeAuditLog({
+    actorAdminId: actor.adminUserId,
+    actionType: AUDIT_ACTIONS.NOTIFICATION_EMAIL_DELETE,
+    targetType: AUDIT_TARGETS.NOTIFICATION_EMAIL,
+    targetId: notificationEmailId,
+    // 감사 로그에도 수신자 전체 주소는 남기지 않는다.
+    detail: { domain: current.email.split('@')[1] ?? null },
+    context: actor.requestContext,
+  });
+
+  return { notificationEmailId };
+}
+
 export async function setNotificationEmailActive(
   notificationEmailId: number,
   isActive: boolean,
