@@ -42,6 +42,8 @@ export type ReservationEmailData = {
   changedByAdmin?: boolean;
   /** 수정/취소 마감 시각 */
   changeDeadlineAt?: Date | null;
+  /** 출차 알림 기준 시간(분 전). EXIT_REMINDER 메일 제목/본문에 표시한다. */
+  exitReminderMinutes?: number;
 };
 
 export type RenderedEmail = {
@@ -403,9 +405,11 @@ export function renderReservationEmail(
     }
 
     case EmailType.EXIT_REMINDER: {
+      /* 관리자가 정한 기준 시간(분 전)에 발송되므로 남은 시간을 그대로 안내한다. */
+      const minutes = data.exitReminderMinutes ?? 10;
       const params = {
-        title: '출차 예정 시간이 곧 도래합니다',
-        lead: `${data.requesterName}님, 등록하신 출차 예정 시간이 곧 도래합니다. 시간에 맞추어 출차해 주세요.`,
+        title: `출차 예정 시간까지 ${minutes}분 남았습니다`,
+        lead: `${data.requesterName}님, 등록하신 출차 예정 시간까지 ${minutes}분 남았습니다. 시간에 맞추어 출차해 주세요.`,
         rows: [
           ...rows,
           { label: '출차 예정 시각', value: formatKstHuman(data.visitEndAt) },
@@ -417,7 +421,7 @@ export function renderReservationEmail(
         ],
       };
       return {
-        subject: `[시노펙스] 출차 예정 시간 안내${suffix}`,
+        subject: `[시노펙스] 출차 예정 시간 ${minutes}분 전 안내${suffix}`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };

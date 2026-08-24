@@ -451,6 +451,30 @@ describe('12. 출차 예정 알림 중복 발송 방지', () => {
     expect(reminderMails).toHaveLength(1);
   });
 
+  it('예약 시간이 수정되면 바뀐 출차 시각 기준으로 다시 발송한다', async () => {
+    const { reservation } = await createReservation(baseReservationInput());
+    await approveReservation({
+      reservationId: reservation.reservationId,
+      adminUserId: fixtures.parkingAdminId,
+    });
+
+    await prisma.parkingReservation.update({
+      where: { reservationId: reservation.reservationId },
+      data: { visitEndAt: new Date(Date.now() + 5 * 60_000) },
+    });
+    expect((await runExitReminderJob()).sentCount).toBe(1);
+
+    // 출차 시각을 뒤로 미루면 이미 보낸 안내는 틀린 정보가 되므로 새로 나가야 한다.
+    await prisma.parkingReservation.update({
+      where: { reservationId: reservation.reservationId },
+      data: { visitEndAt: new Date(Date.now() + 8 * 60_000) },
+    });
+    expect((await runExitReminderJob()).sentCount).toBe(1);
+
+    // 같은 시각으로는 여전히 한 번만.
+    expect((await runExitReminderJob()).sentCount).toBe(0);
+  });
+
   it('알림 시간 범위 밖의 예약은 발송하지 않는다', async () => {
     const { reservation } = await createReservation(baseReservationInput());
     await approveReservation({

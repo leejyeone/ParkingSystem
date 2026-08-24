@@ -1,6 +1,10 @@
 import { ChangedByType, EmailSendStatus, EmailType, ReservationStatus } from '@prisma/client';
 
-import { sendExitReminderEmail, type ReservationForEmail } from '@/lib/email/email-service';
+import {
+  buildExitReminderDedupeKey,
+  sendExitReminderEmail,
+  type ReservationForEmail,
+} from '@/lib/email/email-service';
 import { ENTRY_EXIT_MANAGEMENT_ENABLED } from '@/domain/feature-flags';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
@@ -13,6 +17,9 @@ import { getSystemSettings } from '@/services/settings-service';
  *  - email_send_logs.dedupe_key 의 UNIQUE 제약으로 DB 레벨에서 중복 발송을 차단한다.
  *  - 조회 단계에서도 이미 성공 발송된 예약을 제외해 불필요한 시도를 줄인다.
  *  → cron 이 중복 실행되거나 동시에 실행되어도 같은 예약에 두 번 발송되지 않는다.
+ *
+ * 키에는 출차 예정 시각이 들어간다. 예약 시간이 수정되면 키가 달라져
+ * 바뀐 시각을 기준으로 알림이 다시 나간다. (수정 전 시각으로 보낸 안내는 이미 틀린 정보다)
  */
 
 export type ExitReminderResult = {
@@ -37,29 +44,35 @@ export async function findExitReminderTargets(
     where: {
       reservationStatus: { in: [ReservationStatus.APPROVED, ReservationStatus.PARKING] },
       visitEndAt: { gte: windowStart, lte: windowEnd },
-      // 이미 성공 발송된 예약 제외
-      emailLogs: {
-        none: { emailType: EmailType.EXIT_REMINDER, sendStatus: EmailSendStatus.SUCCESS },
-      },
     },
     include: {
       assignedSpace: { select: { spaceCode: true, spaceType: true } },
+      // 현재 출차 예정 시각 기준으로 이미 보냈는지 판단하려면 키를 봐야 한다.
+      emailLogs: {
+        where: { emailType: EmailType.EXIT_REMINDER, sendStatus: EmailSendStatus.SUCCESS },
+        select: { dedupeKey: true },
+      },
     },
     orderBy: { visitEndAt: 'asc' },
   });
 
-  return reservations.map((reservation) => ({
-    reservationId: reservation.reservationId,
-    reservationNo: reservation.reservationNo,
-    requesterType: reservation.requesterType,
-    requesterName: reservation.requesterName,
-    requesterEmail: reservation.requesterEmail,
-    companyOrBranchName: reservation.companyOrBranchName,
-    vehicleNo: reservation.vehicleNo,
-    visitStartAt: reservation.visitStartAt,
-    visitEndAt: reservation.visitEndAt,
-    assignedSpace: reservation.assignedSpace,
-  }));
+  return reservations
+    .filter((reservation) => {
+      const key = buildExitReminderDedupeKey(reservation.reservationId, reservation.visitEndAt);
+      return !reservation.emailLogs.some((log) => log.dedupeKey === key);
+    })
+    .map((reservation) => ({
+      reservationId: reservation.reservationId,
+      reservationNo: reservation.reservationNo,
+      requesterType: reservation.requesterType,
+      requesterName: reservation.requesterName,
+      requesterEmail: reservation.requesterEmail,
+      companyOrBranchName: reservation.companyOrBranchName,
+      vehicleNo: reservation.vehicleNo,
+      visitStartAt: reservation.visitStartAt,
+      visitEndAt: reservation.visitEndAt,
+      assignedSpace: reservation.assignedSpace,
+    }));
 }
 
 export async function runExitReminderJob(now: Date = new Date()): Promise<ExitReminderResult> {

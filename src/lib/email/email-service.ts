@@ -25,8 +25,29 @@ import { getSystemSettings } from '@/services/settings-service';
 /** 성공 발송이 1건만 존재해야 하는 이메일 종류 */
 export const DEDUPE_EMAIL_TYPES: readonly EmailType[] = [EmailType.EXIT_REMINDER];
 
-export function buildDedupeKey(reservationId: number, emailType: EmailType): string {
-  return `${reservationId}:${emailType}`;
+/**
+ * 멱등성 키.
+ *
+ * `occurrence` 는 "같은 예약이라도 이 값이 바뀌면 다시 보내야 한다" 는 기준이다.
+ * EXIT_REMINDER 는 출차 예정 시각을 넣는다 — 예약 시간이 수정되면 새 키가 되어
+ * 변경된 시각 기준으로 알림이 다시 나간다. (수정이 없으면 키가 같아 중복 발송은 계속 막힌다)
+ */
+export function buildDedupeKey(
+  reservationId: number,
+  emailType: EmailType,
+  occurrence?: string | number,
+): string {
+  const base = `${reservationId}:${emailType}`;
+  return occurrence === undefined ? base : `${base}:${occurrence}`;
+}
+
+/** EXIT_REMINDER 멱등성 키. 출차 예정 시각(분 단위)까지 포함한다. */
+export function buildExitReminderDedupeKey(reservationId: number, visitEndAt: Date): string {
+  return buildDedupeKey(
+    reservationId,
+    EmailType.EXIT_REMINDER,
+    visitEndAt.toISOString().slice(0, 16),
+  );
 }
 
 export function requiresDedupe(emailType: EmailType): boolean {
@@ -54,12 +75,14 @@ export async function sendEmailWithLog(params: {
   emailType: EmailType;
   to: string;
   rendered: RenderedEmail;
+  /** dedupe 대상 메일에서 "이 회차" 를 구분하는 값. 지정하지 않으면 예약당 1회가 된다. */
+  dedupeOccurrence?: string | number;
 }): Promise<EmailDispatchResult> {
-  const { reservationId, emailType, to, rendered } = params;
+  const { reservationId, emailType, to, rendered, dedupeOccurrence } = params;
 
   const dedupeKey =
     reservationId !== null && requiresDedupe(emailType)
-      ? buildDedupeKey(reservationId, emailType)
+      ? buildDedupeKey(reservationId, emailType, dedupeOccurrence)
       : null;
 
   let emailLogId: number;
@@ -158,6 +181,7 @@ async function toEmailData(
   const settings = await getSystemSettings();
   return {
     spaceAssignmentEnabled: settings.spaceAssignmentEnabled,
+    exitReminderMinutes: settings.exitReminderMinutes,
     reservationNo: reservation.reservationNo,
     requesterName: reservation.requesterName,
     requesterType: reservation.requesterType,
@@ -352,6 +376,7 @@ export async function sendExitReminderEmail(
     emailType: EmailType.EXIT_REMINDER,
     to: reservation.requesterEmail,
     rendered,
+    dedupeOccurrence: reservation.visitEndAt.toISOString().slice(0, 16),
   });
 }
 
