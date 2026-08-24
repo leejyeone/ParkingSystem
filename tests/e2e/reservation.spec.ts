@@ -153,11 +153,12 @@ test('관리자가 로그인해 예약을 승인하고 주차면을 배정한다
 
   await page.getByRole('button', { name: '승인 및 위치 확정' }).click();
 
-  // 승인이 끝나면 목록으로 돌아가고, 완료 안내와 함께 그 건이 승인 완료로 보인다.
-  await expect(page).toHaveURL(/\/admin\/reservations\?approved=PK-/);
+  // 승인이 끝나면 승인 대기 목록으로 돌아간다. 방금 승인한 건은 더 이상 승인 대기가 아니므로
+  // 이 필터에는 나오지 않고, 완료 안내만 뜬다.
+  await expect(page).toHaveURL(/\/admin\/reservations\?status=REQUESTED&approved=PK-/);
   await expect(page.getByText('승인 처리를 완료했습니다')).toBeVisible();
   await expect(page.getByRole('heading', { name: '예약 목록' })).toBeVisible();
-  await expect(page.getByTestId('status-badge').first()).toHaveText('승인 완료');
+  await expect(page.getByText('조건에 해당하는 예약이 없습니다.')).toBeVisible();
 
   const reservation = await prisma.parkingReservation.findFirst({
     include: { assignedSpace: true },

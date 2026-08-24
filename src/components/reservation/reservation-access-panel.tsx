@@ -98,7 +98,10 @@ export function ReservationAccessPanel({ token, initialReservation, settings }: 
             )}
             {reservation.visitPurpose && <Row term="방문 목적" desc={reservation.visitPurpose} />}
             {reservation.requestMemo && <Row term="요청 메모" desc={reservation.requestMemo} />}
-            <Row term="수정·취소 마감" desc={reservation.changeDeadlineText} />
+            {/* 승인 대기 상태에서만 의미가 있다. 승인/반려/취소된 예약은 더 이상 수정 대상이 아니다. */}
+            {reservation.reservationStatus === 'REQUESTED' && (
+              <Row term="수정·취소 마감" desc={reservation.changeDeadlineText} />
+            )}
           </dl>
         </div>
       </section>

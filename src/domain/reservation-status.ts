@@ -87,10 +87,6 @@ export const DISPLAY_STATUS_LABEL: Readonly<Record<DisplayReservationStatus, str
   USED: '사용 완료',
 };
 
-export function isDerivedReservationStatus(value: string): value is DerivedReservationStatus {
-  return (DERIVED_RESERVATION_STATUSES as readonly string[]).includes(value);
-}
-
 /**
  * 관리자 예약 목록/상세에서 노출·검색에 쓰는 상태 값. (필터 드롭다운 + 검증 스키마 공용)
  *
