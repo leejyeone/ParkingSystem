@@ -67,19 +67,43 @@ export async function createAdminUser(
     throw new ValidationError(PASSWORD_POLICY_MESSAGE, { password: [PASSWORD_POLICY_MESSAGE] });
   }
 
+  const email = input.email.trim().toLowerCase();
+
   try {
-    const created = await prisma.adminUser.create({
-      data: {
-        loginId: input.loginId.trim(),
-        passwordHash: await hashPassword(input.password),
-        adminName: input.adminName.trim(),
-        email: input.email.trim().toLowerCase(),
-        phone: input.phone?.trim() || null,
-        roleCode: input.roleCode,
-        accountStatus: AccountStatus.ACTIVE,
-        passwordChangedAt: new Date(),
-      },
-      select: { adminUserId: true, loginId: true, roleCode: true },
+    const created = await prisma.$transaction(async (tx) => {
+      const admin = await tx.adminUser.create({
+        data: {
+          loginId: input.loginId.trim(),
+          passwordHash: await hashPassword(input.password),
+          adminName: input.adminName.trim(),
+          email,
+          phone: input.phone?.trim() || null,
+          roleCode: input.roleCode,
+          accountStatus: AccountStatus.ACTIVE,
+          passwordChangedAt: new Date(),
+        },
+        select: { adminUserId: true, loginId: true, roleCode: true },
+      });
+
+      /*
+       * 관리자 계정의 이메일을 알림 수신자 목록에도 자동으로 올린다 — 등록만 해두고
+       * 정작 신규 신청/승인 알림을 못 받는 사고를 막기 위함이다. 이미 같은 이메일이
+       * 알림 목록에 있으면(예: 공용 배포 주소로 미리 등록됐던 경우) 기존 설정(수신
+       * 여부, 활성화 상태)은 그대로 두고 건드리지 않는다.
+       */
+      await tx.adminNotificationEmail.upsert({
+        where: { email },
+        create: {
+          email,
+          recipientName: input.adminName.trim(),
+          receiveNewRequest: true,
+          receiveApprovalAlert: true,
+          isActive: true,
+        },
+        update: {},
+      });
+
+      return admin;
     });
 
     await writeAuditLog({

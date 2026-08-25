@@ -221,6 +221,57 @@ describe('14. SYSTEM_ADMIN 의 주차면 및 관리자 관리', () => {
     expect(await verifyPassword('NewAdmin!2345', saved!.passwordHash)).toBe(true);
   });
 
+  it('관리자 계정을 생성하면 그 이메일이 알림 수신자 목록에 자동으로 등록된다', async () => {
+    await createAdminUser(
+      {
+        loginId: 'notifyadmin',
+        password: 'NewAdmin!2345',
+        adminName: '알림관리자',
+        email: 'notify@example.com',
+        roleCode: AdminRole.PARKING_ADMIN,
+      },
+      { adminUserId: fixtures.systemAdminId },
+    );
+
+    const notificationEmail = await prisma.adminNotificationEmail.findUnique({
+      where: { email: 'notify@example.com' },
+    });
+    expect(notificationEmail).not.toBeNull();
+    expect(notificationEmail?.isActive).toBe(true);
+    expect(notificationEmail?.receiveNewRequest).toBe(true);
+    expect(notificationEmail?.receiveApprovalAlert).toBe(true);
+  });
+
+  it('이미 알림 수신자로 등록된 이메일로 관리자를 만들어도 기존 수신 설정을 덮어쓰지 않는다', async () => {
+    await prisma.adminNotificationEmail.create({
+      data: {
+        email: 'existing@example.com',
+        recipientName: '기존 배포 주소',
+        receiveNewRequest: false,
+        receiveApprovalAlert: false,
+        isActive: false,
+      },
+    });
+
+    await createAdminUser(
+      {
+        loginId: 'existingadmin',
+        password: 'NewAdmin!2345',
+        adminName: '기존이메일관리자',
+        email: 'existing@example.com',
+        roleCode: AdminRole.PARKING_ADMIN,
+      },
+      { adminUserId: fixtures.systemAdminId },
+    );
+
+    const notificationEmail = await prisma.adminNotificationEmail.findUnique({
+      where: { email: 'existing@example.com' },
+    });
+    expect(notificationEmail?.isActive).toBe(false);
+    expect(notificationEmail?.receiveNewRequest).toBe(false);
+    expect(notificationEmail?.receiveApprovalAlert).toBe(false);
+  });
+
   it('비밀번호 정책을 만족하지 않으면 계정을 만들 수 없다', async () => {
     await expect(
       createAdminUser(

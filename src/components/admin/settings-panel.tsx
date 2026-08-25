@@ -1999,7 +1999,13 @@ function AdminUserSection({ adminUsers }: { adminUsers: AdminUser[] }) {
                 onChange={(event) => setForm({ ...form, adminName: event.target.value })}
               />
             </FormField>
-            <FormField label="이메일" htmlFor="admin-email" required errors={fieldErrors.email}>
+            <FormField
+              label="이메일"
+              htmlFor="admin-email"
+              required
+              hint="이 이메일로 신규 신청/승인 알림 메일을 받도록 관리자 알림 이메일 목록에 자동 등록됩니다."
+              errors={fieldErrors.email}
+            >
               <input
                 id="admin-email"
                 type="email"
