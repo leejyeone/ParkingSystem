@@ -19,7 +19,7 @@ export default async function HomePage() {
         <p className="text-brand-700 text-xs font-bold tracking-widest">SYNOPEX VISIT</p>
         <h1 className="mt-2 text-2xl font-black text-slate-900 sm:text-3xl">시노펙스 방문 예약</h1>
         <p className="mt-2 text-sm leading-relaxed text-slate-600">
-          방문객과 타 사업장 직원 모두 별도 가입 없이 방문을 신청할 수 있습니다.
+          시노펙스 동탄 사업장의 방문을 신청할 수 있습니다.
         </p>
       </header>
 
