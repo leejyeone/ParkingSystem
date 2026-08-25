@@ -27,7 +27,7 @@ export async function listParkingAreas() {
 export async function listParkingSpaces(options: { includeInactive?: boolean } = {}) {
   return prisma.parkingSpace.findMany({
     where: options.includeInactive ? {} : { isActive: true },
-    orderBy: [{ displayOrder: 'asc' }, { spaceId: 'asc' }],
+    orderBy: [{ spaceCode: 'asc' }],
     select: {
       spaceId: true,
       spaceCode: true,

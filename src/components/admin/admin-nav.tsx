@@ -12,15 +12,17 @@ type Props = {
 };
 
 /**
- * 시스템 설정·감사 로그는 SYSTEM_ADMIN 전용이다(페이지 쪽 requireSystemAdminPage 와 짝을 맞춤).
+ * 시스템 설정은 SYSTEM_ADMIN 전용이다(페이지 쪽 requireSystemAdminPage 와 짝을 맞춤).
  * 이메일 이력은 방문 관리자도 승인/반려 처리 중 발송 여부를 확인해야 해서 두 역할 모두에게 연다.
+ *
+ * 감사 로그는 잠시 비활성화 상태라 메뉴에서 뺐다. 페이지(/admin/audit-logs)와 데이터는
+ * 그대로 남아있으니, 다시 노출하려면 이 메뉴 항목만 되살리면 된다.
  */
 const MENU: { href: string; label: string; systemOnly?: boolean }[] = [
   { href: '/admin', label: '대시보드' },
   { href: '/admin/reservations', label: '예약 목록' },
   { href: '/admin/settings', label: '시스템 설정', systemOnly: true },
   { href: '/admin/email-logs', label: '이메일 이력' },
-  { href: '/admin/audit-logs', label: '감사 로그', systemOnly: true },
 ];
 
 export function AdminNav({ adminName, roleCode }: Props) {

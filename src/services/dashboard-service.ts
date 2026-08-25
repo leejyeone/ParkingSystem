@@ -90,9 +90,9 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
       prisma.parkingSpace.findMany({
         // 비활성 주차면도 도면에 회색으로 표시해야 하므로 함께 가져온다.
         where: { area: { isActive: true } },
-        // 구역별로 묶어 탭을 만들 수 있도록 구역 표시 순서를 먼저 따르고, 그 안에서 주차면
-        // 표시 순서를 따른다.
-        orderBy: [{ area: { displayOrder: 'asc' } }, { displayOrder: 'asc' }, { spaceId: 'asc' }],
+        // 구역별로 묶어 탭을 만들 수 있도록 구역 표시 순서를 먼저 따르고, 그 안에서는
+        // 주차면 코드 순서로 정렬한다.
+        orderBy: [{ area: { displayOrder: 'asc' } }, { spaceCode: 'asc' }],
         select: {
           spaceId: true,
           spaceCode: true,
