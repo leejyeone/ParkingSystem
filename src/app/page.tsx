@@ -47,9 +47,6 @@ export default async function HomePage() {
             </div>
           </>
         )}
-        <Link href="/admin/login" className="btn btn-ghost w-full">
-          관리자 로그인
-        </Link>
       </nav>
 
       <section className="card mt-6">
