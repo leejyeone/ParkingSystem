@@ -48,9 +48,12 @@ export const userProfileUpdateSchema = z.object({
 });
 
 export const reservationLookupSchema = z.object({
-  reservationNo: z
-    .string({ error: '예약번호를 입력해 주세요.' })
-    .trim()
-    .min(1, '예약번호를 입력해 주세요.')
-    .max(30, '예약번호 형식이 올바르지 않습니다.'),
+  requesterName: requiredText(50, '성명'),
+  vehicleNo: vehicleNoSchema,
+});
+
+export const reservationLookupAccessSchema = z.object({
+  reservationId: z.coerce.number().int().positive('예약을 다시 선택해 주세요.'),
+  requesterName: requiredText(50, '성명'),
+  vehicleNo: vehicleNoSchema,
 });

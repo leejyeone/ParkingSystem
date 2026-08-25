@@ -5,7 +5,7 @@ import { clearMailOutbox, clientIpFor, prisma, resetE2eDatabase, tomorrowInput }
 /**
  * 회원(선택 로그인) 흐름 E2E
  *   회원가입 → 마이페이지 → 방문 신청 폼 자동완성 → 신청 → 내 예약 목록
- *   그리고 예약번호로 예약 조회 → 수정
+ *   그리고 성명·차량번호로 예약 조회 → 수정
  */
 
 const MEMBER = {
@@ -81,33 +81,7 @@ test('회원이 신청한 예약은 마이페이지 내 예약 목록에 나온�
   expect(saved?.userId).not.toBeNull();
 });
 
-test('신청 완료 화면에서 예약번호를 복사할 수 있다', async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-
-  await page.goto('/reservations/new');
-  await page.getByLabel('방문상호').fill('시노펙스');
-  await page.getByLabel('성명').fill('홍길동');
-  await page.getByLabel('이메일').fill('guest@example.com');
-  await page.getByLabel('차량번호').fill('12가3456');
-  await page.getByLabel('입차 예정 시간').fill(tomorrowInput(10));
-  await page.getByLabel('출차 예정 시간').fill(tomorrowInput(12));
-  await page.getByLabel(/개인정보 수집 및 이용에 동의합니다/).check();
-  await page.getByRole('button', { name: '방문 신청하기' }).click();
-
-  await expect(page.getByTestId('reservation-complete')).toBeVisible();
-  const reservationNo = (await page.getByTestId('reservation-no').textContent())!.trim();
-
-  const copyButton = page.getByTestId('copy-button').first();
-  await expect(copyButton).toBeVisible();
-  await copyButton.click();
-
-  await expect(copyButton).toHaveText('복사됨');
-
-  const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
-  expect(clipboardText).toBe(reservationNo);
-});
-
-test('예약번호만으로 예약을 조회하고 수정할 수 있다', async ({ page }) => {
+test('성명·차량번호만으로 예약을 조회하고 수정할 수 있다', async ({ page }) => {
   // 비로그인으로 신청
   await page.goto('/reservations/new');
   await page.getByLabel('방문상호').fill('시노펙스');
@@ -120,12 +94,16 @@ test('예약번호만으로 예약을 조회하고 수정할 수 있다', async 
   await page.getByRole('button', { name: '방문 신청하기' }).click();
 
   await expect(page.getByTestId('reservation-complete')).toBeVisible();
-  const reservationNo = (await page.getByTestId('reservation-no').textContent())!.trim();
 
-  // 예약번호만으로 조회
+  // 성명·차량번호(AND 조건)로 검색
   await page.goto('/reservations/lookup');
-  await page.getByLabel('예약번호').fill(reservationNo);
-  await page.getByRole('button', { name: '예약 조회하기' }).click();
+  await page.getByLabel('성명').fill('홍길동');
+  await page.getByLabel('차량번호').fill('12가3456');
+  await page.getByRole('button', { name: '예약 검색하기' }).click();
+
+  // 목록에는 예약번호 대신 방문 일정이 보이고, 행을 눌러 상세로 들어간다.
+  await expect(page.getByText('검색 결과')).toBeVisible();
+  await page.getByRole('button', { name: /자세히 보기/ }).click();
 
   await expect(page.getByRole('heading', { name: '내 예약' })).toBeVisible();
   await expect(page).toHaveURL(/\/r\//);
@@ -142,12 +120,13 @@ test('예약번호만으로 예약을 조회하고 수정할 수 있다', async 
   await expect(page.getByText(/변경된 예약은 다시 관리자 승인/)).toBeVisible();
 });
 
-test('없는 예약번호는 조회되지 않는다', async ({ page }) => {
+test('일치하는 예약이 없으면 검색되지 않는다', async ({ page }) => {
   await page.goto('/reservations/lookup');
-  await page.getByLabel('예약번호').fill('PK-20260820-ZZZZZZ');
-  await page.getByRole('button', { name: '예약 조회하기' }).click();
+  await page.getByLabel('성명').fill('없는사람');
+  await page.getByLabel('차량번호').fill('99나9999');
+  await page.getByRole('button', { name: '예약 검색하기' }).click();
 
-  await expect(page.getByText(/해당 예약번호를 찾을 수 없습니다/)).toBeVisible();
+  await expect(page.getByText('일치하는 예약이 없습니다')).toBeVisible();
 });
 
 test('비로그인 상태로 마이페이지에 접근하면 회원 로그인 페이지로 이동한다', async ({ page }) => {

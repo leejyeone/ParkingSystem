@@ -8,7 +8,10 @@ import {
   UnauthorizedError,
 } from '@/lib/errors';
 import { verifyPassword } from '@/lib/password';
-import { lookupByReservationNo } from '@/services/reservation-lookup-service';
+import {
+  issueAccessTokenByNameAndVehicle,
+  lookupByNameAndVehicle,
+} from '@/services/reservation-lookup-service';
 import { resolveAccessToken } from '@/services/reservation-access-service';
 import { createReservation, listReservationsForUser } from '@/services/reservation-service';
 import {
@@ -194,27 +197,53 @@ describe('회원 예약 연결 / 내 예약 목록', () => {
   });
 });
 
-describe('예약번호로 예약 조회', () => {
-  it('예약번호로 조회하면 접근 토큰이 발급되고 해당 예약으로 연결된다', async () => {
+describe('성명·차량번호로 예약 조회', () => {
+  it('성명과 차량번호가 모두 일치하는 예약만 목록에 나온다', async () => {
+    const { reservation } = await createReservation(baseReservationInput());
+    await createReservation(baseReservationInput({ requesterName: '다른사람' }));
+    await createReservation(baseReservationInput({ vehicleNo: '99나9999' }));
+
+    const results = await lookupByNameAndVehicle({
+      requesterName: '홍길동',
+      vehicleNo: '12가3456',
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.reservationId).toBe(reservation.reservationId);
+  });
+
+  it('목록에서 고른 예약은 성명·차량번호를 다시 검증해 접근 토큰이 발급된다', async () => {
     const { reservation } = await createReservation(baseReservationInput());
 
-    const { rawToken, reservationId } = await lookupByReservationNo(reservation.reservationNo);
-    expect(reservationId).toBe(reservation.reservationId);
+    const rawToken = await issueAccessTokenByNameAndVehicle({
+      reservationId: reservation.reservationId,
+      requesterName: '홍길동',
+      vehicleNo: '12가3456',
+    });
 
     const resolved = await resolveAccessToken(rawToken);
     expect(resolved.reservationId).toBe(reservation.reservationId);
   });
 
-  it('소문자로 입력해도 조회된다', async () => {
+  it('성명·차량번호가 그 예약과 일치하지 않으면 토큰이 발급되지 않는다', async () => {
     const { reservation } = await createReservation(baseReservationInput());
 
-    const { reservationId } = await lookupByReservationNo(reservation.reservationNo.toLowerCase());
-    expect(reservationId).toBe(reservation.reservationId);
+    await expect(
+      issueAccessTokenByNameAndVehicle({
+        reservationId: reservation.reservationId,
+        requesterName: '홍길동',
+        vehicleNo: '99나9999',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundError);
   });
 
   it('조회로 발급된 토큰은 유효시간이 짧다 (2시간 이내)', async () => {
     const { reservation } = await createReservation(baseReservationInput());
-    await lookupByReservationNo(reservation.reservationNo);
+    await issueAccessTokenByNameAndVehicle({
+      reservationId: reservation.reservationId,
+      requesterName: '홍길동',
+      vehicleNo: '12가3456',
+    });
 
     const token = await prisma.reservationAccessToken.findFirst({
       where: { reservationId: reservation.reservationId },
@@ -226,27 +255,27 @@ describe('예약번호로 예약 조회', () => {
     expect(remainingMinutes).toBeLessThanOrEqual(120);
   });
 
-  it('없는 예약번호와 형식이 틀린 값의 오류 메시지가 같다', async () => {
-    const notFound = await lookupByReservationNo('PK-20260820-ZZZZZZ').catch(
-      (error: Error) => error.message,
-    );
-    const malformed = await lookupByReservationNo('abc').catch((error: Error) => error.message);
+  it('일치하는 예약이 없으면 빈 목록을 반환한다', async () => {
+    const results = await lookupByNameAndVehicle({
+      requesterName: '없는사람',
+      vehicleNo: '11가1111',
+    });
 
-    expect(notFound).toBe(malformed);
+    expect(results).toHaveLength(0);
   });
 
-  it('없는 예약번호는 NotFoundError 를 던진다', async () => {
-    await expect(lookupByReservationNo('PK-20260820-ZZZZZZ')).rejects.toBeInstanceOf(NotFoundError);
-  });
-
-  it('취소된 예약도 예약번호로 조회할 수 있다', async () => {
+  it('취소된 예약도 성명·차량번호로 조회할 수 있다', async () => {
     const { reservation } = await createReservation(baseReservationInput());
     await prisma.parkingReservation.update({
       where: { reservationId: reservation.reservationId },
       data: { reservationStatus: ReservationStatus.CANCELLED },
     });
 
-    const { reservationId } = await lookupByReservationNo(reservation.reservationNo);
-    expect(reservationId).toBe(reservation.reservationId);
+    const results = await lookupByNameAndVehicle({
+      requesterName: '홍길동',
+      vehicleNo: '12가3456',
+    });
+
+    expect(results.map((r) => r.reservationId)).toContain(reservation.reservationId);
   });
 });

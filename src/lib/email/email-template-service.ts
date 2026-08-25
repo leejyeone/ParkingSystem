@@ -225,7 +225,6 @@ export function renderReservationEmail(
   data: ReservationEmailData,
 ): RenderedEmail {
   const rows = baseRows(data);
-  const suffix = ` (${data.reservationNo})`;
 
   switch (emailType) {
     case EmailType.REQUEST_RECEIVED: {
@@ -252,7 +251,7 @@ export function renderReservationEmail(
         buttonUrl: data.accessUrl,
       };
       return {
-        subject: `[시노펙스] 방문 신청이 접수되었습니다${suffix}`,
+        subject: `[시노펙스] 방문 신청이 접수되었습니다`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };
@@ -271,7 +270,7 @@ export function renderReservationEmail(
         footerNote: '본 메일은 관리자 알림 수신자에게 발송됩니다.',
       };
       return {
-        subject: `[시노펙스][승인요청] 신규 방문 신청${suffix}`,
+        subject: `[시노펙스][승인요청] 신규 방문 신청`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };
@@ -320,8 +319,8 @@ export function renderReservationEmail(
       };
       return {
         subject: isDoubleParking
-          ? `[시노펙스] 방문 신청 승인 및 이중주차 배정 안내${suffix}`
-          : `[시노펙스] 방문 신청이 승인되었습니다${suffix}`,
+          ? `[시노펙스] 방문 신청 승인 및 이중주차 배정 안내`
+          : `[시노펙스] 방문 신청이 승인되었습니다`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };
@@ -342,7 +341,7 @@ export function renderReservationEmail(
         ],
       };
       return {
-        subject: `[시노펙스] 방문 신청이 반려되었습니다${suffix}`,
+        subject: `[시노펙스] 방문 신청이 반려되었습니다`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };
@@ -378,7 +377,7 @@ export function renderReservationEmail(
         buttonUrl: data.accessUrl,
       };
       return {
-        subject: `[시노펙스] 예약 내용이 변경되었습니다${suffix}`,
+        subject: `[시노펙스] 예약 내용이 변경되었습니다`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };
@@ -398,7 +397,7 @@ export function renderReservationEmail(
           : ['예약이 취소되어 주차가 불가합니다.'],
       };
       return {
-        subject: `[시노펙스] 예약이 취소되었습니다${suffix}`,
+        subject: `[시노펙스] 예약이 취소되었습니다`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };
@@ -421,7 +420,7 @@ export function renderReservationEmail(
         ],
       };
       return {
-        subject: `[시노펙스] 출차 예정 시간 ${minutes}분 전 안내${suffix}`,
+        subject: `[시노펙스] 출차 예정 시간 ${minutes}분 전 안내`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };

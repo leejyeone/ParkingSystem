@@ -88,12 +88,31 @@ test('방문객이 주차를 신청하면 예약번호와 승인 대기 상태�
   expect(reservation?.vehicleNo).toBe('12가3456');
 });
 
-test('예약 조회 화면에서 예약번호 입력과 메일 링크 안내를 모두 제공한다', async ({ page }) => {
+test('예약 조회 화면에서 성명·차량번호 입력과 메일 링크 안내를 모두 제공한다', async ({ page }) => {
   await page.goto('/reservations/lookup');
 
-  await expect(page.locator('input[name="reservationNo"]')).toBeVisible();
-  await expect(page.getByRole('button', { name: '예약 조회하기' })).toBeVisible();
-  await expect(page.getByText('예약번호를 모르시나요?')).toBeVisible();
+  await expect(page.locator('input[name="requesterName"]')).toBeVisible();
+  await expect(page.locator('input[name="vehicleNo"]')).toBeVisible();
+  await expect(page.getByRole('button', { name: '예약 검색하기' })).toBeVisible();
+  await expect(page.getByText('검색이 안 되시나요?')).toBeVisible();
+});
+
+test('성명·차량번호로 검색하면 일치하는 예약 목록이 보이고 행을 누르면 상세로 이동한다', async ({
+  page,
+}) => {
+  await submitReservation(page);
+  await expect(page.getByTestId('reservation-complete')).toBeVisible();
+
+  await page.goto('/reservations/lookup');
+  await page.locator('input[name="requesterName"]').fill('홍길동');
+  await page.locator('input[name="vehicleNo"]').fill('12가3456');
+  await page.getByRole('button', { name: '예약 검색하기' }).click();
+
+  // 목록에는 예약번호 대신 방문 일정이 보이고, 행 자체가 상세로 가는 버튼이다.
+  await expect(page.getByText('검색 결과')).toBeVisible();
+  await page.getByRole('button', { name: /자세히 보기/ }).click();
+
+  await expect(page.getByRole('heading', { name: /^PK-/ })).toBeVisible();
 });
 
 test('예약 목록의 검색 조건은 기본으로 접혀 있고 적용된 조건만 칩으로 보인다', async ({ page }) => {

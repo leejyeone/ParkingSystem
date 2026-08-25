@@ -142,10 +142,17 @@ describe('이메일 템플릿', () => {
   it('HTML 과 Text 본문을 모두 제공한다', () => {
     const email = renderReservationEmail(EmailType.REQUEST_RECEIVED, data);
 
-    expect(email.subject).toContain('PK-20260820-ABCDEF');
     expect(email.html).toContain('<!doctype html>');
     expect(email.text.length).toBeGreaterThan(0);
     expect(email.text).not.toContain('<html');
+  });
+
+  it('예약번호는 본문에만 있고 제목에는 없다', () => {
+    const email = renderReservationEmail(EmailType.REQUEST_RECEIVED, data);
+
+    expect(email.subject).not.toContain('PK-20260820-ABCDEF');
+    expect(email.html).toContain('PK-20260820-ABCDEF');
+    expect(email.text).toContain('PK-20260820-ABCDEF');
   });
 
   it('성명을 마스킹하지 않고 원문으로 표시한다', () => {

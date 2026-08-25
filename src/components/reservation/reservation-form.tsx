@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useState, type ChangeEvent, type FormEvent } from 'react';
 
 import { Alert } from '@/components/ui/alert';
-import { CopyButton } from '@/components/ui/copy-button';
 import { FormField, inputClassName } from '@/components/ui/form-field';
 import { apiRequest, type ApiErrorPayload } from '@/lib/client/api-client';
 import { normalizeVehicleNo } from '@/lib/vehicle';
@@ -259,12 +258,7 @@ export function ReservationForm({
             />
           </FormField>
 
-          <FormField
-            label="차량번호"
-            htmlFor="vehicleNo"
-            required
-            errors={fieldErrors.vehicleNo}
-          >
+          <FormField label="차량번호" htmlFor="vehicleNo" required errors={fieldErrors.vehicleNo}>
             <input
               id="vehicleNo"
               name="vehicleNo"
@@ -431,11 +425,10 @@ function CompletionView({ result }: { result: CreateResponse }) {
         <dl className="mt-5">
           <div className="definition-row">
             <dt className="definition-term">예약번호</dt>
-            <dd className="definition-desc flex flex-wrap items-center gap-2">
+            <dd className="definition-desc">
               <span className="font-mono font-bold" data-testid="reservation-no">
                 {result.reservationNo}
               </span>
-              <CopyButton value={result.reservationNo} />
             </dd>
           </div>
           <div className="definition-row">
@@ -453,8 +446,8 @@ function CompletionView({ result }: { result: CreateResponse }) {
         <div className="mt-5 space-y-3">
           <Alert variant="info" title="이메일이 발송되었습니다">
             <p>
-              {result.emailNoticeSentTo} 주소로 접수 확인 메일을 보냈습니다. 메일의 링크나
-              예약번호로 예약을 조회할 수 있습니다.
+              {result.emailNoticeSentTo} 주소로 접수 확인 메일을 보냈습니다. 메일의 링크나 성명·차량
+              번호로 예약을 조회할 수 있습니다.
             </p>
             <p className="mt-1">메일이 도착하지 않으면 스팸함을 확인해 주세요.</p>
           </Alert>
