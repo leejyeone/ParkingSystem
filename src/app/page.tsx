@@ -16,16 +16,16 @@ export default async function HomePage() {
   return (
     <main className="app-container">
       <header className="mb-6 text-center">
-        <p className="text-brand-700 text-xs font-bold tracking-widest">SYNOPEX PARKING</p>
-        <h1 className="mt-2 text-2xl font-black text-slate-900 sm:text-3xl">시노펙스 주차 예약</h1>
+        <p className="text-brand-700 text-xs font-bold tracking-widest">SYNOPEX VISIT</p>
+        <h1 className="mt-2 text-2xl font-black text-slate-900 sm:text-3xl">시노펙스 방문 예약</h1>
         <p className="mt-2 text-sm leading-relaxed text-slate-600">
-          방문객과 타 지사 직원 모두 별도 가입 없이 주차를 신청할 수 있습니다.
+          방문객과 타 사업장 직원 모두 별도 가입 없이 방문을 신청할 수 있습니다.
         </p>
       </header>
 
       <nav className="grid gap-3">
         <Link href="/reservations/new" className="btn btn-primary btn-lg w-full">
-          주차 신청하기
+          방문 신청하기
         </Link>
         {/* 로그인하면 마이페이지에서 내 예약을 바로 볼 수 있으므로 예약번호 조회는 감춘다. */}
         {session ? (

@@ -84,7 +84,7 @@ export class GmailApiEmailProvider implements EmailProvider {
     const clientSecret = getRequiredEnv('GMAIL_CLIENT_SECRET');
     const refreshToken = getRequiredEnv('GMAIL_REFRESH_TOKEN');
     const senderEmail = getRequiredEnv('GMAIL_SENDER_EMAIL');
-    const senderName = process.env.GMAIL_SENDER_NAME?.trim() || '본사 주차관리';
+    const senderName = process.env.GMAIL_SENDER_NAME?.trim() || '본사 방문관리';
     const redirectUri = process.env.GMAIL_REDIRECT_URI?.trim() || undefined;
 
     const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);

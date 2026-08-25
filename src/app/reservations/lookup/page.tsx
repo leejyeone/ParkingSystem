@@ -63,7 +63,7 @@ export default async function ReservationLookupPage() {
             <ul className="mt-3 space-y-2 text-sm leading-relaxed text-slate-700">
               <li>
                 • 신청 시 입력한 이메일에서 제목이{' '}
-                <strong>[시노펙스] 주차 신청이 접수되었습니다</strong> 인 메일을 확인해 주세요.
+                <strong>[시노펙스] 방문 신청이 접수되었습니다</strong> 인 메일을 확인해 주세요.
                 예약번호와 조회 링크가 함께 있습니다.
               </li>
               <li>• 메일이 없다면 스팸함을 확인하시고, 그래도 없으면 새로 신청해 주세요.</li>
@@ -72,7 +72,7 @@ export default async function ReservationLookupPage() {
         </section>
 
         <Link href="/reservations/new" className="btn btn-secondary w-full">
-          새로 주차 신청하기
+          새로 방문 신청하기
         </Link>
       </div>
     </main>

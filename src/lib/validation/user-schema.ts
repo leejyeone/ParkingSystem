@@ -23,7 +23,7 @@ export const signUpSchema = z.object({
     .min(USER_PASSWORD_MIN_LENGTH, USER_PASSWORD_POLICY_MESSAGE)
     .max(100, '비밀번호는 100자 이하로 입력해 주세요.'),
   name: requiredText(50, '성명'),
-  companyOrBranchName: requiredText(100, '방문 상호 또는 소속 지사명'),
+  companyOrBranchName: requiredText(100, '방문 상호 또는 소속 사업장명'),
   vehicleNo: optionalVehicleNoSchema,
 });
 
@@ -37,7 +37,7 @@ export const userLoginSchema = z.object({
 
 export const userProfileUpdateSchema = z.object({
   name: requiredText(50, '성명'),
-  companyOrBranchName: requiredText(100, '방문 상호 또는 소속 지사명'),
+  companyOrBranchName: requiredText(100, '방문 상호 또는 소속 사업장명'),
   vehicleNo: optionalVehicleNoSchema,
   /** 값이 있을 때만 비밀번호를 변경한다. */
   password: z

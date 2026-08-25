@@ -17,7 +17,7 @@ export const requesterTypeSchema = z.enum([RequesterType.VISITOR, RequesterType.
 
 export const createReservationSchema = z.object({
   requesterType: requesterTypeSchema,
-  companyOrBranchName: requiredText(100, '방문 상호 또는 소속 지사명'),
+  companyOrBranchName: requiredText(100, '방문 상호 또는 소속 사업장명'),
   requesterName: requiredText(50, '성명'),
   requesterEmail: emailSchema,
   vehicleNo: vehicleNoSchema,
@@ -38,7 +38,7 @@ export type CreateReservationPayload = z.infer<typeof createReservationSchema>;
  * (변경이 필요하면 취소 후 재신청하도록 안내한다)
  */
 export const updateReservationSchema = z.object({
-  companyOrBranchName: requiredText(100, '방문 상호 또는 소속 지사명'),
+  companyOrBranchName: requiredText(100, '방문 상호 또는 소속 사업장명'),
   requesterName: requiredText(50, '성명'),
   vehicleNo: vehicleNoSchema,
   visitPurpose: optionalText(200, '방문 목적'),

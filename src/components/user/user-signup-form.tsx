@@ -10,7 +10,7 @@ import { normalizeVehicleNo } from '@/lib/vehicle';
 
 /**
  * 회원가입 폼.
- * 여기서 저장한 정보가 주차 신청 폼 자동완성에 그대로 사용된다.
+ * 여기서 저장한 정보가 방문 신청 폼 자동완성에 그대로 사용된다.
  */
 export function UserSignUpForm() {
   const router = useRouter();
@@ -109,7 +109,7 @@ export function UserSignUpForm() {
         </FormField>
 
         <FormField
-          label="방문 상호 또는 소속 지사명"
+          label="방문 상호 또는 소속 사업장명"
           htmlFor="signup-company"
           required
           errors={fieldErrors.companyOrBranchName}
@@ -119,7 +119,7 @@ export function UserSignUpForm() {
             className={inputClassName(Boolean(fieldErrors.companyOrBranchName))}
             value={form.companyOrBranchName}
             onChange={(event) => update('companyOrBranchName', event.target.value)}
-            placeholder="예) 시노펙스 / 대구지사"
+            placeholder="예) 시노펙스 / 대구사업장"
             autoComplete="organization"
             maxLength={100}
           />
@@ -128,7 +128,7 @@ export function UserSignUpForm() {
         <FormField
           label="차량번호"
           htmlFor="signup-vehicle"
-          hint="선택 입력입니다. 저장해 두면 주차 신청 시 자동으로 입력됩니다."
+          hint="선택 입력입니다. 저장해 두면 방문 신청 시 자동으로 입력됩니다."
           errors={fieldErrors.vehicleNo}
         >
           <input

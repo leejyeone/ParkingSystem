@@ -218,7 +218,7 @@ export function ReservationBulkRejectTable({
                   </th>
                 )}
                 <th>상태</th>
-                <th>방문 상호/지사</th>
+                <th>방문 상호/사업장</th>
                 <th>성명</th>
                 <th>차량번호</th>
                 <th>방문 시간</th>

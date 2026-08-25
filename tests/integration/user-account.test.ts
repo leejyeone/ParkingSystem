@@ -28,7 +28,7 @@ const SIGN_UP = {
   email: 'member@example.com',
   password: 'Member!2345',
   name: '김회원',
-  companyOrBranchName: '대구지사',
+  companyOrBranchName: '대구사업장',
   vehicleNo: '34나5678',
 };
 
@@ -128,14 +128,14 @@ describe('내 정보 수정 (자동완성 원본)', () => {
 
     await updateUserProfile(session.userId, {
       name: '김수정',
-      companyOrBranchName: '부산지사',
+      companyOrBranchName: '부산사업장',
       vehicleNo: '56다 7890',
     });
 
     const profile = await getUserProfile(session.userId);
     expect(profile).toMatchObject({
       name: '김수정',
-      companyOrBranchName: '부산지사',
+      companyOrBranchName: '부산사업장',
       vehicleNo: '56다7890',
       email: SIGN_UP.email,
     });

@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/reservations
- * 주차 예약 신청. 로그인 없이도 신청할 수 있고, 로그인 상태면 예약이 계정에 연결된다.
+ * 방문 예약 신청. 로그인 없이도 신청할 수 있고, 로그인 상태면 예약이 계정에 연결된다.
  *
  * 응답에는 예약번호와 일정만 포함하고, 접근 토큰 링크는 이메일로만 전달한다.
  */
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
       key: `reservation:create:${ipAddress ?? 'unknown'}`,
       limit: 10,
       windowMs: 10 * 60 * 1000,
-      message: '주차 신청 요청이 너무 많습니다. 10분 후 다시 시도해 주세요.',
+      message: '방문 신청 요청이 너무 많습니다. 10분 후 다시 시도해 주세요.',
     });
 
     const body = await request.json();

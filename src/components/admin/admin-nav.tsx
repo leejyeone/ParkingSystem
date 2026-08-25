@@ -13,7 +13,7 @@ type Props = {
 
 /**
  * 시스템 설정·감사 로그는 SYSTEM_ADMIN 전용이다(페이지 쪽 requireSystemAdminPage 와 짝을 맞춤).
- * 이메일 이력은 주차 관리자도 승인/반려 처리 중 발송 여부를 확인해야 해서 두 역할 모두에게 연다.
+ * 이메일 이력은 방문 관리자도 승인/반려 처리 중 발송 여부를 확인해야 해서 두 역할 모두에게 연다.
  */
 const MENU: { href: string; label: string; systemOnly?: boolean }[] = [
   { href: '/admin', label: '대시보드' },
@@ -45,7 +45,7 @@ export function AdminNav({ adminName, roleCode }: Props) {
             시스템 관리
           </Link>
           <span className="badge bg-slate-100 text-slate-600">
-            {roleCode === 'SYSTEM_ADMIN' ? '시스템 관리자' : '주차 관리자'}: {adminName}
+            {roleCode === 'SYSTEM_ADMIN' ? '시스템 관리자' : '방문 관리자'}: {adminName}
           </span>
         </div>
 

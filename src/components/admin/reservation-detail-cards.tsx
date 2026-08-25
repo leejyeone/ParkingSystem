@@ -214,7 +214,7 @@ export function RequesterInfoCard({
         <div className="mt-3 space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
             <FormField
-              label="방문 상호/지사"
+              label="방문 상호/사업장"
               htmlFor="edit-company"
               required
               errors={state.fieldErrors.companyOrBranchName}
@@ -289,7 +289,7 @@ export function RequesterInfoCard({
       ) : (
         <dl className="mt-3">
           <Row term="신청 구분" desc={readOnly.requesterTypeLabel} />
-          <Row term="방문 상호/지사" desc={initial.companyOrBranchName} />
+          <Row term="방문 상호/사업장" desc={initial.companyOrBranchName} />
           <Row term="성명" desc={initial.requesterName} />
           <Row term="이메일" desc={readOnly.requesterEmail} />
           <Row term="차량번호" desc={initial.vehicleNo} />

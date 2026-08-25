@@ -17,7 +17,7 @@ type Profile = {
 
 /**
  * 내 정보 수정 패널.
- * 여기 저장된 값만 주차 신청 폼 자동완성에 사용된다.
+ * 여기 저장된 값만 방문 신청 폼 자동완성에 사용된다.
  * (신청 폼에서 값을 고쳐도 회원 정보는 바뀌지 않는다)
  */
 export function UserProfilePanel({ profile }: { profile: Profile }) {
@@ -77,7 +77,7 @@ export function UserProfilePanel({ profile }: { profile: Profile }) {
       <div className="card-body space-y-5">
         <div>
           <h2 className="card-title">내 정보</h2>
-          <p className="field-hint">주차 신청 시 아래 정보가 자동으로 입력됩니다.</p>
+          <p className="field-hint">방문 신청 시 아래 정보가 자동으로 입력됩니다.</p>
         </div>
 
         {message && (
@@ -101,7 +101,7 @@ export function UserProfilePanel({ profile }: { profile: Profile }) {
         </FormField>
 
         <FormField
-          label="방문 상호 또는 소속 지사명"
+          label="방문 상호 또는 소속 사업장명"
           htmlFor="profile-company"
           required
           errors={fieldErrors.companyOrBranchName}

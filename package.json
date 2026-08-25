@@ -2,7 +2,7 @@
   "name": "parking-management",
   "version": "0.1.0",
   "private": true,
-  "description": "본사 주차 예약 관리 시스템 (Next.js App Router + MySQL + Prisma + Gmail API)",
+  "description": "본사 방문 예약 관리 시스템 (Next.js App Router + MySQL + Prisma + Gmail API)",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

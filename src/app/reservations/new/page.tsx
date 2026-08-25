@@ -14,7 +14,7 @@ import { getUserProfile } from '@/services/user-auth-service';
 
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = { title: '주차 신청' };
+export const metadata: Metadata = { title: '방문 신청' };
 
 export default async function NewReservationPage() {
   const settings = await getSystemSettings().catch(() => DEFAULT_SETTINGS);
@@ -38,7 +38,7 @@ export default async function NewReservationPage() {
         <Link href="/" className="text-brand-700 text-sm font-semibold">
           ← 처음으로
         </Link>
-        <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">주차 신청</h1>
+        <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">방문 신청</h1>
         <p className="mt-1 text-sm text-slate-600">
           별도 가입 없이 신청할 수 있습니다. 표시된 항목(*)은 필수입니다.
         </p>

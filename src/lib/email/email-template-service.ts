@@ -12,7 +12,7 @@ import { REQUESTER_TYPE_LABEL } from '@/domain/reservation-status';
  *  - 예약 조회 링크에는 보안 토큰이 포함되며 해당 예약 1건만 접근할 수 있다.
  */
 
-const BRAND = '시노펙스 주차 관리';
+const BRAND = '시노펙스 방문 관리';
 
 export type ReservationEmailData = {
   reservationNo: string;
@@ -67,7 +67,7 @@ function baseRows(data: ReservationEmailData): Row[] {
   return [
     { label: '예약번호', value: data.reservationNo },
     { label: '신청 구분', value: REQUESTER_TYPE_LABEL[data.requesterType] },
-    { label: '방문 상호/지사', value: data.companyOrBranchName },
+    { label: '방문 상호/사업장', value: data.companyOrBranchName },
     { label: '신청자', value: data.requesterName },
     { label: '차량번호', value: data.vehicleNo },
     { label: '방문 시간', value: formatKstRange(data.visitStartAt, data.visitEndAt) },
@@ -153,7 +153,7 @@ function renderHtmlLayout(params: {
               <td style="padding:16px 24px;background:#f8fafc;border-top:1px solid #e2e8f0;">
                 <p style="margin:0;color:#94a3b8;font-size:12px;line-height:1.6;">${escapeHtml(
                   params.footerNote ??
-                    '본 메일은 발신 전용입니다. 문의는 주차 관리 담당자에게 연락해 주세요.',
+                    '본 메일은 발신 전용입니다. 문의는 방문 관리 담당자에게 연락해 주세요.',
                 )}</p>
               </td>
             </tr>
@@ -192,7 +192,7 @@ function renderTextLayout(params: {
   }
   lines.push(
     '',
-    params.footerNote ?? '본 메일은 발신 전용입니다. 문의는 주차 관리 담당자에게 연락해 주세요.',
+    params.footerNote ?? '본 메일은 발신 전용입니다. 문의는 방문 관리 담당자에게 연락해 주세요.',
   );
 
   return lines.join('\n');
@@ -244,15 +244,15 @@ export function renderReservationEmail(
         );
       }
       const params = {
-        title: '주차 신청이 접수되었습니다',
-        lead: `${data.requesterName}님, 주차 신청이 정상 접수되었습니다. 현재 상태는 "승인 대기" 입니다.`,
+        title: '방문 신청이 접수되었습니다',
+        lead: `${data.requesterName}님, 방문 신청이 정상 접수되었습니다. 현재 상태는 "승인 대기" 입니다.`,
         rows: [...rows, { label: '예약 상태', value: '승인 대기' }],
         notices,
         buttonLabel: '내 예약 조회하기',
         buttonUrl: data.accessUrl,
       };
       return {
-        subject: `[시노펙스] 주차 신청이 접수되었습니다${suffix}`,
+        subject: `[시노펙스] 방문 신청이 접수되었습니다${suffix}`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };
@@ -260,8 +260,8 @@ export function renderReservationEmail(
 
     case EmailType.NEW_REQUEST_TO_ADMIN: {
       const params = {
-        title: '신규 주차 신청이 접수되었습니다',
-        lead: '승인 대기 중인 주차 신청이 있습니다. 관리자 화면에서 확인 후 승인 또는 반려해 주세요.',
+        title: '신규 방문 신청이 접수되었습니다',
+        lead: '승인 대기 중인 방문 신청이 있습니다. 관리자 화면에서 확인 후 승인 또는 반려해 주세요.',
         rows,
         notices: [
           '신청자 개인정보가 포함된 메일입니다. 업무 목적 외 사용이나 외부 공유를 금지합니다.',
@@ -271,7 +271,7 @@ export function renderReservationEmail(
         footerNote: '본 메일은 관리자 알림 수신자에게 발송됩니다.',
       };
       return {
-        subject: `[시노펙스][승인요청] 신규 주차 신청${suffix}`,
+        subject: `[시노펙스][승인요청] 신규 방문 신청${suffix}`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };
@@ -287,7 +287,7 @@ export function renderReservationEmail(
 
       const notices = [
         '입차 시 차량번호와 예약 정보가 일치해야 합니다.',
-        '승인 완료된 예약은 신청자가 직접 수정·취소할 수 없습니다. 변경이 필요하면 주차 관리 담당자에게 문의해 주세요.',
+        '승인 완료된 예약은 신청자가 직접 수정·취소할 수 없습니다. 변경이 필요하면 방문 관리 담당자에게 문의해 주세요.',
       ];
       if (!usesSpaceAssignment(data)) {
         notices.push('주차 위치는 지정되지 않습니다. 방문 시 현장 안내에 따라 주차해 주세요.');
@@ -308,11 +308,11 @@ export function renderReservationEmail(
 
       const params = {
         title: isDoubleParking
-          ? '주차 신청이 승인되었습니다 (이중주차 배정)'
-          : '주차 신청이 승인되었습니다',
+          ? '방문 신청이 승인되었습니다 (이중주차 배정)'
+          : '방문 신청이 승인되었습니다',
         lead: isDoubleParking
-          ? `${data.requesterName}님, 신청하신 주차 예약이 승인되었습니다. 주차 공간 사정으로 이중주차 위치가 배정되었으니 아래 안내를 반드시 확인해 주세요.`
-          : `${data.requesterName}님, 신청하신 주차 예약이 승인되었습니다.`,
+          ? `${data.requesterName}님, 신청하신 방문 예약이 승인되었습니다. 주차 공간 사정으로 이중주차 위치가 배정되었으니 아래 안내를 반드시 확인해 주세요.`
+          : `${data.requesterName}님, 신청하신 방문 예약이 승인되었습니다.`,
         rows: [...rows, ...spaceRows(data), { label: '예약 상태', value: '승인 완료' }],
         notices,
         buttonLabel: '내 예약 조회하기',
@@ -320,8 +320,8 @@ export function renderReservationEmail(
       };
       return {
         subject: isDoubleParking
-          ? `[시노펙스] 주차 신청 승인 및 이중주차 배정 안내${suffix}`
-          : `[시노펙스] 주차 신청이 승인되었습니다${suffix}`,
+          ? `[시노펙스] 방문 신청 승인 및 이중주차 배정 안내${suffix}`
+          : `[시노펙스] 방문 신청이 승인되었습니다${suffix}`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };
@@ -329,20 +329,20 @@ export function renderReservationEmail(
 
     case EmailType.REJECTED: {
       const params = {
-        title: '주차 신청이 반려되었습니다',
-        lead: `${data.requesterName}님, 신청하신 주차 예약이 반려되었습니다.`,
+        title: '방문 신청이 반려되었습니다',
+        lead: `${data.requesterName}님, 신청하신 방문 예약이 반려되었습니다.`,
         rows: [
           ...rows,
           { label: '반려 사유', value: data.rejectionReason ?? '사유 미기재' },
           { label: '예약 상태', value: '반려' },
         ],
         notices: [
-          '방문 일정 조정이 필요하시면 새로 주차 신청을 등록해 주세요.',
-          '자세한 사항은 방문 담당자 또는 주차 관리 담당자에게 문의해 주세요.',
+          '방문 일정 조정이 필요하시면 새로 방문 신청을 등록해 주세요.',
+          '자세한 사항은 방문 담당자 또는 방문 관리 담당자에게 문의해 주세요.',
         ],
       };
       return {
-        subject: `[시노펙스] 주차 신청이 반려되었습니다${suffix}`,
+        subject: `[시노펙스] 방문 신청이 반려되었습니다${suffix}`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };
@@ -360,7 +360,7 @@ export function renderReservationEmail(
       const params = {
         title: '예약 내용이 변경되었습니다',
         lead: byAdmin
-          ? '주차 관리 담당자가 예약 내용을 변경했습니다. 아래 내용을 확인해 주세요.'
+          ? '방문 관리 담당자가 예약 내용을 변경했습니다. 아래 내용을 확인해 주세요.'
           : '신청자 요청으로 예약 내용이 변경되었습니다. 변경된 예약은 다시 관리자 승인을 받아야 합니다.',
         rows: [
           ...changeRows,
@@ -370,7 +370,7 @@ export function renderReservationEmail(
           ...(byAdmin ? [] : [{ label: '예약 상태', value: '승인 대기' }]),
         ],
         notices: byAdmin
-          ? ['변경 내용이 맞지 않으면 주차 관리 담당자에게 문의해 주세요.']
+          ? ['변경 내용이 맞지 않으면 방문 관리 담당자에게 문의해 주세요.']
           : usesSpaceAssignment(data)
             ? ['관리자 승인 후 배정 주차 위치가 안내됩니다.']
             : ['변경된 예약은 관리자 승인 후 다시 주차 가능 상태가 됩니다.'],
@@ -387,7 +387,7 @@ export function renderReservationEmail(
     case EmailType.CANCELLED: {
       const params = {
         title: '예약이 취소되었습니다',
-        lead: '요청하신 주차 예약이 취소 처리되었습니다.',
+        lead: '요청하신 방문 예약이 취소 처리되었습니다.',
         rows: [
           ...rows,
           { label: '취소 사유', value: data.cancelReason ?? '사유 미기재' },
@@ -417,7 +417,7 @@ export function renderReservationEmail(
         ],
         notices: [
           '출차가 지연될 경우 뒤이은 방문 차량의 주차가 어려울 수 있습니다.',
-          '부득이하게 시간이 초과되는 경우 주차 관리 담당자에게 연락해 주세요.',
+          '부득이하게 시간이 초과되는 경우 방문 관리 담당자에게 연락해 주세요.',
         ],
       };
       return {

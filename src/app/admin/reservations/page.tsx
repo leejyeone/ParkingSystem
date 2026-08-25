@@ -8,7 +8,7 @@ import { Alert } from '@/components/ui/alert';
 import { FilterBar, type FilterChip } from '@/components/admin/filter-bar';
 import {
   REQUESTER_TYPE_LABEL,
-  RESERVATION_STATUS_FILTER_OPTIONS,
+  reservationStatusFilterOptions,
   RESERVATION_STATUS_LABEL,
 } from '@/domain/reservation-status';
 import { requireAdminPage } from '@/lib/admin-page-guard';
@@ -44,12 +44,12 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
   const requestHeaders = await headers();
   const settings = await getSystemSettings();
   const showSpace = settings.spaceAssignmentEnabled;
+  const statusFilterOptions = reservationStatusFilterOptions(settings.entryExitManagementEnabled);
 
   const date = params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date) ? params.date : undefined;
   const range = date ? kstDayRangeUtc(date) : null;
   const status =
-    params.status &&
-    (RESERVATION_STATUS_FILTER_OPTIONS as readonly string[]).includes(params.status)
+    params.status && (statusFilterOptions as readonly string[]).includes(params.status)
       ? (params.status as ReservationStatus)
       : undefined;
   const requesterType =
@@ -171,7 +171,7 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
             </label>
             <select id="filter-status" name="status" defaultValue={status ?? ''} className="input">
               <option value="">전체</option>
-              {RESERVATION_STATUS_FILTER_OPTIONS.map((value) => (
+              {statusFilterOptions.map((value) => (
                 <option key={value} value={value}>
                   {RESERVATION_STATUS_LABEL[value]}
                 </option>

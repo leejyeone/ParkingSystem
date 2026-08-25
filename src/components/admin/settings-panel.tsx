@@ -148,7 +148,7 @@ function PolicySection({ initialSettings }: { initialSettings: SystemSettingsVal
   return (
     <section className="card">
       <div className="card-body space-y-5">
-        <h2 className="card-title">주차 시스템 정보</h2>
+        <h2 className="card-title">방문 시스템 정보</h2>
         {message && (
           <Alert variant={message.variant === 'success' ? 'success' : 'error'}>
             {message.text}
@@ -1776,7 +1776,7 @@ function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
                       <td>{user.adminName}</td>
                       <td className="text-xs">{user.email}</td>
                       <td className="text-xs">{user.phone ?? '-'}</td>
-                      <td>{user.roleCode === 'SYSTEM_ADMIN' ? '시스템 관리자' : '주차 관리자'}</td>
+                      <td>{user.roleCode === 'SYSTEM_ADMIN' ? '시스템 관리자' : '방문 관리자'}</td>
                       <td>
                         <span
                           className={`badge ${
@@ -1844,7 +1844,7 @@ function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
                         }
                         aria-label={`${user.loginId} 권한`}
                       >
-                        <option value="PARKING_ADMIN">주차 관리자</option>
+                        <option value="PARKING_ADMIN">방문 관리자</option>
                         <option value="SYSTEM_ADMIN">시스템 관리자</option>
                       </select>
                     </td>
@@ -2008,7 +2008,7 @@ function AdminUserSection({ adminUsers }: { adminUsers: AdminUser[] }) {
                   })
                 }
               >
-                <option value="PARKING_ADMIN">주차 관리자</option>
+                <option value="PARKING_ADMIN">방문 관리자</option>
                 <option value="SYSTEM_ADMIN">시스템 관리자</option>
               </select>
             </FormField>

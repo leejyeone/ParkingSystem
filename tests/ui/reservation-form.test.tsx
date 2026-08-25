@@ -22,7 +22,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('주차 신청 폼', () => {
+describe('방문 신청 폼', () => {
   it('사용자가 주차 위치를 선택할 수 있는 입력이 없다', () => {
     render(<ReservationForm settings={SETTINGS} />);
 
@@ -60,7 +60,7 @@ describe('주차 신청 폼', () => {
 
     const user = userEvent.setup();
     render(<ReservationForm settings={SETTINGS} />);
-    await user.click(screen.getByRole('button', { name: '주차 신청하기' }));
+    await user.click(screen.getByRole('button', { name: '방문 신청하기' }));
 
     await waitFor(() => {
       expect(
@@ -88,7 +88,7 @@ describe('주차 신청 폼', () => {
 
     const user = userEvent.setup();
     render(<ReservationForm settings={SETTINGS} />);
-    await user.click(screen.getByRole('button', { name: '주차 신청하기' }));
+    await user.click(screen.getByRole('button', { name: '방문 신청하기' }));
 
     await waitFor(() => {
       expect(screen.getByTestId('reservation-no')).toHaveTextContent('PK-20260820-ABCDEF');

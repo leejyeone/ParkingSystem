@@ -98,7 +98,7 @@ function InvalidTokenView() {
           예약 조회 방법 안내
         </Link>
         <Link href="/reservations/new" className="btn btn-primary w-full">
-          새로 주차 신청하기
+          새로 방문 신청하기
         </Link>
       </div>
     </main>

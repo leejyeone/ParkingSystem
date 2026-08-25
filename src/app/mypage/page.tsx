@@ -59,7 +59,7 @@ export default async function MyPage({ searchParams }: PageProps) {
       </div>
 
       <Link href="/reservations/new" className="btn btn-primary btn-lg w-full">
-        주차 신청하기
+        방문 신청하기
       </Link>
 
       <section className="card">
@@ -82,7 +82,7 @@ export default async function MyPage({ searchParams }: PageProps) {
 
           {reservations.length === 0 ? (
             <p className="mt-4 text-sm text-slate-500">
-              아직 신청한 예약이 없습니다. 위 버튼으로 주차를 신청해 보세요.
+              아직 신청한 예약이 없습니다. 위 버튼으로 방문을 신청해 보세요.
             </p>
           ) : (
             <ul className="mt-3 space-y-3">

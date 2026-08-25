@@ -81,7 +81,7 @@ export function ReservationAccessPanel({ token, initialReservation, settings }: 
 
           <dl className="mt-4">
             <Row term="신청 구분" desc={reservation.requesterTypeLabel} />
-            <Row term="방문 상호/지사" desc={reservation.companyOrBranchName} />
+            <Row term="방문 상호/사업장" desc={reservation.companyOrBranchName} />
             <Row term="성명" desc={reservation.requesterName} />
             <Row term="이메일" desc={reservation.requesterEmail} />
             <Row term="차량번호" desc={reservation.vehicleNo} />
@@ -263,7 +263,7 @@ function EditForm({
         {formError && <Alert variant="error">{formError.message}</Alert>}
 
         <FormField
-          label="방문 상호 또는 소속 지사명"
+          label="방문 상호 또는 소속 사업장명"
           htmlFor="edit-company"
           required
           errors={fieldErrors.companyOrBranchName}

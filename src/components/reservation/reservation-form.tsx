@@ -118,7 +118,8 @@ export function ReservationForm({
         requestMemo: form.requestMemo || null,
         visitStartAt: form.visitStartAt,
         visitEndAt: form.visitEndAt,
-        privacyConsent: form.privacyConsent,
+        // 직원은 동의 카드를 보여주지 않는 대신, 서버 스키마가 요구하는 동의값을 자동으로 채운다.
+        privacyConsent: form.requesterType === 'EMPLOYEE' ? true : form.privacyConsent,
       }),
     });
 
@@ -147,7 +148,8 @@ export function ReservationForm({
     form.vehicleNo.trim() !== '' &&
     form.visitStartAt !== '' &&
     form.visitEndAt !== '' &&
-    form.privacyConsent;
+    // 직원은 개인정보 수집·이용 동의 카드를 보여주지 않으므로 체크 여부를 요구하지 않는다.
+    (form.requesterType === 'EMPLOYEE' || form.privacyConsent);
 
   return (
     <form onSubmit={handleSubmit} noValidate>
@@ -179,7 +181,7 @@ export function ReservationForm({
               {(
                 [
                   { value: 'VISITOR', label: '방문객', desc: '외부 방문' },
-                  { value: 'EMPLOYEE', label: '직원', desc: '타 지사 근무' },
+                  { value: 'EMPLOYEE', label: '직원', desc: '타 사업장 근무' },
                 ] as const
               ).map((option) => (
                 <button
@@ -203,7 +205,7 @@ export function ReservationForm({
           </FormField>
 
           <FormField
-            label="방문 상호 또는 소속 지사명"
+            label={form.requesterType === 'VISITOR' ? '방문상호' : '소속 사업장명'}
             htmlFor="companyOrBranchName"
             required
             errors={fieldErrors.companyOrBranchName}
@@ -214,7 +216,6 @@ export function ReservationForm({
               className={inputClassName(Boolean(fieldErrors.companyOrBranchName))}
               value={form.companyOrBranchName}
               onChange={(event) => update('companyOrBranchName', event.target.value)}
-              placeholder="예) 시노펙스 / 대구지사"
               maxLength={100}
               autoComplete="organization"
             />
@@ -351,51 +352,55 @@ export function ReservationForm({
         </div>
       </div>
 
-      <div className="card mt-4">
-        <div className="card-body">
-          <h2 className="card-title">개인정보 수집 및 이용 동의</h2>
-          <div className="mt-3 max-h-40 overflow-y-auto rounded-lg bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
-            <p>
-              <strong>수집 항목</strong> : 성명, 이메일, 차량번호, 소속(상호/지사), 방문 목적
-            </p>
-            <p className="mt-2">
-              <strong>수집 목적</strong> : 방문 차량 주차 예약 접수·승인, 주차면 배정, 방문 관련
-              안내 메일 발송
-            </p>
-            <p className="mt-2">
-              <strong>보유 기간</strong> : 방문 종료 후 사내 방문 관리 규정에 따른 기간까지 보관 후
-              파기
-            </p>
-            <p className="mt-2">
-              동의를 거부할 권리가 있으며, 거부 시 주차 예약 신청이 제한됩니다.
-            </p>
-          </div>
+      {form.requesterType === 'VISITOR' && (
+        <div className="card mt-4">
+          <div className="card-body">
+            <h2 className="card-title">개인정보 수집 및 이용 동의</h2>
+            <div className="mt-3 max-h-40 overflow-y-auto rounded-lg bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
+              <p>
+                <strong>수집 항목</strong> : 성명, 이메일, 차량번호, 소속(상호/사업장), 방문 목적
+              </p>
+              <p className="mt-2">
+                <strong>수집 목적</strong> : 방문 차량 방문 예약 접수·승인, 주차면 배정, 방문 관련
+                안내 메일 발송
+              </p>
+              <p className="mt-2">
+                <strong>보유 기간</strong> : 방문 종료 후 사내 방문 관리 규정에 따른 기간까지 보관
+                후 파기
+              </p>
+              <p className="mt-2">
+                동의를 거부할 권리가 있으며, 거부 시 방문 예약 신청이 제한됩니다.
+              </p>
+            </div>
 
-          <label
-            htmlFor="privacyConsent"
-            className={`mt-3 flex min-h-12 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 ${
-              fieldErrors.privacyConsent ? 'border-red-400 bg-red-50' : 'border-slate-300 bg-white'
-            }`}
-          >
-            <input
-              id="privacyConsent"
-              name="privacyConsent"
-              type="checkbox"
-              className="accent-brand-700 size-5 shrink-0"
-              checked={form.privacyConsent}
-              onChange={(event) => update('privacyConsent', event.target.checked)}
-            />
-            <span className="text-sm font-semibold text-slate-800">
-              위 내용을 확인하였으며 개인정보 수집 및 이용에 동의합니다.
-            </span>
-          </label>
-          {fieldErrors.privacyConsent && (
-            <p className="field-error" role="alert">
-              {fieldErrors.privacyConsent[0]}
-            </p>
-          )}
+            <label
+              htmlFor="privacyConsent"
+              className={`mt-3 flex min-h-12 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 ${
+                fieldErrors.privacyConsent
+                  ? 'border-red-400 bg-red-50'
+                  : 'border-slate-300 bg-white'
+              }`}
+            >
+              <input
+                id="privacyConsent"
+                name="privacyConsent"
+                type="checkbox"
+                className="accent-brand-700 size-5 shrink-0"
+                checked={form.privacyConsent}
+                onChange={(event) => update('privacyConsent', event.target.checked)}
+              />
+              <span className="text-sm font-semibold text-slate-800">
+                위 내용을 확인하였으며 개인정보 수집 및 이용에 동의합니다.
+              </span>
+            </label>
+            {fieldErrors.privacyConsent && (
+              <p className="field-error" role="alert">
+                {fieldErrors.privacyConsent[0]}
+              </p>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="sticky-actions mt-4">
         <button
@@ -403,7 +408,7 @@ export function ReservationForm({
           className="btn btn-primary btn-lg w-full"
           disabled={submitting || !isFormValid}
         >
-          {submitting ? '신청 중…' : '주차 신청하기'}
+          {submitting ? '신청 중…' : '방문 신청하기'}
         </button>
       </div>
     </form>
@@ -418,7 +423,7 @@ function CompletionView({ result }: { result: CreateResponse }) {
           <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-emerald-100 text-3xl">
             ✓
           </div>
-          <h2 className="mt-3 text-xl font-black text-slate-900">주차 신청이 접수되었습니다</h2>
+          <h2 className="mt-3 text-xl font-black text-slate-900">방문 신청이 접수되었습니다</h2>
           <p className="mt-1 text-sm text-slate-600">
             관리자 승인 후 결과를 이메일로 안내드립니다.
           </p>

@@ -277,7 +277,7 @@ export async function createReservation(input: CreateReservationInput): Promise<
           previousStatus: null,
           currentStatus: ReservationStatus.REQUESTED,
           changedByType: ChangedByType.REQUESTER,
-          changeReason: '신규 주차 예약 신청',
+          changeReason: '신규 방문 예약 신청',
         },
       });
 

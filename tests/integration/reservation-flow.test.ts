@@ -98,7 +98,7 @@ describe('2. 비로그인 직원 분류 예약 신청', () => {
     const { reservation } = await createReservation(
       baseReservationInput({
         requesterType: 'EMPLOYEE',
-        companyOrBranchName: '대구지사',
+        companyOrBranchName: '대구사업장',
         requesterEmail: 'employee@example.com',
         vehicleNo: '34나5678',
       }),

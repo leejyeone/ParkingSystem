@@ -38,7 +38,7 @@ async function submitReservation(page: import('@playwright/test').Page) {
   await page.goto('/reservations/new');
 
   await page.getByRole('radio', { name: '방문객' }).click();
-  await page.getByLabel('방문 상호 또는 소속 지사명').fill('시노펙스');
+  await page.getByLabel('방문상호').fill('시노펙스');
   await page.getByLabel('성명').fill('홍길동');
   await page.getByLabel('이메일').fill(REQUESTER_EMAIL);
   await page.getByLabel('차량번호').fill('12가 3456');
@@ -46,7 +46,7 @@ async function submitReservation(page: import('@playwright/test').Page) {
   await page.getByLabel('출차 예정 시간').fill(tomorrowInput(12));
   await page.getByLabel(/개인정보 수집 및 이용에 동의합니다/).check();
 
-  await page.getByRole('button', { name: '주차 신청하기' }).click();
+  await page.getByRole('button', { name: '방문 신청하기' }).click();
 }
 
 /** 이미 로그인되어 있으면 로그인 화면이 대시보드로 리다이렉트되므로 그대로 진행한다. */

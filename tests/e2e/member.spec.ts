@@ -4,7 +4,7 @@ import { clearMailOutbox, clientIpFor, prisma, resetE2eDatabase, tomorrowInput }
 
 /**
  * 회원(선택 로그인) 흐름 E2E
- *   회원가입 → 마이페이지 → 주차 신청 폼 자동완성 → 신청 → 내 예약 목록
+ *   회원가입 → 마이페이지 → 방문 신청 폼 자동완성 → 신청 → 내 예약 목록
  *   그리고 예약번호로 예약 조회 → 수정
  */
 
@@ -12,7 +12,7 @@ const MEMBER = {
   email: 'e2e-member@example.com',
   password: 'Member!2345',
   name: '김회원',
-  company: '대구지사',
+  company: '대구사업장',
   vehicleNo: '34나5678',
 };
 
@@ -34,7 +34,7 @@ async function signUp(page: Page) {
   await page.getByLabel('이메일').fill(MEMBER.email);
   await page.getByLabel('비밀번호').fill(MEMBER.password);
   await page.getByLabel('성명').fill(MEMBER.name);
-  await page.getByLabel('방문 상호 또는 소속 지사명').fill(MEMBER.company);
+  await page.getByLabel('방문 상호 또는 소속 사업장명').fill(MEMBER.company);
   await page.getByLabel('차량번호').fill(MEMBER.vehicleNo);
   await page.getByRole('button', { name: '가입하고 시작하기' }).click();
 
@@ -55,7 +55,7 @@ test('로그인 회원은 신청 폼이 저장된 정보로 자동완성된다',
   await page.goto('/reservations/new');
 
   await expect(page.getByText('회원 정보로 자동 입력했습니다')).toBeVisible();
-  await expect(page.getByLabel('방문 상호 또는 소속 지사명')).toHaveValue(MEMBER.company);
+  await expect(page.getByLabel('방문상호')).toHaveValue(MEMBER.company);
   await expect(page.getByLabel('성명')).toHaveValue(MEMBER.name);
   await expect(page.getByLabel('이메일')).toHaveValue(MEMBER.email);
   await expect(page.getByLabel('차량번호')).toHaveValue(MEMBER.vehicleNo);
@@ -68,7 +68,7 @@ test('회원이 신청한 예약은 마이페이지 내 예약 목록에 나온�
   await page.getByLabel('입차 예정 시간').fill(tomorrowInput(10));
   await page.getByLabel('출차 예정 시간').fill(tomorrowInput(12));
   await page.getByLabel(/개인정보 수집 및 이용에 동의합니다/).check();
-  await page.getByRole('button', { name: '주차 신청하기' }).click();
+  await page.getByRole('button', { name: '방문 신청하기' }).click();
 
   await expect(page.getByTestId('reservation-complete')).toBeVisible();
   const reservationNo = (await page.getByTestId('reservation-no').textContent())?.trim();
@@ -85,14 +85,14 @@ test('신청 완료 화면에서 예약번호를 복사할 수 있다', async ({
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
 
   await page.goto('/reservations/new');
-  await page.getByLabel('방문 상호 또는 소속 지사명').fill('시노펙스');
+  await page.getByLabel('방문상호').fill('시노펙스');
   await page.getByLabel('성명').fill('홍길동');
   await page.getByLabel('이메일').fill('guest@example.com');
   await page.getByLabel('차량번호').fill('12가3456');
   await page.getByLabel('입차 예정 시간').fill(tomorrowInput(10));
   await page.getByLabel('출차 예정 시간').fill(tomorrowInput(12));
   await page.getByLabel(/개인정보 수집 및 이용에 동의합니다/).check();
-  await page.getByRole('button', { name: '주차 신청하기' }).click();
+  await page.getByRole('button', { name: '방문 신청하기' }).click();
 
   await expect(page.getByTestId('reservation-complete')).toBeVisible();
   const reservationNo = (await page.getByTestId('reservation-no').textContent())!.trim();
@@ -110,14 +110,14 @@ test('신청 완료 화면에서 예약번호를 복사할 수 있다', async ({
 test('예약번호만으로 예약을 조회하고 수정할 수 있다', async ({ page }) => {
   // 비로그인으로 신청
   await page.goto('/reservations/new');
-  await page.getByLabel('방문 상호 또는 소속 지사명').fill('시노펙스');
+  await page.getByLabel('방문상호').fill('시노펙스');
   await page.getByLabel('성명').fill('홍길동');
   await page.getByLabel('이메일').fill('guest@example.com');
   await page.getByLabel('차량번호').fill('12가3456');
   await page.getByLabel('입차 예정 시간').fill(tomorrowInput(10));
   await page.getByLabel('출차 예정 시간').fill(tomorrowInput(12));
   await page.getByLabel(/개인정보 수집 및 이용에 동의합니다/).check();
-  await page.getByRole('button', { name: '주차 신청하기' }).click();
+  await page.getByRole('button', { name: '방문 신청하기' }).click();
 
   await expect(page.getByTestId('reservation-complete')).toBeVisible();
   const reservationNo = (await page.getByTestId('reservation-no').textContent())!.trim();

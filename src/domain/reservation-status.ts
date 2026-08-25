@@ -87,15 +87,32 @@ export const DISPLAY_STATUS_LABEL: Readonly<Record<DisplayReservationStatus, str
   USED: '사용 완료',
 };
 
+/** 실제 입·출차 관리를 켜야만 도달할 수 있는 상태 (markEntry/markExit/markNoShow 참고) */
+const ENTRY_EXIT_ONLY_STATUSES: readonly ReservationStatus[] = [
+  ReservationStatus.PARKING,
+  ReservationStatus.EXITED,
+  ReservationStatus.NO_SHOW,
+];
+
 /**
  * 관리자 예약 목록/상세에서 노출·검색에 쓰는 상태 값. (필터 드롭다운 + 검증 스키마 공용)
  *
  * 저장된 실제 상태만 포함한다. "사용 중"/"사용 완료"는 실제 입·출차 기록이 아니라 방문 예정
  * 시간만 보고 추측한 값이라, 관리자 화면에서는 실제로 관리되는 정보로 오해할 수 있어 빼둔다.
  * (신청자 조회 화면은 계속 이 파생 상태를 보여준다 — resolveDisplayStatus 참고)
+ *
+ * 입·출차 관리를 껐으면 입차/출차/미방문으로는 절대 바뀌지 않으므로(assertEntryExitEnabled 가
+ * 막는다), 그 세 상태는 필터에서도 뺀다. 과거에 켰다가 꺼서 이미 그 상태로 남아있는 예약이
+ * 있어도 필터 목록에서는 노출하지 않는다 — 사용자 요청에 따른 단순화.
  */
-export const RESERVATION_STATUS_FILTER_OPTIONS: readonly ReservationStatus[] =
-  Object.values(ReservationStatus);
+export function reservationStatusFilterOptions(
+  entryExitManagementEnabled: boolean,
+): readonly ReservationStatus[] {
+  const all = Object.values(ReservationStatus);
+  return entryExitManagementEnabled
+    ? all
+    : all.filter((status) => !ENTRY_EXIT_ONLY_STATUSES.includes(status));
+}
 
 /**
  * 저장된 상태와 방문 예정 시간으로 화면 표시용 상태를 구한다. (신청자 조회 화면 전용)

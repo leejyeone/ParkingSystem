@@ -29,7 +29,7 @@ export default async function UserLoginPage({ searchParams }: PageProps) {
         </Link>
         <h1 className="mt-2 text-2xl font-black text-slate-900">로그인</h1>
         <p className="mt-1 text-sm text-slate-600">
-          로그인하면 주차 신청 시 내 정보가 자동으로 입력됩니다.
+          로그인하면 방문 신청 시 내 정보가 자동으로 입력됩니다.
         </p>
       </div>
 
@@ -45,7 +45,7 @@ export default async function UserLoginPage({ searchParams }: PageProps) {
         <p className="text-slate-500">
           로그인 없이도{' '}
           <Link href="/reservations/new" className="text-brand-700 font-semibold">
-            주차 신청
+            방문 신청
           </Link>
           과{' '}
           <Link href="/reservations/lookup" className="text-brand-700 font-semibold">

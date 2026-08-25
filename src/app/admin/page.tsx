@@ -193,7 +193,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
                   <thead>
                     <tr>
                       <th>방문 시간</th>
-                      <th>방문 상호/지사</th>
+                      <th>방문 상호/사업장</th>
                       <th>신청자</th>
                       <th>차량번호</th>
                     </tr>
