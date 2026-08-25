@@ -27,7 +27,9 @@ export async function listParkingAreas() {
 export async function listParkingSpaces(options: { includeInactive?: boolean } = {}) {
   return prisma.parkingSpace.findMany({
     where: options.includeInactive ? {} : { isActive: true },
-    orderBy: [{ spaceCode: 'asc' }],
+    // 대시보드·배정 드롭다운과 같은 기준: 구역 표시 순서(지하 1층 -> 지상 1층)를 먼저
+    // 따르고, 그 안에서 주차면 코드 순으로 정렬한다.
+    orderBy: [{ area: { displayOrder: 'asc' } }, { spaceCode: 'asc' }],
     select: {
       spaceId: true,
       spaceCode: true,

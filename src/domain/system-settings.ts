@@ -14,6 +14,7 @@ export const SETTING_KEYS = {
   DOUBLE_PARKING_ENABLED: 'DOUBLE_PARKING_ENABLED',
   APP_TIME_ZONE: 'APP_TIME_ZONE',
   ENTRY_EXIT_MANAGEMENT_ENABLED: 'ENTRY_EXIT_MANAGEMENT_ENABLED',
+  DASHBOARD_REFRESH_INTERVAL_MINUTES: 'DASHBOARD_REFRESH_INTERVAL_MINUTES',
 } as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS];
@@ -59,6 +60,8 @@ export type SystemSettingsValues = {
    * 현장에서 입출차를 확인할 수단(차단기 연동, 상주 인력 등)이 갖춰졌을 때 관리자가 직접 켠다.
    */
   entryExitManagementEnabled: boolean;
+  /** 관리자 대시보드를 상시 띄워 놨을 때 자동으로 새로고침할 주기(분) */
+  dashboardRefreshIntervalMinutes: number;
 };
 
 export const DEFAULT_SETTINGS: SystemSettingsValues = {
@@ -73,8 +76,9 @@ export const DEFAULT_SETTINGS: SystemSettingsValues = {
   // 도면상 이중주차 구역이 없어 기본값은 끔. 필요하면 시스템 설정에서 켠다.
   doubleParkingEnabled: false,
   appTimeZone: 'Asia/Seoul',
-  // 현장에 차단기 연동·상주 인력 등 실제 입출차를 확인할 수단이 없어 기본은 끔.
-  entryExitManagementEnabled: false,
+  //실제 입출차 관리 기능 사용 여부
+  entryExitManagementEnabled: true,
+  dashboardRefreshIntervalMinutes: 5,
 };
 
 export const SETTING_DESCRIPTIONS: Record<SettingKey, string> = {
@@ -92,6 +96,7 @@ export const SETTING_DESCRIPTIONS: Record<SettingKey, string> = {
   APP_TIME_ZONE: '시스템 표시 기준 타임존.',
   ENTRY_EXIT_MANAGEMENT_ENABLED:
     '실제 입·출차/미방문 처리 사용 여부(true/false). false 이면 관련 화면·API가 비활성화됩니다.',
+  DASHBOARD_REFRESH_INTERVAL_MINUTES: '관리자 대시보드 자동 새로고침 주기(분).',
 };
 
 /** DB 의 key/value 목록을 타입이 있는 설정 객체로 변환 */
@@ -148,6 +153,10 @@ export function toSettingsValues(
       SETTING_KEYS.ENTRY_EXIT_MANAGEMENT_ENABLED,
       DEFAULT_SETTINGS.entryExitManagementEnabled,
     ),
+    dashboardRefreshIntervalMinutes: readNumber(
+      SETTING_KEYS.DASHBOARD_REFRESH_INTERVAL_MINUTES,
+      DEFAULT_SETTINGS.dashboardRefreshIntervalMinutes,
+    ),
   };
 }
 
@@ -186,6 +195,10 @@ export function toSettingRows(
     {
       settingKey: SETTING_KEYS.ENTRY_EXIT_MANAGEMENT_ENABLED,
       settingValue: String(values.entryExitManagementEnabled),
+    },
+    {
+      settingKey: SETTING_KEYS.DASHBOARD_REFRESH_INTERVAL_MINUTES,
+      settingValue: String(values.dashboardRefreshIntervalMinutes),
     },
   ];
 }

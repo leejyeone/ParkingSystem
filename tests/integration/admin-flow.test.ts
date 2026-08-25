@@ -262,6 +262,7 @@ describe('반려 / 입차 / 출차 / 미방문 처리', () => {
 
     const parking = await markEntry({
       reservationId: reservation.reservationId,
+      actualEntryAt: new Date(),
       adminUserId: fixtures.parkingAdminId,
     });
     expect(parking.reservationStatus).toBe(ReservationStatus.PARKING);
@@ -269,6 +270,7 @@ describe('반려 / 입차 / 출차 / 미방문 처리', () => {
 
     const exited = await markExit({
       reservationId: reservation.reservationId,
+      actualExitAt: new Date(),
       adminUserId: fixtures.parkingAdminId,
     });
     expect(exited.reservationStatus).toBe(ReservationStatus.EXITED);
@@ -279,7 +281,11 @@ describe('반려 / 입차 / 출차 / 미방문 처리', () => {
     const { reservation } = await createReservation(baseReservationInput());
 
     await expect(
-      markEntry({ reservationId: reservation.reservationId, adminUserId: fixtures.parkingAdminId }),
+      markEntry({
+        reservationId: reservation.reservationId,
+        actualEntryAt: new Date(),
+        adminUserId: fixtures.parkingAdminId,
+      }),
     ).rejects.toBeInstanceOf(InvalidStateTransitionError);
   });
 

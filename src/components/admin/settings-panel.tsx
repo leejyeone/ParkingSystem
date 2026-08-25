@@ -148,7 +148,19 @@ function PolicySection({ initialSettings }: { initialSettings: SystemSettingsVal
   return (
     <section className="card">
       <div className="card-body space-y-5">
-        <h2 className="card-title">방문 시스템 정보</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="card-title">방문 시스템 정보</h2>
+          <button
+            type="button"
+            className="btn btn-primary min-h-9 px-3 py-1.5 text-xs"
+            disabled={pending}
+            onClick={() =>
+              mutate('/api/admin/settings', 'PUT', { settings: form }, '설정을 저장했습니다.')
+            }
+          >
+            {pending ? '저장 중…' : '설정 저장'}
+          </button>
+        </div>
         {message && (
           <Alert variant={message.variant === 'success' ? 'success' : 'error'}>
             {message.text}
@@ -239,6 +251,25 @@ function PolicySection({ initialSettings }: { initialSettings: SystemSettingsVal
               }
             />
           </FormField>
+          <FormField
+            label="대시보드 자동 새로고침 주기(분)"
+            htmlFor="dashboardRefreshInterval"
+            required
+            hint="대시보드를 상시 띄워 놓을 때 자동으로 갱신되는 간격입니다."
+            errors={fieldErrors.dashboardRefreshIntervalMinutes}
+          >
+            <input
+              id="dashboardRefreshInterval"
+              type="number"
+              min={1}
+              max={60}
+              className={inputClassName(Boolean(fieldErrors.dashboardRefreshIntervalMinutes))}
+              value={form.dashboardRefreshIntervalMinutes}
+              onChange={(event) =>
+                setForm({ ...form, dashboardRefreshIntervalMinutes: Number(event.target.value) })
+              }
+            />
+          </FormField>
         </div>
 
         <div className="space-y-2">
@@ -322,17 +353,6 @@ function PolicySection({ initialSettings }: { initialSettings: SystemSettingsVal
             켜세요.
           </p>
         </div>
-
-        <button
-          type="button"
-          className="btn btn-primary"
-          disabled={pending}
-          onClick={() =>
-            mutate('/api/admin/settings', 'PUT', { settings: form }, '설정을 저장했습니다.')
-          }
-        >
-          {pending ? '저장 중…' : '설정 저장'}
-        </button>
       </div>
     </section>
   );

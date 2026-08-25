@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { Alert } from '@/components/ui/alert';
 import { FormField, inputClassName } from '@/components/ui/form-field';
 import { apiRequest } from '@/lib/client/api-client';
+import { utcToZonedInput } from '@/lib/datetime';
 import { SPACE_TYPE_LABEL } from '@/domain/reservation-status';
 
 type SpaceOption = {
@@ -50,6 +51,10 @@ export function ReservationActionPanel({
   );
   const [rejectionReason, setRejectionReason] = useState('');
   const [noShowReason, setNoShowReason] = useState('');
+  // 버튼을 누른 시각이 아니라 관리자가 확인한 실제 입/출차 시각을 입력받는다. 기본값은
+  // "지금"이지만 자유롭게 고쳐서 늦게 입력해도 실제 시각을 기록할 수 있게 한다.
+  const [entryTime, setEntryTime] = useState(() => utcToZonedInput(new Date()));
+  const [exitTime, setExitTime] = useState(() => utcToZonedInput(new Date()));
   const [pending, setPending] = useState<string | null>(null);
   const [message, setMessage] = useState<{ variant: 'success' | 'error'; text: string } | null>(
     null,
@@ -155,7 +160,7 @@ export function ReservationActionPanel({
                 htmlFor="space-select"
                 required
                 errors={fieldErrors.spaceId}
-                hint="사용 중인 주차면은 선택할 수 없습니다."
+                hint="비어 있는 주차면만 표시됩니다."
               >
                 <select
                   id="space-select"
@@ -163,12 +168,13 @@ export function ReservationActionPanel({
                   value={selectedSpaceId}
                   onChange={(event) => setSelectedSpaceId(event.target.value)}
                 >
-                  {availableSpaces.map((space) => (
-                    <option key={space.spaceId} value={space.spaceId} disabled={!space.available}>
-                      {space.spaceCode} · {SPACE_TYPE_LABEL[space.spaceType]} · {space.areaName}
-                      {space.available ? '' : ' (사용 중)'}
-                    </option>
-                  ))}
+                  {availableSpaces
+                    .filter((space) => space.available)
+                    .map((space) => (
+                      <option key={space.spaceId} value={space.spaceId}>
+                        {space.spaceCode} · {SPACE_TYPE_LABEL[space.spaceType]} · {space.areaName}
+                      </option>
+                    ))}
                 </select>
               </FormField>
             )}
@@ -276,32 +282,64 @@ export function ReservationActionPanel({
         <section className="card">
           <div className="card-body space-y-3">
             <h2 className="card-title">입·출차 처리</h2>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {canEntry && (
+            {canEntry && (
+              <div>
+                <FormField
+                  label="실제 입차 시각"
+                  htmlFor="entry-time"
+                  errors={fieldErrors.actualEntryAt}
+                >
+                  <input
+                    id="entry-time"
+                    type="datetime-local"
+                    className={inputClassName(Boolean(fieldErrors.actualEntryAt))}
+                    value={entryTime}
+                    onChange={(event) => setEntryTime(event.target.value)}
+                  />
+                </FormField>
                 <button
                   type="button"
-                  className="btn btn-primary"
+                  className="btn btn-primary mt-3"
                   disabled={pending !== null}
                   onClick={() =>
-                    run('entry', `/api/admin/reservations/${reservationId}/entry`, 'POST')
+                    run('entry', `/api/admin/reservations/${reservationId}/entry`, 'POST', {
+                      actualEntryAt: entryTime,
+                    })
                   }
                 >
                   {pending === 'entry' ? '처리 중…' : '입차 처리'}
                 </button>
-              )}
-              {canExit && (
+              </div>
+            )}
+            {canExit && (
+              <div className={canEntry ? 'border-t border-slate-100 pt-3' : undefined}>
+                <FormField
+                  label="실제 출차 시각"
+                  htmlFor="exit-time"
+                  errors={fieldErrors.actualExitAt}
+                >
+                  <input
+                    id="exit-time"
+                    type="datetime-local"
+                    className={inputClassName(Boolean(fieldErrors.actualExitAt))}
+                    value={exitTime}
+                    onChange={(event) => setExitTime(event.target.value)}
+                  />
+                </FormField>
                 <button
                   type="button"
-                  className="btn btn-primary"
+                  className="btn btn-primary mt-3"
                   disabled={pending !== null}
                   onClick={() =>
-                    run('exit', `/api/admin/reservations/${reservationId}/exit`, 'POST')
+                    run('exit', `/api/admin/reservations/${reservationId}/exit`, 'POST', {
+                      actualExitAt: exitTime,
+                    })
                   }
                 >
                   {pending === 'exit' ? '처리 중…' : '출차 처리'}
                 </button>
-              )}
-            </div>
+              </div>
+            )}
 
             {canNoShow && (
               <div className="border-t border-slate-100 pt-3">

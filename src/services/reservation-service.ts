@@ -1059,7 +1059,7 @@ async function assertEntryExitEnabled(): Promise<void> {
 
 /** 실제 입차 처리 */
 export async function markEntry(
-  params: { reservationId: number } & AdminActionContext,
+  params: { reservationId: number; actualEntryAt: Date } & AdminActionContext,
 ): Promise<ReservationWithSpaces> {
   await assertEntryExitEnabled();
 
@@ -1068,7 +1068,7 @@ export async function markEntry(
     nextStatus: ReservationStatus.PARKING,
     adminUserId: params.adminUserId,
     reason: '실제 입차 처리',
-    extraData: { actualEntryAt: new Date() },
+    extraData: { actualEntryAt: params.actualEntryAt },
   });
 
   await writeAuditLog({
@@ -1085,7 +1085,7 @@ export async function markEntry(
 
 /** 실제 출차 처리 */
 export async function markExit(
-  params: { reservationId: number } & AdminActionContext,
+  params: { reservationId: number; actualExitAt: Date } & AdminActionContext,
 ): Promise<ReservationWithSpaces> {
   await assertEntryExitEnabled();
 
@@ -1094,7 +1094,15 @@ export async function markExit(
     nextStatus: ReservationStatus.EXITED,
     adminUserId: params.adminUserId,
     reason: '실제 출차 처리',
-    extraData: { actualExitAt: new Date() },
+    extraData: { actualExitAt: params.actualExitAt },
+    // 관리자가 시간을 직접 입력하므로, 입차보다 이른 출차를 방지한다.
+    validate: (current) => {
+      if (current.actualEntryAt && params.actualExitAt < current.actualEntryAt) {
+        throw new ValidationError('출차 시간은 입차 시간 이후여야 합니다.', {
+          actualExitAt: ['출차 시간은 입차 시간 이후여야 합니다.'],
+        });
+      }
+    },
   });
 
   await writeAuditLog({
@@ -1141,10 +1149,13 @@ async function changeStatusByAdmin(params: {
   adminUserId: number;
   reason: string;
   extraData?: Prisma.ParkingReservationUncheckedUpdateInput;
+  /** 상태 전이 자체는 허용되지만 값(예: 출차 시각)이 부적절한 경우를 막는다. */
+  validate?: (current: ReservationWithSpaces) => void;
 }): Promise<ReservationWithSpaces> {
   return prisma.$transaction(async (tx) => {
     const current = await loadReservationOrThrow(params.reservationId, tx);
     assertTransition(current.reservationStatus, params.nextStatus);
+    params.validate?.(current);
 
     const result = await tx.parkingReservation.update({
       where: { reservationId: params.reservationId },

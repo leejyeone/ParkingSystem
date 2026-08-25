@@ -78,6 +78,8 @@ export type DashboardData = {
   pendingReservations: ReservationListItem[];
   hourlyUsage: HourlyUsage[];
   operatingHours: { open: string; close: string };
+  /** 대시보드 자동 새로고침 주기(분). 시스템 설정에서 관리자가 바꿀 수 있다. */
+  dashboardRefreshIntervalMinutes: number;
 };
 
 export async function getDashboardData(dateString: string): Promise<DashboardData> {
@@ -240,5 +242,6 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
     ),
     hourlyUsage,
     operatingHours: { open: settings.parkingOpenTime, close: settings.parkingCloseTime },
+    dashboardRefreshIntervalMinutes: settings.dashboardRefreshIntervalMinutes,
   };
 }

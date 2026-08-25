@@ -9,6 +9,7 @@ import {
 } from '@prisma/client';
 import { z } from 'zod';
 
+import { zonedInputToUtc } from '@/lib/datetime';
 import {
   dateStringSchema,
   emailSchema,
@@ -65,6 +66,30 @@ export const noShowReservationSchema = z.object({
   reason: optionalText(500, '처리 사유'),
 });
 
+/** 'yyyy-MM-ddTHH:mm' 형식인지만 확인한다. 실제 타임존 변환은 라우트에서 zonedInputToUtc 로 한다. */
+function isValidZonedInput(value: string): boolean {
+  try {
+    zonedInputToUtc(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const DATETIME_FORMAT_MESSAGE = '날짜/시간 형식이 올바르지 않습니다. (예: 2026-08-20T09:00)';
+
+export const markEntrySchema = z.object({
+  actualEntryAt: z
+    .string({ error: '입차 시각을 입력해 주세요.' })
+    .refine(isValidZonedInput, DATETIME_FORMAT_MESSAGE),
+});
+
+export const markExitSchema = z.object({
+  actualExitAt: z
+    .string({ error: '출차 시각을 입력해 주세요.' })
+    .refine(isValidZonedInput, DATETIME_FORMAT_MESSAGE),
+});
+
 export const assignSpaceSchema = z.object({
   spaceId: z.coerce.number().int().positive('주차면을 선택해 주세요.'),
 });
@@ -118,6 +143,11 @@ export const systemSettingsSchema = z
     doubleParkingEnabled: z.boolean(),
     appTimeZone: requiredText(50, '타임존'),
     entryExitManagementEnabled: z.boolean(),
+    dashboardRefreshIntervalMinutes: z.coerce
+      .number()
+      .int()
+      .min(1, '대시보드 자동 새로고침 주기는 1분 이상이어야 합니다.')
+      .max(60, '대시보드 자동 새로고침 주기는 60분 이하로 설정해 주세요.'),
   })
   .refine((values) => values.parkingOpenTime < values.parkingCloseTime, {
     error: '운영 종료 시간은 운영 시작 시간보다 늦어야 합니다.',

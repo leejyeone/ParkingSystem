@@ -19,9 +19,9 @@ export type AssignableSpace = {
  * 규칙(요구사항 5-4)
  *  1. 활성 NORMAL 주차면을 먼저 조회한다.
  *  2. 해당 시간대에 APPROVED/PARKING 예약과 겹치지 않는 주차면만 후보로 둔다.
- *  3. 후보 중 display_order 오름차순 첫 번째를 고른다.
+ *  3. 후보 중 주차면 코드(space_code) 오름차순 첫 번째를 고른다.
  *  4. 일반 주차면이 없을 때만 DOUBLE 주차면을 조회한다.
- *  5. DOUBLE 도 display_order 오름차순으로 고른다.
+ *  5. DOUBLE 도 주차면 코드 오름차순으로 고른다.
  *  6. 배정할 수 있는 위치가 없으면 null 을 반환한다.
  *  7. 시스템 설정에서 주차면 배정을 껐다면 항상 null 을 반환한다.
  *
@@ -87,7 +87,9 @@ async function findFirstAvailableSpace(
       area: { isActive: true },
       ...(occupiedSpaceIds.length > 0 ? { spaceId: { notIn: occupiedSpaceIds } } : {}),
     },
-    orderBy: [{ displayOrder: 'asc' }, { spaceId: 'asc' }],
+    // 대시보드·구역·주차면 관리 화면과 같은 기준: 구역 표시 순서를 먼저 따르고,
+    // 그 안에서 주차면 코드 순으로 정렬한다.
+    orderBy: [{ area: { displayOrder: 'asc' } }, { spaceCode: 'asc' }],
     select: { spaceId: true, spaceCode: true, spaceType: true, displayOrder: true },
   });
 }
@@ -136,7 +138,9 @@ export async function listAvailableSpaces(
 
   const spaces = await db.parkingSpace.findMany({
     where: { isActive: true, spaceType: { in: types }, area: { isActive: true } },
-    orderBy: [{ displayOrder: 'asc' }, { spaceId: 'asc' }],
+    // 대시보드·구역·주차면 관리 화면과 같은 기준: 구역 표시 순서를 먼저 따르고,
+    // 그 안에서 주차면 코드 순으로 정렬한다.
+    orderBy: [{ area: { displayOrder: 'asc' } }, { spaceCode: 'asc' }],
     select: {
       spaceId: true,
       spaceCode: true,

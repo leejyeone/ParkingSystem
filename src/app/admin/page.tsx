@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { ClickableTableRow } from '@/components/admin/clickable-table-row';
+import { DashboardAutoRefresher } from '@/components/admin/dashboard-auto-refresher';
 import { ParkingFloorTabs } from '@/components/admin/parking-floor-tabs';
 import { SpaceTypeBadge } from '@/components/ui/status-badge';
 import { Alert } from '@/components/ui/alert';
@@ -65,7 +66,8 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
         <div>
           <h1 className="text-xl font-black text-slate-900 sm:text-2xl">대시보드</h1>
           <p className="mt-1 text-sm text-slate-600">
-            기준일: {date} ({weekdayOf(date)})
+            기준일: {date} ({weekdayOf(date)}){' '}
+            <DashboardAutoRefresher intervalMinutes={dashboard.dashboardRefreshIntervalMinutes} />
           </p>
         </div>
 
