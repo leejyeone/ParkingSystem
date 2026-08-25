@@ -303,19 +303,25 @@ export function RequesterInfoCard({
   );
 }
 
-/** 일정 및 주차 위치 카드 — 방문 예정 시간을 수정한다. */
+/** 일정 및 주차 위치 카드 — 방문 예정 시간과, 실제 입·출차 기록을 수정한다. */
 export function ScheduleCard({
   reservationId,
   editable,
   initial,
   /** 시스템 설정의 입·출차 관리 사용 여부. false 면 "실제 입차/출차" 행을 감춘다. */
   entryExitManagementEnabled,
+  /** 기록된 실제 입차 시각('yyyy-MM-ddTHH:mm', KST). 아직 입차 처리 전이면 null. */
+  actualEntryAt,
+  /** 기록된 실제 출차 시각('yyyy-MM-ddTHH:mm', KST). 아직 출차 처리 전이면 null. */
+  actualExitAt,
   readOnly,
 }: {
   reservationId: number;
   editable: boolean;
   initial: EditableFields;
   entryExitManagementEnabled: boolean;
+  actualEntryAt: string | null;
+  actualExitAt: string | null;
   readOnly: {
     title: string;
     visitRangeText: string;
@@ -327,60 +333,244 @@ export function ScheduleCard({
     cancelReason: string | null;
   };
 }) {
-  const { editing, setEditing, form, update, state, saved, save, cancel } = useReservationEdit(
-    reservationId,
-    initial,
-  );
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState<EditableFields>(initial);
+  // null 은 "기록 삭제 예정"을 뜻한다. 실제 삭제는 저장을 눌러야 반영된다.
+  const [entryDraft, setEntryDraft] = useState<string | null>(actualEntryAt);
+  const [exitDraft, setExitDraft] = useState<string | null>(actualExitAt);
+  const [state, setState] = useState<SaveState>(IDLE);
+  const [saved, setSaved] = useState(false);
+
+  // 출차 기록이 남아 있으면 입차 기록을 먼저 지울 수 없다 — 서버 쪽 규칙과 맞춘다.
+  // 출차 기록을 먼저 지우고 저장한 뒤, 다시 열면 입차 기록도 지울 수 있다.
+  const canEditEntryRecord =
+    entryExitManagementEnabled && actualEntryAt !== null && actualExitAt === null;
+  const canEditExitRecord = entryExitManagementEnabled && actualExitAt !== null;
+
+  function update(key: keyof EditableFields, value: string) {
+    setForm((previous) => ({ ...previous, [key]: value }));
+  }
+
+  function startEditing() {
+    setSaved(false);
+    setEditing(true);
+  }
+
+  function cancel() {
+    setForm(initial);
+    setEntryDraft(actualEntryAt);
+    setExitDraft(actualExitAt);
+    setState(IDLE);
+    setEditing(false);
+  }
+
+  async function save() {
+    setState({ pending: true, fieldErrors: {}, error: null });
+
+    if (editable) {
+      const response = await apiRequest(`/api/admin/reservations/${reservationId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          ...form,
+          visitPurpose: form.visitPurpose || null,
+          requestMemo: form.requestMemo || null,
+        }),
+      });
+
+      if (!response.ok) {
+        setState({
+          pending: false,
+          fieldErrors: response.error.fieldErrors ?? {},
+          error: response.error.message,
+        });
+        return;
+      }
+    }
+
+    const entryChanged = entryDraft !== actualEntryAt;
+    const exitChanged = exitDraft !== actualExitAt;
+
+    if (entryExitManagementEnabled && (entryChanged || exitChanged)) {
+      const body: { actualEntryAt?: string | null; actualExitAt?: string | null } = {};
+      // 서버가 출차 → 입차 순서로 처리하므로 순서는 상관없다.
+      if (exitChanged) body.actualExitAt = exitDraft;
+      if (entryChanged) body.actualEntryAt = entryDraft;
+
+      const response = await apiRequest(
+        `/api/admin/reservations/${reservationId}/entry-exit-record`,
+        {
+          method: 'PUT',
+          body: JSON.stringify(body),
+        },
+      );
+
+      if (!response.ok) {
+        setState({
+          pending: false,
+          fieldErrors: response.error.fieldErrors ?? {},
+          error: response.error.message,
+        });
+        return;
+      }
+    }
+
+    setState(IDLE);
+    setEditing(false);
+    setSaved(true);
+    router.refresh();
+  }
 
   return (
     <CardShell
       title={readOnly.title}
-      editable={editable}
+      editable={editable || canEditEntryRecord || canEditExitRecord}
       editing={editing}
       pending={state.pending}
       error={state.error}
       saved={saved}
-      onEdit={setEditing}
+      onEdit={startEditing}
       onCancel={cancel}
       onSave={save}
     >
       {editing ? (
         <div className="mt-3 space-y-3">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <FormField
-              label="입차 예정"
-              htmlFor="edit-start"
-              required
-              errors={state.fieldErrors.visitStartAt}
-            >
-              <input
-                id="edit-start"
-                type="datetime-local"
-                className={inputClassName(Boolean(state.fieldErrors.visitStartAt))}
-                value={form.visitStartAt}
-                onChange={(event) => update('visitStartAt', event.target.value)}
-              />
-            </FormField>
-            <FormField
-              label="출차 예정"
-              htmlFor="edit-end"
-              required
-              errors={state.fieldErrors.visitEndAt}
-            >
-              <input
-                id="edit-end"
-                type="datetime-local"
-                className={inputClassName(Boolean(state.fieldErrors.visitEndAt))}
-                value={form.visitEndAt}
-                onChange={(event) => update('visitEndAt', event.target.value)}
-              />
-            </FormField>
-          </div>
+          {editable ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <FormField
+                label="입차 예정"
+                htmlFor="edit-start"
+                required
+                errors={state.fieldErrors.visitStartAt}
+              >
+                <input
+                  id="edit-start"
+                  type="datetime-local"
+                  className={inputClassName(Boolean(state.fieldErrors.visitStartAt))}
+                  value={form.visitStartAt}
+                  onChange={(event) => update('visitStartAt', event.target.value)}
+                />
+              </FormField>
+              <FormField
+                label="출차 예정"
+                htmlFor="edit-end"
+                required
+                errors={state.fieldErrors.visitEndAt}
+              >
+                <input
+                  id="edit-end"
+                  type="datetime-local"
+                  className={inputClassName(Boolean(state.fieldErrors.visitEndAt))}
+                  value={form.visitEndAt}
+                  onChange={(event) => update('visitEndAt', event.target.value)}
+                />
+              </FormField>
+            </div>
+          ) : (
+            <Row term="방문 예정" desc={readOnly.visitRangeText} />
+          )}
 
-          <p className="field-hint">
-            운영시간과 최대 이용시간은 그대로 적용됩니다. 이미 주차면이 배정된 예약이면 바뀐
-            시간대에 충돌이 없는지 다시 확인합니다. 예약 상태는 유지됩니다.
-          </p>
+          {editable && (
+            <p className="field-hint">
+              운영시간과 최대 이용시간은 그대로 적용됩니다. 이미 주차면이 배정된 예약이면 바뀐
+              시간대에 충돌이 없는지 다시 확인합니다. 예약 상태는 유지됩니다.
+            </p>
+          )}
+
+          {(canEditEntryRecord || canEditExitRecord) && (
+            <div className="space-y-3 border-t border-slate-100 pt-3">
+              {canEditEntryRecord &&
+                (entryDraft !== null ? (
+                  <FormField
+                    label="실제 입차 시각"
+                    htmlFor="edit-actual-entry"
+                    errors={state.fieldErrors.actualEntryAt}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        id="edit-actual-entry"
+                        type="datetime-local"
+                        className={inputClassName(Boolean(state.fieldErrors.actualEntryAt))}
+                        value={entryDraft}
+                        onChange={(event) => setEntryDraft(event.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-secondary min-h-9 px-3 py-1.5 text-xs"
+                        onClick={() => setEntryDraft(null)}
+                      >
+                        입차 삭제
+                      </button>
+                    </div>
+                  </FormField>
+                ) : (
+                  <FormField
+                    label="실제 입차 시각"
+                    htmlFor="edit-actual-entry"
+                    errors={state.fieldErrors.actualEntryAt}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm text-slate-500">
+                        저장하면 삭제되어 승인 완료 상태로 돌아갑니다. (차가 오지 않았다면 이후
+                        미방문 처리)
+                      </span>
+                      <button
+                        type="button"
+                        className="btn btn-secondary min-h-9 px-3 py-1.5 text-xs"
+                        onClick={() => setEntryDraft(actualEntryAt)}
+                      >
+                        삭제 취소
+                      </button>
+                    </div>
+                  </FormField>
+                ))}
+
+              {canEditExitRecord &&
+                (exitDraft !== null ? (
+                  <FormField
+                    label="실제 출차 시각"
+                    htmlFor="edit-actual-exit"
+                    errors={state.fieldErrors.actualExitAt}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        id="edit-actual-exit"
+                        type="datetime-local"
+                        className={inputClassName(Boolean(state.fieldErrors.actualExitAt))}
+                        value={exitDraft}
+                        onChange={(event) => setExitDraft(event.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-secondary min-h-9 px-3 py-1.5 text-xs"
+                        onClick={() => setExitDraft(null)}
+                      >
+                        출차 삭제
+                      </button>
+                    </div>
+                  </FormField>
+                ) : (
+                  <FormField
+                    label="실제 출차 시각"
+                    htmlFor="edit-actual-exit"
+                    errors={state.fieldErrors.actualExitAt}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm text-slate-500">
+                        저장하면 삭제되어 입차 중 상태로 돌아갑니다.
+                      </span>
+                      <button
+                        type="button"
+                        className="btn btn-secondary min-h-9 px-3 py-1.5 text-xs"
+                        onClick={() => setExitDraft(actualExitAt)}
+                      >
+                        삭제 취소
+                      </button>
+                    </div>
+                  </FormField>
+                ))}
+            </div>
+          )}
         </div>
       ) : (
         <dl className="mt-3">

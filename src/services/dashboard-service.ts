@@ -80,6 +80,12 @@ export type DashboardData = {
   operatingHours: { open: string; close: string };
   /** 대시보드 자동 새로고침 주기(분). 시스템 설정에서 관리자가 바꿀 수 있다. */
   dashboardRefreshIntervalMinutes: number;
+  /**
+   * 이 데이터를 계산한 시각(ms). "입차 예정" 배지처럼 지금 시각과 비교해야 하는 화면
+   * 판정에 쓴다 — 서버 컴포넌트 렌더 중에 Date.now() 를 직접 부르면 impure 로 취급되므로
+   * 데이터 계산 시점에 한 번 구해서 내려준다.
+   */
+  nowMs: number;
 };
 
 export async function getDashboardData(dateString: string): Promise<DashboardData> {
@@ -107,7 +113,9 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
       }),
       prisma.parkingReservation.findMany({
         where: {
-          reservationStatus: { in: [...SPACE_OCCUPYING_STATUSES] },
+          // 출차 완료(EXITED)도 그날의 이용 기록으로 계속 보이게 포함한다. 다만 "지금 사용
+          // 중/예약됨" 판정(status)과 사용 대수 집계는 아래에서 EXITED 를 제외하고 따로 계산한다.
+          reservationStatus: { in: [...SPACE_OCCUPYING_STATUSES, ReservationStatus.EXITED] },
           // 배정을 쓰지 않으면 주차면이 없는 예약도 "당일 주차 차량" 으로 세야 한다.
           ...(spaceAssignmentEnabled ? { assignedSpaceId: { not: null } } : {}),
           ...buildOverlapWhere(start, end),
@@ -157,14 +165,19 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
   const spaceRows: SpaceStatusRow[] = spaces.map((space) => {
     // 조회 결과는 visitStartAt 오름차순이므로 첫 항목이 가장 이른 예약이다.
     const occupancies = bySpace.get(space.spaceId) ?? [];
-    const inUse = occupancies.find((occupancy) =>
+    // 출차 완료(EXITED)는 표시는 계속하되, "지금 사용 중/예약됨" 판정에서는 뺀다 —
+    // 이미 나간 차 때문에 자리가 계속 "사용 중"으로 보이면 안 된다.
+    const activeOccupancies = occupancies.filter(
+      (occupancy) => occupancy.reservationStatus !== ReservationStatus.EXITED,
+    );
+    const inUse = activeOccupancies.find((occupancy) =>
       settings.entryExitManagementEnabled
         ? occupancy.reservationStatus === ReservationStatus.PARKING
         : occupancy.visitStartAt.getTime() <= nowMs && occupancy.visitEndAt.getTime() > nowMs,
     );
     const status: SpaceOccupancyStatus = inUse
       ? 'IN_USE'
-      : occupancies.length > 0
+      : activeOccupancies.length > 0
         ? 'RESERVED'
         : 'EMPTY';
     return {
@@ -228,9 +241,10 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
     dayReservationCount: dayReservations.length,
     parkingCapacity: settings.parkingCapacity,
     peakConcurrentCount: Math.max(0, ...hourlyUsage.map((slot) => slot.usedCount)),
-    normalUsedCount: normalSpaces.filter((row) => row.occupancies.length > 0).length,
+    // 출차 완료(EXITED)만 있는 자리는 이미 비었으므로 "사용 중"에서 뺀다(status 기준).
+    normalUsedCount: normalSpaces.filter((row) => row.status !== 'EMPTY').length,
     normalTotalCount: normalSpaces.length,
-    doubleUsedCount: doubleSpaces.filter((row) => row.occupancies.length > 0).length,
+    doubleUsedCount: doubleSpaces.filter((row) => row.status !== 'EMPTY').length,
     doubleTotalCount: doubleSpaces.length,
     pendingCount: pendingReservations.length,
     pendingTotalCount,
@@ -243,5 +257,6 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
     hourlyUsage,
     operatingHours: { open: settings.parkingOpenTime, close: settings.parkingCloseTime },
     dashboardRefreshIntervalMinutes: settings.dashboardRefreshIntervalMinutes,
+    nowMs,
   };
 }

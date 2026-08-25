@@ -242,7 +242,7 @@ export function ReservationForm({
             label="이메일"
             htmlFor="requesterEmail"
             required
-            hint="신청 결과와 예약 조회 링크를 이 주소로 보내드립니다."
+            hint="신청 결과와 예약 조회 링크를 보내드립니다."
             errors={fieldErrors.requesterEmail}
           >
             <input
@@ -263,7 +263,6 @@ export function ReservationForm({
             label="차량번호"
             htmlFor="vehicleNo"
             required
-            hint="공백과 하이픈은 자동으로 정리됩니다. 예) 12가3456"
             errors={fieldErrors.vehicleNo}
           >
             <input
@@ -287,7 +286,7 @@ export function ReservationForm({
             label="입차 예정 시간"
             htmlFor="visitStartAt"
             required
-            hint={`현재 시각 기준 ${settings.reservationMinLeadMinutes}분 이후, 운영시간(${settings.parkingOpenTime}~${settings.parkingCloseTime}) 내로 선택해 주세요.`}
+            hint={`방문 ${settings.reservationMinLeadMinutes}분 전까지만 신청 가능합니다. 운영시간(${settings.parkingOpenTime}~${settings.parkingCloseTime}) 내로 선택해 주세요.`}
             errors={fieldErrors.visitStartAt}
           >
             <input

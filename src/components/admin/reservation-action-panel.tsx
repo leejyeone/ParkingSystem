@@ -367,7 +367,7 @@ export function ReservationActionPanel({
                     })
                   }
                 >
-                  {pending === 'no-show' ? '처리 중…' : '미방문(NO_SHOW) 처리'}
+                  {pending === 'no-show' ? '처리 중…' : '미방문 처리'}
                 </button>
               </div>
             )}

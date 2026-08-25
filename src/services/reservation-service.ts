@@ -23,7 +23,7 @@ import {
   type DisplayReservationStatus,
 } from '@/domain/reservation-status';
 import { buildOverlapWhere } from '@/domain/time-overlap';
-import { formatKstDate, formatKstRange } from '@/lib/datetime';
+import { formatKstDate, formatKstDateTime, formatKstRange } from '@/lib/datetime';
 import {
   buildAccessUrl,
   dispatchQuietly,
@@ -1111,6 +1111,150 @@ export async function markExit(
     targetType: AUDIT_TARGETS.RESERVATION,
     targetId: updated.reservationId,
     detail: { reservationNo: updated.reservationNo },
+    context: params.requestContext,
+  });
+
+  return updated;
+}
+
+/**
+ * 실제 입·출차 기록 수정/삭제.
+ *
+ * 버튼을 잘못 눌러 시각이 틀리게 기록됐거나, 애초에 처리 자체가 잘못된 경우(차가 안
+ * 들어왔는데 입차 처리를 눌렀다 등)를 바로잡는다.
+ *
+ *  - 값을 문자열로 보내면: 상태는 그대로 두고 시각만 고친다.
+ *  - null 을 보내면: 그 기록을 지우고 상태를 한 단계 되돌린다.
+ *    (출차 기록 삭제 → EXITED to PARKING, 입차 기록 삭제 → PARKING to APPROVED)
+ *    입차 기록을 지우려면 먼저 출차 기록부터 지워야 한다 — 출차 기록이 남아 있는데
+ *    입차 기록이 없어지는 모순을 막기 위함이다. 다만 한 번의 호출에 두 값을 함께 null 로
+ *    보내면(EXITED 상태에서 둘 다 지우는 경우) 출차 → 입차 순서로 한 트랜잭션에서 처리하므로
+ *    문제없다.
+ *  - 필드를 아예 보내지 않으면(undefined) 그 기록은 건드리지 않는다.
+ */
+export async function updateEntryExitRecords(
+  params: {
+    reservationId: number;
+    actualEntryAt?: Date | null;
+    actualExitAt?: Date | null;
+  } & AdminActionContext,
+): Promise<ReservationWithSpaces> {
+  await assertEntryExitEnabled();
+
+  const updated = await prisma.$transaction(async (tx) => {
+    let current = await loadReservationOrThrow(params.reservationId, tx);
+
+    if (params.actualExitAt !== undefined) {
+      if (current.reservationStatus !== ReservationStatus.EXITED) {
+        throw new ConflictError(
+          '출차 처리된 예약만 출차 기록을 수정할 수 있습니다.',
+          'RESERVATION_NOT_EXITED',
+        );
+      }
+
+      if (params.actualExitAt === null) {
+        current = await tx.parkingReservation.update({
+          where: { reservationId: params.reservationId },
+          data: { reservationStatus: ReservationStatus.PARKING, actualExitAt: null },
+          include: RESERVATION_WITH_SPACES,
+        });
+        await tx.parkingReservationStatusLog.create({
+          data: {
+            reservationId: params.reservationId,
+            previousStatus: ReservationStatus.EXITED,
+            currentStatus: ReservationStatus.PARKING,
+            changedByType: ChangedByType.ADMIN,
+            changedByAdminId: params.adminUserId,
+            changeReason: '출차 기록 삭제(관리자 정정) — 출차 처리 이전 상태로 되돌림',
+          },
+        });
+      } else {
+        if (current.actualEntryAt && params.actualExitAt < current.actualEntryAt) {
+          throw new ValidationError('출차 시간은 입차 시간 이후여야 합니다.', {
+            actualExitAt: ['출차 시간은 입차 시간 이후여야 합니다.'],
+          });
+        }
+        const previousExit = current.actualExitAt;
+        current = await tx.parkingReservation.update({
+          where: { reservationId: params.reservationId },
+          data: { actualExitAt: params.actualExitAt },
+          include: RESERVATION_WITH_SPACES,
+        });
+        await tx.parkingReservationStatusLog.create({
+          data: {
+            reservationId: params.reservationId,
+            previousStatus: current.reservationStatus,
+            currentStatus: current.reservationStatus,
+            changedByType: ChangedByType.ADMIN,
+            changedByAdminId: params.adminUserId,
+            changeReason: `출차 시각 수정(관리자 정정): ${
+              previousExit ? formatKstDateTime(previousExit) : '-'
+            } → ${formatKstDateTime(params.actualExitAt)}`,
+          },
+        });
+      }
+    }
+
+    if (params.actualEntryAt !== undefined) {
+      if (current.reservationStatus !== ReservationStatus.PARKING) {
+        throw new ConflictError(
+          '입차 처리된 예약만 입차 기록을 수정할 수 있습니다. (출차 기록이 남아 있다면 먼저 지워 주세요)',
+          'RESERVATION_NOT_PARKING',
+        );
+      }
+
+      if (params.actualEntryAt === null) {
+        current = await tx.parkingReservation.update({
+          where: { reservationId: params.reservationId },
+          data: { reservationStatus: ReservationStatus.APPROVED, actualEntryAt: null },
+          include: RESERVATION_WITH_SPACES,
+        });
+        await tx.parkingReservationStatusLog.create({
+          data: {
+            reservationId: params.reservationId,
+            previousStatus: ReservationStatus.PARKING,
+            currentStatus: ReservationStatus.APPROVED,
+            changedByType: ChangedByType.ADMIN,
+            changedByAdminId: params.adminUserId,
+            changeReason:
+              '입차 기록 삭제(관리자 정정) — 입차 처리 이전 상태로 되돌림. 필요 시 미방문 처리 가능',
+          },
+        });
+      } else {
+        const previousEntry = current.actualEntryAt;
+        current = await tx.parkingReservation.update({
+          where: { reservationId: params.reservationId },
+          data: { actualEntryAt: params.actualEntryAt },
+          include: RESERVATION_WITH_SPACES,
+        });
+        await tx.parkingReservationStatusLog.create({
+          data: {
+            reservationId: params.reservationId,
+            previousStatus: current.reservationStatus,
+            currentStatus: current.reservationStatus,
+            changedByType: ChangedByType.ADMIN,
+            changedByAdminId: params.adminUserId,
+            changeReason: `입차 시각 수정(관리자 정정): ${
+              previousEntry ? formatKstDateTime(previousEntry) : '-'
+            } → ${formatKstDateTime(params.actualEntryAt)}`,
+          },
+        });
+      }
+    }
+
+    return current;
+  });
+
+  await writeAuditLog({
+    actorAdminId: params.adminUserId,
+    actionType: AUDIT_ACTIONS.RESERVATION_ENTRY_EXIT_RECORD_CHANGE,
+    targetType: AUDIT_TARGETS.RESERVATION,
+    targetId: updated.reservationId,
+    detail: {
+      reservationNo: updated.reservationNo,
+      actualEntryAtChanged: params.actualEntryAt !== undefined,
+      actualExitAtChanged: params.actualExitAt !== undefined,
+    },
     context: params.requestContext,
   });
 

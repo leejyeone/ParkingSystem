@@ -90,6 +90,22 @@ export const markExitSchema = z.object({
     .refine(isValidZonedInput, DATETIME_FORMAT_MESSAGE),
 });
 
+/**
+ * 실제 입·출차 기록 수정/삭제.
+ *
+ * 값을 보낸 필드만 바꾼다: 문자열이면 시각을 고치고, null 이면 기록을 지워 이전 상태로
+ * 되돌린다(예: 입차 기록 삭제 → 승인 완료 상태로 복귀, 잘못 눌러 미방문 처리가 필요할 때 대비).
+ * 필드를 아예 보내지 않으면 그 기록은 건드리지 않는다.
+ */
+export const entryExitRecordSchema = z.object({
+  actualEntryAt: z
+    .string()
+    .refine(isValidZonedInput, DATETIME_FORMAT_MESSAGE)
+    .nullable()
+    .optional(),
+  actualExitAt: z.string().refine(isValidZonedInput, DATETIME_FORMAT_MESSAGE).nullable().optional(),
+});
+
 export const assignSpaceSchema = z.object({
   spaceId: z.coerce.number().int().positive('주차면을 선택해 주세요.'),
 });

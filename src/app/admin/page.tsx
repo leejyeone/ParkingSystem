@@ -50,6 +50,8 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
   const today = todayKstDateString();
   const date = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : today;
   const dashboard = await getDashboardData(date);
+  // "입차 예정" 배지 판정(예정 시간이 지났는데 아직 입차 처리 전인지)에 쓴다.
+  const nowMs = dashboard.nowMs;
 
   const maxHourlyUsage = Math.max(1, ...dashboard.hourlyUsage.map((slot) => slot.usedCount));
   const showSpace = dashboard.spaceAssignmentEnabled;
@@ -289,8 +291,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
               </span>
             </h2>
             <p className="field-hint">
-              주차면 배정은 예약 상세 화면의 선택 목록에서 수행합니다. 도면 위 클릭 배정은 제공하지
-              않습니다.
+              입차 예정: 입차 처리 미완료, 사용 중: 입차 처리 완료
             </p>
 
             <div className="table-scroll mt-3">
@@ -345,10 +346,17 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
                                   {formatKstTime(occupancy.visitStartAt)} ~{' '}
                                   {formatKstTime(occupancy.visitEndAt)}
                                 </Link>
-                                {space.inUseReservationId === occupancy.reservationId && (
+                                {space.inUseReservationId === occupancy.reservationId ? (
                                   <span className={`badge ${SPACE_STATUS_CLASS.IN_USE}`}>
                                     {SPACE_STATUS_LABEL.IN_USE}
                                   </span>
+                                ) : (
+                                  occupancy.reservationStatus === 'APPROVED' &&
+                                  occupancy.visitStartAt.getTime() <= nowMs && (
+                                    <span className="badge bg-amber-100 text-amber-800">
+                                      입차 예정
+                                    </span>
+                                  )
                                 )}
                               </li>
                             ))}

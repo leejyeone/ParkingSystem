@@ -49,14 +49,24 @@ function styleFor(space: SpaceStatusRow | undefined): StallStyle {
   return space.status === 'EMPTY' ? AVAILABLE : OCCUPIED;
 }
 
+/**
+ * 출차 완료(EXITED)된 예약은 대시보드 표에서는 그날의 기록으로 계속 보여주지만,
+ * 평면도는 "지금 이 순간의 현황"만 나타내면 되므로 여기서는 제외한다 — 안 그러면
+ * 이미 나간 자리가 계속 클릭 가능한 상태로 남거나 툴팁에 지난 예약이 걸린다.
+ */
+function activeOccupancies(space: SpaceStatusRow | undefined): SpaceStatusRow['occupancies'] {
+  return (space?.occupancies ?? []).filter((occupancy) => occupancy.reservationStatus !== 'EXITED');
+}
+
 /** 마우스를 올렸을 때 나오는 설명 */
 function tooltipFor(code: string, space: SpaceStatusRow | undefined): string {
   if (!space) return `${code} — 등록되지 않은 주차면`;
   if (!space.isActive) return `${code} — 비활성`;
   const typeSuffix = space.spaceType === 'DISABLED' ? ' (장애인 주차면)' : '';
-  if (space.occupancies.length === 0) return `${code}${typeSuffix} — 사용 가능`;
+  const occupancies = activeOccupancies(space);
+  if (occupancies.length === 0) return `${code}${typeSuffix} — 사용 가능`;
 
-  const lines = space.occupancies.map((occupancy) => {
+  const lines = occupancies.map((occupancy) => {
     const range = `${formatKstTime(occupancy.visitStartAt)}~${formatKstTime(occupancy.visitEndAt)}`;
     const mark = occupancy.reservationId === space.inUseReservationId ? ' (사용 중)' : '';
     return `${range} ${occupancy.vehicleNo}${mark}`;
@@ -264,7 +274,7 @@ export function ParkingMap({ spaces, layout: explicitLayout, highlightCode }: Pr
           const style = requesterView ? (mine ? MINE : NEUTRAL) : styleFor(space);
           const cx = u(stall.x + stall.w / 2);
           const cy = u(stall.y + stall.h / 2) + 3.5;
-          const occupancies = requesterView ? [] : (space?.occupancies ?? []);
+          const occupancies = requesterView ? [] : activeOccupancies(space);
           const isDisabledSpace = !requesterView && space?.spaceType === 'DISABLED';
           const label = (
             <>
@@ -391,6 +401,7 @@ export function ParkingMap({ spaces, layout: explicitLayout, highlightCode }: Pr
 
 /** 한 주차면에 걸린 예약이 여러 건일 때 고르는 패널. */
 function ReservationPicker({ space, onClose }: { space: SpaceStatusRow; onClose: () => void }) {
+  const occupancies = activeOccupancies(space);
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center"
@@ -417,7 +428,7 @@ function ReservationPicker({ space, onClose }: { space: SpaceStatusRow; onClose:
                 {space.spaceCode}
               </h3>
               <p className="field-hint">
-                예약 {space.occupancies.length}건이 걸려 있습니다. 볼 예약을 선택하세요.
+                예약 {occupancies.length}건이 걸려 있습니다. 볼 예약을 선택하세요.
               </p>
             </div>
             <button type="button" className="btn btn-ghost" onClick={onClose}>
@@ -426,7 +437,7 @@ function ReservationPicker({ space, onClose }: { space: SpaceStatusRow; onClose:
           </div>
 
           <ul className="space-y-2">
-            {space.occupancies.map((occupancy) => (
+            {occupancies.map((occupancy) => (
               <li key={occupancy.reservationId}>
                 <Link
                   href={`/admin/reservations/${occupancy.reservationId}`}

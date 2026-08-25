@@ -145,6 +145,12 @@ export default async function AdminReservationDetailPage({ params }: PageProps) 
             editable={editable}
             initial={editableFields}
             entryExitManagementEnabled={settings.entryExitManagementEnabled}
+            actualEntryAt={
+              reservation.actualEntryAt ? utcToZonedInput(reservation.actualEntryAt) : null
+            }
+            actualExitAt={
+              reservation.actualExitAt ? utcToZonedInput(reservation.actualExitAt) : null
+            }
             readOnly={{
               title: showSpace ? '일정 및 주차 위치' : '일정',
               visitRangeText: formatKstRange(reservation.visitStartAt, reservation.visitEndAt),
