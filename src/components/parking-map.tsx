@@ -3,13 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
-import {
-  MAP_BUILDING,
-  MAP_ELEVATOR,
-  MAP_ENTRANCE,
-  MAP_ROOMS,
-  MAP_STALLS,
-} from '@/domain/parking-map-layout';
+import { findLayoutForStallCode, type MapLayout } from '@/domain/parking-map-layout';
 import { formatKstTime } from '@/lib/datetime';
 import type { SpaceStatusRow } from '@/services/dashboard-service';
 
@@ -19,11 +13,13 @@ import type { SpaceStatusRow } from '@/services/dashboard-service';
  * 업로드한 그림을 띄우는 대신 도면 좌표(parking-map-layout)에 상태를 겹쳐 그린다.
  * 쓰임새가 둘이라 표시 방식이 갈린다.
  *
- * 1) 관리자 대시보드 — `spaces` 를 넘긴다. 선택한 날짜의 현황이 색으로 드러난다.
+ * 1) 관리자 대시보드 — `spaces` + `layout` 을 넘긴다. 선택한 날짜의 현황이 색으로 드러난다.
  *      진회색 = 비활성 / 노란색 = 사용 가능 / 초록색 = 예약 있음·사용 중
+ *    구역이 여러 개(지하 1층/지상 1층)라 어느 도면을 그릴지 호출부가 정한다.
  *
  * 2) 신청자 예약 조회 — `highlightCode` 만 넘긴다. **다른 예약자의 정보는 그리지 않고**
  *    본인에게 배정된 한 면만 강조한다. 코드(B1-02)만 알려주면 현장에서 찾기 어렵기 때문이다.
+ *    이쪽은 어느 구역인지 모르므로 코드로 도면을 자동으로 찾는다.
  *
  * viewBox 만 지정하고 width 를 지정하지 않아 컨테이너 폭에 맞춰 늘어난다.
  *
@@ -57,25 +53,32 @@ function styleFor(space: SpaceStatusRow | undefined): StallStyle {
 function tooltipFor(code: string, space: SpaceStatusRow | undefined): string {
   if (!space) return `${code} — 등록되지 않은 주차면`;
   if (!space.isActive) return `${code} — 비활성`;
-  if (space.occupancies.length === 0) return `${code} — 사용 가능`;
+  const typeSuffix = space.spaceType === 'DISABLED' ? ' (장애인 주차면)' : '';
+  if (space.occupancies.length === 0) return `${code}${typeSuffix} — 사용 가능`;
 
   const lines = space.occupancies.map((occupancy) => {
     const range = `${formatKstTime(occupancy.visitStartAt)}~${formatKstTime(occupancy.visitEndAt)}`;
     const mark = occupancy.reservationId === space.inUseReservationId ? ' (사용 중)' : '';
     return `${range} ${occupancy.vehicleNo}${mark}`;
   });
-  return `${code}\n${lines.join('\n')}`;
+  return `${code}${typeSuffix}\n${lines.join('\n')}`;
 }
 
 type Props =
-  /** 관리자 대시보드: 주차면 상태를 색으로 표시한다. */
-  | { spaces: SpaceStatusRow[]; highlightCode?: undefined }
-  /** 신청자 화면: 배정된 한 면만 강조하고 나머지는 회색으로 둔다. */
-  | { spaces?: undefined; highlightCode: string | null };
+  /** 관리자 대시보드: 주차면 상태를 색으로 표시한다. 어느 구역인지는 호출부가 정한다. */
+  | { spaces: SpaceStatusRow[]; layout: MapLayout; highlightCode?: undefined }
+  /** 신청자 화면: 배정된 한 면만 강조하고 나머지는 회색으로 둔다. 도면은 코드로 자동 탐지한다. */
+  | { spaces?: undefined; layout?: undefined; highlightCode: string | null };
 
-export function ParkingMap({ spaces, highlightCode }: Props) {
-  const byCode = new Map((spaces ?? []).map((space) => [space.spaceCode, space]));
+export function ParkingMap({ spaces, layout: explicitLayout, highlightCode }: Props) {
   const requesterView = spaces === undefined;
+  const layout = requesterView
+    ? highlightCode
+      ? findLayoutForStallCode(highlightCode)
+      : null
+    : explicitLayout;
+
+  const byCode = new Map((spaces ?? []).map((space) => [space.spaceCode, space]));
 
   /** 예약이 여러 건인 주차면을 눌렀을 때 목록을 띄울 대상. */
   const [pickerCode, setPickerCode] = useState<string | null>(null);
@@ -91,16 +94,18 @@ export function ParkingMap({ spaces, highlightCode }: Props) {
   }, [pickerCode]);
 
   /*
-   * 도면은 이 사업장 배치에 맞춰 그려져 있다. 표시할 주차면이 도면과 하나도 맞지 않으면
-   * (다른 주차장을 운영하는 경우) 빈 도면을 띄우는 대신 아무것도 그리지 않는다.
+   * 도면은 구역 배치에 맞춰 그려져 있다. 해당 구역 도면이 없거나(아직 도면을 못 만든 새
+   * 구역), 표시할 주차면이 도면과 하나도 맞지 않으면 빈 도면을 띄우는 대신 아무것도 그리지
+   * 않는다.
    */
+  if (!layout) return null;
   const matches = requesterView
-    ? MAP_STALLS.some((stall) => stall.code === highlightCode)
-    : MAP_STALLS.some((stall) => byCode.has(stall.code));
+    ? layout.stalls.some((stall) => stall.code === highlightCode)
+    : layout.stalls.some((stall) => byCode.has(stall.code));
   if (!matches) return null;
 
   const counts = { available: 0, occupied: 0, disabled: 0 };
-  for (const stall of MAP_STALLS) {
+  for (const stall of layout.stalls) {
     const space = byCode.get(stall.code);
     if (!space) continue;
     if (!space.isActive) counts.disabled += 1;
@@ -108,9 +113,15 @@ export function ParkingMap({ spaces, highlightCode }: Props) {
     else counts.occupied += 1;
   }
 
-  const entranceW = MAP_ENTRANCE.xOut - MAP_BUILDING.w;
+  const entranceW = layout.entrance ? layout.entrance.xOut - layout.building.w : 0;
   // 진입 방향 화살표는 출입구 박스 위쪽에 둔다.
-  const arrowY = u(MAP_ENTRANCE.yTop - 1.8);
+  const arrowY = layout.entrance ? u(layout.entrance.yTop - 1.8) : 0;
+  // 오른쪽·아래쪽 여백은 왼쪽/위쪽(-8)과 대칭이 되도록 16 SVG unit 을 더한다.
+  // u() 는 미터 -> SVG unit 변환이므로, 먼저 미터 값을 스케일한 뒤에 여백(SVG unit)을
+  // 더해야 한다 — 여백을 미터로 착각해 u() 안에서 더하면 10배로 부풀어 도면이 카드
+  // 왼쪽으로 쏠려 보인다(예전에 실제로 있었던 버그).
+  const viewBoxW = u(layout.entrance?.xOut ?? layout.building.w) + 16;
+  const viewBoxH = u(layout.building.h) + 16;
 
   return (
     <div className="space-y-3">
@@ -129,10 +140,12 @@ export function ParkingMap({ spaces, highlightCode }: Props) {
       {/*
         표는 가로 스크롤이 생기지만 도면은 폭에 맞춰 줄이는 편이 읽기 좋다.
         preserveAspectRatio 기본값(비율 유지)을 그대로 쓴다.
+        mx-auto + max-w 로 카드 폭보다 도면이 좁을 때(세로로 긴 층 등) 좌우로 늘어나지 않고
+        가운데 정렬되게 한다.
       */}
       <svg
-        viewBox={`-8 -8 ${u(MAP_ENTRANCE.xOut) + 16} ${u(MAP_BUILDING.h) + 16}`}
-        className="h-auto w-full"
+        viewBox={`-8 -8 ${viewBoxW} ${viewBoxH}`}
+        className="mx-auto h-auto w-full max-w-3xl"
         role="img"
         aria-label={
           requesterView
@@ -140,83 +153,119 @@ export function ParkingMap({ spaces, highlightCode }: Props) {
             : `주차 평면도. 사용 가능 ${counts.available}면, 예약·사용 중 ${counts.occupied}면, 비활성 ${counts.disabled}면.`
         }
       >
-        {MAP_ROOMS.map((room) => (
-          <rect
-            key={`${room.x}-${room.y}`}
-            x={u(room.x)}
-            y={u(room.y)}
-            width={u(room.w)}
-            height={u(room.h)}
-            fill="#f1f5f9"
-            stroke="#cbd5e1"
-            strokeWidth={1.5}
-          />
-        ))}
-
-        <rect
-          x={u(MAP_ELEVATOR.x)}
-          y={u(MAP_ELEVATOR.y)}
-          width={u(MAP_ELEVATOR.w)}
-          height={u(MAP_ELEVATOR.h)}
-          fill="#3b82f6"
-          stroke="#1d4ed8"
-          strokeWidth={2}
-        />
-        <text
-          x={u(MAP_ELEVATOR.x + MAP_ELEVATOR.w / 2)}
-          y={u(MAP_ELEVATOR.y + MAP_ELEVATOR.h / 2) + 5}
-          fontSize={13}
-          fontWeight={700}
-          fill="#ffffff"
-          textAnchor="middle"
-        >
-          엘리베이터
-        </text>
-
-        <rect
-          x={u(MAP_BUILDING.w)}
-          y={u(MAP_ENTRANCE.yTop)}
-          width={u(entranceW)}
-          height={u(MAP_ENTRANCE.yBottom - MAP_ENTRANCE.yTop)}
-          fill="#dbeafe"
-          stroke="#2563eb"
-          strokeWidth={3}
-        />
-        <text
-          x={u((MAP_BUILDING.w + MAP_ENTRANCE.xOut) / 2)}
-          y={u((MAP_ENTRANCE.yTop + MAP_ENTRANCE.yBottom) / 2) + 6}
-          fontSize={16}
-          fontWeight={700}
-          fill="#1d4ed8"
-          textAnchor="middle"
-        >
-          차량 출입구
-        </text>
-        <path
-          d={`M ${u(MAP_ENTRANCE.xOut)} ${arrowY} L ${u(MAP_BUILDING.w) + 24} ${arrowY}`}
-          stroke="#1d4ed8"
-          strokeWidth={9}
-          fill="none"
-        />
-        <path d={`M ${u(MAP_BUILDING.w) + 2} ${arrowY} l 24 -12 l 0 24 Z`} fill="#1d4ed8" />
-
+        {/*
+          건물 배경. 방(rooms)이나 주차면으로 명시되지 않은 나머지 공간(통로·포장 구역 등)도
+          빈 흰 바탕이 아니라 "주차 구역이 아닌 공간"으로 회색으로 보이게 하는 바닥층이다.
+          방·주차면·출입구는 이 위에 그려 덮는다.
+        */}
         <rect
           x={0}
           y={0}
-          width={u(MAP_BUILDING.w)}
-          height={u(MAP_BUILDING.h)}
+          width={u(layout.building.w)}
+          height={u(layout.building.h)}
+          fill="#f1f5f9"
+        />
+
+        {layout.rooms.map((room) => (
+          <g key={`${room.x}-${room.y}`}>
+            <rect
+              x={u(room.x)}
+              y={u(room.y)}
+              width={u(room.w)}
+              height={u(room.h)}
+              fill="#e2e8f0"
+              stroke="#cbd5e1"
+              strokeWidth={1.5}
+            />
+            {room.label && (
+              <text
+                x={u(room.x + room.w / 2)}
+                y={u(room.y + room.h / 2) + 5}
+                fontSize={13}
+                fontWeight={700}
+                fill="#64748b"
+                textAnchor="middle"
+              >
+                {room.label}
+              </text>
+            )}
+          </g>
+        ))}
+
+        {layout.elevator && (
+          <>
+            <rect
+              x={u(layout.elevator.x)}
+              y={u(layout.elevator.y)}
+              width={u(layout.elevator.w)}
+              height={u(layout.elevator.h)}
+              fill="#3b82f6"
+              stroke="#1d4ed8"
+              strokeWidth={2}
+            />
+            <text
+              x={u(layout.elevator.x + layout.elevator.w / 2)}
+              y={u(layout.elevator.y + layout.elevator.h / 2) + 5}
+              fontSize={13}
+              fontWeight={700}
+              fill="#ffffff"
+              textAnchor="middle"
+            >
+              엘리베이터
+            </text>
+          </>
+        )}
+
+        {layout.entrance && (
+          <>
+            <rect
+              x={u(layout.building.w)}
+              y={u(layout.entrance.yTop)}
+              width={u(entranceW)}
+              height={u(layout.entrance.yBottom - layout.entrance.yTop)}
+              fill="#dbeafe"
+              stroke="#2563eb"
+              strokeWidth={3}
+            />
+            <text
+              x={u((layout.building.w + layout.entrance.xOut) / 2)}
+              y={u((layout.entrance.yTop + layout.entrance.yBottom) / 2) + 6}
+              fontSize={16}
+              fontWeight={700}
+              fill="#1d4ed8"
+              textAnchor="middle"
+            >
+              {layout.entrance.label}
+            </text>
+            <path
+              d={`M ${u(layout.entrance.xOut)} ${arrowY} L ${u(layout.building.w) + 24} ${arrowY}`}
+              stroke="#1d4ed8"
+              strokeWidth={9}
+              fill="none"
+            />
+            <path d={`M ${u(layout.building.w) + 2} ${arrowY} l 24 -12 l 0 24 Z`} fill="#1d4ed8" />
+          </>
+        )}
+
+        {/* 건물 외곽선 */}
+        <rect
+          x={0}
+          y={0}
+          width={u(layout.building.w)}
+          height={u(layout.building.h)}
           fill="none"
           stroke="#0f172a"
           strokeWidth={4}
         />
 
-        {MAP_STALLS.map((stall) => {
+        {layout.stalls.map((stall) => {
           const space = byCode.get(stall.code);
           const mine = requesterView && stall.code === highlightCode;
           const style = requesterView ? (mine ? MINE : NEUTRAL) : styleFor(space);
           const cx = u(stall.x + stall.w / 2);
           const cy = u(stall.y + stall.h / 2) + 3.5;
           const occupancies = requesterView ? [] : (space?.occupancies ?? []);
+          const isDisabledSpace = !requesterView && space?.spaceType === 'DISABLED';
           const label = (
             <>
               <rect
@@ -239,6 +288,32 @@ export function ParkingMap({ spaces, highlightCode }: Props) {
               >
                 {stall.code}
               </text>
+              {/*
+                장애인 주차면은 휠체어 픽토그램(국제 장애인 접근성 심볼)으로 구분 표시를
+                더한다. 사용자가 준 원본 도면 이미지에서 실제 픽토그램의 칸 안 위치·크기를
+                픽셀 단위로 측정한 비율(왼쪽에서 9.5%, 위에서 51.9% 지점에서 시작해 칸
+                너비의 26%·높이의 44%)을 그대로 써서, 아이콘을 24x24 기준 좌표로 그린 뒤
+                그 비율만큼 옮기고 늘린다 — 원본 이미지와 같은 자리·같은 비율로 보이게
+                하기 위함이다.
+              */}
+              {isDisabledSpace && (
+                <g
+                  transform={`translate(${u(stall.x + stall.w * 0.0952)} ${u(stall.y + stall.h * 0.5185)}) scale(${u(stall.w * 0.2619) / 24} ${u(stall.h * 0.4444) / 24})`}
+                  aria-hidden="true"
+                >
+                  <title>장애인 주차면</title>
+                  <circle cx={9} cy={16} r={6} fill="none" stroke={style.text} strokeWidth={1.6} />
+                  <circle cx={13} cy={4} r={2.2} fill={style.text} />
+                  <path
+                    d="M13 7 L13 12 L9 16 M9 12 L15 12"
+                    stroke={style.text}
+                    strokeWidth={1.6}
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </g>
+              )}
               {/*
                 예약이 두 건 이상이면 눌렀을 때 바로 넘어가지 않고 목록이 뜬다.
                 누르기 전에 알 수 있도록 건수를 표시한다.

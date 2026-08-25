@@ -5,11 +5,9 @@
  *
  * 생성 데이터
  *   1) SYSTEM_ADMIN 계정 1개 (환경변수 기반, 기본값 admin)
- *   2) 주차장 구역 1개 (MAIN / 본사 주차장, 도면은 비워 둠 — 관리자가 직접 업로드)
- *   3) 일반 주차면 17개 (A-01 ~ A-17, NORMAL, display_order 1~17)
- *   4) 이중주차 위치 3개 (D-01 ~ D-03, DOUBLE, display_order 101~103)
- *   5) 시스템 설정 초기값
- *   6) 관리자 알림 이메일 (환경변수 기반 예시값)
+ *   2) 주차장 구역 (MAIN / 지하 1층, 55면 NORMAL) + (GROUND / 지상 1층, 4면)
+ *   3) 시스템 설정 초기값
+ *   4) 관리자 알림 이메일 (환경변수 기반 예시값)
  *
  * 모든 upsert 는 멱등이므로 여러 번 실행해도 안전하다.
  */
@@ -111,6 +109,51 @@ async function seedAreaAndSpaces(): Promise<void> {
   console.log(`✔ 주차 구역(MAIN) / 주차면 ${order}면 준비 완료`);
 }
 
+/**
+ * 지상 1층 주차 구역 구성.
+ *
+ * 식당 좌측에 있는 별도 주차 구역이다. 일반 1면 + 장애인 3면, 총 4면뿐이라
+ * 지하 1층처럼 블록 단위로 생성하지 않고 좌표를 직접 적는다.
+ */
+async function seedGroundFloorAreaAndSpaces(): Promise<void> {
+  const area = await prisma.parkingArea.upsert({
+    where: { areaCode: 'GROUND' },
+    create: {
+      areaCode: 'GROUND',
+      areaName: '1층 지상 주차장',
+      description: '지상 1층 주차장 (4면, 식당 좌측)',
+      displayOrder: 2,
+      isActive: true,
+    },
+    update: { areaName: '1층 지상 주차장', isActive: true },
+    select: { areaId: true },
+  });
+
+  const spaces: readonly { spaceCode: string; spaceType: SpaceType }[] = [
+    { spaceCode: '1F-01', spaceType: SpaceType.NORMAL },
+    { spaceCode: '1F-02', spaceType: SpaceType.DISABLED },
+    { spaceCode: '1F-03', spaceType: SpaceType.DISABLED },
+    { spaceCode: '1F-04', spaceType: SpaceType.DISABLED },
+  ];
+
+  for (const [index, space] of spaces.entries()) {
+    const displayOrder = index + 1;
+    await prisma.parkingSpace.upsert({
+      where: { areaId_spaceCode: { areaId: area.areaId, spaceCode: space.spaceCode } },
+      create: {
+        areaId: area.areaId,
+        spaceCode: space.spaceCode,
+        spaceType: space.spaceType,
+        displayOrder,
+        isActive: true,
+      },
+      update: { spaceType: space.spaceType, displayOrder, isActive: true },
+    });
+  }
+
+  console.log(`✔ 주차 구역(GROUND) / 주차면 ${spaces.length}면 준비 완료`);
+}
+
 async function seedSystemSettings(adminUserId: number): Promise<void> {
   for (const row of toSettingRows(DEFAULT_SETTINGS)) {
     await prisma.systemSetting.upsert({
@@ -156,6 +199,7 @@ async function main(): Promise<void> {
 
   const adminUserId = await seedAdminUser();
   await seedAreaAndSpaces();
+  await seedGroundFloorAreaAndSpaces();
   await seedSystemSettings(adminUserId);
   await seedNotificationEmails();
 

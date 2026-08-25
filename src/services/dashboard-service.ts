@@ -32,6 +32,8 @@ export type SpaceStatusRow = {
   spaceCode: string;
   spaceName: string | null;
   spaceType: SpaceType;
+  areaId: number;
+  areaCode: string;
   areaName: string;
   isActive: boolean;
   memo: string | null;
@@ -71,6 +73,8 @@ export type DashboardData = {
   /** 발송 실패한 이메일 건수(날짜 무관, 전체). 신청자에게 안내 메일이 못 갔을 수 있어 경고로 띄운다. */
   failedEmailCount: number;
   spaces: SpaceStatusRow[];
+  /** 구역별로 묶은 주차면 현황. 대시보드 평면도 카드의 층 탭에서 쓴다. */
+  areas: { areaId: number; areaCode: string; areaName: string; spaces: SpaceStatusRow[] }[];
   pendingReservations: ReservationListItem[];
   hourlyUsage: HourlyUsage[];
   operatingHours: { open: string; close: string };
@@ -86,7 +90,9 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
       prisma.parkingSpace.findMany({
         // 비활성 주차면도 도면에 회색으로 표시해야 하므로 함께 가져온다.
         where: { area: { isActive: true } },
-        orderBy: [{ displayOrder: 'asc' }, { spaceId: 'asc' }],
+        // 구역별로 묶어 탭을 만들 수 있도록 구역 표시 순서를 먼저 따르고, 그 안에서 주차면
+        // 표시 순서를 따른다.
+        orderBy: [{ area: { displayOrder: 'asc' } }, { displayOrder: 'asc' }, { spaceId: 'asc' }],
         select: {
           spaceId: true,
           spaceCode: true,
@@ -94,7 +100,7 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
           spaceType: true,
           isActive: true,
           memo: true,
-          area: { select: { areaName: true } },
+          area: { select: { areaId: true, areaCode: true, areaName: true } },
         },
       }),
       prisma.parkingReservation.findMany({
@@ -164,6 +170,8 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
       spaceCode: space.spaceCode,
       spaceName: space.spaceName,
       spaceType: space.spaceType,
+      areaId: space.area.areaId,
+      areaCode: space.area.areaCode,
       areaName: space.area.areaName,
       isActive: space.isActive,
       memo: space.memo,
@@ -172,6 +180,26 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
       inUseReservationId: inUse?.reservationId ?? null,
     };
   });
+
+  // 구역별로 묶는다. 쿼리가 이미 구역 표시 순서로 정렬돼 있어 순서만 보존하면 된다.
+  const areaMap = new Map<
+    number,
+    { areaId: number; areaCode: string; areaName: string; spaces: SpaceStatusRow[] }
+  >();
+  for (const row of spaceRows) {
+    const area = areaMap.get(row.areaId);
+    if (area) {
+      area.spaces.push(row);
+    } else {
+      areaMap.set(row.areaId, {
+        areaId: row.areaId,
+        areaCode: row.areaCode,
+        areaName: row.areaName,
+        spaces: [row],
+      });
+    }
+  }
+  const areas = [...areaMap.values()];
 
   // 사용량 집계는 실제로 쓸 수 있는(활성) 주차면만 센다.
   const activeSpaces = spaceRows.filter((row) => row.isActive);
@@ -206,6 +234,7 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
     pendingTotalCount,
     failedEmailCount,
     spaces: spaceRows,
+    areas,
     pendingReservations: pendingReservations.map((r) =>
       toReservationListItem(r, settings.entryExitManagementEnabled),
     ),

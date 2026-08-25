@@ -10,6 +10,7 @@ import { SpaceTypeBadge } from '@/components/ui/status-badge';
 import { SPACE_TYPE_LABEL } from '@/domain/reservation-status';
 import type { SystemSettingsValues } from '@/domain/system-settings';
 import { apiRequest } from '@/lib/client/api-client';
+import { buildMapImageUrl } from '@/lib/map-image';
 
 type NotificationEmail = {
   notificationEmailId: number;
@@ -782,6 +783,11 @@ function SpaceSection({
   const [removed, setRemoved] = useState<number[]>([]);
   /** 새로 추가한 주차면. 표 맨 아래에 쌓인다. */
   const [added, setAdded] = useState<SpaceDraft[]>([]);
+  /**
+   * 지금 개별 저장 중인 행. 기존 행은 `existing-{spaceId}`, 새로 추가한 행은
+   * `added-{index}` 로 구분한다. 전체 [저장]과 별개로 한 행만 즉시 반영할 때 쓴다.
+   */
+  const [rowPending, setRowPending] = useState<string | null>(null);
 
   function areaDraftOf(area: Area): AreaDraft {
     return areaDrafts[area.areaId] ?? toAreaDraft(area);
@@ -946,6 +952,73 @@ function SpaceSection({
     // 실패한 항목을 고칠 수 있도록 편집 상태는 유지한다.
   }
 
+  /** 상단 [저장]까지 기다리지 않고, 고친 주차면 한 행만 바로 반영한다. */
+  async function saveOneSpace(space: Space) {
+    const draft = draftOf(space);
+    if (isSameDraft(draft, toSpaceDraft(space))) return;
+
+    setRowPending(`existing-${space.spaceId}`);
+    setMessage(null);
+    const response = await apiRequest(`/api/admin/parking-spaces/${space.spaceId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        areaId: draft.areaId,
+        spaceCode: draft.spaceCode,
+        spaceType: draft.spaceType,
+        isActive: draft.isActive,
+        memo: draft.memo || null,
+      }),
+    });
+    setRowPending(null);
+
+    if (response.ok) {
+      setDrafts((previous) => {
+        const next = { ...previous };
+        delete next[space.spaceId];
+        return next;
+      });
+      setMessage({ variant: 'success', text: `${draft.spaceCode}을(를) 저장했습니다.` });
+      router.refresh();
+      return;
+    }
+    setMessage({
+      variant: 'error',
+      text: `${draft.spaceCode} 저장 실패: ${response.error.message}`,
+    });
+  }
+
+  /** 새로 추가한 행 한 개만 바로 등록한다. */
+  async function saveOneAdded(index: number) {
+    const draft = added[index];
+    if (!draft?.spaceCode.trim()) return;
+
+    setRowPending(`added-${index}`);
+    setMessage(null);
+    const response = await apiRequest('/api/admin/parking-spaces', {
+      method: 'POST',
+      body: JSON.stringify({
+        areaId: draft.areaId,
+        spaceCode: draft.spaceCode,
+        spaceName: null,
+        spaceType: draft.spaceType,
+        isActive: draft.isActive,
+        memo: draft.memo || null,
+      }),
+    });
+    setRowPending(null);
+
+    if (response.ok) {
+      setAdded((previous) => previous.filter((_, itemIndex) => itemIndex !== index));
+      setMessage({ variant: 'success', text: `${draft.spaceCode}을(를) 추가했습니다.` });
+      router.refresh();
+      return;
+    }
+    setMessage({
+      variant: 'error',
+      text: `${draft.spaceCode} 추가 실패: ${response.error.message}`,
+    });
+  }
+
   return (
     <div className="space-y-4">
       {!spaceAssignmentEnabled && (
@@ -1099,6 +1172,27 @@ function SpaceSection({
                       <p className="text-xs break-all text-slate-500">
                         도면: {area.mapImageName ?? '등록 안 함'}
                       </p>
+                      {area.mapImageName && (
+                        <a
+                          href={buildMapImageUrl(
+                            area.areaId,
+                            area.mapImageUpdatedAt ? new Date(area.mapImageUpdatedAt) : null,
+                          )}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-1 block max-w-xs overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={buildMapImageUrl(
+                              area.areaId,
+                              area.mapImageUpdatedAt ? new Date(area.mapImageUpdatedAt) : null,
+                            )}
+                            alt={`${area.areaName} 도면 미리보기 — 새 탭에서 크게 보기`}
+                            className="max-h-40 w-full object-contain"
+                          />
+                        </a>
+                      )}
                     </dl>
                   )}
                 </div>
@@ -1122,7 +1216,7 @@ function SpaceSection({
                   <th className={editing ? 'w-28' : ''}>상태</th>
                   <th className={editing ? 'w-56' : ''}>구역</th>
                   <th>메모</th>
-                  {editing && <th className="w-20"></th>}
+                  {editing && <th className="w-24"></th>}
                 </tr>
               </thead>
               <tbody>
@@ -1221,22 +1315,48 @@ function SpaceSection({
                         />
                       </td>
                       <td>
-                        <button
-                          type="button"
-                          className={`btn min-h-9 px-2 py-1.5 text-xs ${
-                            isRemoved ? 'btn-secondary' : 'btn-danger-outline'
-                          }`}
-                          disabled={pending}
-                          onClick={() =>
-                            setRemoved((previous) =>
-                              isRemoved
-                                ? previous.filter((id) => id !== space.spaceId)
-                                : [...previous, space.spaceId],
-                            )
-                          }
-                        >
-                          {isRemoved ? '취소' : '삭제'}
-                        </button>
+                        <div className="flex items-center gap-1">
+                          {!isRemoved && (
+                            <button
+                              type="button"
+                              className="btn btn-primary min-h-9 px-2 py-1.5 text-xs"
+                              disabled={
+                                pending ||
+                                rowPending !== null ||
+                                isSameDraft(draft, toSpaceDraft(space))
+                              }
+                              title="이 행만 바로 저장"
+                              aria-label={`${space.spaceCode} 저장`}
+                              onClick={() => saveOneSpace(space)}
+                            >
+                              {rowPending === `existing-${space.spaceId}` ? (
+                                '저장 중…'
+                              ) : (
+                                <SaveIcon />
+                              )}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className={`btn min-h-9 px-2 py-1.5 text-xs ${
+                              isRemoved ? 'btn-secondary' : 'btn-danger-outline'
+                            }`}
+                            disabled={pending || rowPending !== null}
+                            title={isRemoved ? '삭제 취소' : '삭제'}
+                            aria-label={
+                              isRemoved ? `${space.spaceCode} 삭제 취소` : `${space.spaceCode} 삭제`
+                            }
+                            onClick={() =>
+                              setRemoved((previous) =>
+                                isRemoved
+                                  ? previous.filter((id) => id !== space.spaceId)
+                                  : [...previous, space.spaceId],
+                              )
+                            }
+                          >
+                            {isRemoved ? <UndoIcon /> : <TrashIcon />}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1327,18 +1447,32 @@ function SpaceSection({
                         />
                       </td>
                       <td>
-                        <button
-                          type="button"
-                          className="btn btn-danger-outline min-h-9 px-2 py-1.5 text-xs"
-                          disabled={pending}
-                          onClick={() =>
-                            setAdded((previous) =>
-                              previous.filter((_, itemIndex) => itemIndex !== index),
-                            )
-                          }
-                        >
-                          삭제
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            className="btn btn-primary min-h-9 px-2 py-1.5 text-xs"
+                            disabled={pending || rowPending !== null || !draft.spaceCode.trim()}
+                            title="이 행만 바로 추가"
+                            aria-label={`새 주차면 ${index + 1} 저장`}
+                            onClick={() => saveOneAdded(index)}
+                          >
+                            {rowPending === `added-${index}` ? '저장 중…' : <SaveIcon />}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-danger-outline min-h-9 px-2 py-1.5 text-xs"
+                            disabled={pending || rowPending !== null}
+                            title="삭제"
+                            aria-label={`새 주차면 ${index + 1} 삭제`}
+                            onClick={() =>
+                              setAdded((previous) =>
+                                previous.filter((_, itemIndex) => itemIndex !== index),
+                              )
+                            }
+                          >
+                            <TrashIcon />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1907,5 +2041,60 @@ function AdminUserSection({ adminUsers }: { adminUsers: AdminUser[] }) {
         </div>
       </section>
     </div>
+  );
+}
+
+/** 저장 픽토그램(디스켓). 주차면 행별 저장 버튼에 쓴다. */
+function SaveIcon() {
+  return (
+    <svg viewBox="0 0 20 20" className="size-4" fill="none" aria-hidden="true">
+      <path
+        d="M4 3h9l4 4v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <path d="M6.5 3v4.5h6V3" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <rect x="6.5" y="12" width="7" height="5" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  );
+}
+
+/** 삭제 픽토그램(휴지통). 주차면 행별 삭제 버튼에 쓴다. */
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 20 20" className="size-4" fill="none" aria-hidden="true">
+      <path d="M4 6h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M8 3h4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path
+        d="M6 6l.8 10.2A1 1 0 0 0 7.8 17h4.4a1 1 0 0 0 1-.8L14 6"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <path d="M8.3 9v5M11.7 9v5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** 삭제 취소(되돌리기) 픽토그램. 삭제 표시된 행을 다시 살릴 때 쓴다. */
+function UndoIcon() {
+  return (
+    <svg viewBox="0 0 20 20" className="size-4" fill="none" aria-hidden="true">
+      <path
+        d="M5 8H12a4 4 0 1 1 0 8H8"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M8 5L5 8l3 3"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }

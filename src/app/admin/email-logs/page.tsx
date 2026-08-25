@@ -16,12 +16,12 @@ const BASE_PATH = '/admin/email-logs';
 
 const EMAIL_TYPE_LABEL: Record<EmailType, string> = {
   REQUEST_RECEIVED: '신청 접수',
-  NEW_REQUEST_TO_ADMIN: '관리자 신규 알림',
+  NEW_REQUEST_TO_ADMIN: '관리자 신규',
   APPROVED: '승인',
   REJECTED: '반려',
   UPDATED: '변경',
   CANCELLED: '취소',
-  EXIT_REMINDER: '출차 예정 알림',
+  EXIT_REMINDER: '출차 예정',
 };
 
 const STATUS_LABEL: Record<EmailSendStatus, string> = {

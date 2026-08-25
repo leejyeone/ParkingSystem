@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { ClickableTableRow } from '@/components/admin/clickable-table-row';
-import { ParkingMap } from '@/components/parking-map';
+import { ParkingFloorTabs } from '@/components/admin/parking-floor-tabs';
 import { SpaceTypeBadge } from '@/components/ui/status-badge';
 import { Alert } from '@/components/ui/alert';
 import { requireAdminPage } from '@/lib/admin-page-guard';
@@ -34,6 +34,14 @@ function shiftDate(dateString: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+const WEEKDAY_LABEL = ['일', '월', '화', '수', '목', '금', '토'] as const;
+
+/** 'yyyy-MM-dd' 문자열(달력 날짜)의 요일을 구한다. */
+function weekdayOf(dateString: string): string {
+  const [year, month, day] = dateString.split('-').map(Number);
+  return WEEKDAY_LABEL[new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
+}
+
 export default async function AdminDashboardPage({ searchParams }: PageProps) {
   await requireAdminPage('/admin');
   const { date: dateParam, error } = await searchParams;
@@ -56,7 +64,9 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-black text-slate-900 sm:text-2xl">대시보드</h1>
-          <p className="mt-1 text-sm text-slate-600">기준일: {date}</p>
+          <p className="mt-1 text-sm text-slate-600">
+            기준일: {date} ({weekdayOf(date)})
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -256,6 +266,20 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
       {showSpace && (
         <section className="card">
           <div className="card-body">
+            <h2 className="card-title">주차 평면도</h2>
+            <p className="field-hint">
+              선택한 날짜 기준 현황입니다. 예약이 있는 주차면을 누르면 해당 예약 상세로 이동합니다.
+            </p>
+            <div className="mt-3">
+              <ParkingFloorTabs areas={dashboard.areas} />
+            </div>
+          </div>
+        </section>
+      )}
+
+      {showSpace && (
+        <section className="card">
+          <div className="card-body">
             <h2 className="card-title">
               주차면 현황
               <span className="ml-2 text-xs font-bold text-slate-500">
@@ -351,20 +375,6 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
                   ))}
                 </tbody>
               </table>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {showSpace && (
-        <section className="card">
-          <div className="card-body">
-            <h2 className="card-title">주차 평면도</h2>
-            <p className="field-hint">
-              선택한 날짜 기준 현황입니다. 예약이 있는 주차면을 누르면 해당 예약 상세로 이동합니다.
-            </p>
-            <div className="mt-3">
-              <ParkingMap spaces={dashboard.spaces} />
             </div>
           </div>
         </section>
