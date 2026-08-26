@@ -7,6 +7,7 @@ import {
   clientIpFor,
   prisma,
   resetE2eDatabase,
+  selectHostEmployee,
   tomorrowInput,
   waitForAccessUrl,
 } from './fixtures';
@@ -46,6 +47,7 @@ async function submitReservation(
   await page.getByLabel('차량번호').fill(overrides.vehicleNo ?? '12가 3456');
   await page.getByLabel('입차 예정 시간').fill(tomorrowInput(10));
   await page.getByLabel('출차 예정 시간').fill(tomorrowInput(12));
+  await selectHostEmployee(page);
   await page.getByLabel(/개인정보 수집 및 이용에 동의합니다/).check();
 
   await page.getByRole('button', { name: '방문 신청하기' }).click();

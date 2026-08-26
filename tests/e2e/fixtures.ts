@@ -17,6 +17,10 @@ export const prisma = new PrismaClient();
 export const ADMIN_EMAIL = 'e2eadmin@example.com';
 export const ADMIN_PASSWORD = 'E2eAdmin!2345';
 
+/** 방문 신청 폼의 "당사 담당자" 검색에서 고르는 기본 대상. */
+export const HOST_EMPLOYEE_NAME = '박담당';
+export const HOST_EMPLOYEE_EMAIL = 'e2e-host-employee@example.com';
+
 /** playwright.config.ts 에서 설정한 경로와 동일해야 한다. */
 const OUTBOX_DIR = process.env.MAIL_OUTBOX_DIR
   ? path.resolve(process.env.MAIL_OUTBOX_DIR)
@@ -42,6 +46,19 @@ export async function resetE2eDatabase(): Promise<void> {
       passwordHash: await bcrypt.hash(ADMIN_PASSWORD, 10),
       adminName: 'E2E관리자',
       email: ADMIN_EMAIL,
+      accountStatus: AccountStatus.ACTIVE,
+    },
+  });
+
+  // 방문 신청 폼의 "당사 담당자" 검색·선택 대상. 방문객 신청(회원/비회원 모두)이
+  // 이 계정을 검색해서 골라야 신청이 완료된다.
+  await prisma.employeeUser.create({
+    data: {
+      passwordHash: await bcrypt.hash('E2eHost!2345', 10),
+      name: HOST_EMPLOYEE_NAME,
+      branchName: '본사',
+      department: '총무팀',
+      email: HOST_EMPLOYEE_EMAIL,
       accountStatus: AccountStatus.ACTIVE,
     },
   });
@@ -121,6 +138,16 @@ export async function waitForAccessUrl(recipient: string, timeoutMs = 15_000): P
   }
 
   throw new Error(`${recipient} 앞으로 예약 조회 링크가 포함된 메일이 도착하지 않았습니다.`);
+}
+
+/**
+ * 방문 신청 폼의 "당사 담당자" 검색 콤보박스에서 시드된 담당자를 검색해 선택한다.
+ * (`resetE2eDatabase()` 가 만들어 둔 `HOST_EMPLOYEE_NAME` 계정을 고른다)
+ */
+export async function selectHostEmployee(page: import('@playwright/test').Page): Promise<void> {
+  const input = page.getByLabel('당사 담당자');
+  await input.fill(HOST_EMPLOYEE_NAME);
+  await page.getByRole('button', { name: new RegExp(`^${HOST_EMPLOYEE_NAME}`) }).click();
 }
 
 /** 내일 날짜의 'yyyy-MM-ddTHH:mm' (Asia/Seoul) */

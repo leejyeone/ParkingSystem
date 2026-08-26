@@ -1,6 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { clearMailOutbox, clientIpFor, prisma, resetE2eDatabase, tomorrowInput } from './fixtures';
+import {
+  clearMailOutbox,
+  clientIpFor,
+  prisma,
+  resetE2eDatabase,
+  selectHostEmployee,
+  tomorrowInput,
+} from './fixtures';
 
 /**
  * 회원(선택 로그인) 흐름 E2E
@@ -67,6 +74,7 @@ test('회원이 신청한 예약은 마이페이지 내 예약 목록에 나온�
   await page.goto('/reservations/new');
   await page.getByLabel('입차 예정 시간').fill(tomorrowInput(10));
   await page.getByLabel('출차 예정 시간').fill(tomorrowInput(12));
+  await selectHostEmployee(page);
   await page.getByLabel(/개인정보 수집 및 이용에 동의합니다/).check();
   await page.getByRole('button', { name: '방문 신청하기' }).click();
 
@@ -90,6 +98,7 @@ test('성명·차량번호만으로 예약을 조회하고 수정할 수 있다'
   await page.getByLabel('차량번호').fill('12가3456');
   await page.getByLabel('입차 예정 시간').fill(tomorrowInput(10));
   await page.getByLabel('출차 예정 시간').fill(tomorrowInput(12));
+  await selectHostEmployee(page);
   await page.getByLabel(/개인정보 수집 및 이용에 동의합니다/).check();
   await page.getByRole('button', { name: '방문 신청하기' }).click();
 
