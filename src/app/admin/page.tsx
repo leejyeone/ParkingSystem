@@ -55,6 +55,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
 
   const maxHourlyUsage = Math.max(1, ...dashboard.hourlyUsage.map((slot) => slot.usedCount));
   const showSpace = dashboard.spaceAssignmentEnabled;
+  const showDoubleParking = showSpace && dashboard.doubleParkingEnabled;
   // 도면(주차 평면도)에는 비활성 주차면도 회색으로 표시해야 하지만, 아래 표는 실제 배정 가능한
   // 주차면만 보여주면 되므로 비활성 주차면은 제외한다.
   const activeSpaces = dashboard.spaces.filter((space) => space.isActive);
@@ -114,11 +115,19 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
               value={`${dashboard.normalUsedCount} / ${dashboard.normalTotalCount}`}
               tone="brand"
             />
-            <StatCard
-              label="이중주차 사용"
-              value={`${dashboard.doubleUsedCount} / ${dashboard.doubleTotalCount}`}
-              tone="warning"
-            />
+            {showDoubleParking ? (
+              <StatCard
+                label="이중주차 사용"
+                value={`${dashboard.doubleUsedCount} / ${dashboard.doubleTotalCount}`}
+                tone="warning"
+              />
+            ) : (
+              <StatCard
+                label="당일 예약 차량"
+                value={`${dashboard.dayReservationCount} 대`}
+                tone="slate"
+              />
+            )}
           </>
         ) : (
           <>

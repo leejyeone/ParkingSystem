@@ -56,6 +56,8 @@ export type DashboardData = {
   date: string;
   /** 주차면 배정 기능 사용 여부. false 면 화면에서 주차면 관련 영역을 감춘다. */
   spaceAssignmentEnabled: boolean;
+  /** 이중주차 사용 여부. false 면 이중주차 사용 현황 대신 당일 예약 차량 수를 보여준다. */
+  doubleParkingEnabled: boolean;
   /** 선택한 날짜에 걸치는 방문 예약(승인/입차) 건수. 배정을 쓰지 않을 때의 사용량 지표. */
   dayReservationCount: number;
   /** 최대 주차 가능 대수(시스템 설정). 주차면 배정을 쓰지 않을 때의 정원. */
@@ -135,6 +137,7 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
         where: { reservationStatus: ReservationStatus.REQUESTED, ...buildOverlapWhere(start, end) },
         include: {
           assignedSpace: { select: { spaceId: true, spaceCode: true, spaceType: true } },
+          employeeUser: { select: { name: true, email: true } },
         },
         orderBy: [{ visitStartAt: 'asc' }, { reservationId: 'asc' }],
       }),
@@ -238,6 +241,7 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
   return {
     date: dateString,
     spaceAssignmentEnabled,
+    doubleParkingEnabled: settings.doubleParkingEnabled,
     dayReservationCount: dayReservations.length,
     parkingCapacity: settings.parkingCapacity,
     peakConcurrentCount: Math.max(0, ...hourlyUsage.map((slot) => slot.usedCount)),

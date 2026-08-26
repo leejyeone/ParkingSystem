@@ -23,7 +23,13 @@ import { getSystemSettings } from '@/services/settings-service';
  */
 
 /** 성공 발송이 1건만 존재해야 하는 이메일 종류 */
-export const DEDUPE_EMAIL_TYPES: readonly EmailType[] = [EmailType.EXIT_REMINDER];
+export const DEDUPE_EMAIL_TYPES: readonly EmailType[] = [
+  EmailType.EXIT_REMINDER,
+  EmailType.ENTRY_REMINDER,
+];
+
+/** 입차 예정 알림(당사 담당자용) 발송 기준 시간(분 전). 설정으로 노출하지 않는 고정값이다. */
+export const ENTRY_REMINDER_MINUTES = 10;
 
 /**
  * 멱등성 키.
@@ -41,12 +47,29 @@ export function buildDedupeKey(
   return occurrence === undefined ? base : `${base}:${occurrence}`;
 }
 
-/** EXIT_REMINDER 멱등성 키. 출차 예정 시각(분 단위)까지 포함한다. */
-export function buildExitReminderDedupeKey(reservationId: number, visitEndAt: Date): string {
+/**
+ * EXIT_REMINDER 멱등성 키. 출차 예정 시각(분 단위)에 수신자를 더해 포함한다.
+ * 당사 담당자가 매핑되어 있으면 신청자와 담당자 둘 다 받으므로, 수신자별로 키가
+ * 갈려야 한 명에게만 보내고 다른 한 명은 빠지는 일이 없다.
+ */
+export function buildExitReminderDedupeKey(
+  reservationId: number,
+  visitEndAt: Date,
+  recipientEmail: string,
+): string {
   return buildDedupeKey(
     reservationId,
     EmailType.EXIT_REMINDER,
-    visitEndAt.toISOString().slice(0, 16),
+    `${visitEndAt.toISOString().slice(0, 16)}:${recipientEmail}`,
+  );
+}
+
+/** ENTRY_REMINDER 멱등성 키. 입차 예정 시각(분 단위)까지 포함한다. */
+export function buildEntryReminderDedupeKey(reservationId: number, visitStartAt: Date): string {
+  return buildDedupeKey(
+    reservationId,
+    EmailType.ENTRY_REMINDER,
+    visitStartAt.toISOString().slice(0, 16),
   );
 }
 
@@ -168,6 +191,8 @@ export type ReservationForEmail = {
   rejectionReason?: string | null;
   cancelReason?: string | null;
   assignedSpace?: { spaceCode: string; spaceType: SpaceType } | null;
+  /** 당사 담당자(직원). ENTRY_REMINDER 수신자를 정하는 데만 쓴다. */
+  hostEmployee?: { name: string; email: string } | null;
 };
 
 /**
@@ -199,6 +224,21 @@ async function toEmailData(
   };
 }
 
+/**
+ * 신청자(방문객)가 받는 메일의 수신자 목록.
+ *
+ * 당사 담당자(employeeUserId)가 매핑되어 있으면 — 대리 신청이든, 방문객 본인 신청에서
+ * 담당자를 선택한 경우든 — 방문객이 받는 메일을 담당자도 참조로 함께 받는다.
+ * 같은 주소면(드문 경우) 중복 발송하지 않는다.
+ */
+export function requesterMailRecipients(reservation: ReservationForEmail): string[] {
+  const recipients = [reservation.requesterEmail];
+  if (reservation.hostEmployee && reservation.hostEmployee.email !== reservation.requesterEmail) {
+    recipients.push(reservation.hostEmployee.email);
+  }
+  return recipients;
+}
+
 export function buildAdminDetailUrl(reservationId: number): string {
   return `${getAppBaseUrl()}/admin/reservations/${reservationId}`;
 }
@@ -219,11 +259,11 @@ export async function getAdminRecipients(flag: AdminRecipientFlag): Promise<stri
   return rows.map((row) => row.email);
 }
 
-/** 1. 신청 접수 (신청자) */
+/** 1. 신청 접수 (신청자 + 당사 담당자가 매핑되어 있으면 담당자도 함께) */
 export async function sendRequestReceivedEmail(
   reservation: ReservationForEmail,
   options: { accessUrl: string; changeDeadlineAt: Date },
-): Promise<EmailDispatchResult> {
+): Promise<EmailDispatchResult[]> {
   const rendered = renderReservationEmail(
     EmailType.REQUEST_RECEIVED,
     await toEmailData(reservation, {
@@ -231,12 +271,16 @@ export async function sendRequestReceivedEmail(
       changeDeadlineAt: options.changeDeadlineAt,
     }),
   );
-  return sendEmailWithLog({
-    reservationId: reservation.reservationId,
-    emailType: EmailType.REQUEST_RECEIVED,
-    to: reservation.requesterEmail,
-    rendered,
-  });
+  return Promise.all(
+    requesterMailRecipients(reservation).map((to) =>
+      sendEmailWithLog({
+        reservationId: reservation.reservationId,
+        emailType: EmailType.REQUEST_RECEIVED,
+        to,
+        rendered,
+      }),
+    ),
+  );
 }
 
 /** 2. 신규 신청 알림 (관리자) */
@@ -262,34 +306,42 @@ export async function sendNewRequestToAdminEmails(
   );
 }
 
-/** 3. 승인 (신청자) */
+/** 3. 승인 (신청자 + 당사 담당자가 매핑되어 있으면 담당자도 함께) */
 export async function sendApprovedEmail(
   reservation: ReservationForEmail,
   options: { accessUrl: string },
-): Promise<EmailDispatchResult> {
+): Promise<EmailDispatchResult[]> {
   const rendered = renderReservationEmail(
     EmailType.APPROVED,
     await toEmailData(reservation, { accessUrl: options.accessUrl }),
   );
-  return sendEmailWithLog({
-    reservationId: reservation.reservationId,
-    emailType: EmailType.APPROVED,
-    to: reservation.requesterEmail,
-    rendered,
-  });
+  return Promise.all(
+    requesterMailRecipients(reservation).map((to) =>
+      sendEmailWithLog({
+        reservationId: reservation.reservationId,
+        emailType: EmailType.APPROVED,
+        to,
+        rendered,
+      }),
+    ),
+  );
 }
 
-/** 4. 반려 (신청자) */
+/** 4. 반려 (신청자 + 당사 담당자가 매핑되어 있으면 담당자도 함께) */
 export async function sendRejectedEmail(
   reservation: ReservationForEmail,
-): Promise<EmailDispatchResult> {
+): Promise<EmailDispatchResult[]> {
   const rendered = renderReservationEmail(EmailType.REJECTED, await toEmailData(reservation));
-  return sendEmailWithLog({
-    reservationId: reservation.reservationId,
-    emailType: EmailType.REJECTED,
-    to: reservation.requesterEmail,
-    rendered,
-  });
+  return Promise.all(
+    requesterMailRecipients(reservation).map((to) =>
+      sendEmailWithLog({
+        reservationId: reservation.reservationId,
+        emailType: EmailType.REJECTED,
+        to,
+        rendered,
+      }),
+    ),
+  );
 }
 
 /**
@@ -327,12 +379,14 @@ export async function sendUpdatedEmails(
 
   const admins = options.changedByAdmin ? [] : await getAdminRecipients('receiveApprovalAlert');
   return Promise.all([
-    sendEmailWithLog({
-      reservationId: reservation.reservationId,
-      emailType: EmailType.UPDATED,
-      to: reservation.requesterEmail,
-      rendered: requesterMail,
-    }),
+    ...requesterMailRecipients(reservation).map((to) =>
+      sendEmailWithLog({
+        reservationId: reservation.reservationId,
+        emailType: EmailType.UPDATED,
+        to,
+        rendered: requesterMail,
+      }),
+    ),
     ...admins.map((to) =>
       sendEmailWithLog({
         reservationId: reservation.reservationId,
@@ -344,19 +398,21 @@ export async function sendUpdatedEmails(
   ]);
 }
 
-/** 6. 취소 (신청자 + 관리자) */
+/** 6. 취소 (신청자 + 당사 담당자가 매핑되어 있으면 담당자도 함께 + 관리자) */
 export async function sendCancelledEmails(
   reservation: ReservationForEmail,
 ): Promise<EmailDispatchResult[]> {
   const rendered = renderReservationEmail(EmailType.CANCELLED, await toEmailData(reservation));
   const admins = await getAdminRecipients('receiveApprovalAlert');
   return Promise.all([
-    sendEmailWithLog({
-      reservationId: reservation.reservationId,
-      emailType: EmailType.CANCELLED,
-      to: reservation.requesterEmail,
-      rendered,
-    }),
+    ...requesterMailRecipients(reservation).map((to) =>
+      sendEmailWithLog({
+        reservationId: reservation.reservationId,
+        emailType: EmailType.CANCELLED,
+        to,
+        rendered,
+      }),
+    ),
     ...admins.map((to) =>
       sendEmailWithLog({
         reservationId: reservation.reservationId,
@@ -368,17 +424,50 @@ export async function sendCancelledEmails(
   ]);
 }
 
-/** 7. 출차 예정 알림 (신청자) — 중복 발송 금지 */
+/** 7. 출차 예정 알림 (신청자 + 당사 담당자가 매핑되어 있으면 담당자도 함께) — 중복 발송 금지 */
 export async function sendExitReminderEmail(
   reservation: ReservationForEmail,
-): Promise<EmailDispatchResult> {
+): Promise<EmailDispatchResult[]> {
   const rendered = renderReservationEmail(EmailType.EXIT_REMINDER, await toEmailData(reservation));
+  return Promise.all(
+    requesterMailRecipients(reservation).map((to) =>
+      sendEmailWithLog({
+        reservationId: reservation.reservationId,
+        emailType: EmailType.EXIT_REMINDER,
+        to,
+        rendered,
+        // 수신자별로 갈라야 신청자/담당자 중 한쪽만 이미 보냈어도 나머지가 정상 발송된다.
+        dedupeOccurrence: `${reservation.visitEndAt.toISOString().slice(0, 16)}:${to}`,
+      }),
+    ),
+  );
+}
+
+/**
+ * 8. 입차 예정 알림 (당사 담당자) — 방문객(본인 신청/대리 신청 모두) 방문 예정을
+ * 매핑된 담당 직원에게 안내한다. 중복 발송 금지.
+ */
+export async function sendEntryReminderEmail(
+  reservation: ReservationForEmail,
+): Promise<EmailDispatchResult> {
+  if (!reservation.hostEmployee) {
+    // 당사 담당자가 없는 예약(과거 데이터)은 보낼 대상이 없으므로 조용히 건너뛴다.
+    return { status: 'SKIPPED', emailLogId: null };
+  }
+
+  const rendered = renderReservationEmail(
+    EmailType.ENTRY_REMINDER,
+    await toEmailData(reservation, {
+      hostEmployeeName: reservation.hostEmployee.name,
+      entryReminderMinutes: ENTRY_REMINDER_MINUTES,
+    }),
+  );
   return sendEmailWithLog({
     reservationId: reservation.reservationId,
-    emailType: EmailType.EXIT_REMINDER,
-    to: reservation.requesterEmail,
+    emailType: EmailType.ENTRY_REMINDER,
+    to: reservation.hostEmployee.email,
     rendered,
-    dedupeOccurrence: reservation.visitEndAt.toISOString().slice(0, 16),
+    dedupeOccurrence: reservation.visitStartAt.toISOString().slice(0, 16),
   });
 }
 

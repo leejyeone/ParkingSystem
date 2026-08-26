@@ -72,6 +72,7 @@ enum EmailType {
   UPDATED
   CANCELLED
   EXIT_REMINDER
+  ENTRY_REMINDER
 }
 
 /// 이메일 발송 상태

@@ -31,11 +31,13 @@ export async function POST(request: NextRequest) {
     });
 
     const payload = createEmployeeProxyReservationSchema.parse(await request.json());
-    const { visitorConsentConfirmed, ...rest } = payload;
+    const { visitorConsentConfirmed, hostEmployeeUserId, ...rest } = payload;
 
+    // 당사 담당자는 화면에서 검색해 선택한 직원이며, 기본값은 대리 신청 중인 본인이지만
+    // 다른 직원으로 바뀌어 있을 수 있다.
     const { reservation } = await createProxyReservationForVisitor(
       { ...rest, privacyConsent: visitorConsentConfirmed },
-      session.employeeUserId,
+      hostEmployeeUserId,
     );
 
     return apiSuccess(

@@ -41,6 +41,7 @@ import { generateReservationNo } from '@/lib/tokens';
 import { normalizeVehicleNo } from '@/lib/vehicle';
 import type { RequestContext } from '@/lib/request-context';
 import { AUDIT_ACTIONS, AUDIT_TARGETS, writeAuditLog } from '@/services/audit-service';
+import { assertActiveEmployeeExists } from '@/services/employee-directory-service';
 import { issueAccessToken } from '@/services/reservation-access-service';
 import { SETTING_KEYS } from '@/domain/system-settings';
 import { getSystemSettings } from '@/services/settings-service';
@@ -65,6 +66,7 @@ const ACTIVE_STATUSES: ReservationStatus[] = [
 
 const RESERVATION_WITH_SPACES = {
   assignedSpace: { select: { spaceId: true, spaceCode: true, spaceType: true } },
+  employeeUser: { select: { name: true, email: true } },
 } satisfies Prisma.ParkingReservationInclude;
 
 export type ReservationWithSpaces = Prisma.ParkingReservationGetPayload<{
@@ -94,6 +96,7 @@ function toReservationForEmail(reservation: ReservationWithSpaces): ReservationF
           spaceType: reservation.assignedSpace.spaceType,
         }
       : null,
+    hostEmployee: reservation.employeeUser,
   };
 }
 
@@ -235,6 +238,12 @@ export async function createReservation(input: CreateReservationInput): Promise<
     });
   }
 
+  // 방문객 본인 신청/직원 대리 신청 모두 당사 담당자(employeeUserId)가 실존하는
+  // 활성 직원이어야 한다. 직원 본인 방문은 이미 로그인 세션에서 검증된 본인 id다.
+  if (input.employeeUserId != null) {
+    await assertActiveEmployeeExists(input.employeeUserId);
+  }
+
   const settings = await getSystemSettings();
   const now = new Date();
 
@@ -308,14 +317,16 @@ export async function createReservation(input: CreateReservationInput): Promise<
   return { reservation, accessUrl };
 }
 
-/** 방문객 본인 신청 (공개, 로그인 선택). requesterType=VISITOR 고정. */
+/**
+ * 방문객 본인 신청 (공개, 로그인 선택). requesterType=VISITOR 고정.
+ * employeeUserId 는 화면에서 검색해 고른 당사 담당자이며 필수다(createReservation 에서 검증).
+ */
 export async function createVisitorReservation(
-  input: Omit<CreateReservationInput, 'requesterType' | 'employeeUserId'>,
+  input: Omit<CreateReservationInput, 'requesterType'>,
 ) {
   return createReservation({
     ...input,
     requesterType: RequesterType.VISITOR,
-    employeeUserId: null,
   });
 }
 
@@ -337,7 +348,11 @@ export async function createEmployeeReservation(
   });
 }
 
-/** 직원의 방문객 대리 신청 (로그인 필수). requesterType=VISITOR 고정, employeeUserId=담당 직원. */
+/**
+ * 직원의 방문객 대리 신청 (로그인 필수). requesterType=VISITOR 고정.
+ * employeeUserId 는 "당사 담당자" — 기본값은 대리 신청 중인 로그인 직원 본인이지만,
+ * 화면에서 다른 직원으로 바꿔 선택했을 수 있으므로 호출자가 명시적으로 넘긴다.
+ */
 export async function createProxyReservationForVisitor(
   input: Omit<CreateReservationInput, 'requesterType' | 'employeeUserId' | 'visitorUserId'>,
   employeeUserId: number,

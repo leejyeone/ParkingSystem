@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
 
     const { reservation } = await createVisitorReservation({
       visitorUserId: session?.userId ?? null,
+      employeeUserId: payload.hostEmployeeUserId,
       companyOrBranchName: payload.companyOrBranchName,
       requesterName: payload.requesterName,
       requesterEmail: payload.requesterEmail,

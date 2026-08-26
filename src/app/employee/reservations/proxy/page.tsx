@@ -36,6 +36,9 @@ export default async function EmployeeProxyReservationPage() {
 
       <ReservationForm
         mode="employee-proxy"
+        initialValues={{
+          hostEmployee: { employeeUserId: session.employeeUserId, label: session.name },
+        }}
         settings={{
           reservationMinLeadMinutes: settings.reservationMinLeadMinutes,
           parkingOpenTime: settings.parkingOpenTime,

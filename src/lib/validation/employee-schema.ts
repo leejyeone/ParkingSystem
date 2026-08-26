@@ -80,3 +80,8 @@ export const employeeUserBulkStatusSchema = z.object({
     .enum(AccountStatus)
     .refine((value) => value !== AccountStatus.LOCKED, '활성 또는 비활성만 선택할 수 있습니다.'),
 });
+
+/** 예약 신청 화면의 "당사 담당자" 검색(공개). 방문객도 사용하므로 로그인 여부와 무관하다. */
+export const employeeSearchSchema = z.object({
+  query: z.string().trim().min(1, '검색어를 입력해 주세요.').max(100, '검색어가 너무 깁니다.'),
+});

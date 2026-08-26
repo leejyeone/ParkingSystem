@@ -195,7 +195,7 @@ CREATE TABLE `admin_notification_emails` (
 CREATE TABLE `email_send_logs` (
     `email_log_id` INTEGER NOT NULL AUTO_INCREMENT,
     `reservation_id` INTEGER NULL,
-    `email_type` ENUM('REQUEST_RECEIVED', 'NEW_REQUEST_TO_ADMIN', 'APPROVED', 'REJECTED', 'UPDATED', 'CANCELLED', 'EXIT_REMINDER') NOT NULL,
+    `email_type` ENUM('REQUEST_RECEIVED', 'NEW_REQUEST_TO_ADMIN', 'APPROVED', 'REJECTED', 'UPDATED', 'CANCELLED', 'EXIT_REMINDER', 'ENTRY_REMINDER') NOT NULL,
     `recipient_email` VARCHAR(255) NOT NULL,
     `subject` VARCHAR(300) NOT NULL,
     `body_html` LONGTEXT NULL,

@@ -1,5 +1,6 @@
 import { isInternalSchedulerEnabled, getSchedulerIntervalSeconds } from '@/lib/env';
 import { logger } from '@/lib/logger';
+import { runEntryReminderJob } from '@/services/entry-reminder-service';
 import { runExitReminderJob } from '@/services/exit-reminder-service';
 
 /**
@@ -23,12 +24,13 @@ const STARTED_FLAG = Symbol.for('synopex.parking.scheduler.started');
 
 type GlobalWithFlag = typeof globalThis & { [STARTED_FLAG]?: boolean };
 
-let isRunning = false;
+let isExitReminderRunning = false;
+let isEntryReminderRunning = false;
 
 async function runExitReminders(): Promise<void> {
   // 앞선 실행이 아직 끝나지 않았다면 이번 주기는 건너뛴다.
-  if (isRunning) return;
-  isRunning = true;
+  if (isExitReminderRunning) return;
+  isExitReminderRunning = true;
 
   try {
     // 발송 결과 로그는 작업 쪽에서 남긴다. 대상이 없는 주기는 조용히 지나간다.
@@ -39,7 +41,22 @@ async function runExitReminders(): Promise<void> {
       message: error instanceof Error ? error.message : String(error),
     });
   } finally {
-    isRunning = false;
+    isExitReminderRunning = false;
+  }
+}
+
+async function runEntryReminders(): Promise<void> {
+  if (isEntryReminderRunning) return;
+  isEntryReminderRunning = true;
+
+  try {
+    await runEntryReminderJob();
+  } catch (error) {
+    logger.error('입차 예정 알림 스케줄러 실패', {
+      message: error instanceof Error ? error.message : String(error),
+    });
+  } finally {
+    isEntryReminderRunning = false;
   }
 }
 
@@ -58,10 +75,14 @@ export function startScheduler(): void {
   const intervalSeconds = getSchedulerIntervalSeconds();
   const timer = setInterval(() => {
     void runExitReminders();
+    void runEntryReminders();
   }, intervalSeconds * 1_000);
 
   // 타이머 때문에 프로세스 종료가 늦어지지 않게 한다.
   timer.unref();
 
-  logger.info('내장 스케줄러 시작', { intervalSeconds, jobs: ['exit-reminders'] });
+  logger.info('내장 스케줄러 시작', {
+    intervalSeconds,
+    jobs: ['exit-reminders', 'entry-reminders'],
+  });
 }

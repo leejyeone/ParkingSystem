@@ -22,6 +22,7 @@ const EMAIL_TYPE_LABEL: Record<EmailType, string> = {
   UPDATED: '변경',
   CANCELLED: '취소',
   EXIT_REMINDER: '출차 예정',
+  ENTRY_REMINDER: '입차 예정(담당자)',
 };
 
 const STATUS_LABEL: Record<EmailSendStatus, string> = {
@@ -85,6 +86,9 @@ export default async function AdminEmailLogsPage({ searchParams }: PageProps) {
     const queryString = query.toString();
     return queryString ? `${BASE_PATH}?${queryString}` : BASE_PATH;
   };
+
+  // 검색 조건이 바뀌면 1페이지부터 다시 보도록, 페이지 이동 링크는 page 만 덮어쓴다.
+  const buildPageHref = (targetPage: number) => buildHref({ page: String(targetPage) });
 
   // 적용된 조건만 칩으로 노출한다. (예약 목록과 동일한 방식)
   const chips: FilterChip[] = [
@@ -173,7 +177,9 @@ export default async function AdminEmailLogsPage({ searchParams }: PageProps) {
 
       <section className="card">
         <div className="card-body">
-          <p className="text-sm font-bold text-slate-700">전체 {result.totalCount}건</p>
+          <p className="text-sm font-bold text-slate-700">
+            전체 {result.totalCount}건 · {result.page} / {result.totalPages} 페이지
+          </p>
           <div className="table-scroll mt-3">
             <table className="data-table">
               <thead>
@@ -246,6 +252,30 @@ export default async function AdminEmailLogsPage({ searchParams }: PageProps) {
               </tbody>
             </table>
           </div>
+
+          {result.totalPages > 1 && (
+            <nav className="mt-4 flex items-center justify-center gap-2">
+              {result.page > 1 && (
+                <Link
+                  href={buildPageHref(result.page - 1)}
+                  className="btn btn-secondary min-h-9 px-3 text-xs"
+                >
+                  이전
+                </Link>
+              )}
+              <span className="text-sm text-slate-600">
+                {result.page} / {result.totalPages}
+              </span>
+              {result.page < result.totalPages && (
+                <Link
+                  href={buildPageHref(result.page + 1)}
+                  className="btn btn-secondary min-h-9 px-3 text-xs"
+                >
+                  다음
+                </Link>
+              )}
+            </nav>
+          )}
         </div>
       </section>
     </main>

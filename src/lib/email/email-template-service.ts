@@ -44,6 +44,10 @@ export type ReservationEmailData = {
   changeDeadlineAt?: Date | null;
   /** 출차 알림 기준 시간(분 전). EXIT_REMINDER 메일 제목/본문에 표시한다. */
   exitReminderMinutes?: number;
+  /** 입차 알림 기준 시간(분 전). ENTRY_REMINDER 메일 제목/본문에 표시한다. */
+  entryReminderMinutes?: number;
+  /** 당사 담당자 이름. ENTRY_REMINDER 메일 수신자(담당 직원) 호칭에 쓴다. */
+  hostEmployeeName?: string;
 };
 
 export type RenderedEmail = {
@@ -424,6 +428,23 @@ export function renderReservationEmail(
       };
       return {
         subject: `[시노펙스] 출차 예정 시간 ${minutes}분 전 안내`,
+        html: renderHtmlLayout(params),
+        text: renderTextLayout(params),
+      };
+    }
+
+    case EmailType.ENTRY_REMINDER: {
+      /* 방문객이 곧 도착함을 당사 담당자에게 안내한다. 신청자(방문객)가 아니라 담당 직원 수신용. */
+      const minutes = data.entryReminderMinutes ?? 10;
+      const greeting = data.hostEmployeeName ? `${data.hostEmployeeName}님, ` : '';
+      const params = {
+        title: `방문객 입차 예정 안내 (${minutes}분 전)`,
+        lead: `${greeting}담당하신 방문객이 입차 예정 시각 ${minutes}분 전입니다. 방문객 응대를 준비해 주세요.`,
+        rows: [...rows, { label: '입차 예정 시각', value: formatKstHuman(data.visitStartAt) }],
+        notices: ['방문객 도착 시 안내 및 응대를 부탁드립니다.'],
+      };
+      return {
+        subject: `[시노펙스] 방문객 입차 예정 안내 (${minutes}분 전)`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };

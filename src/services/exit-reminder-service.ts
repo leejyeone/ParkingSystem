@@ -2,6 +2,7 @@ import { ChangedByType, EmailSendStatus, EmailType, ReservationStatus } from '@p
 
 import {
   buildExitReminderDedupeKey,
+  requesterMailRecipients,
   sendExitReminderEmail,
   type ReservationForEmail,
 } from '@/lib/email/email-service';
@@ -46,6 +47,7 @@ export async function findExitReminderTargets(
     },
     include: {
       assignedSpace: { select: { spaceCode: true, spaceType: true } },
+      employeeUser: { select: { name: true, email: true } },
       // 현재 출차 예정 시각 기준으로 이미 보냈는지 판단하려면 키를 봐야 한다.
       emailLogs: {
         where: { emailType: EmailType.EXIT_REMINDER, sendStatus: EmailSendStatus.SUCCESS },
@@ -56,10 +58,6 @@ export async function findExitReminderTargets(
   });
 
   return reservations
-    .filter((reservation) => {
-      const key = buildExitReminderDedupeKey(reservation.reservationId, reservation.visitEndAt);
-      return !reservation.emailLogs.some((log) => log.dedupeKey === key);
-    })
     .map((reservation) => ({
       reservationId: reservation.reservationId,
       reservationNo: reservation.reservationNo,
@@ -71,7 +69,21 @@ export async function findExitReminderTargets(
       visitStartAt: reservation.visitStartAt,
       visitEndAt: reservation.visitEndAt,
       assignedSpace: reservation.assignedSpace,
-    }));
+      hostEmployee: reservation.employeeUser,
+      emailLogs: reservation.emailLogs,
+    }))
+    .filter((reservation) => {
+      // 신청자·담당자 중 한 명이라도 아직 못 받았으면 대상에 남긴다. 이미 받은 수신자는
+      // sendExitReminderEmail() 내부의 개별 멱등성 키가 다시 걸러 중복 발송을 막는다.
+      const sentKeys = new Set(reservation.emailLogs.map((log) => log.dedupeKey));
+      return requesterMailRecipients(reservation).some(
+        (to) =>
+          !sentKeys.has(
+            buildExitReminderDedupeKey(reservation.reservationId, reservation.visitEndAt, to),
+          ),
+      );
+    })
+    .map(({ emailLogs: _emailLogs, ...reservation }) => reservation);
 }
 
 export async function runExitReminderJob(now: Date = new Date()): Promise<ExitReminderResult> {
@@ -82,10 +94,13 @@ export async function runExitReminderJob(now: Date = new Date()): Promise<ExitRe
   let failedCount = 0;
 
   for (const target of targets) {
-    const result = await sendExitReminderEmail(target);
-    if (result.status === 'SUCCESS') sentCount += 1;
-    else if (result.status === 'SKIPPED') skippedCount += 1;
-    else failedCount += 1;
+    // 당사 담당자가 매핑되어 있으면 신청자·담당자 2건이 나올 수 있다.
+    const results = await sendExitReminderEmail(target);
+    for (const result of results) {
+      if (result.status === 'SUCCESS') sentCount += 1;
+      else if (result.status === 'SKIPPED') skippedCount += 1;
+      else failedCount += 1;
+    }
   }
 
   // 스케줄러가 1분마다 호출하므로, 발송할 대상이 없었던 실행은 로그를 남기지 않는다.

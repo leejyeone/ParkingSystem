@@ -4,6 +4,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, type ChangeEvent, type FormEvent } from 'react';
 
+import {
+  EmployeeSearchSelect,
+  type SelectedEmployee,
+} from '@/components/reservation/employee-search-select';
 import { Alert } from '@/components/ui/alert';
 import { FormField, inputClassName } from '@/components/ui/form-field';
 import { apiRequest, type ApiErrorPayload } from '@/lib/client/api-client';
@@ -30,6 +34,8 @@ export type ReservationFormInitialValues = {
   requesterName?: string;
   requesterEmail?: string;
   vehicleNo?: string;
+  /** 대리 신청 화면의 기본 당사 담당자(로그인한 직원 본인). 검색해서 다른 직원으로 바꿀 수 있다. */
+  hostEmployee?: SelectedEmployee;
 };
 
 type CreateResponse = {
@@ -92,6 +98,9 @@ export function ReservationForm({
   autofilled?: boolean;
 }) {
   const [form, setForm] = useState<FormState>(() => buildInitialState(initialValues));
+  const [hostEmployee, setHostEmployee] = useState<SelectedEmployee | null>(
+    initialValues?.hostEmployee ?? null,
+  );
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [formError, setFormError] = useState<ApiErrorPayload | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -132,9 +141,17 @@ export function ReservationForm({
     };
     const payload =
       mode === 'visitor'
-        ? { ...basePayload, privacyConsent: form.privacyConsent }
+        ? {
+            ...basePayload,
+            hostEmployeeUserId: hostEmployee?.employeeUserId,
+            privacyConsent: form.privacyConsent,
+          }
         : mode === 'employee-proxy'
-          ? { ...basePayload, visitorConsentConfirmed: form.privacyConsent }
+          ? {
+              ...basePayload,
+              hostEmployeeUserId: hostEmployee?.employeeUserId,
+              visitorConsentConfirmed: form.privacyConsent,
+            }
           : basePayload;
 
     const response = await apiRequest<CreateResponse>(ENDPOINT_BY_MODE[mode], {
@@ -175,7 +192,9 @@ export function ReservationForm({
     form.visitStartAt !== '' &&
     form.visitEndAt !== '' &&
     // 직원 본인 신청은 개인정보 수집·이용 동의 카드를 보여주지 않으므로 체크 여부를 요구하지 않는다.
-    (mode === 'employee-self' || form.privacyConsent);
+    (mode === 'employee-self' || form.privacyConsent) &&
+    // 직원 본인 신청은 본인이 곧 담당자이므로 당사 담당자 선택이 필요 없다.
+    (mode === 'employee-self' || hostEmployee !== null);
 
   // 서버 검증 오류 필드명이 모드별로 다르다(privacyConsent vs visitorConsentConfirmed).
   const consentFieldErrors =
@@ -267,6 +286,27 @@ export function ReservationForm({
               maxLength={20}
             />
           </FormField>
+
+          {mode !== 'employee-self' && (
+            <FormField
+              label="당사 담당자"
+              htmlFor="hostEmployeeUserId"
+              required
+              hint={
+                mode === 'employee-proxy'
+                  ? '기본값은 본인입니다. 다른 직원이 담당하면 검색해서 바꿔 주세요.'
+                  : '방문하시는 곳의 담당 직원을 검색해서 선택해 주세요.'
+              }
+              errors={fieldErrors.hostEmployeeUserId}
+            >
+              <EmployeeSearchSelect
+                id="hostEmployeeUserId"
+                value={hostEmployee}
+                onChange={setHostEmployee}
+                hasError={Boolean(fieldErrors.hostEmployeeUserId)}
+              />
+            </FormField>
+          )}
         </div>
       </div>
 
