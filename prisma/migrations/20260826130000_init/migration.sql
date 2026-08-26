@@ -47,9 +47,11 @@ CREATE TABLE `employee_users` (
     `email` VARCHAR(255) NOT NULL,
     `password_hash` VARCHAR(255) NOT NULL,
     `name` VARCHAR(50) NOT NULL,
+    `department` VARCHAR(100) NULL,
     `branch_name` VARCHAR(100) NOT NULL,
     `vehicle_no` VARCHAR(20) NULL,
     `account_status` ENUM('ACTIVE', 'INACTIVE', 'LOCKED') NOT NULL DEFAULT 'ACTIVE',
+    `must_change_password` BOOLEAN NOT NULL DEFAULT false,
     `login_fail_count` INTEGER NOT NULL DEFAULT 0,
     `locked_until` DATETIME(3) NULL,
     `last_login_at` DATETIME(3) NULL,
@@ -294,3 +296,4 @@ ALTER TABLE `audit_logs` ADD CONSTRAINT `audit_logs_actor_admin_id_fkey` FOREIGN
 
 -- AddForeignKey
 ALTER TABLE `system_settings` ADD CONSTRAINT `system_settings_updated_by_admin_id_fkey` FOREIGN KEY (`updated_by_admin_id`) REFERENCES `admin_users`(`admin_user_id`) ON DELETE SET NULL ON UPDATE CASCADE;
+

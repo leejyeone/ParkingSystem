@@ -168,10 +168,17 @@ model EmployeeUser {
   /// 신청 폼 자동완성용 기본 정보. 직원은 항상 본인이 속한 사업장이므로 방문객(SiteUser)의
   /// "방문 상호 또는 소속 사업장명"과 달리 사업장명 하나만 있으면 된다.
   name       String  @db.VarChar(50)
+  /// 소속 부서. 사업장명(branchName)과 별개 항목이다.
+  department String? @db.VarChar(100)
   branchName String  @map("branch_name") @db.VarChar(100)
   vehicleNo  String? @map("vehicle_no") @db.VarChar(20)
 
   accountStatus AccountStatus @default(ACTIVE) @map("account_status")
+
+  /// 관리자가 만든 계정(고정 초기 비밀번호)은 true 로 시작해 로그인 시 비밀번호 변경을
+  /// 강제한다. 본인이 직접 가입한 계정은 이미 본인이 정한 비밀번호라 false 로 시작한다.
+  /// 비밀번호를 바꾸면(관리자 강제 변경/마이페이지 모두) false 로 풀린다.
+  mustChangePassword Boolean @default(false) @map("must_change_password")
 
   /// brute-force 방지용. 연속 로그인 실패 횟수
   loginFailCount Int       @default(0) @map("login_fail_count")

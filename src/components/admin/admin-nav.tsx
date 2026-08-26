@@ -18,6 +18,7 @@ type Props = {
 const MENU: { href: string; label: string }[] = [
   { href: '/admin', label: '대시보드' },
   { href: '/admin/reservations', label: '예약 목록' },
+  { href: '/admin/employees', label: '직원 관리' },
   { href: '/admin/settings', label: '시스템 설정' },
   { href: '/admin/email-logs', label: '이메일 이력' },
 ];

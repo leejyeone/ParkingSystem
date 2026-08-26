@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { EmployeeLoginForm } from '@/components/employee/employee-login-form';
@@ -25,19 +24,17 @@ export default async function EmployeeLoginPage({ searchParams }: PageProps) {
     <main className="app-container max-w-md">
       <div className="mb-6 text-center">
         <h1 className="mt-2 text-2xl font-black text-slate-900">직원 로그인</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          본인 방문 신청 또는 방문객 대리 신청을 하려면 로그인해 주세요.
-        </p>
+        <p className="mt-1 text-sm text-slate-600">방문 신청을 하려면 로그인해 주세요.</p>
       </div>
 
       <EmployeeLoginForm redirectTo={redirectTo} />
 
-      <p className="mt-4 text-center text-sm text-slate-600">
+      {/* <p className="mt-4 text-center text-sm text-slate-600">
         아직 계정이 없으신가요?{' '}
         <Link href="/employee/signup" className="text-brand-700 font-bold">
           직원 회원가입
         </Link>
-      </p>
+      </p> */}
     </main>
   );
 }

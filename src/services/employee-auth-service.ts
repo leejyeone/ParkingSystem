@@ -40,14 +40,19 @@ export type EmployeeProfile = {
   email: string;
   name: string;
   branchName: string;
+  department: string | null;
   vehicleNo: string | null;
 };
+
+/** requireActiveEmployee() 의 반환값. 페이지 가드가 비밀번호 강제 변경 여부를 판단하는 데 쓴다. */
+export type ActiveEmployeeSession = EmployeeSession & { mustChangePassword: boolean };
 
 export type SignUpEmployeeInput = {
   email: string;
   password: string;
   name: string;
   branchName: string;
+  department?: string | null;
   vehicleNo?: string | null;
 };
 
@@ -69,6 +74,7 @@ export async function signUpEmployee(input: SignUpEmployeeInput): Promise<Employ
         passwordHash: await hashPassword(input.password),
         name,
         branchName: input.branchName.trim(),
+        department: input.department?.trim() || null,
         vehicleNo: vehicleNo || null,
         accountStatus: AccountStatus.ACTIVE,
         passwordChangedAt: new Date(),
@@ -171,7 +177,7 @@ export async function loginEmployee(params: {
  * 현재 요청의 직원 세션을 확인하고 DB 에서 계정이 여전히 유효한지 재검증한다.
  * (세션 발급 이후 비활성화된 계정이 계속 접근하는 것을 막는다)
  */
-export async function requireActiveEmployee(): Promise<EmployeeSession> {
+export async function requireActiveEmployee(): Promise<ActiveEmployeeSession> {
   const session = await getEmployeeSession();
   if (!session) {
     throw new UnauthorizedError('로그인이 필요합니다.');
@@ -179,7 +185,13 @@ export async function requireActiveEmployee(): Promise<EmployeeSession> {
 
   const employee = await prisma.employeeUser.findFirst({
     where: { employeeUserId: session.employeeUserId, deletedAt: null },
-    select: { employeeUserId: true, email: true, name: true, accountStatus: true },
+    select: {
+      employeeUserId: true,
+      email: true,
+      name: true,
+      accountStatus: true,
+      mustChangePassword: true,
+    },
   });
 
   if (!employee || employee.accountStatus !== AccountStatus.ACTIVE) {
@@ -188,7 +200,38 @@ export async function requireActiveEmployee(): Promise<EmployeeSession> {
     );
   }
 
-  return { employeeUserId: employee.employeeUserId, email: employee.email, name: employee.name };
+  return {
+    employeeUserId: employee.employeeUserId,
+    email: employee.email,
+    name: employee.name,
+    mustChangePassword: employee.mustChangePassword,
+  };
+}
+
+/**
+ * 첫 로그인(관리자가 만든 계정) 시 강제 비밀번호 변경. 마이페이지의 일반 정보 수정과
+ * 별개로, 이름·소속 없이 비밀번호만 받는다.
+ */
+export async function changeEmployeePasswordOnFirstLogin(
+  employeeUserId: number,
+  newPassword: string,
+): Promise<void> {
+  if (!isUserPasswordPolicySatisfied(newPassword)) {
+    throw new ValidationError(USER_PASSWORD_POLICY_MESSAGE, {
+      password: [USER_PASSWORD_POLICY_MESSAGE],
+    });
+  }
+
+  await prisma.employeeUser.update({
+    where: { employeeUserId },
+    data: {
+      passwordHash: await hashPassword(newPassword),
+      passwordChangedAt: new Date(),
+      loginFailCount: 0,
+      lockedUntil: null,
+      mustChangePassword: false,
+    },
+  });
 }
 
 /** 신청 폼 자동완성에 사용할 직원 정보 */
@@ -200,6 +243,7 @@ export async function getEmployeeProfile(employeeUserId: number): Promise<Employ
       email: true,
       name: true,
       branchName: true,
+      department: true,
       vehicleNo: true,
     },
   });
@@ -208,6 +252,7 @@ export async function getEmployeeProfile(employeeUserId: number): Promise<Employ
 export type UpdateEmployeeProfileInput = {
   name: string;
   branchName: string;
+  department?: string | null;
   vehicleNo?: string | null;
   /** 값이 있으면 비밀번호를 변경한다. */
   password?: string;
@@ -230,6 +275,7 @@ export async function updateEmployeeProfile(
     data: {
       name: input.name.trim(),
       branchName: input.branchName.trim(),
+      department: input.department?.trim() || null,
       vehicleNo: vehicleNo || null,
       ...(input.password !== undefined
         ? {
@@ -237,6 +283,7 @@ export async function updateEmployeeProfile(
             passwordChangedAt: new Date(),
             loginFailCount: 0,
             lockedUntil: null,
+            mustChangePassword: false,
           }
         : {}),
     },
@@ -245,6 +292,7 @@ export async function updateEmployeeProfile(
       email: true,
       name: true,
       branchName: true,
+      department: true,
       vehicleNo: true,
     },
   });

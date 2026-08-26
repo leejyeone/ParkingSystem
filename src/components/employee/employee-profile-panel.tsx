@@ -12,6 +12,7 @@ type Profile = {
   email: string;
   name: string;
   branchName: string;
+  department: string | null;
   vehicleNo: string | null;
 };
 
@@ -25,6 +26,7 @@ export function EmployeeProfilePanel({ profile }: { profile: Profile }) {
   const [form, setForm] = useState({
     name: profile.name,
     branchName: profile.branchName,
+    department: profile.department ?? '',
     vehicleNo: profile.vehicleNo ?? '',
     password: '',
   });
@@ -53,6 +55,7 @@ export function EmployeeProfilePanel({ profile }: { profile: Profile }) {
       body: JSON.stringify({
         name: form.name,
         branchName: form.branchName,
+        department: form.department,
         vehicleNo: form.vehicleNo,
         // 비워 두면 비밀번호는 변경하지 않는다.
         ...(form.password ? { password: form.password } : {}),
@@ -121,6 +124,21 @@ export function EmployeeProfilePanel({ profile }: { profile: Profile }) {
             className={inputClassName(Boolean(fieldErrors.branchName))}
             value={form.branchName}
             onChange={(event) => update('branchName', event.target.value)}
+            maxLength={100}
+          />
+        </FormField>
+
+        <FormField
+          label="부서"
+          htmlFor="employee-profile-department"
+          hint="선택 입력입니다."
+          errors={fieldErrors.department}
+        >
+          <input
+            id="employee-profile-department"
+            className={inputClassName(Boolean(fieldErrors.department))}
+            value={form.department}
+            onChange={(event) => update('department', event.target.value)}
             maxLength={100}
           />
         </FormField>

@@ -19,6 +19,7 @@ export function EmployeeSignUpForm() {
     password: '',
     name: '',
     branchName: '',
+    department: '',
     vehicleNo: '',
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
@@ -124,6 +125,21 @@ export function EmployeeSignUpForm() {
             onChange={(event) => update('branchName', event.target.value)}
             placeholder="예) 시노펙스 / 대구사업장"
             autoComplete="organization"
+            maxLength={100}
+          />
+        </FormField>
+
+        <FormField
+          label="부서"
+          htmlFor="employee-signup-department"
+          hint="선택 입력입니다."
+          errors={fieldErrors.department}
+        >
+          <input
+            id="employee-signup-department"
+            className={inputClassName(Boolean(fieldErrors.department))}
+            value={form.department}
+            onChange={(event) => update('department', event.target.value)}
             maxLength={100}
           />
         </FormField>
