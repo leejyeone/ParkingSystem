@@ -183,6 +183,12 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
       : activeOccupancies.length > 0
         ? 'RESERVED'
         : 'EMPTY';
+    // 이중주차 사용을 꺼 두면 DOUBLE 주차면은 배정 후보에서도 이미 빠지므로(space-assignment-service),
+    // 화면에서도 실제로 쓸 수 없다는 걸 그대로 보여준다. 관리자가 개별 주차면마다 비활성 처리를
+    // 해 두지 않아도 설정 하나로 즉시 반영되도록 DB 값을 건드리지 않고 조회 시점에만 겹쳐 계산한다
+    // (실측 isActive 는 "이 자리가 물리적으로 존재하는지"를 나타내는 별개의 값으로 보존한다).
+    const isActive =
+      space.isActive && (space.spaceType !== SpaceType.DOUBLE || settings.doubleParkingEnabled);
     return {
       spaceId: space.spaceId,
       spaceCode: space.spaceCode,
@@ -191,7 +197,7 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
       areaId: space.area.areaId,
       areaCode: space.area.areaCode,
       areaName: space.area.areaName,
-      isActive: space.isActive,
+      isActive,
       memo: space.memo,
       occupancies,
       status,

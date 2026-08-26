@@ -59,16 +59,16 @@ const B1_ROOMS: readonly MapRoom[] = [
   { x: 0, y: 16.5, w: 34.3, h: 5.8 },
 ];
 
-/** 지하 1층 주차면 55면. spaceCode 로 DB 의 주차면과 연결된다. */
+/** 지하 1층 주차면 65면(이중주차 6면 포함). spaceCode 로 DB 의 주차면과 연결된다. */
 const B1_STALLS: readonly MapStall[] = [
   { code: 'B1-07', x: 59.5, y: 0.2, w: 1.9, h: 4.4, rotated: false, block: '우상단' },
   { code: 'B1-06', x: 61.6, y: 0.2, w: 1.9, h: 4.4, rotated: false, block: '우상단' },
-  { code: 'B1-05', x: 63.7, y: 0.2, w: 1.8, h: 4.4, rotated: false, block: '우상단' },
+  { code: 'B1-05', x: 63.7, y: 0.2, w: 1.9, h: 4.4, rotated: false, block: '우상단' },
   { code: 'B1-04', x: 65.7, y: 0.2, w: 1.9, h: 4.4, rotated: false, block: '우상단' },
   { code: 'B1-03', x: 69.3, y: 0.2, w: 1.9, h: 4.4, rotated: false, block: '우상단' },
-  { code: 'B1-02', x: 71.4, y: 0.2, w: 1.8, h: 4.4, rotated: false, block: '우상단' },
+  { code: 'B1-02', x: 71.4, y: 0.2, w: 1.9, h: 4.4, rotated: false, block: '우상단' },
   { code: 'B1-01', x: 73.4, y: 0.2, w: 1.9, h: 4.4, rotated: false, block: '우상단' },
-  { code: 'B1-15', x: 57.4, y: 12.1, w: 4.4, h: 1.8, rotated: true, block: '우측 세로' },
+  { code: 'B1-15', x: 57.4, y: 12.1, w: 4.4, h: 1.9, rotated: true, block: '우측 세로' },
   { code: 'B1-10', x: 69.0, y: 13.6, w: 1.9, h: 4.3, rotated: false, block: '우측 중단' },
   { code: 'B1-09', x: 71.1, y: 13.6, w: 1.9, h: 4.3, rotated: false, block: '우측 중단' },
   { code: 'B1-08', x: 73.2, y: 13.6, w: 1.9, h: 4.3, rotated: false, block: '우측 중단' },
@@ -76,31 +76,31 @@ const B1_STALLS: readonly MapStall[] = [
   { code: 'B1-17', x: 57.4, y: 16.2, w: 4.4, h: 1.9, rotated: true, block: '우측 세로' },
   { code: 'B1-14', x: 69.0, y: 18.1, w: 1.9, h: 4.3, rotated: false, block: '우측 중단' },
   { code: 'B1-13', x: 71.1, y: 18.1, w: 1.9, h: 4.3, rotated: false, block: '우측 중단' },
-  { code: 'B1-12', x: 73.2, y: 18.1, w: 1.8, h: 4.3, rotated: false, block: '우측 중단' },
+  { code: 'B1-12', x: 73.2, y: 18.1, w: 1.9, h: 4.3, rotated: false, block: '우측 중단' },
   { code: 'B1-11', x: 75.2, y: 18.1, w: 1.9, h: 4.3, rotated: false, block: '우측 중단' },
   { code: 'B1-27', x: 35.7, y: 18.2, w: 1.9, h: 4.3, rotated: false, block: '중앙' },
   { code: 'B1-26', x: 37.8, y: 18.2, w: 1.9, h: 4.3, rotated: false, block: '중앙' },
-  { code: 'B1-25', x: 39.9, y: 18.2, w: 1.8, h: 4.3, rotated: false, block: '중앙' },
+  { code: 'B1-25', x: 39.9, y: 18.2, w: 1.9, h: 4.3, rotated: false, block: '중앙' },
   { code: 'B1-24', x: 41.9, y: 18.2, w: 1.9, h: 4.3, rotated: false, block: '중앙' },
   { code: 'B1-23', x: 46.6, y: 18.2, w: 1.9, h: 4.3, rotated: false, block: '중앙' },
-  { code: 'B1-22', x: 48.7, y: 18.2, w: 1.8, h: 4.3, rotated: false, block: '중앙' },
+  { code: 'B1-22', x: 48.7, y: 18.2, w: 1.9, h: 4.3, rotated: false, block: '중앙' },
   { code: 'B1-21', x: 50.7, y: 18.2, w: 1.9, h: 4.3, rotated: false, block: '중앙' },
   { code: 'B1-20', x: 52.8, y: 18.2, w: 1.9, h: 4.3, rotated: false, block: '중앙' },
   { code: 'B1-18', x: 57.4, y: 18.3, w: 4.4, h: 1.9, rotated: true, block: '우측 세로' },
   { code: 'B1-19', x: 57.4, y: 20.4, w: 4.4, h: 1.9, rotated: true, block: '우측 세로' },
   { code: 'B1-55', x: 0.9, y: 30.7, w: 1.9, h: 4.2, rotated: false, block: '남측 장변' },
   { code: 'B1-54', x: 3.0, y: 30.7, w: 1.9, h: 4.2, rotated: false, block: '남측 장변' },
-  { code: 'B1-53', x: 5.1, y: 30.7, w: 1.8, h: 4.2, rotated: false, block: '남측 장변' },
+  { code: 'B1-53', x: 5.1, y: 30.7, w: 1.9, h: 4.2, rotated: false, block: '남측 장변' },
   { code: 'B1-52', x: 7.1, y: 30.7, w: 1.9, h: 4.2, rotated: false, block: '남측 장변' },
   { code: 'B1-51', x: 12.4, y: 30.7, w: 1.9, h: 4.2, rotated: false, block: '남측 장변' },
-  { code: 'B1-50', x: 14.5, y: 30.7, w: 1.8, h: 4.2, rotated: false, block: '남측 장변' },
+  { code: 'B1-50', x: 14.5, y: 30.7, w: 1.9, h: 4.2, rotated: false, block: '남측 장변' },
   { code: 'B1-49', x: 16.5, y: 30.7, w: 1.9, h: 4.2, rotated: false, block: '남측 장변' },
   { code: 'B1-48', x: 18.6, y: 30.7, w: 1.9, h: 4.2, rotated: false, block: '남측 장변' },
   { code: 'B1-47', x: 24.0, y: 30.7, w: 1.9, h: 4.2, rotated: false, block: '남측 장변' },
   { code: 'B1-46', x: 26.1, y: 30.7, w: 1.9, h: 4.2, rotated: false, block: '남측 장변' },
   { code: 'B1-45', x: 28.2, y: 30.7, w: 1.9, h: 4.2, rotated: false, block: '남측 장변' },
   { code: 'B1-44', x: 30.3, y: 30.7, w: 1.9, h: 4.2, rotated: false, block: '남측 장변' },
-  { code: 'B1-43', x: 35.5, y: 30.7, w: 1.8, h: 4.2, rotated: false, block: '남측 장변' },
+  { code: 'B1-43', x: 35.5, y: 30.7, w: 1.9, h: 4.2, rotated: false, block: '남측 장변' },
   { code: 'B1-42', x: 37.5, y: 30.7, w: 1.9, h: 4.2, rotated: false, block: '남측 장변' },
   { code: 'B1-41', x: 39.6, y: 30.7, w: 1.9, h: 4.2, rotated: false, block: '남측 장변' },
   { code: 'B1-40', x: 41.7, y: 30.7, w: 1.9, h: 4.2, rotated: false, block: '남측 장변' },
@@ -112,10 +112,24 @@ const B1_STALLS: readonly MapStall[] = [
   { code: 'B1-34', x: 60.5, y: 30.7, w: 1.9, h: 4.2, rotated: false, block: '남측 장변' },
   { code: 'B1-33', x: 62.6, y: 30.7, w: 1.9, h: 4.2, rotated: false, block: '남측 장변' },
   { code: 'B1-32', x: 64.7, y: 30.7, w: 1.9, h: 4.2, rotated: false, block: '남측 장변' },
-  { code: 'B1-31', x: 69.1, y: 30.7, w: 1.8, h: 4.2, rotated: false, block: '남측 장변' },
+  { code: 'B1-31', x: 69.1, y: 30.7, w: 1.9, h: 4.2, rotated: false, block: '남측 장변' },
   { code: 'B1-30', x: 71.1, y: 30.7, w: 1.9, h: 4.2, rotated: false, block: '남측 장변' },
   { code: 'B1-29', x: 73.2, y: 30.7, w: 1.9, h: 4.2, rotated: false, block: '남측 장변' },
   { code: 'B1-28', x: 75.3, y: 30.7, w: 1.9, h: 4.2, rotated: false, block: '남측 장변' },
+
+  /** 중앙 블록과 남측 장변 사이, 자재 적치 구역으로 쓰는 행. */
+  { code: 'B1-59', x: 6.0, y: 22.6, w: 4.0, h: 1.9, rotated: true, block: '남측 장변' },
+  { code: 'B1-58', x: 10.5, y: 22.6, w: 4.0, h: 1.9, rotated: true, block: '남측 장변' },
+  { code: 'B1-57', x: 15.0, y: 22.6, w: 4.0, h: 1.9, rotated: true, block: '남측 장변' },
+  { code: 'B1-56', x: 19.5, y: 22.6, w: 4.0, h: 1.9, rotated: true, block: '남측 장변' },
+
+  /** 이중주차 6면. 중앙 블록 아래(가운데 2쌍)와 우측 중단 블록 아래(1쌍)에 배치. */
+  { code: 'B1-60', x: 36.7, y: 24.35, w: 4.8, h: 1.9, rotated: true, block: '이중주차' },
+  { code: 'B1-61', x: 47.85, y: 24.35, w: 4.85, h: 1.9, rotated: true, block: '이중주차' },
+  { code: 'B1-62', x: 36.7, y: 27.35, w: 4.8, h: 1.9, rotated: true, block: '이중주차' },
+  { code: 'B1-63', x: 47.85, y: 27.35, w: 4.85, h: 1.9, rotated: true, block: '이중주차' },
+  { code: 'B1-64', x: 67.85, y: 23.6, w: 4.4, h: 1.9, rotated: true, block: '이중주차' },
+  { code: 'B1-65', x: 72.85, y: 23.6, w: 4.6, h: 1.9, rotated: true, block: '이중주차' },
 ];
 
 export const B1_LAYOUT: MapLayout = {
@@ -129,19 +143,19 @@ export const B1_LAYOUT: MapLayout = {
 /**
  * 지상 1층 주차 구역.
  *
- * 일반 1면 + 장애인 3면. 사용자가 전달한 지상 1층 도면 스크린샷에서 픽셀 좌표를 그대로
- * 옮겼다 — 엘리베이터가 지하 1층과 도면상 같은 화면 위치에 그려져 있어(원점만 각자
- * 건물 기준으로 다시 잡음) 두 탭을 오갈 때 엘리베이터 위치가 어긋나지 않는다.
- * 엘리베이터 오른쪽·주차면 위아래의 회색 사각형(비주차 구역)도 도면 그대로 옮겼다.
+ * 일반 3면(1F-01, 1F-05, 1F-06) + 장애인 3면(1F-02~04). 사용자가 전달한 지상 1층 도면
+ * 스크린샷에서 픽셀 좌표를 그대로 옮겼다 — 엘리베이터가 지하 1층과 도면상 같은 화면
+ * 위치에 그려져 있어(원점만 각자 건물 기준으로 다시 잡음) 두 탭을 오갈 때 엘리베이터
+ * 위치가 어긋나지 않는다. 엘리베이터 오른쪽의 작은 방과 "관리실"도 도면 그대로 옮겼다.
  */
-const GROUND_1F_BUILDING = { w: 75.5, h: 33.9 } as const;
+const GROUND_1F_BUILDING = { w: 76.0, h: 34.3 } as const;
 
 const GROUND_1F_ELEVATOR = { x: 48.4, y: 0, w: 7.7, h: 4.7 } as const;
 
 const GROUND_1F_ROOMS: readonly MapRoom[] = [
-  { x: 0, y: 0, w: 65.8, h: 28.5 },
-  { x: 72.2, y: 0.1, w: 3.3, h: 4.4 },
-  { x: 70.5, y: 17.0, w: 5.0, h: 9.1 },
+  { x: 0, y: 0, w: 66.0, h: 28.5 },
+  { x: 72.2, y: 0.1, w: 3.85, h: 4.7 },
+  { x: 72.2, y: 17.7, w: 3.85, h: 8.6, label: '관리실' },
 ];
 
 export const GROUND_1F_LAYOUT: MapLayout = {
@@ -150,9 +164,11 @@ export const GROUND_1F_LAYOUT: MapLayout = {
   elevator: GROUND_1F_ELEVATOR,
   stalls: [
     { code: '1F-01', x: 71.3, y: 6.2, w: 4.2, h: 1.9, rotated: true, block: '지상' },
-    { code: '1F-02', x: 71.3, y: 8.3, w: 4.2, h: 2.7, rotated: true, block: '지상' },
-    { code: '1F-03', x: 71.3, y: 11.2, w: 4.2, h: 2.7, rotated: true, block: '지상' },
-    { code: '1F-04', x: 71.3, y: 14.1, w: 4.2, h: 2.7, rotated: true, block: '지상' },
+    { code: '1F-02', x: 71.3, y: 8.3, w: 4.2, h: 3.2, rotated: true, block: '지상' },
+    { code: '1F-03', x: 71.3, y: 11.6, w: 4.2, h: 3.2, rotated: true, block: '지상' },
+    { code: '1F-04', x: 71.3, y: 14.8, w: 4.2, h: 2.8, rotated: true, block: '지상' },
+    { code: '1F-06', x: 71.3, y: 26.6, w: 1.9, h: 3.0, rotated: false, block: '지상' },
+    { code: '1F-05', x: 73.3, y: 26.6, w: 1.9, h: 3.0, rotated: false, block: '지상' },
   ],
 };
 

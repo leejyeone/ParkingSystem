@@ -286,6 +286,7 @@ export function ParkingMap({ spaces, layout: explicitLayout, highlightCode }: Pr
                 fill={style.fill}
                 stroke={style.stroke}
                 strokeWidth={mine ? 3 : 1.2}
+                strokeDasharray={space?.spaceType === 'DOUBLE' ? '3 2' : undefined}
               />
               <text
                 x={cx}

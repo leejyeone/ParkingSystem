@@ -5,7 +5,7 @@
  *
  * 생성 데이터
  *   1) 관리자 계정 1개 (환경변수 기반, 기본값 admin)
- *   2) 주차장 구역 (MAIN / 지하 1층, 55면 NORMAL) + (GROUND / 지상 1층, 4면)
+ *   2) 주차장 구역 (MAIN / 지하 1층, 65면) + (GROUND / 지상 1층, 6면)
  *   3) 시스템 설정 초기값
  *   4) 관리자 알림 이메일 (환경변수 기반 예시값)
  *
@@ -57,17 +57,37 @@ async function seedAdminUser(): Promise<number> {
 /**
  * 지하 1층 주차 구역 구성.
  *
- * 실제 도면(동탄사업장 지하 1층 LAYOUT)에서 확인한 55면을 그대로 반영한다.
- * 주차면 규격은 2,300 x 5,000mm 이며, 블록은 기둥으로 끊긴 단위다.
+ * 실제 도면(동탄사업장 지하 1층 LAYOUT)에서 확인한 65면(일반 59면 + 이중주차 6면)을
+ * 그대로 반영한다. 주차면 규격은 2,300 x 5,000mm 이며, 블록은 기둥으로 끊긴 단위다.
  * 번호는 램프(우측)에서 가까운 블록부터 붙여, 자동 배정이 진입 동선 순서를 따르게 한다.
+ *
+ * 아래 세 구역은 운영 준비가 끝나기 전까지 비활성(사용 불가)으로 시작한다.
+ *  - B1-01~07  : 임원 전용 구역
+ *  - B1-28~39  : 동탄 직원 전용 구역
+ *  - B1-43~59  : 자재 적치 중
+ * 관리자가 [시스템 설정] → [구역·주차면] 에서 언제든 다시 활성화할 수 있다.
  */
-const SPACE_BLOCKS: readonly { name: string; count: number }[] = [
-  { name: '우상단', count: 7 }, // 4 + 3
-  { name: '우측 중단', count: 7 }, // 상 3 + 하 4
-  { name: '우측 세로', count: 5 }, // 90도 회전 배치
-  { name: '중앙', count: 8 }, // 4 + 4
-  { name: '남측 장변', count: 28 }, // 4면 x 7그룹
+const B1_TOTAL_SPACES = 65;
+/** 이 번호부터는 이중주차(DOUBLE) 구역이다. */
+const B1_DOUBLE_FROM = 60;
+const B1_INACTIVE_RANGES: readonly [number, number][] = [
+  [1, 7],
+  [28, 39],
+  [43, 59],
 ];
+
+function b1BlockName(order: number): string {
+  if (order <= 7) return '우상단';
+  if (order <= 14) return '우측 중단';
+  if (order <= 19) return '우측 세로';
+  if (order <= 27) return '중앙';
+  if (order <= 59) return '남측 장변';
+  return '이중주차';
+}
+
+function b1IsActive(order: number): boolean {
+  return !B1_INACTIVE_RANGES.some(([start, end]) => order >= start && order <= end);
+}
 
 async function seedAreaAndSpaces(): Promise<void> {
   const area = await prisma.parkingArea.upsert({
@@ -75,7 +95,7 @@ async function seedAreaAndSpaces(): Promise<void> {
     create: {
       areaCode: 'MAIN',
       areaName: '동탄사업장 지하 1층',
-      description: '지하 1층 주차장 (55면)',
+      description: '지하 1층 주차장 (65면, 이중주차 6면 포함)',
       displayOrder: 1,
       isActive: true,
     },
@@ -83,34 +103,32 @@ async function seedAreaAndSpaces(): Promise<void> {
     select: { areaId: true },
   });
 
-  let order = 0;
-  for (const block of SPACE_BLOCKS) {
-    for (let index = 0; index < block.count; index += 1) {
-      order += 1;
-      const spaceCode = `B1-${String(order).padStart(2, '0')}`;
-      await prisma.parkingSpace.upsert({
-        where: { areaId_spaceCode: { areaId: area.areaId, spaceCode } },
-        create: {
-          areaId: area.areaId,
-          spaceCode,
-          spaceType: SpaceType.NORMAL,
-          displayOrder: order,
-          isActive: true,
-          memo: block.name,
-        },
-        update: { spaceType: SpaceType.NORMAL, displayOrder: order, isActive: true },
-      });
-    }
+  for (let order = 1; order <= B1_TOTAL_SPACES; order += 1) {
+    const spaceCode = `B1-${String(order).padStart(2, '0')}`;
+    const spaceType = order >= B1_DOUBLE_FROM ? SpaceType.DOUBLE : SpaceType.NORMAL;
+    const isActive = b1IsActive(order);
+    await prisma.parkingSpace.upsert({
+      where: { areaId_spaceCode: { areaId: area.areaId, spaceCode } },
+      create: {
+        areaId: area.areaId,
+        spaceCode,
+        spaceType,
+        displayOrder: order,
+        isActive,
+        memo: b1BlockName(order),
+      },
+      update: { spaceType, displayOrder: order, isActive },
+    });
   }
 
-  console.log(`✔ 주차 구역(MAIN) / 주차면 ${order}면 준비 완료`);
+  console.log(`✔ 주차 구역(MAIN) / 주차면 ${B1_TOTAL_SPACES}면 준비 완료`);
 }
 
 /**
  * 지상 1층 주차 구역 구성.
  *
- * 식당 좌측에 있는 별도 주차 구역이다. 일반 1면 + 장애인 3면, 총 4면뿐이라
- * 지하 1층처럼 블록 단위로 생성하지 않고 좌표를 직접 적는다.
+ * 식당 좌측에 있는 별도 주차 구역이다. 일반 3면(1F-01, 1F-05, 1F-06) + 장애인 3면
+ * (1F-02~04), 총 6면뿐이라 지하 1층처럼 블록 단위로 생성하지 않고 좌표를 직접 적는다.
  */
 async function seedGroundFloorAreaAndSpaces(): Promise<void> {
   const area = await prisma.parkingArea.upsert({
@@ -118,7 +136,7 @@ async function seedGroundFloorAreaAndSpaces(): Promise<void> {
     create: {
       areaCode: 'GROUND',
       areaName: '1층 지상 주차장',
-      description: '지상 1층 주차장 (4면, 식당 좌측)',
+      description: '지상 1층 주차장 (6면, 식당 좌측)',
       displayOrder: 2,
       isActive: true,
     },
@@ -131,6 +149,8 @@ async function seedGroundFloorAreaAndSpaces(): Promise<void> {
     { spaceCode: '1F-02', spaceType: SpaceType.DISABLED },
     { spaceCode: '1F-03', spaceType: SpaceType.DISABLED },
     { spaceCode: '1F-04', spaceType: SpaceType.DISABLED },
+    { spaceCode: '1F-05', spaceType: SpaceType.NORMAL },
+    { spaceCode: '1F-06', spaceType: SpaceType.NORMAL },
   ];
 
   for (const [index, space] of spaces.entries()) {

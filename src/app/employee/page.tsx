@@ -23,7 +23,11 @@ export default async function EmployeeHomePage() {
         <p className="text-brand-700 text-xs font-bold tracking-widest">SYNOPEX VISIT</p>
         <h1 className="mt-2 text-2xl font-black text-slate-900 sm:text-3xl">시노펙스 방문 예약</h1>
         <p className="mt-2 text-sm leading-relaxed text-slate-600">
-          {[profile?.branchName ?? '소속 정보 없음', profile?.department, profile?.name ?? session.name]
+          {[
+            profile?.branchName ?? '소속 정보 없음',
+            profile?.department,
+            profile?.name ?? session.name,
+          ]
             .filter(Boolean)
             .join(' ')}
           님, 안녕하세요.
