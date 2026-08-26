@@ -242,6 +242,7 @@ export function ReservationBulkRejectTable({
                           checked={selected.has(item.reservationId)}
                           disabled={!eligible}
                           onChange={() => toggle(item.reservationId)}
+                          onClick={(event) => event.stopPropagation()}
                           aria-label={`${item.reservationNo} 선택`}
                         />
                       </td>
@@ -285,6 +286,7 @@ export function ReservationBulkRejectTable({
                   return (
                     <tr
                       key={item.reservationId}
+                      data-testid="reservation-row"
                       className={`transition ${eligible ? 'cursor-pointer hover:bg-slate-50' : 'opacity-50'}`}
                       onClick={() => eligible && toggle(item.reservationId)}
                     >

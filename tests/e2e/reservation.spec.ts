@@ -34,13 +34,16 @@ test.afterAll(async () => {
   await prisma.$disconnect();
 });
 
-async function submitReservation(page: import('@playwright/test').Page) {
+async function submitReservation(
+  page: import('@playwright/test').Page,
+  overrides: { requesterName?: string; vehicleNo?: string; requesterEmail?: string } = {},
+) {
   await page.goto('/reservations/new');
 
   await page.getByLabel('방문상호').fill('시노펙스');
-  await page.getByLabel('성명').fill('홍길동');
-  await page.getByLabel('이메일').fill(REQUESTER_EMAIL);
-  await page.getByLabel('차량번호').fill('12가 3456');
+  await page.getByLabel('성명').fill(overrides.requesterName ?? '홍길동');
+  await page.getByLabel('이메일').fill(overrides.requesterEmail ?? REQUESTER_EMAIL);
+  await page.getByLabel('차량번호').fill(overrides.vehicleNo ?? '12가 3456');
   await page.getByLabel('입차 예정 시간').fill(tomorrowInput(10));
   await page.getByLabel('출차 예정 시간').fill(tomorrowInput(12));
   await page.getByLabel(/개인정보 수집 및 이용에 동의합니다/).check();
@@ -250,6 +253,52 @@ test('신청자는 승인 대기 상태에서만 수정할 수 있고, 승인 �
     // KST 15:00 = UTC 06:00
     `${tomorrowInput(15).slice(0, 11)}06:00:00.000Z`,
   );
+});
+
+test('일괄 반려 화면에서 체크박스를 직접 클릭해도 선택이 유지된다', async ({ page }) => {
+  await submitReservation(page, { requesterName: '홍길동', vehicleNo: '12가3456' });
+  await expect(page.getByTestId('reservation-complete')).toBeVisible();
+  await submitReservation(page, {
+    requesterName: '김철수',
+    vehicleNo: '34나5678',
+    requesterEmail: 'e2e-visitor2@example.com',
+  });
+  await expect(page.getByTestId('reservation-complete')).toBeVisible();
+
+  await loginAsAdmin(page);
+  await page.goto('/admin/reservations?status=REQUESTED');
+  await expect(page.getByRole('heading', { name: '예약 목록' })).toBeVisible();
+
+  await page.getByRole('button', { name: '일괄 반려' }).click();
+
+  const hongRow = page.getByTestId('reservation-row').filter({ hasText: '홍길동' });
+  const hongCheckbox = hongRow.getByRole('checkbox');
+
+  // 체크박스를 직접 클릭했을 때, 그 클릭이 행의 onClick 으로도 다시 전달되어
+  // 두 번 토글되면서 선택이 즉시 풀리는 버그가 없어야 한다.
+  await hongCheckbox.click();
+  await expect(hongCheckbox).toBeChecked();
+  await expect(page.getByText('1건 선택됨')).toBeVisible();
+
+  await hongCheckbox.click();
+  await expect(hongCheckbox).not.toBeChecked();
+  await expect(page.getByText('0건 선택됨')).toBeVisible();
+
+  // 체크박스가 아닌 행의 다른 부분을 클릭해도 선택은 그대로 동작해야 한다.
+  await hongRow.locator('td').nth(1).click();
+  await expect(hongCheckbox).toBeChecked();
+
+  await page.getByPlaceholder('선택한 예약 전체에 공통으로 적용할 반려 사유').fill('현장 사정');
+  await page.getByRole('button', { name: /선택한 1건 반려하기/ }).click();
+
+  await expect(page.getByText('1건 반려 완료.')).toBeVisible();
+
+  const rejected = await prisma.parkingReservation.findFirst({
+    where: { requesterName: '홍길동' },
+  });
+  expect(rejected?.reservationStatus).toBe('REJECTED');
+  const other = await prisma.parkingReservation.findFirst({ where: { requesterName: '김철수' } });
+  expect(other?.reservationStatus).toBe('REQUESTED');
 });
 
 test('유효하지 않은 토큰으로는 예약을 볼 수 없다', async ({ page }) => {
