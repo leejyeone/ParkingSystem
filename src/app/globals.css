@@ -37,12 +37,25 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* iOS 에서 입력 시 화면이 확대되지 않도록 16px 이상 유지 */
+/*
+ * button 은 기본적으로 body 폰트를 상속하지 않으므로 font-family 는 그대로 맞춰 준다.
+ * font-size 는 여기 넣지 않는다 — 이 파일이 @layer 밖(전역)에 있어서 Tailwind 의 text-xs/
+ * text-sm 유틸리티(모두 @layer 안)보다 항상 우선하기 때문에, 여기서 크기를 고정하면 버튼마다
+ * 다르게 준 폰트 크기가 전부 16px 로 깨진다(사이드바 메뉴 버튼과 링크의 글자 크기가 달라
+ * 보이던 원인이 이것이었다).
+ */
 input,
 select,
 textarea,
 button {
   font-family: inherit;
+}
+
+/* iOS 에서 입력 시 화면이 확대되지 않도록 16px 이상 유지. button 은 입력 요소가 아니라
+   포커스해도 확대되지 않으므로 여기서 제외한다. */
+input,
+select,
+textarea {
   font-size: 16px;
 }
 

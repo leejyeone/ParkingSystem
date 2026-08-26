@@ -1,49 +1,11 @@
-import type { Metadata } from 'next';
-
-import { SettingsPanel } from '@/components/admin/settings-panel';
-import { requireAdminPage } from '@/lib/admin-page-guard';
-import { listAdminUsers } from '@/services/admin-user-service';
-import { listNotificationEmails } from '@/services/notification-email-service';
-import { listParkingAreas, listParkingSpaces } from '@/services/parking-space-service';
+import { PolicySection } from '@/components/admin/settings-panel';
 import { getSystemSettings } from '@/services/settings-service';
 
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = { title: '시스템 설정' };
+// 로그인 검증은 상위 레이아웃(layout.tsx)에서 이미 처리한다.
+export default async function AdminSettingsPolicyPage() {
+  const settings = await getSystemSettings();
 
-export default async function AdminSettingsPage() {
-  await requireAdminPage('/admin/settings');
-
-  const [settings, notificationEmails, areas, spaces, adminUsers] = await Promise.all([
-    getSystemSettings(),
-    listNotificationEmails(),
-    listParkingAreas(),
-    listParkingSpaces({ includeInactive: true }),
-    listAdminUsers(),
-  ]);
-
-  return (
-    <main className="app-container-wide space-y-4">
-      <div>
-        <h1 className="text-xl font-black text-slate-900 sm:text-2xl">시스템 설정</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          시스템 관리자만 접근할 수 있습니다. 설정 변경 내역은 감사 로그에 기록됩니다.
-        </p>
-      </div>
-
-      <SettingsPanel
-        initialSettings={settings}
-        notificationEmails={notificationEmails}
-        areas={areas.map((area) => ({
-          ...area,
-          mapImageUpdatedAt: area.mapImageUpdatedAt ? area.mapImageUpdatedAt.toISOString() : null,
-        }))}
-        spaces={spaces}
-        adminUsers={adminUsers.map((user) => ({
-          ...user,
-          lastLoginAt: user.lastLoginAt ? user.lastLoginAt.toISOString() : null,
-        }))}
-      />
-    </main>
-  );
+  return <PolicySection initialSettings={settings} />;
 }

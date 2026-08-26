@@ -51,57 +51,6 @@ type AdminUser = {
   lastLoginAt: string | null;
 };
 
-type Props = {
-  initialSettings: SystemSettingsValues;
-  notificationEmails: NotificationEmail[];
-  areas: Area[];
-  spaces: Space[];
-  adminUsers: AdminUser[];
-};
-
-const TABS = [
-  { key: 'policy', label: '주차장 정보' },
-  { key: 'spaces', label: '구역·주차면' },
-  { key: 'notification', label: '관리자 이메일' },
-  { key: 'admins', label: '관리자 계정' },
-] as const;
-
-type TabKey = (typeof TABS)[number]['key'];
-
-export function SettingsPanel(props: Props) {
-  const [tab, setTab] = useState<TabKey>('policy');
-
-  return (
-    <div className="space-y-4">
-      <nav className="flex gap-1 overflow-x-auto rounded-lg bg-white p-1 shadow-sm">
-        {TABS.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            onClick={() => setTab(item.key)}
-            className={`rounded-md px-3 py-2 text-sm font-bold whitespace-nowrap transition ${
-              tab === item.key ? 'bg-brand-700 text-white' : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
-      </nav>
-
-      {tab === 'policy' && <PolicySection initialSettings={props.initialSettings} />}
-      {tab === 'notification' && <NotificationSection emails={props.notificationEmails} />}
-      {tab === 'spaces' && (
-        <SpaceSection
-          spaces={props.spaces}
-          areas={props.areas}
-          spaceAssignmentEnabled={props.initialSettings.spaceAssignmentEnabled}
-        />
-      )}
-      {tab === 'admins' && <AdminUserSection adminUsers={props.adminUsers} />}
-    </div>
-  );
-}
-
 function useMutation() {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -139,7 +88,7 @@ function useMutation() {
   return { pending, message, fieldErrors, mutate };
 }
 
-function PolicySection({ initialSettings }: { initialSettings: SystemSettingsValues }) {
+export function PolicySection({ initialSettings }: { initialSettings: SystemSettingsValues }) {
   const [form, setForm] = useState(initialSettings);
   const { pending, message, fieldErrors, mutate } = useMutation();
 
@@ -677,7 +626,7 @@ function NotificationTable({ emails }: { emails: NotificationEmail[] }) {
   );
 }
 
-function NotificationSection({ emails }: { emails: NotificationEmail[] }) {
+export function NotificationSection({ emails }: { emails: NotificationEmail[] }) {
   const { pending, message, fieldErrors, mutate } = useMutation();
   const [form, setForm] = useState({
     email: '',
@@ -772,7 +721,7 @@ function NotificationSection({ emails }: { emails: NotificationEmail[] }) {
  * 구역 코드(area_code)와 정렬 순서(display_order)는 화면에 노출하지 않는다.
  * DB 내부 구분/정렬용이며 서버가 자동으로 부여한다.
  */
-function SpaceSection({
+export function SpaceSection({
   spaces,
   areas,
   spaceAssignmentEnabled,
@@ -1886,7 +1835,7 @@ function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
   );
 }
 
-function AdminUserSection({ adminUsers }: { adminUsers: AdminUser[] }) {
+export function AdminUserSection({ adminUsers }: { adminUsers: AdminUser[] }) {
   const { pending, message, fieldErrors, mutate } = useMutation();
   const [form, setForm] = useState({
     email: '',
