@@ -1,6 +1,5 @@
 import {
   AccountStatus,
-  AdminRole,
   EmailSendStatus,
   EmailType,
   ReservationStatus,
@@ -23,11 +22,7 @@ import {
 /** 관리자 API 입력 스키마 */
 
 export const adminLoginSchema = z.object({
-  loginId: z
-    .string({ error: '로그인 ID를 입력해 주세요.' })
-    .trim()
-    .min(1, '로그인 ID를 입력해 주세요.')
-    .max(50, '로그인 ID는 50자 이하로 입력해 주세요.'),
+  email: emailSchema,
   password: z
     .string({ error: '비밀번호를 입력해 주세요.' })
     .min(1, '비밀번호를 입력해 주세요.')
@@ -171,21 +166,31 @@ export const systemSettingsSchema = z
   });
 
 export const adminUserCreateSchema = z.object({
-  loginId: requiredText(50, '로그인 ID'),
+  email: emailSchema,
   password: z.string({ error: '비밀번호를 입력해 주세요.' }).min(1, '비밀번호를 입력해 주세요.'),
   adminName: requiredText(50, '관리자 이름'),
-  email: emailSchema,
   phone: optionalText(20, '연락처'),
-  roleCode: z.enum(AdminRole, { error: '권한을 선택해 주세요.' }),
 });
 
+/**
+ * 다른 관리자 계정 수정. 비밀번호는 여기 포함하지 않는다 — 관리자라도 남의 비밀번호를
+ * 마음대로 바꿀 수 없고, 본인 비밀번호는 adminChangePasswordSchema 로만 바꾼다.
+ */
 export const adminUserUpdateSchema = z.object({
-  adminName: requiredText(50, '관리자 이름').optional(),
   email: emailSchema.optional(),
+  adminName: requiredText(50, '관리자 이름').optional(),
   phone: optionalText(20, '연락처'),
-  roleCode: z.enum(AdminRole).optional(),
   accountStatus: z.enum(AccountStatus).optional(),
-  password: z.string().min(1).optional(),
+});
+
+export const adminChangePasswordSchema = z.object({
+  currentPassword: z
+    .string({ error: '현재 비밀번호를 입력해 주세요.' })
+    .min(1, '현재 비밀번호를 입력해 주세요.'),
+  newPassword: z
+    .string({ error: '새 비밀번호를 입력해 주세요.' })
+    .min(1, '새 비밀번호를 입력해 주세요.')
+    .max(100, '비밀번호는 100자 이하로 입력해 주세요.'),
 });
 
 export const notificationEmailSchema = z.object({

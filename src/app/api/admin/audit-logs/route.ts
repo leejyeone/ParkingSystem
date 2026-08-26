@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 import { apiSuccess, handleApiError } from '@/lib/api-response';
 import { getRequestContext } from '@/lib/request-context';
 import { auditLogQuerySchema } from '@/lib/validation/admin-schema';
-import { requireSystemAdmin } from '@/services/admin-auth-service';
+import { requireActiveAdmin } from '@/services/admin-auth-service';
 import {
   AUDIT_ACTIONS,
   AUDIT_TARGETS,
@@ -15,10 +15,10 @@ import { listAuditLogs } from '@/services/log-query-service';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** GET /api/admin/audit-logs — 감사 로그 조회 (SYSTEM_ADMIN 전용) */
+/** GET /api/admin/audit-logs — 감사 로그 조회 */
 export async function GET(request: NextRequest) {
   try {
-    const session = await requireSystemAdmin();
+    const session = await requireActiveAdmin();
     const query = auditLogQuerySchema.parse(
       Object.fromEntries(request.nextUrl.searchParams.entries()),
     );

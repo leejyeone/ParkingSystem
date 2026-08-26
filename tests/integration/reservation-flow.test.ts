@@ -61,7 +61,7 @@ describe('1. 비로그인 방문객 예약 신청', () => {
   it('비로그인 신청은 회원 계정에 연결되지 않는다', async () => {
     const { reservation } = await createReservation(baseReservationInput());
 
-    expect(reservation.userId).toBeNull();
+    expect(reservation.visitorUserId).toBeNull();
   });
 
   it('신청자와 관리자에게 이메일이 발송되고 이력이 기록된다', async () => {
@@ -216,7 +216,7 @@ describe('10. 승인 후 신청자 수정', () => {
     const { reservation } = await createReservation(baseReservationInput());
     const approved = await approveReservation({
       reservationId: reservation.reservationId,
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
     });
     expect(approved.assignedSpaceId).toBe(fixtures.normalSpaceIds[0]);
 
@@ -240,7 +240,7 @@ describe('10. 승인 후 신청자 수정', () => {
     const { reservation } = await createReservation(baseReservationInput());
     await approveReservation({
       reservationId: reservation.reservationId,
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
     });
 
     await updateReservationByRequester(reservation.reservationId, {
@@ -289,7 +289,7 @@ describe('11. 예약 취소', () => {
     const { reservation } = await createReservation(baseReservationInput());
     await approveReservation({
       reservationId: reservation.reservationId,
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
     });
 
     const cancelled = await cancelReservationByRequester(
@@ -313,7 +313,7 @@ describe('11. 예약 취소', () => {
     const first = await createReservation(baseReservationInput(range));
     await approveReservation({
       reservationId: first.reservation.reservationId,
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
     });
     await cancelReservationByRequester(first.reservation.reservationId, '취소');
 
@@ -322,7 +322,7 @@ describe('11. 예약 취소', () => {
     );
     const approved = await approveReservation({
       reservationId: second.reservation.reservationId,
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
     });
 
     expect(approved.assignedSpaceId).toBe(fixtures.normalSpaceIds[0]);

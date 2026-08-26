@@ -1,20 +1,23 @@
-import { AccountStatus, AdminRole, Prisma } from '@prisma/client';
+import { AccountStatus, Prisma } from '@prisma/client';
 
-import { ConflictError, NotFoundError, ValidationError } from '@/lib/errors';
-import { hashPassword, isPasswordPolicySatisfied, PASSWORD_POLICY_MESSAGE } from '@/lib/password';
+import { ConflictError, NotFoundError, UnauthorizedError, ValidationError } from '@/lib/errors';
+import {
+  hashPassword,
+  isPasswordPolicySatisfied,
+  PASSWORD_POLICY_MESSAGE,
+  verifyPassword,
+} from '@/lib/password';
 import { prisma } from '@/lib/prisma';
 import type { RequestContext } from '@/lib/request-context';
 import { AUDIT_ACTIONS, AUDIT_TARGETS, writeAuditLog } from '@/services/audit-service';
 
-/** 관리자 계정 관리 (SYSTEM_ADMIN 전용) */
+/** 관리자 계정 관리. 관리자는 단일 권한만 존재하며 계정 간 권한 차이는 없다. */
 
 export type AdminUserListItem = {
   adminUserId: number;
-  loginId: string;
   adminName: string;
   email: string;
   phone: string | null;
-  roleCode: AdminRole;
   accountStatus: AccountStatus;
   lastLoginAt: Date | null;
   createdAt: Date;
@@ -23,14 +26,12 @@ export type AdminUserListItem = {
 export async function listAdminUsers(): Promise<AdminUserListItem[]> {
   const rows = await prisma.adminUser.findMany({
     where: { deletedAt: null },
-    orderBy: [{ roleCode: 'asc' }, { adminUserId: 'asc' }],
+    orderBy: [{ adminUserId: 'asc' }],
     select: {
       adminUserId: true,
-      loginId: true,
       adminName: true,
       email: true,
       phone: true,
-      roleCode: true,
       accountStatus: true,
       lastLoginAt: true,
       createdAt: true,
@@ -39,11 +40,9 @@ export async function listAdminUsers(): Promise<AdminUserListItem[]> {
 
   return rows.map((row) => ({
     adminUserId: row.adminUserId,
-    loginId: row.loginId,
     adminName: row.adminName,
     email: row.email,
     phone: row.phone,
-    roleCode: row.roleCode,
     accountStatus: row.accountStatus,
     lastLoginAt: row.lastLoginAt,
     createdAt: row.createdAt,
@@ -51,12 +50,10 @@ export async function listAdminUsers(): Promise<AdminUserListItem[]> {
 }
 
 export type CreateAdminUserInput = {
-  loginId: string;
   password: string;
   adminName: string;
   email: string;
   phone?: string | null;
-  roleCode: AdminRole;
 };
 
 export async function createAdminUser(
@@ -73,16 +70,14 @@ export async function createAdminUser(
     const created = await prisma.$transaction(async (tx) => {
       const admin = await tx.adminUser.create({
         data: {
-          loginId: input.loginId.trim(),
           passwordHash: await hashPassword(input.password),
           adminName: input.adminName.trim(),
           email,
           phone: input.phone?.trim() || null,
-          roleCode: input.roleCode,
           accountStatus: AccountStatus.ACTIVE,
           passwordChangedAt: new Date(),
         },
-        select: { adminUserId: true, loginId: true, roleCode: true },
+        select: { adminUserId: true, email: true },
       });
 
       /*
@@ -111,48 +106,42 @@ export async function createAdminUser(
       actionType: AUDIT_ACTIONS.ADMIN_USER_CREATE,
       targetType: AUDIT_TARGETS.ADMIN_USER,
       targetId: created.adminUserId,
-      detail: { loginId: created.loginId, roleCode: created.roleCode },
+      detail: { email: created.email },
       context: actor.requestContext,
     });
 
     return created;
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      throw new ConflictError(
-        '이미 사용 중인 로그인 ID 또는 이메일입니다.',
-        'DUPLICATE_ADMIN_USER',
-      );
+      throw new ConflictError('이미 사용 중인 이메일입니다.', 'DUPLICATE_ADMIN_USER');
     }
     throw error;
   }
 }
 
-/** 마지막 남은 활성 시스템 관리자를 잃게 되는지 확인한다. 잃으면 아무도 설정에 못 들어간다. */
-async function assertNotLastSystemAdmin(adminUserId: number): Promise<void> {
-  const activeSystemAdmins = await prisma.adminUser.count({
+/** 마지막 남은 활성 관리자를 잃게 되는지 확인한다. 잃으면 아무도 시스템에 못 들어간다. */
+async function assertNotLastActiveAdmin(adminUserId: number): Promise<void> {
+  const otherActiveAdmins = await prisma.adminUser.count({
     where: {
-      roleCode: AdminRole.SYSTEM_ADMIN,
       accountStatus: AccountStatus.ACTIVE,
       deletedAt: null,
       adminUserId: { not: adminUserId },
     },
   });
-  if (activeSystemAdmins === 0) {
-    throw new ConflictError(
-      '활성 상태의 시스템 관리자가 최소 1명은 있어야 합니다.',
-      'LAST_SYSTEM_ADMIN',
-    );
+  if (otherActiveAdmins === 0) {
+    throw new ConflictError('활성 상태의 관리자가 최소 1명은 있어야 합니다.', 'LAST_ACTIVE_ADMIN');
   }
 }
 
+/**
+ * 다른 관리자 계정 수정. 비밀번호는 여기서 다루지 않는다 — 관리자라도 남의 비밀번호를
+ * 바꿀 수 없다. 본인 비밀번호 변경은 changeOwnAdminPassword() 를 따로 쓴다.
+ */
 export type UpdateAdminUserInput = {
   adminName?: string;
   email?: string;
   phone?: string | null;
-  roleCode?: AdminRole;
   accountStatus?: AccountStatus;
-  /** 값이 있으면 비밀번호를 재설정한다. */
-  password?: string;
 };
 
 export async function updateAdminUser(
@@ -163,17 +152,11 @@ export async function updateAdminUser(
   const current = await prisma.adminUser.findFirst({ where: { adminUserId, deletedAt: null } });
   if (!current) throw new NotFoundError('관리자 계정을 찾을 수 없습니다.');
 
-  if (input.password !== undefined && !isPasswordPolicySatisfied(input.password)) {
-    throw new ValidationError(PASSWORD_POLICY_MESSAGE, { password: [PASSWORD_POLICY_MESSAGE] });
-  }
+  // 마지막 남은 활성 관리자를 스스로 비활성화하지 못하게 막는다.
+  const losingLastActiveAdmin =
+    input.accountStatus !== undefined && input.accountStatus !== AccountStatus.ACTIVE;
 
-  // 마지막 남은 활성 SYSTEM_ADMIN 을 스스로 비활성화하거나 권한을 낮추지 못하게 막는다.
-  const losingSystemAdmin =
-    current.roleCode === AdminRole.SYSTEM_ADMIN &&
-    ((input.roleCode !== undefined && input.roleCode !== AdminRole.SYSTEM_ADMIN) ||
-      (input.accountStatus !== undefined && input.accountStatus !== AccountStatus.ACTIVE));
-
-  if (losingSystemAdmin) await assertNotLastSystemAdmin(adminUserId);
+  if (losingLastActiveAdmin) await assertNotLastActiveAdmin(adminUserId);
 
   try {
     const updated = await prisma.adminUser.update({
@@ -182,7 +165,6 @@ export async function updateAdminUser(
         ...(input.adminName !== undefined ? { adminName: input.adminName.trim() } : {}),
         ...(input.email !== undefined ? { email: input.email.trim().toLowerCase() } : {}),
         ...(input.phone !== undefined ? { phone: input.phone?.trim() || null } : {}),
-        ...(input.roleCode !== undefined ? { roleCode: input.roleCode } : {}),
         ...(input.accountStatus !== undefined
           ? {
               accountStatus: input.accountStatus,
@@ -191,16 +173,8 @@ export async function updateAdminUser(
               lockedUntil: input.accountStatus === AccountStatus.ACTIVE ? null : undefined,
             }
           : {}),
-        ...(input.password !== undefined
-          ? {
-              passwordHash: await hashPassword(input.password),
-              passwordChangedAt: new Date(),
-              loginFailCount: 0,
-              lockedUntil: null,
-            }
-          : {}),
       },
-      select: { adminUserId: true, loginId: true, roleCode: true, accountStatus: true },
+      select: { adminUserId: true, email: true, accountStatus: true },
     });
 
     const deactivated =
@@ -215,10 +189,9 @@ export async function updateAdminUser(
       targetType: AUDIT_TARGETS.ADMIN_USER,
       targetId: adminUserId,
       detail: {
-        loginId: updated.loginId,
-        passwordChanged: input.password !== undefined,
-        before: { roleCode: current.roleCode, accountStatus: current.accountStatus },
-        after: { roleCode: updated.roleCode, accountStatus: updated.accountStatus },
+        email: updated.email,
+        before: { accountStatus: current.accountStatus },
+        after: { accountStatus: updated.accountStatus },
       },
       context: actor.requestContext,
     });
@@ -233,13 +206,54 @@ export async function updateAdminUser(
 }
 
 /**
+ * 본인 비밀번호 변경. 현재 비밀번호 확인을 거쳐야 하며, 다른 관리자의 비밀번호는
+ * 이 함수로도 바꿀 수 없다(adminUserId 는 항상 세션 본인 것만 넘어온다).
+ */
+export async function changeOwnAdminPassword(
+  adminUserId: number,
+  input: { currentPassword: string; newPassword: string },
+  actor: { requestContext?: RequestContext },
+): Promise<void> {
+  const current = await prisma.adminUser.findFirst({ where: { adminUserId, deletedAt: null } });
+  if (!current) throw new NotFoundError('관리자 계정을 찾을 수 없습니다.');
+
+  const currentMatched = await verifyPassword(input.currentPassword, current.passwordHash);
+  if (!currentMatched) {
+    throw new UnauthorizedError('현재 비밀번호가 올바르지 않습니다.');
+  }
+
+  if (!isPasswordPolicySatisfied(input.newPassword)) {
+    throw new ValidationError(PASSWORD_POLICY_MESSAGE, { newPassword: [PASSWORD_POLICY_MESSAGE] });
+  }
+
+  await prisma.adminUser.update({
+    where: { adminUserId },
+    data: {
+      passwordHash: await hashPassword(input.newPassword),
+      passwordChangedAt: new Date(),
+      loginFailCount: 0,
+      lockedUntil: null,
+    },
+  });
+
+  await writeAuditLog({
+    actorAdminId: adminUserId,
+    actionType: AUDIT_ACTIONS.ADMIN_USER_UPDATE,
+    targetType: AUDIT_TARGETS.ADMIN_USER,
+    targetId: adminUserId,
+    detail: { email: current.email, passwordChanged: true, selfService: true },
+    context: actor.requestContext,
+  });
+}
+
+/**
  * 관리자 계정 삭제.
  *
  * 행을 지우지 않고 deleted_at 을 채운다. 이 계정은 감사 로그(actor_admin_id), 예약 승인자,
  * 상태 변경 이력에서 참조되므로 실제로 지우면 "누가 했는지" 가 사라진다.
  * 조회는 전부 `deletedAt: null` 조건을 쓰므로 화면에서는 사라진다.
  *
- * 다만 login_id 와 email 이 UNIQUE 라 같은 값으로 다시 만들 수는 없다.
+ * 다만 email 이 UNIQUE 라 같은 값으로 다시 만들 수는 없다.
  */
 export async function deleteAdminUser(
   adminUserId: number,
@@ -252,7 +266,7 @@ export async function deleteAdminUser(
   if (adminUserId === actor.adminUserId) {
     throw new ConflictError('본인 계정은 삭제할 수 없습니다.', 'CANNOT_DELETE_SELF');
   }
-  if (current.roleCode === AdminRole.SYSTEM_ADMIN) await assertNotLastSystemAdmin(adminUserId);
+  await assertNotLastActiveAdmin(adminUserId);
 
   await prisma.adminUser.update({
     where: { adminUserId },
@@ -264,7 +278,7 @@ export async function deleteAdminUser(
     actionType: AUDIT_ACTIONS.ADMIN_USER_DELETE,
     targetType: AUDIT_TARGETS.ADMIN_USER,
     targetId: adminUserId,
-    detail: { loginId: current.loginId, roleCode: current.roleCode },
+    detail: { email: current.email },
     context: actor.requestContext,
   });
 

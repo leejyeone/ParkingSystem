@@ -25,10 +25,7 @@ export async function POST(request: NextRequest) {
     const session = await loginAdmin({ ...payload, context });
     await setAdminSessionCookie(session);
 
-    return apiSuccess({
-      adminName: session.adminName,
-      roleCode: session.roleCode,
-    });
+    return apiSuccess({ adminName: session.adminName });
   } catch (error) {
     return handleApiError(error);
   }

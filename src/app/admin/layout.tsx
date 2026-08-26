@@ -12,7 +12,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="min-h-screen bg-slate-100">
-      {session && <AdminNav adminName={session.adminName} roleCode={session.roleCode} />}
+      {session && <AdminNav adminName={session.adminName} />}
       {children}
     </div>
   );

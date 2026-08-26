@@ -1,4 +1,3 @@
-import { RequesterType } from '@prisma/client';
 import { z } from 'zod';
 
 import {
@@ -11,12 +10,8 @@ import {
 
 /** 예약 API 입력 스키마 (로그인 여부와 무관하게 동일하다) */
 
-export const requesterTypeSchema = z.enum([RequesterType.VISITOR, RequesterType.EMPLOYEE], {
-  error: '신청 구분을 선택해 주세요.',
-});
-
+/** 방문객 본인 신청 (공개, 로그인 선택). requesterType 은 항상 서버가 VISITOR 로 강제한다. */
 export const createReservationSchema = z.object({
-  requesterType: requesterTypeSchema,
   companyOrBranchName: requiredText(100, '방문 상호 또는 소속 사업장명'),
   requesterName: requiredText(50, '성명'),
   requesterEmail: emailSchema,
@@ -31,6 +26,39 @@ export const createReservationSchema = z.object({
 });
 
 export type CreateReservationPayload = z.infer<typeof createReservationSchema>;
+
+/** 직원 본인 방문 신청 (로그인 필수). requesterType=EMPLOYEE 고정, 동의 카드 없음. */
+export const createEmployeeReservationSchema = z.object({
+  companyOrBranchName: requiredText(100, '소속 사업장명'),
+  requesterName: requiredText(50, '성명'),
+  requesterEmail: emailSchema,
+  vehicleNo: vehicleNoSchema,
+  visitPurpose: optionalText(200, '방문 목적'),
+  requestMemo: optionalText(1000, '요청 메모'),
+  visitStartAt: zonedDateTimeSchema,
+  visitEndAt: zonedDateTimeSchema,
+});
+
+export type CreateEmployeeReservationPayload = z.infer<typeof createEmployeeReservationSchema>;
+
+/** 직원의 방문객 대리 신청 (로그인 필수). requesterType=VISITOR 고정, employeeUserId=담당 직원. */
+export const createEmployeeProxyReservationSchema = z.object({
+  companyOrBranchName: requiredText(100, '방문상호'),
+  requesterName: requiredText(50, '성명'),
+  requesterEmail: emailSchema,
+  vehicleNo: vehicleNoSchema,
+  visitPurpose: optionalText(200, '방문 목적'),
+  requestMemo: optionalText(1000, '요청 메모'),
+  visitStartAt: zonedDateTimeSchema,
+  visitEndAt: zonedDateTimeSchema,
+  visitorConsentConfirmed: z
+    .boolean({ error: '방문객 개인정보 수집·이용 동의 확인이 필요합니다.' })
+    .refine((value) => value === true, '방문객 개인정보 수집·이용 동의 확인이 필요합니다.'),
+});
+
+export type CreateEmployeeProxyReservationPayload = z.infer<
+  typeof createEmployeeProxyReservationSchema
+>;
 
 /**
  * 신청자 수정 스키마.

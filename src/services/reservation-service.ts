@@ -214,8 +214,10 @@ export type CreateReservationInput = {
   requesterName: string;
   requesterEmail: string;
   vehicleNo: string;
-  /** 로그인 회원이 신청한 경우에만 채운다. 비로그인 신청은 undefined/null. */
-  userId?: number | null;
+  /** 방문객 회원이 로그인해서 본인 명의로 신청한 경우에만 채운다. */
+  visitorUserId?: number | null;
+  /** 직원이 관여한 예약(본인 방문/대리 신청)이면 채운다. */
+  employeeUserId?: number | null;
   visitPurpose?: string | null;
   requestMemo?: string | null;
   visitStartAt: Date;
@@ -255,7 +257,8 @@ export async function createReservation(input: CreateReservationInput): Promise<
       const created = await tx.parkingReservation.create({
         data: {
           reservationNo,
-          userId: input.userId ?? null,
+          visitorUserId: input.visitorUserId ?? null,
+          employeeUserId: input.employeeUserId ?? null,
           requesterType: input.requesterType,
           companyOrBranchName: input.companyOrBranchName,
           requesterName: input.requesterName,
@@ -303,6 +306,48 @@ export async function createReservation(input: CreateReservationInput): Promise<
   );
 
   return { reservation, accessUrl };
+}
+
+/** 방문객 본인 신청 (공개, 로그인 선택). requesterType=VISITOR 고정. */
+export async function createVisitorReservation(
+  input: Omit<CreateReservationInput, 'requesterType' | 'employeeUserId'>,
+) {
+  return createReservation({
+    ...input,
+    requesterType: RequesterType.VISITOR,
+    employeeUserId: null,
+  });
+}
+
+/** 직원 본인 방문 신청 (로그인 필수). requesterType=EMPLOYEE 고정, 동의 불필요. */
+export async function createEmployeeReservation(
+  input: Omit<
+    CreateReservationInput,
+    'requesterType' | 'employeeUserId' | 'visitorUserId' | 'privacyConsent'
+  >,
+  employeeUserId: number,
+) {
+  return createReservation({
+    ...input,
+    requesterType: RequesterType.EMPLOYEE,
+    visitorUserId: null,
+    employeeUserId,
+    // EMPLOYEE 는 동의 카드를 노출하지 않는 기존 정책을 그대로 유지한다.
+    privacyConsent: true,
+  });
+}
+
+/** 직원의 방문객 대리 신청 (로그인 필수). requesterType=VISITOR 고정, employeeUserId=담당 직원. */
+export async function createProxyReservationForVisitor(
+  input: Omit<CreateReservationInput, 'requesterType' | 'employeeUserId' | 'visitorUserId'>,
+  employeeUserId: number,
+) {
+  return createReservation({
+    ...input,
+    requesterType: RequesterType.VISITOR,
+    visitorUserId: null,
+    employeeUserId,
+  });
 }
 
 /** 예약번호 유니크 충돌 시 재시도하며 트랜잭션을 실행한다. */
@@ -1358,6 +1403,8 @@ export type ReservationListItem = {
   reservationId: number;
   reservationNo: string;
   requesterType: RequesterType;
+  /** 직원이 관여한 예약이면 그 직원 계정 ID. requesterType=VISITOR 와 함께면 대리 신청. */
+  employeeUserId: number | null;
   reservationStatus: ReservationStatus;
   /** 화면 표시용 상태. 승인 완료 건은 방문 시간에 따라 사용 중/사용 완료로 갈린다. */
   displayStatus: DisplayReservationStatus;
@@ -1474,6 +1521,7 @@ export function toReservationListItem(
     reservationId: reservation.reservationId,
     reservationNo: reservation.reservationNo,
     requesterType: reservation.requesterType,
+    employeeUserId: reservation.employeeUserId,
     reservationStatus: reservation.reservationStatus,
     displayStatus: resolveDisplayStatus(reservation, entryExitManagementEnabled),
     companyOrBranchName: reservation.companyOrBranchName,
@@ -1490,14 +1538,32 @@ export function toReservationListItem(
 
 /**
  * 회원 마이페이지용 내 예약 목록.
- * 로그인 회원이 신청한 예약(user_id 로 연결된 건)만 조회한다.
+ * 로그인 회원이 신청한 예약(visitor_user_id 로 연결된 건)만 조회한다.
  */
 export async function listReservationsForUser(
   userId: number,
   options: { limit?: number; entryExitManagementEnabled: boolean },
 ): Promise<ReservationListItem[]> {
   const rows = await prisma.parkingReservation.findMany({
-    where: { userId },
+    where: { visitorUserId: userId },
+    include: RESERVATION_WITH_SPACES,
+    orderBy: [{ visitStartAt: 'desc' }, { reservationId: 'desc' }],
+    take: Math.min(100, Math.max(1, options.limit ?? 50)),
+  });
+
+  return rows.map((row) => toReservationListItem(row, options.entryExitManagementEnabled));
+}
+
+/**
+ * 직원의 "내 신청 내역" — 본인 방문(requesterType=EMPLOYEE) + 대리 신청(requesterType=VISITOR)
+ * 을 모두 포함한다. 화면에서 requesterType 으로 구분해서 표시한다.
+ */
+export async function listReservationsForEmployee(
+  employeeUserId: number,
+  options: { limit?: number; entryExitManagementEnabled: boolean },
+): Promise<ReservationListItem[]> {
+  const rows = await prisma.parkingReservation.findMany({
+    where: { employeeUserId },
     include: RESERVATION_WITH_SPACES,
     orderBy: [{ visitStartAt: 'desc' }, { reservationId: 'desc' }],
     take: Math.min(100, Math.max(1, options.limit ?? 50)),
@@ -1514,6 +1580,7 @@ export async function getReservationDetailForAdmin(
   actor: AdminActionContext,
 ): Promise<
   ReservationWithSpaces & {
+    employeeUser: { employeeUserId: number; name: string; email: string } | null;
     statusLogs: {
       statusLogId: number;
       previousStatus: ReservationStatus | null;
@@ -1529,6 +1596,7 @@ export async function getReservationDetailForAdmin(
     where: { reservationId },
     include: {
       ...RESERVATION_WITH_SPACES,
+      employeeUser: { select: { employeeUserId: true, name: true, email: true } },
       statusLogs: {
         orderBy: { createdAt: 'asc' },
         include: { changedByAdmin: { select: { adminName: true } } },

@@ -50,6 +50,12 @@ export const vehicleNoSchema = z
   .transform((value) => normalizeVehicleNo(value))
   .refine((value) => isValidVehicleNo(value), VEHICLE_NO_ERROR_MESSAGE);
 
+/** 차량번호는 선택 입력이다. 비우면 자동완성에서 제외된다. */
+export const optionalVehicleNoSchema = z
+  .union([z.literal(''), vehicleNoSchema])
+  .optional()
+  .transform((value) => (value === '' || value === undefined ? null : value));
+
 /** 빈 문자열을 null 로 바꾸는 선택 입력 */
 export function optionalText(maxLength: number, label: string) {
   return z

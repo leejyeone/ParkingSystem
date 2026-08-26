@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma';
 import type { RequestContext } from '@/lib/request-context';
 import { AUDIT_ACTIONS, AUDIT_TARGETS, writeAuditLog } from '@/services/audit-service';
 
-/** 관리자 알림 이메일 수신자 관리 (SYSTEM_ADMIN 전용) */
+/** 관리자 알림 이메일 수신자 관리 */
 
 export async function listNotificationEmails() {
   return prisma.adminNotificationEmail.findMany({

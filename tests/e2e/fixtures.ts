@@ -1,7 +1,7 @@
 import { mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 
-import { AccountStatus, AdminRole, PrismaClient, SpaceType } from '@prisma/client';
+import { AccountStatus, PrismaClient, SpaceType } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 import {
@@ -14,7 +14,7 @@ import {
 
 export const prisma = new PrismaClient();
 
-export const ADMIN_LOGIN_ID = 'e2eadmin';
+export const ADMIN_EMAIL = 'e2eadmin@example.com';
 export const ADMIN_PASSWORD = 'E2eAdmin!2345';
 
 /** playwright.config.ts 에서 설정한 경로와 동일해야 한다. */
@@ -30,6 +30,7 @@ export async function resetE2eDatabase(): Promise<void> {
   await prisma.reservationAccessToken.deleteMany();
   await prisma.parkingReservation.deleteMany();
   await prisma.siteUser.deleteMany();
+  await prisma.employeeUser.deleteMany();
   await prisma.parkingSpace.deleteMany();
   await prisma.parkingArea.deleteMany();
   await prisma.adminNotificationEmail.deleteMany();
@@ -38,11 +39,9 @@ export async function resetE2eDatabase(): Promise<void> {
 
   await prisma.adminUser.create({
     data: {
-      loginId: ADMIN_LOGIN_ID,
       passwordHash: await bcrypt.hash(ADMIN_PASSWORD, 10),
       adminName: 'E2E관리자',
-      email: 'e2e-admin@example.com',
-      roleCode: AdminRole.SYSTEM_ADMIN,
+      email: ADMIN_EMAIL,
       accountStatus: AccountStatus.ACTIVE,
     },
   });

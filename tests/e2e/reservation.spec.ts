@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import {
-  ADMIN_LOGIN_ID,
+  ADMIN_EMAIL,
   ADMIN_PASSWORD,
   clearMailOutbox,
   clientIpFor,
@@ -37,7 +37,6 @@ test.afterAll(async () => {
 async function submitReservation(page: import('@playwright/test').Page) {
   await page.goto('/reservations/new');
 
-  await page.getByRole('radio', { name: '방문객' }).click();
   await page.getByLabel('방문상호').fill('시노펙스');
   await page.getByLabel('성명').fill('홍길동');
   await page.getByLabel('이메일').fill(REQUESTER_EMAIL);
@@ -53,9 +52,9 @@ async function submitReservation(page: import('@playwright/test').Page) {
 async function loginAsAdmin(page: import('@playwright/test').Page) {
   await page.goto('/admin/login');
 
-  const loginIdField = page.getByLabel('로그인 ID');
-  if ((await loginIdField.count()) > 0) {
-    await loginIdField.fill(ADMIN_LOGIN_ID);
+  const emailField = page.getByLabel('이메일');
+  if ((await emailField.count()) > 0) {
+    await emailField.fill(ADMIN_EMAIL);
     await page.getByLabel('비밀번호').fill(ADMIN_PASSWORD);
     await page.getByRole('button', { name: '로그인' }).click();
   }
@@ -112,7 +111,7 @@ test('성명·차량번호로 검색하면 일치하는 예약 목록이 보이�
   await expect(page.getByText('검색 결과')).toBeVisible();
   await page.getByRole('button', { name: /자세히 보기/ }).click();
 
-  await expect(page.getByRole('heading', { name: /^PK-/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '내 예약' })).toBeVisible();
 });
 
 test('예약 목록의 검색 조건은 기본으로 접혀 있고 적용된 조건만 칩으로 보인다', async ({ page }) => {

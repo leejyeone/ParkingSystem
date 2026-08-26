@@ -6,7 +6,7 @@ import { consumeRateLimit } from '@/lib/rate-limit';
 import { getRequestContext } from '@/lib/request-context';
 import { getUserSession } from '@/lib/user-session';
 import { createReservationSchema } from '@/lib/validation/reservation-schema';
-import { createReservation } from '@/services/reservation-service';
+import { createVisitorReservation } from '@/services/reservation-service';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -33,9 +33,8 @@ export async function POST(request: NextRequest) {
     // 로그인 회원이면 예약을 계정에 연결한다. 비로그인 신청도 그대로 허용한다.
     const session = await getUserSession();
 
-    const { reservation } = await createReservation({
-      userId: session?.userId ?? null,
-      requesterType: payload.requesterType,
+    const { reservation } = await createVisitorReservation({
+      visitorUserId: session?.userId ?? null,
       companyOrBranchName: payload.companyOrBranchName,
       requesterName: payload.requesterName,
       requesterEmail: payload.requesterEmail,
@@ -49,6 +48,7 @@ export async function POST(request: NextRequest) {
 
     return apiSuccess(
       {
+        reservationId: reservation.reservationId,
         reservationNo: reservation.reservationNo,
         reservationStatus: reservation.reservationStatus,
         visitStartAt: reservation.visitStartAt.toISOString(),

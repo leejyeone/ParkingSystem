@@ -18,7 +18,7 @@ export async function getSystemSettings(db: Db = prisma): Promise<SystemSettings
   return toSettingsValues(rows);
 }
 
-/** 시스템 설정 저장 (SYSTEM_ADMIN 전용) */
+/** 시스템 설정 저장 */
 export async function updateSystemSettings(
   values: SystemSettingsValues,
   adminUserId: number,

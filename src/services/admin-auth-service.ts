@@ -1,4 +1,4 @@
-import { AccountStatus, AdminRole } from '@prisma/client';
+import { AccountStatus } from '@prisma/client';
 
 import { ForbiddenError, TooManyRequestsError, UnauthorizedError } from '@/lib/errors';
 import { DUMMY_PASSWORD_HASH, verifyPassword } from '@/lib/password';
@@ -19,23 +19,22 @@ import { AUDIT_ACTIONS, AUDIT_TARGETS, writeAuditLog } from '@/services/audit-se
 export const MAX_LOGIN_FAILURES = 5;
 export const LOCK_DURATION_MINUTES = 10;
 
-const INVALID_CREDENTIALS_MESSAGE = '로그인 ID 또는 비밀번호가 올바르지 않습니다.';
+const INVALID_CREDENTIALS_MESSAGE = '이메일 또는 비밀번호가 올바르지 않습니다.';
 
 export async function loginAdmin(params: {
-  loginId: string;
+  email: string;
   password: string;
   context?: RequestContext;
 }): Promise<AdminSession> {
-  const loginId = params.loginId.trim();
+  const email = params.email.trim().toLowerCase();
 
   const admin = await prisma.adminUser.findFirst({
-    where: { loginId, deletedAt: null },
+    where: { email, deletedAt: null },
     select: {
       adminUserId: true,
-      loginId: true,
+      email: true,
       adminName: true,
       passwordHash: true,
-      roleCode: true,
       accountStatus: true,
       loginFailCount: true,
       lockedUntil: true,
@@ -45,12 +44,12 @@ export async function loginAdmin(params: {
   if (!admin) {
     // 타이밍 공격 방지를 위해 존재하지 않는 계정도 동일한 비용으로 비교한다.
     await verifyPassword(params.password, DUMMY_PASSWORD_HASH);
-    await recordLoginAttempt(loginId, false, params.context);
+    await recordLoginAttempt(email, false, params.context);
     throw new UnauthorizedError(INVALID_CREDENTIALS_MESSAGE);
   }
 
   if (admin.accountStatus === AccountStatus.INACTIVE) {
-    await recordLoginAttempt(loginId, false, params.context);
+    await recordLoginAttempt(email, false, params.context);
     throw new ForbiddenError('비활성화된 계정입니다. 시스템 관리자에게 문의해 주세요.');
   }
 
@@ -61,7 +60,7 @@ export async function loginAdmin(params: {
     admin.lockedUntil.getTime() > now.getTime();
 
   if (isLocked) {
-    await recordLoginAttempt(loginId, false, params.context);
+    await recordLoginAttempt(email, false, params.context);
     throw new TooManyRequestsError(
       `로그인 실패가 반복되어 계정이 일시 잠금되었습니다. ${LOCK_DURATION_MINUTES}분 후 다시 시도해 주세요.`,
     );
@@ -83,7 +82,7 @@ export async function loginAdmin(params: {
           : admin.lockedUntil,
       },
     });
-    await recordLoginAttempt(loginId, false, params.context);
+    await recordLoginAttempt(email, false, params.context);
 
     if (shouldLock) {
       throw new TooManyRequestsError(
@@ -102,7 +101,7 @@ export async function loginAdmin(params: {
       lastLoginAt: now,
     },
   });
-  await recordLoginAttempt(loginId, true, params.context);
+  await recordLoginAttempt(email, true, params.context);
 
   await writeAuditLog({
     actorAdminId: admin.adminUserId,
@@ -114,20 +113,19 @@ export async function loginAdmin(params: {
 
   return {
     adminUserId: admin.adminUserId,
-    loginId: admin.loginId,
+    email: admin.email,
     adminName: admin.adminName,
-    roleCode: admin.roleCode,
   };
 }
 
 async function recordLoginAttempt(
-  loginId: string,
+  email: string,
   succeeded: boolean,
   context?: RequestContext,
 ): Promise<void> {
   await prisma.adminLoginAttempt.create({
     data: {
-      loginId: loginId.slice(0, 50),
+      email: email.slice(0, 255),
       succeeded,
       ipAddress: context?.ipAddress ?? null,
       userAgent: context?.userAgent ?? null,
@@ -149,9 +147,8 @@ export async function requireActiveAdmin(): Promise<AdminSession> {
     where: { adminUserId: session.adminUserId, deletedAt: null },
     select: {
       adminUserId: true,
-      loginId: true,
+      email: true,
       adminName: true,
-      roleCode: true,
       accountStatus: true,
     },
   });
@@ -164,17 +161,7 @@ export async function requireActiveAdmin(): Promise<AdminSession> {
 
   return {
     adminUserId: admin.adminUserId,
-    loginId: admin.loginId,
+    email: admin.email,
     adminName: admin.adminName,
-    roleCode: admin.roleCode,
   };
-}
-
-/** SYSTEM_ADMIN 전용 기능 보호 */
-export async function requireSystemAdmin(): Promise<AdminSession> {
-  const session = await requireActiveAdmin();
-  if (session.roleCode !== AdminRole.SYSTEM_ADMIN) {
-    throw new ForbiddenError('시스템 관리자만 접근할 수 있는 기능입니다.');
-  }
-  return session;
 }

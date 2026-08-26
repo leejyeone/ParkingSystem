@@ -4,7 +4,7 @@ import { readJsonBody } from '@/lib/api-helpers';
 import { apiSuccess, handleApiError } from '@/lib/api-response';
 import { getRequestContext } from '@/lib/request-context';
 import { parkingSpaceCreateSchema } from '@/lib/validation/admin-schema';
-import { requireActiveAdmin, requireSystemAdmin } from '@/services/admin-auth-service';
+import { requireActiveAdmin } from '@/services/admin-auth-service';
 import {
   createParkingSpace,
   listParkingAreas,
@@ -31,10 +31,10 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/** POST /api/admin/parking-spaces — 주차면 생성 (SYSTEM_ADMIN 전용) */
+/** POST /api/admin/parking-spaces — 주차면 생성 */
 export async function POST(request: NextRequest) {
   try {
-    const session = await requireSystemAdmin();
+    const session = await requireActiveAdmin();
     const payload = parkingSpaceCreateSchema.parse(await readJsonBody(request));
 
     const created = await createParkingSpace(payload, {

@@ -191,6 +191,8 @@ export function RequesterInfoCard({
     requesterEmail: string;
     privacyConsentText: string;
     createdAtText: string;
+    /** 직원이 대신 신청한 건이면 담당 직원 안내 문구. 그 외에는 null. */
+    employeeUserText: string | null;
   };
 }) {
   const { editing, setEditing, form, update, state, saved, save, cancel } = useReservationEdit(
@@ -289,6 +291,7 @@ export function RequesterInfoCard({
       ) : (
         <dl className="mt-3">
           <Row term="신청 구분" desc={readOnly.requesterTypeLabel} />
+          {readOnly.employeeUserText && <Row term="대리 신청" desc={readOnly.employeeUserText} />}
           <Row term="방문 상호/사업장" desc={initial.companyOrBranchName} />
           <Row term="성명" desc={initial.requesterName} />
           <Row term="이메일" desc={readOnly.requesterEmail} />

@@ -24,7 +24,7 @@ afterEach(() => {
 
 describe('방문 신청 폼', () => {
   it('사용자가 주차 위치를 선택할 수 있는 입력이 없다', () => {
-    render(<ReservationForm settings={SETTINGS} />);
+    render(<ReservationForm mode="visitor" settings={SETTINGS} />);
 
     expect(screen.queryByLabelText(/주차면/)).toBeNull();
     expect(screen.queryByLabelText(/주차 위치/)).toBeNull();
@@ -33,7 +33,7 @@ describe('방문 신청 폼', () => {
 
   it('차량번호 입력 중 공백과 하이픈을 자동으로 정리한다', async () => {
     const user = userEvent.setup();
-    render(<ReservationForm settings={SETTINGS} />);
+    render(<ReservationForm mode="visitor" settings={SETTINGS} />);
 
     const input = screen.getByLabelText('차량번호') as HTMLInputElement;
     await user.type(input, '12가 - 3456');
@@ -59,7 +59,7 @@ describe('방문 신청 폼', () => {
     );
 
     const user = userEvent.setup();
-    render(<ReservationForm settings={SETTINGS} />);
+    render(<ReservationForm mode="visitor" settings={SETTINGS} />);
     await user.click(screen.getByRole('button', { name: '방문 신청하기' }));
 
     await waitFor(() => {
@@ -77,6 +77,7 @@ describe('방문 신청 폼', () => {
         json: async () => ({
           success: true,
           data: {
+            reservationId: 1,
             reservationNo: 'PK-20260820-ABCDEF',
             reservationStatus: 'REQUESTED',
             visitRangeText: '2026-08-20 09:00 ~ 11:00',
@@ -87,7 +88,7 @@ describe('방문 신청 폼', () => {
     );
 
     const user = userEvent.setup();
-    render(<ReservationForm settings={SETTINGS} />);
+    render(<ReservationForm mode="visitor" settings={SETTINGS} />);
     await user.click(screen.getByRole('button', { name: '방문 신청하기' }));
 
     await waitFor(() => {
@@ -98,7 +99,7 @@ describe('방문 신청 폼', () => {
   });
 
   it('개인정보 수집 동의 체크박스를 제공한다', () => {
-    render(<ReservationForm settings={SETTINGS} />);
+    render(<ReservationForm mode="visitor" settings={SETTINGS} />);
 
     const consent = screen.getByLabelText(/개인정보 수집 및 이용에 동의합니다/);
     expect(consent).toBeInTheDocument();

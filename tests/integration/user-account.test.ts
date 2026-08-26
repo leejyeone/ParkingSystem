@@ -165,9 +165,9 @@ describe('회원 예약 연결 / 내 예약 목록', () => {
     const session = await signUpUser(SIGN_UP);
 
     const { reservation } = await createReservation(
-      baseReservationInput({ userId: session.userId }),
+      baseReservationInput({ visitorUserId: session.userId }),
     );
-    expect(reservation.userId).toBe(session.userId);
+    expect(reservation.visitorUserId).toBe(session.userId);
 
     const myReservations = await listReservationsForUser(session.userId, {
       entryExitManagementEnabled: false,
@@ -180,7 +180,7 @@ describe('회원 예약 연결 / 내 예약 목록', () => {
     const mine = await signUpUser(SIGN_UP);
     const other = await signUpUser({ ...SIGN_UP, email: 'other@example.com' });
 
-    await createReservation(baseReservationInput({ userId: other.userId }));
+    await createReservation(baseReservationInput({ visitorUserId: other.userId }));
 
     expect(
       await listReservationsForUser(mine.userId, { entryExitManagementEnabled: false }),

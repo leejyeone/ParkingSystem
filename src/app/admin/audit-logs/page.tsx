@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import Link from 'next/link';
 
-import { requireSystemAdminPage } from '@/lib/admin-page-guard';
+import { requireAdminPage } from '@/lib/admin-page-guard';
 import { formatKstDateTime } from '@/lib/datetime';
 import { getRequestContext } from '@/lib/request-context';
 import {
@@ -48,7 +48,7 @@ type PageProps = {
 };
 
 export default async function AdminAuditLogsPage({ searchParams }: PageProps) {
-  const session = await requireSystemAdminPage('/admin/audit-logs');
+  const session = await requireAdminPage('/admin/audit-logs');
   const params = await searchParams;
   const page = Number(params.page) > 0 ? Number(params.page) : 1;
   const actionType = params.actionType || undefined;
@@ -178,7 +178,7 @@ export default async function AdminAuditLogsPage({ searchParams }: PageProps) {
                     </td>
                     <td className="text-xs">
                       {log.actorAdmin
-                        ? `${log.actorAdmin.adminName} (${log.actorAdmin.loginId})`
+                        ? `${log.actorAdmin.adminName} (${log.actorAdmin.email})`
                         : '시스템'}
                     </td>
                     <td className="text-xs">

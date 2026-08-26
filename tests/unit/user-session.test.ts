@@ -11,9 +11,8 @@ import { signUserSessionToken, verifyUserSessionToken } from '@/lib/user-session
 const USER = { userId: 7, email: 'hong@example.com', name: '홍길동' };
 const ADMIN = {
   adminUserId: 3,
-  loginId: 'admin',
+  email: 'admin@example.com',
   adminName: '시스템관리자',
-  roleCode: 'SYSTEM_ADMIN' as const,
 };
 
 describe('회원 세션 토큰', () => {
@@ -42,7 +41,6 @@ describe('관리자/회원 토큰 교차 사용 차단', () => {
   it('각자의 토큰은 정상 동작한다', async () => {
     expect(await verifyAdminSessionToken(await signAdminSessionToken(ADMIN))).toMatchObject({
       adminUserId: ADMIN.adminUserId,
-      roleCode: ADMIN.roleCode,
     });
     expect(await verifyUserSessionToken(await signUserSessionToken(USER))).toMatchObject({
       userId: USER.userId,

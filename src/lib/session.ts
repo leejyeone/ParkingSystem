@@ -1,4 +1,3 @@
-import { AdminRole } from '@prisma/client';
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 
@@ -22,9 +21,8 @@ export const ADMIN_SESSION_TYPE = 'admin';
 
 export type AdminSession = {
   adminUserId: number;
-  loginId: string;
+  email: string;
   adminName: string;
-  roleCode: AdminRole;
 };
 
 function secretKey(): Uint8Array {
@@ -35,9 +33,8 @@ export async function signAdminSessionToken(session: AdminSession): Promise<stri
   const maxAgeSeconds = getSessionMaxAgeMinutes() * 60;
   return new SignJWT({
     typ: ADMIN_SESSION_TYPE,
-    loginId: session.loginId,
+    email: session.email,
     adminName: session.adminName,
-    roleCode: session.roleCode,
   })
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setSubject(String(session.adminUserId))
@@ -50,16 +47,13 @@ export async function verifyAdminSessionToken(token: string): Promise<AdminSessi
   try {
     const { payload } = await jwtVerify(token, secretKey(), { algorithms: ['HS256'] });
     const adminUserId = Number(payload.sub);
-    const roleCode = payload.roleCode;
     if (payload.typ !== ADMIN_SESSION_TYPE) return null;
     if (!Number.isInteger(adminUserId) || adminUserId <= 0) return null;
-    if (roleCode !== AdminRole.PARKING_ADMIN && roleCode !== AdminRole.SYSTEM_ADMIN) return null;
 
     return {
       adminUserId,
-      loginId: String(payload.loginId ?? ''),
+      email: String(payload.email ?? ''),
       adminName: String(payload.adminName ?? ''),
-      roleCode,
     };
   } catch {
     // 만료/위조/서명 불일치는 모두 "세션 없음" 으로 취급한다.

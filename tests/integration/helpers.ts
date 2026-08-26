@@ -1,4 +1,4 @@
-import { AccountStatus, AdminRole, PrismaClient, SpaceType } from '@prisma/client';
+import { AccountStatus, PrismaClient, SpaceType } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 import { DEFAULT_SETTINGS, SETTING_DESCRIPTIONS, toSettingRows } from '@/domain/system-settings';
@@ -22,6 +22,7 @@ export async function resetDatabase(): Promise<void> {
   await prisma.reservationAccessToken.deleteMany();
   await prisma.parkingReservation.deleteMany();
   await prisma.siteUser.deleteMany();
+  await prisma.employeeUser.deleteMany();
   await prisma.parkingSpace.deleteMany();
   await prisma.parkingArea.deleteMany();
   await prisma.adminNotificationEmail.deleteMany();
@@ -30,8 +31,8 @@ export async function resetDatabase(): Promise<void> {
 }
 
 export type TestFixtures = {
-  systemAdminId: number;
-  parkingAdminId: number;
+  adminId: number;
+  secondAdminId: number;
   areaId: number;
   normalSpaceIds: number[];
   doubleSpaceIds: number[];
@@ -45,24 +46,20 @@ export type TestFixtures = {
 export async function seedFixtures(options: { normalSpaces?: number } = {}): Promise<TestFixtures> {
   const normalSpaceCount = options.normalSpaces ?? 2;
 
-  const systemAdmin = await prisma.adminUser.create({
+  const admin = await prisma.adminUser.create({
     data: {
-      loginId: 'sysadmin',
       passwordHash: await bcrypt.hash('Admin!2345', 10),
       adminName: '시스템관리자',
       email: 'sysadmin@example.com',
-      roleCode: AdminRole.SYSTEM_ADMIN,
       accountStatus: AccountStatus.ACTIVE,
     },
   });
 
-  const parkingAdmin = await prisma.adminUser.create({
+  const secondAdmin = await prisma.adminUser.create({
     data: {
-      loginId: 'parkadmin',
       passwordHash: await bcrypt.hash('Parking!2345', 10),
       adminName: '주차관리자',
       email: 'parkadmin@example.com',
-      roleCode: AdminRole.PARKING_ADMIN,
       accountStatus: AccountStatus.ACTIVE,
     },
   });
@@ -120,8 +117,8 @@ export async function seedFixtures(options: { normalSpaces?: number } = {}): Pro
   });
 
   return {
-    systemAdminId: systemAdmin.adminUserId,
-    parkingAdminId: parkingAdmin.adminUserId,
+    adminId: admin.adminUserId,
+    secondAdminId: secondAdmin.adminUserId,
     areaId: area.areaId,
     normalSpaceIds,
     doubleSpaceIds,
@@ -151,6 +148,31 @@ export function futureVisitRange(
     visitStartAt: zonedInputToUtc(`${dateString}T${pad(startHour)}:00`),
     visitEndAt: zonedInputToUtc(`${dateString}T${pad(startHour + hours)}:00`),
   };
+}
+
+/** 직원 계정 픽스처. 방문객(SiteUser)과 완전히 별도 테이블이라 이메일이 겹쳐도 서로 무관하다. */
+export async function seedEmployeeFixture(
+  overrides: Partial<{
+    email: string;
+    password: string;
+    name: string;
+    branchName: string;
+  }> = {},
+): Promise<{ employeeUserId: number; email: string; password: string }> {
+  const email = overrides.email ?? 'employee@example.com';
+  const password = overrides.password ?? 'Employee!2345';
+
+  const employee = await prisma.employeeUser.create({
+    data: {
+      email,
+      passwordHash: await bcrypt.hash(password, 10),
+      name: overrides.name ?? '김직원',
+      branchName: overrides.branchName ?? '시노펙스 본사',
+      accountStatus: AccountStatus.ACTIVE,
+    },
+  });
+
+  return { employeeUserId: employee.employeeUserId, email, password };
 }
 
 export function baseReservationInput(overrides: Record<string, unknown> = {}) {

@@ -255,6 +255,7 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
               reservationNo: reservation.reservationNo,
               reservationStatus: reservation.reservationStatus,
               requesterType: reservation.requesterType,
+              employeeUserId: reservation.employeeUserId,
               companyOrBranchName: reservation.companyOrBranchName,
               requesterName: reservation.requesterName,
               requesterEmail: reservation.requesterEmail,

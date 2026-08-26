@@ -4,7 +4,7 @@
  * 실행: npm run db:seed  (내부적으로 `prisma db seed` → tsx prisma/seed.ts)
  *
  * 생성 데이터
- *   1) SYSTEM_ADMIN 계정 1개 (환경변수 기반, 기본값 admin)
+ *   1) 관리자 계정 1개 (환경변수 기반, 기본값 admin)
  *   2) 주차장 구역 (MAIN / 지하 1층, 55면 NORMAL) + (GROUND / 지상 1층, 4면)
  *   3) 시스템 설정 초기값
  *   4) 관리자 알림 이메일 (환경변수 기반 예시값)
@@ -13,7 +13,7 @@
  */
 import 'dotenv/config';
 
-import { AccountStatus, AdminRole, PrismaClient, SpaceType } from '@prisma/client';
+import { AccountStatus, PrismaClient, SpaceType } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 import {
@@ -30,7 +30,6 @@ function env(name: string, fallback: string): string {
 }
 
 async function seedAdminUser(): Promise<number> {
-  const loginId = env('SEED_ADMIN_LOGIN_ID', 'admin');
   const password = env('SEED_ADMIN_PASSWORD', 'Admin!2345');
   const adminName = env('SEED_ADMIN_NAME', '시스템관리자');
   const email = env('SEED_ADMIN_EMAIL', 'admin@example.com').toLowerCase();
@@ -38,22 +37,20 @@ async function seedAdminUser(): Promise<number> {
   const passwordHash = await bcrypt.hash(password, 12);
 
   const admin = await prisma.adminUser.upsert({
-    where: { loginId },
+    where: { email },
     create: {
-      loginId,
       passwordHash,
       adminName,
       email,
-      roleCode: AdminRole.SYSTEM_ADMIN,
       accountStatus: AccountStatus.ACTIVE,
       passwordChangedAt: new Date(),
     },
     // 이미 존재하면 비밀번호는 덮어쓰지 않는다. (운영 중 seed 재실행 사고 방지)
-    update: { adminName, email, roleCode: AdminRole.SYSTEM_ADMIN },
-    select: { adminUserId: true, loginId: true },
+    update: { adminName },
+    select: { adminUserId: true, email: true },
   });
 
-  console.log(`✔ SYSTEM_ADMIN 계정 준비 완료 (loginId: ${admin.loginId})`);
+  console.log(`✔ 관리자 계정 준비 완료 (email: ${admin.email})`);
   return admin.adminUserId;
 }
 

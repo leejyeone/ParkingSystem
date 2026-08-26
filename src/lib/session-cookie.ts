@@ -8,3 +8,6 @@ export const ADMIN_SESSION_COOKIE = 'parking_admin_session';
 
 /** 일반 사용자(회원) 세션 쿠키 */
 export const USER_SESSION_COOKIE = 'parking_user_session';
+
+/** 직원 세션 쿠키 (방문객 세션과 완전히 별도) */
+export const EMPLOYEE_SESSION_COOKIE = 'parking_employee_session';

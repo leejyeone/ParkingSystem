@@ -278,7 +278,7 @@ export async function listAuditLogs(filter: AuditLogFilter) {
         detailJson: true,
         ipAddress: true,
         createdAt: true,
-        actorAdmin: { select: { adminUserId: true, loginId: true, adminName: true } },
+        actorAdmin: { select: { adminUserId: true, email: true, adminName: true } },
       },
     }),
   ]);

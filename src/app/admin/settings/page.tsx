@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 import { SettingsPanel } from '@/components/admin/settings-panel';
-import { requireSystemAdminPage } from '@/lib/admin-page-guard';
+import { requireAdminPage } from '@/lib/admin-page-guard';
 import { listAdminUsers } from '@/services/admin-user-service';
 import { listNotificationEmails } from '@/services/notification-email-service';
 import { listParkingAreas, listParkingSpaces } from '@/services/parking-space-service';
@@ -11,9 +11,8 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = { title: '시스템 설정' };
 
-/** SYSTEM_ADMIN 전용 시스템 설정 화면 */
 export default async function AdminSettingsPage() {
-  await requireSystemAdminPage('/admin/settings');
+  await requireAdminPage('/admin/settings');
 
   const [settings, notificationEmails, areas, spaces, adminUsers] = await Promise.all([
     getSystemSettings(),

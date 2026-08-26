@@ -5,7 +5,7 @@ import { apiSuccess, handleApiError } from '@/lib/api-response';
 import { ValidationError } from '@/lib/errors';
 import { getRequestContext } from '@/lib/request-context';
 import { notificationEmailSchema, systemSettingsSchema } from '@/lib/validation/admin-schema';
-import { requireSystemAdmin } from '@/services/admin-auth-service';
+import { requireActiveAdmin } from '@/services/admin-auth-service';
 import { AUDIT_ACTIONS, AUDIT_TARGETS, writeAuditLog } from '@/services/audit-service';
 import {
   listNotificationEmails,
@@ -16,13 +16,10 @@ import { getSystemSettings, updateSystemSettings } from '@/services/settings-ser
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/**
- * GET /api/admin/settings — 시스템 설정 + 관리자 알림 이메일 목록
- * SYSTEM_ADMIN 만 접근할 수 있다. PARKING_ADMIN 은 403 을 받는다.
- */
+/** GET /api/admin/settings — 시스템 설정 + 관리자 알림 이메일 목록 */
 export async function GET() {
   try {
-    await requireSystemAdmin();
+    await requireActiveAdmin();
     const [settings, notificationEmails] = await Promise.all([
       getSystemSettings(),
       listNotificationEmails(),
@@ -42,7 +39,7 @@ export async function GET() {
  */
 export async function PUT(request: NextRequest) {
   try {
-    const session = await requireSystemAdmin();
+    const session = await requireActiveAdmin();
     const body = (await readJsonBody(request)) as Record<string, unknown>;
     const requestContext = getRequestContext(request.headers);
 

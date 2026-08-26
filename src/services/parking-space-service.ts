@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma';
 import type { RequestContext } from '@/lib/request-context';
 import { AUDIT_ACTIONS, AUDIT_TARGETS, writeAuditLog } from '@/services/audit-service';
 
-/** 주차 구역 / 주차면 관리 (SYSTEM_ADMIN 전용) */
+/** 주차 구역 / 주차면 관리 */
 
 export async function listParkingAreas() {
   return prisma.parkingArea.findMany({

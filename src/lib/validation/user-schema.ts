@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import {
   emailSchema,
+  optionalVehicleNoSchema,
   requiredText,
   USER_PASSWORD_MIN_LENGTH,
   USER_PASSWORD_POLICY_MESSAGE,
@@ -9,12 +10,6 @@ import {
 } from '@/lib/validation/common';
 
 /** 일반 사용자(회원) 인증 및 프로필 입력 스키마 */
-
-/** 차량번호는 선택 입력이다. 비우면 자동완성에서 제외된다. */
-const optionalVehicleNoSchema = z
-  .union([z.literal(''), vehicleNoSchema])
-  .optional()
-  .transform((value) => (value === '' || value === undefined ? null : value));
 
 export const signUpSchema = z.object({
   email: emailSchema,

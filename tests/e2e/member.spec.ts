@@ -78,7 +78,7 @@ test('회원이 신청한 예약은 마이페이지 내 예약 목록에 나온�
   await expect(page.getByText(reservationNo!)).toBeVisible();
 
   const saved = await prisma.parkingReservation.findFirst();
-  expect(saved?.userId).not.toBeNull();
+  expect(saved?.visitorUserId).not.toBeNull();
 });
 
 test('성명·차량번호만으로 예약을 조회하고 수정할 수 있다', async ({ page }) => {

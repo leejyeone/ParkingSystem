@@ -290,9 +290,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
                 {dashboard.spaces.filter((space) => space.status === 'IN_USE').length}면 사용 중
               </span>
             </h2>
-            <p className="field-hint">
-              입차 예정: 입차 처리 미완료, 사용 중: 입차 처리 완료
-            </p>
+            <p className="field-hint">입차 예정: 입차 처리 미완료, 사용 중: 입차 처리 완료</p>
 
             <div className="table-scroll mt-3">
               {/*

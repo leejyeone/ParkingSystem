@@ -10,7 +10,7 @@ import {
   mapImageTypeMessage,
 } from '@/lib/map-image';
 import { getRequestContext } from '@/lib/request-context';
-import { requireActiveAdmin, requireSystemAdmin } from '@/services/admin-auth-service';
+import { requireActiveAdmin } from '@/services/admin-auth-service';
 import {
   clearParkingAreaMapImage,
   getParkingAreaMapImage,
@@ -62,10 +62,10 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   }
 }
 
-/** POST /api/admin/parking-areas/[id]/map — 도면 파일 업로드 (SYSTEM_ADMIN 전용) */
+/** POST /api/admin/parking-areas/[id]/map — 도면 파일 업로드 */
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
-    const session = await requireSystemAdmin();
+    const session = await requireActiveAdmin();
     const { id } = await context.params;
     const areaId = parseNumericId(id, '구역 ID');
 
@@ -100,10 +100,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
 }
 
-/** DELETE /api/admin/parking-areas/[id]/map — 도면 삭제 (SYSTEM_ADMIN 전용) */
+/** DELETE /api/admin/parking-areas/[id]/map — 도면 삭제 */
 export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
-    const session = await requireSystemAdmin();
+    const session = await requireActiveAdmin();
     const { id } = await context.params;
 
     await clearParkingAreaMapImage(parseNumericId(id, '구역 ID'), {

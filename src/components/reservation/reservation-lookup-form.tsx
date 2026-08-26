@@ -165,9 +165,9 @@ export function ReservationLookupForm() {
                           <StatusBadge status={reservation.reservationStatus} />
                         </div>
                       </div>
-                      {/* <span className="text-xs text-slate-500">
+                      <span className="text-xs text-slate-500">
                         {entering === reservation.reservationId ? '이동 중…' : '자세히 보기 →'}
-                      </span> */}
+                      </span>
                     </button>
                   </li>
                 ))}

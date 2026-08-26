@@ -44,11 +44,9 @@ type Space = {
 
 type AdminUser = {
   adminUserId: number;
-  loginId: string;
   adminName: string;
   email: string;
   phone: string | null;
-  roleCode: 'PARKING_ADMIN' | 'SYSTEM_ADMIN';
   accountStatus: 'ACTIVE' | 'INACTIVE' | 'LOCKED';
   lastLoginAt: string | null;
 };
@@ -1575,10 +1573,7 @@ type AdminUserDraft = {
   adminName: string;
   email: string;
   phone: string;
-  roleCode: 'PARKING_ADMIN' | 'SYSTEM_ADMIN';
   accountStatus: 'ACTIVE' | 'INACTIVE' | 'LOCKED';
-  /** 비우면 비밀번호를 바꾸지 않는다. */
-  password: string;
 };
 
 function toAdminUserDraft(user: AdminUser): AdminUserDraft {
@@ -1586,9 +1581,7 @@ function toAdminUserDraft(user: AdminUser): AdminUserDraft {
     adminName: user.adminName,
     email: user.email,
     phone: user.phone ?? '',
-    roleCode: user.roleCode,
     accountStatus: user.accountStatus,
-    password: '',
   };
 }
 
@@ -1600,9 +1593,7 @@ function toAdminUserDraftById(users: AdminUser[], id: number): AdminUserDraft {
         adminName: '',
         email: '',
         phone: '',
-        roleCode: 'PARKING_ADMIN',
         accountStatus: 'ACTIVE',
-        password: '',
       };
 }
 
@@ -1611,9 +1602,7 @@ function isSameAdminUser(a: AdminUserDraft, b: AdminUserDraft): boolean {
     a.adminName === b.adminName &&
     a.email === b.email &&
     a.phone === b.phone &&
-    a.roleCode === b.roleCode &&
-    a.accountStatus === b.accountStatus &&
-    a.password === b.password
+    a.accountStatus === b.accountStatus
   );
 }
 
@@ -1622,8 +1611,9 @@ const ACCOUNT_STATUS_LABEL = { ACTIVE: '활성', INACTIVE: '비활성', LOCKED: 
 /**
  * 관리자 계정 목록. 구역·주차면과 같은 편집 모드로 수정·삭제한다.
  *
- * 생성은 아래 [관리자 계정 추가] 카드에 그대로 둔다. 로그인 ID 는 감사 로그 추적의 기준이라
- * 수정 대상에서 제외한다.
+ * 생성은 아래 [관리자 계정 추가] 카드에 그대로 둔다. 비밀번호는 여기서 다루지 않는다 —
+ * 관리자라도 다른 관리자의 비밀번호를 바꿀 수 없고, 본인 비밀번호는 상단 내비게이션의
+ * [관리자: 이름] 배지에서만 바꿀 수 있다.
  */
 function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
   const router = useRouter();
@@ -1672,7 +1662,7 @@ function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
       const target = adminUsers.find((user) => user.adminUserId === id);
       const response = await apiRequest(`/api/admin/admin-users/${id}`, { method: 'DELETE' });
       if (response.ok) done += 1;
-      else failures.push(`${target?.loginId ?? id} 삭제: ${response.error.message}`);
+      else failures.push(`${target?.email ?? id} 삭제: ${response.error.message}`);
     }
 
     for (const user of adminUsers) {
@@ -1686,14 +1676,11 @@ function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
           adminName: draft.adminName,
           email: draft.email,
           phone: draft.phone || null,
-          roleCode: draft.roleCode,
           accountStatus: draft.accountStatus,
-          // 비워 두면 아예 보내지 않아 기존 비밀번호가 유지된다.
-          ...(draft.password ? { password: draft.password } : {}),
         }),
       });
       if (response.ok) done += 1;
-      else failures.push(`${user.loginId} 수정: ${response.error.message}`);
+      else failures.push(`${user.email} 수정: ${response.error.message}`);
     }
 
     setPending(false);
@@ -1760,9 +1747,9 @@ function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
 
         {editing && (
           <p className="field-hint mt-2">
-            값을 고치고 [삭제]로 계정을 지운 뒤, 상단 [저장]을 한 번 누르면 모두 반영됩니다. 새
-            비밀번호를 비워 두면 기존 비밀번호가 유지됩니다. 계정 추가는 아래 카드에서 하세요.
-            삭제한 계정의 로그인 ID·이메일은 이력 보존을 위해 다시 사용할 수 없습니다.
+            값을 고치고 [삭제]로 계정을 지운 뒤, 상단 [저장]을 한 번 누르면 모두 반영됩니다. 계정
+            추가는 아래 카드에서 하세요. 비밀번호는 본인만 상단의 [관리자: 이름] 배지에서 바꿀 수
+            있습니다. 삭제한 계정의 이메일은 이력 보존을 위해 다시 사용할 수 없습니다.
           </p>
         )}
 
@@ -1771,13 +1758,10 @@ function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
           <table className={`data-table ${editing ? 'min-w-[1180px] table-fixed' : ''}`}>
             <thead>
               <tr>
-                <th className={editing ? 'w-28' : ''}>로그인 ID</th>
                 <th className={editing ? 'w-32' : ''}>이름</th>
                 <th className={editing ? 'w-60' : ''}>이메일</th>
                 <th className={editing ? 'w-36' : ''}>연락처</th>
-                <th className={editing ? 'w-40' : ''}>권한</th>
                 <th className={editing ? 'w-32' : ''}>상태</th>
-                {editing && <th className="w-44">새 비밀번호</th>}
                 {editing && <th className="w-20"></th>}
               </tr>
             </thead>
@@ -1792,11 +1776,9 @@ function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
                 if (!editing) {
                   return (
                     <tr key={user.adminUserId}>
-                      <td className="font-mono text-xs">{user.loginId}</td>
                       <td>{user.adminName}</td>
                       <td className="text-xs">{user.email}</td>
                       <td className="text-xs">{user.phone ?? '-'}</td>
-                      <td>{user.roleCode === 'SYSTEM_ADMIN' ? '시스템 관리자' : '방문 관리자'}</td>
                       <td>
                         <span
                           className={`badge ${
@@ -1816,8 +1798,6 @@ function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
 
                 return (
                   <tr key={user.adminUserId} className={isRemoved ? 'bg-red-50 opacity-60' : ''}>
-                    {/* 로그인 ID 는 감사 로그 추적의 기준이라 바꾸지 않는다. */}
-                    <td className="font-mono text-xs">{user.loginId}</td>
                     <td>
                       <input
                         className="input"
@@ -1826,7 +1806,7 @@ function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
                         onChange={(event) =>
                           updateDraft(user.adminUserId, { adminName: event.target.value })
                         }
-                        aria-label={`${user.loginId} 이름`}
+                        aria-label={`${user.email} 이름`}
                       />
                     </td>
                     <td>
@@ -1838,7 +1818,7 @@ function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
                         onChange={(event) =>
                           updateDraft(user.adminUserId, { email: event.target.value })
                         }
-                        aria-label={`${user.loginId} 이메일`}
+                        aria-label={`${user.email} 이메일`}
                       />
                     </td>
                     <td>
@@ -1849,24 +1829,8 @@ function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
                         onChange={(event) =>
                           updateDraft(user.adminUserId, { phone: event.target.value })
                         }
-                        aria-label={`${user.loginId} 연락처`}
+                        aria-label={`${user.email} 연락처`}
                       />
-                    </td>
-                    <td>
-                      <select
-                        className="input"
-                        value={draft.roleCode}
-                        disabled={isRemoved}
-                        onChange={(event) =>
-                          updateDraft(user.adminUserId, {
-                            roleCode: event.target.value as AdminUserDraft['roleCode'],
-                          })
-                        }
-                        aria-label={`${user.loginId} 권한`}
-                      >
-                        <option value="PARKING_ADMIN">방문 관리자</option>
-                        <option value="SYSTEM_ADMIN">시스템 관리자</option>
-                      </select>
                     </td>
                     <td>
                       <select
@@ -1878,7 +1842,7 @@ function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
                             accountStatus: event.target.value as AdminUserDraft['accountStatus'],
                           })
                         }
-                        aria-label={`${user.loginId} 상태`}
+                        aria-label={`${user.email} 상태`}
                       >
                         <option value="ACTIVE">활성</option>
                         <option value="INACTIVE">비활성</option>
@@ -1889,20 +1853,6 @@ function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
                         */}
                         {user.accountStatus === 'LOCKED' && <option value="LOCKED">잠금</option>}
                       </select>
-                    </td>
-                    <td>
-                      <input
-                        type="password"
-                        className="input"
-                        value={draft.password}
-                        disabled={isRemoved}
-                        onChange={(event) =>
-                          updateDraft(user.adminUserId, { password: event.target.value })
-                        }
-                        placeholder="변경 시에만"
-                        autoComplete="new-password"
-                        aria-label={`${user.loginId} 새 비밀번호`}
-                      />
                     </td>
                     <td>
                       <button
@@ -1939,12 +1889,10 @@ function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
 function AdminUserSection({ adminUsers }: { adminUsers: AdminUser[] }) {
   const { pending, message, fieldErrors, mutate } = useMutation();
   const [form, setForm] = useState({
-    loginId: '',
+    email: '',
     password: '',
     adminName: '',
-    email: '',
     phone: '',
-    roleCode: 'PARKING_ADMIN' as 'PARKING_ADMIN' | 'SYSTEM_ADMIN',
   });
 
   return (
@@ -1962,17 +1910,18 @@ function AdminUserSection({ adminUsers }: { adminUsers: AdminUser[] }) {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField
-              label="로그인 ID"
-              htmlFor="admin-login"
+              label="이메일"
+              htmlFor="admin-email"
               required
-              errors={fieldErrors.loginId}
+              hint="이 이메일로 신규 신청/승인 알림 메일을 받도록 관리자 알림 이메일 목록에 자동 등록됩니다."
+              errors={fieldErrors.email}
             >
               <input
-                id="admin-login"
-                className={inputClassName(Boolean(fieldErrors.loginId))}
-                value={form.loginId}
-                onChange={(event) => setForm({ ...form, loginId: event.target.value })}
-                autoComplete="off"
+                id="admin-email"
+                type="email"
+                className={inputClassName(Boolean(fieldErrors.email))}
+                value={form.email}
+                onChange={(event) => setForm({ ...form, email: event.target.value })}
               />
             </FormField>
             <FormField
@@ -1999,21 +1948,6 @@ function AdminUserSection({ adminUsers }: { adminUsers: AdminUser[] }) {
                 onChange={(event) => setForm({ ...form, adminName: event.target.value })}
               />
             </FormField>
-            <FormField
-              label="이메일"
-              htmlFor="admin-email"
-              required
-              hint="이 이메일로 신규 신청/승인 알림 메일을 받도록 관리자 알림 이메일 목록에 자동 등록됩니다."
-              errors={fieldErrors.email}
-            >
-              <input
-                id="admin-email"
-                type="email"
-                className={inputClassName(Boolean(fieldErrors.email))}
-                value={form.email}
-                onChange={(event) => setForm({ ...form, email: event.target.value })}
-              />
-            </FormField>
             <FormField label="연락처" htmlFor="admin-phone" errors={fieldErrors.phone}>
               <input
                 id="admin-phone"
@@ -2022,28 +1956,12 @@ function AdminUserSection({ adminUsers }: { adminUsers: AdminUser[] }) {
                 onChange={(event) => setForm({ ...form, phone: event.target.value })}
               />
             </FormField>
-            <FormField label="권한" htmlFor="admin-role" required errors={fieldErrors.roleCode}>
-              <select
-                id="admin-role"
-                className="input"
-                value={form.roleCode}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    roleCode: event.target.value as 'PARKING_ADMIN' | 'SYSTEM_ADMIN',
-                  })
-                }
-              >
-                <option value="PARKING_ADMIN">방문 관리자</option>
-                <option value="SYSTEM_ADMIN">시스템 관리자</option>
-              </select>
-            </FormField>
           </div>
 
           <button
             type="button"
             className="btn btn-primary"
-            disabled={pending || !form.loginId || !form.password}
+            disabled={pending || !form.email || !form.password}
             onClick={async () => {
               const saved = await mutate(
                 '/api/admin/admin-users',
@@ -2054,7 +1972,6 @@ function AdminUserSection({ adminUsers }: { adminUsers: AdminUser[] }) {
               if (saved)
                 setForm({
                   ...form,
-                  loginId: '',
                   password: '',
                   adminName: '',
                   email: '',

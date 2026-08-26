@@ -4,26 +4,26 @@ import { readJsonBody } from '@/lib/api-helpers';
 import { apiSuccess, handleApiError } from '@/lib/api-response';
 import { getRequestContext } from '@/lib/request-context';
 import { adminUserCreateSchema } from '@/lib/validation/admin-schema';
-import { requireSystemAdmin } from '@/services/admin-auth-service';
+import { requireActiveAdmin } from '@/services/admin-auth-service';
 import { createAdminUser, listAdminUsers } from '@/services/admin-user-service';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** GET /api/admin/admin-users — 관리자 계정 목록 (SYSTEM_ADMIN 전용) */
+/** GET /api/admin/admin-users — 관리자 계정 목록 */
 export async function GET() {
   try {
-    await requireSystemAdmin();
+    await requireActiveAdmin();
     return apiSuccess(await listAdminUsers());
   } catch (error) {
     return handleApiError(error);
   }
 }
 
-/** POST /api/admin/admin-users — 관리자 계정 생성 (SYSTEM_ADMIN 전용) */
+/** POST /api/admin/admin-users — 관리자 계정 생성 */
 export async function POST(request: NextRequest) {
   try {
-    const session = await requireSystemAdmin();
+    const session = await requireActiveAdmin();
     const payload = adminUserCreateSchema.parse(await readJsonBody(request));
 
     const created = await createAdminUser(payload, {

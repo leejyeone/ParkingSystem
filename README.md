@@ -107,10 +107,10 @@
 - 예약 승인 및 주차면 확정 (트랜잭션 원자 처리)
 - 반려(사유 입력), 주차 위치 변경, 입차/출차/미방문 처리
 - 이메일 발송 이력 조회 (실패 사유 포함) — 예약 목록과 동일한 접이식 검색 조건
-- 시스템 설정, 주차 구역·주차면, 관리자 계정, 알림 이메일 관리 (SYSTEM_ADMIN)
+- 시스템 설정, 주차 구역·주차면, 관리자 계정, 알림 이메일 관리
   - 관리자 계정을 새로 만들면 그 이메일이 **알림 이메일 목록에 자동 등록**된다(신규 신청/승인
     알림 모두 켠 상태). 이미 등록된 이메일이면 기존 수신 설정은 건드리지 않는다.
-- 감사 로그 조회 (SYSTEM_ADMIN)
+- 감사 로그 조회
 
 ### 시스템
 
@@ -164,20 +164,16 @@
 
 ### 3-3. 관리자
 
-관리자만 ID / 비밀번호로 로그인합니다.
+관리자만 이메일 / 비밀번호로 로그인합니다. 관리자 계정은 **단일 권한만 존재**하며,
+계정 간 기능 차이는 없습니다(모든 관리자가 아래 기능 전부에 접근할 수 있습니다).
 
-| 기능                           | PARKING_ADMIN | SYSTEM_ADMIN |
-| ------------------------------ | :-----------: | :----------: |
-| 예약 목록·상세 조회            |       ✔       |      ✔       |
-| 예약 승인 / 반려               |       ✔       |      ✔       |
-| 주차 위치 배정 / 변경          |       ✔       |      ✔       |
-| 입차 / 출차 / 미방문 처리      |       ✔       |      ✔       |
-| 이메일 발송 이력 조회          |       ✔       |      ✔       |
-| 관리자 계정 생성·수정·비활성화 |       ✘       |      ✔       |
-| 주차 구역 / 주차면 관리        |       ✘       |      ✔       |
-| 관리자 알림 이메일 관리        |       ✘       |      ✔       |
-| 시스템 운영시간·정책 설정      |       ✘       |      ✔       |
-| 감사 로그 조회                 |       ✘       |      ✔       |
+- 예약 목록·상세 조회, 승인/반려, 주차 위치 배정/변경, 입차/출차/미방문 처리
+- 이메일 발송 이력 조회
+- 관리자 계정 생성·수정·비활성화
+- 주차 구역 / 주차면 관리
+- 관리자 알림 이메일 관리
+- 시스템 운영시간·정책 설정
+- 감사 로그 조회
 
 ---
 
@@ -203,24 +199,32 @@ flowchart TD
     L --> M[출차]
 ```
 
-### 4-2. 타 사업장 직원 흐름
+### 4-2. 직원 흐름 (`/employee`, 로그인 필수)
 
 ```mermaid
 flowchart TD
-    A[웹 접속] --> B[신청 구분에서 '직원' 선택]
-    B --> C[방문 신청]
-    C --> D[접수 이메일 수신]
-    D --> E{관리자 승인 대기}
-    E -->|승인| F[승인 이메일 수신]
-    E -->|반려| G[반려 이메일 수신]
-    F --> H[예약 조회<br/>성명·차량번호 입력 또는 메일 링크]
-    G --> H
-    H --> I[방문 시작 60분 전까지 수정 또는 취소]
-    F --> J[출차 예정 10분 전 알림 수신]
+    A["/employee 접속"] --> B{로그인 상태?}
+    B -->|아니오| C["/employee/login (또는 /employee/signup)"]
+    C --> D[직원 홈]
+    B -->|예| D
+    D --> E["내 방문을 신청합니다"]
+    D --> F["방문객을 대신 신청합니다"]
+    E --> G[방문 신청 - 동의 카드 없음]
+    F --> H[방문 신청 - 방문객 동의 확인 체크]
+    G --> I[접수 이메일 수신]
+    H --> I
+    I --> J{관리자 승인 대기}
+    J -->|승인| K[승인 이메일 수신]
+    J -->|반려| L[반려 이메일 수신]
+    D --> M["내 신청 내역 (본인 방문 + 대리 신청)"]
 ```
 
-> 직원(`EMPLOYEE`)은 방문객(`VISITOR`)과 **접근 권한이 완전히 동일**합니다.
-> 흐름상 차이는 신청 구분 선택값 하나뿐이며, 승인 절차·주차면 배정 우선순위·조회 범위 모두 같습니다.
+> `/employee` 는 관리자 화면처럼 URL 직접 입력으로만 접근하며, 로그인 상태가 아니면
+> `/employee/login` 으로 리다이렉트됩니다. 직원 계정(`EmployeeUser`)은 방문객 계정
+> (`SiteUser`)과 완전히 별도의 테이블·세션이며, 신청 구분(`requesterType`)은 화면에서
+> 선택하지 않고 어느 진입점·어느 신청 화면을 사용했는지에 따라 서버가 강제로 결정합니다.
+> 방문객을 대신 신청하는 경우 방문객 본인 대신 담당 직원이 "방문객 동의를 확인했음"을
+> 체크합니다.
 
 ### 4-3. 회원 흐름 (선택)
 
@@ -502,8 +506,8 @@ AND existing.visit_end_at > new.visit_start_at
 | 메서드   | 경로                                | 권한         | 용도             |
 | -------- | ----------------------------------- | ------------ | ---------------- |
 | `GET`    | `/api/admin/parking-areas/[id]/map` | 관리자       | 도면 내려받기    |
-| `POST`   | `/api/admin/parking-areas/[id]/map` | SYSTEM_ADMIN | 도면 업로드·교체 |
-| `DELETE` | `/api/admin/parking-areas/[id]/map` | SYSTEM_ADMIN | 도면 삭제        |
+| `POST`   | `/api/admin/parking-areas/[id]/map` | 관리자       | 도면 업로드·교체 |
+| `DELETE` | `/api/admin/parking-areas/[id]/map` | 관리자       | 도면 삭제        |
 
 파일을 DB 에 두는 이유는 배포 환경마다 업로드 경로·권한을 맞출 필요가 없고, DB 백업 하나에
 도면까지 함께 담기며, `public/` 에 두었을 때처럼 **URL 만 알면 누구나 열람하는 상황**을
@@ -545,9 +549,9 @@ SynopexParking/
 │  │  │  ├─ layout.tsx  login/page.tsx            # 관리자 레이아웃 / 로그인
 │  │  │  ├─ page.tsx                              # 대시보드
 │  │  │  ├─ reservations/page.tsx  [id]/page.tsx  # 예약 목록 / 상세
-│  │  │  ├─ settings/page.tsx                     # 시스템 설정 (SYSTEM_ADMIN)
+│  │  │  ├─ settings/page.tsx                     # 시스템 설정
 │  │  │  ├─ email-logs/page.tsx                   # 이메일 발송 이력
-│  │  │  └─ audit-logs/page.tsx                   # 감사 로그 (SYSTEM_ADMIN)
+│  │  │  └─ audit-logs/page.tsx                   # 감사 로그
 │  │  └─ api/                                     # Route Handlers (공개/관리자/cron)
 │  ├─ components/
 │  │  └─ reservation/  user/  admin/  ui/         # 화면 컴포넌트
@@ -786,7 +790,7 @@ npm run db:seed
 
 | 대상               | 내용                                                                 |
 | ------------------ | -------------------------------------------------------------------- |
-| 관리자 계정        | `SEED_ADMIN_LOGIN_ID` (기본 `admin`), 역할 `SYSTEM_ADMIN`            |
+| 관리자 계정        | `SEED_ADMIN_EMAIL` (기본 `admin@example.com`)                        |
 | 주차 구역          | `MAIN` / 동탄사업장 지하 1층 (도면은 비워 둠 — 관리자가 직접 업로드) |
 | 주차면 55개        | `B1-01` ~ `B1-55`, `NORMAL`, `display_order` 1~55 (블록명은 `memo`)  |
 | 시스템 설정        | 아래 표 참고                                                         |
@@ -852,7 +856,8 @@ Seed는 모두 `upsert`이므로 **여러 번 실행해도 안전**합니다.
 | 테이블                            | 용도                                            |
 | --------------------------------- | ----------------------------------------------- |
 | `admin_users`                     | 관리자 계정 (bcrypt 해시, 잠금 상태)            |
-| `users`                           | 회원 계정 (선택 로그인, 자동완성용 정보)        |
+| `users`                           | 방문객 회원 계정 (선택 로그인, 자동완성용 정보) |
+| `employee_users`                  | 직원 계정 (`/employee` 로그인 필수, 방문객과 완전 분리) |
 | `parking_areas`                   | 주차 구역 + 참고용 도면 이미지 파일             |
 | `parking_spaces`                  | 주차면 (코드/유형/정렬순서), **좌표 컬럼 없음** |
 | `parking_reservations`            | 예약 (차량번호·개인정보 직접 저장)              |
@@ -1100,7 +1105,6 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 
 | 변수                                   | 설명                                   |
 | -------------------------------------- | -------------------------------------- |
-| `SEED_ADMIN_LOGIN_ID`                  | 초기 관리자 로그인 ID (기본 `admin`)   |
 | `SEED_ADMIN_PASSWORD`                  | 초기 관리자 비밀번호 — **반드시 변경** |
 | `SEED_ADMIN_NAME` / `SEED_ADMIN_EMAIL` | 초기 관리자 이름 / 이메일              |
 | `SEED_ADMIN_NOTIFICATION_EMAILS`       | 관리자 알림 수신 이메일 (쉼표 구분)    |
@@ -1115,9 +1119,8 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 
 | 항목      | 값                                                         |
 | --------- | ---------------------------------------------------------- |
-| 로그인 ID | `SEED_ADMIN_LOGIN_ID` (기본값 `admin`)                     |
+| 이메일    | `SEED_ADMIN_EMAIL` (기본값 `admin@example.com`)            |
 | 비밀번호  | `SEED_ADMIN_PASSWORD` (`.env.example` 기본값 `Admin!2345`) |
-| 권한      | `SYSTEM_ADMIN`                                             |
 
 > ⚠ **보안 경고**
 > 기본 비밀번호는 **로컬 개발 편의용**입니다. Seed 실행 직후 반드시 변경하세요.
@@ -1128,8 +1131,8 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 
 1. <http://localhost:3000/admin/login> 에서 초기 계정으로 로그인
 2. 상단 **[시스템 설정] → [관리자 계정]** 탭
-3. 실제 담당자 계정을 새로 생성 (권한: `PARKING_ADMIN` 또는 `SYSTEM_ADMIN`)
-4. 새 `SYSTEM_ADMIN` 계정으로 다시 로그인한 뒤, 초기 `admin` 계정을 **비활성화**
+3. 실제 담당자 계정을 새로 생성
+4. 새 계정으로 다시 로그인한 뒤, 초기 `admin` 계정을 **비활성화**
 
 관리자 비밀번호 정책: **10자 이상**, 영문 대문자·소문자·숫자·특수문자 중 **3종류 이상** 포함.
 (일반 회원은 **8자 이상**만 요구합니다. 회원 가입은 자동완성 편의를 위한 선택 기능이고 회원은
@@ -1137,21 +1140,20 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 정의 위치: 관리자 [`src/lib/password.ts`](src/lib/password.ts),
 회원 [`src/lib/validation/common.ts`](src/lib/validation/common.ts) `USER_PASSWORD_MIN_LENGTH`)
 
-> 활성 상태의 `SYSTEM_ADMIN`이 **최소 1명은 남아야 합니다.** 마지막 시스템 관리자는
-> 비활성화하거나 권한을 낮출 수 없습니다.
+> 활성 상태의 관리자가 **최소 1명은 남아야 합니다.** 마지막 활성 관리자는 비활성화할 수 없습니다.
 
 ### 계정이 잠겼을 때
 
 로그인 5회 연속 실패 시 계정이 10분간 잠깁니다.
-다른 `SYSTEM_ADMIN`이 [시스템 설정] → [관리자 계정]에서 **활성화** 버튼을 누르면 즉시 해제됩니다
+다른 관리자가 [시스템 설정] → [관리자 계정]에서 **활성화** 버튼을 누르면 즉시 해제됩니다
 (실패 횟수도 함께 초기화됩니다).
 
-모든 시스템 관리자가 잠겼다면 DB에서 직접 해제합니다.
+모든 관리자가 잠겼다면 DB에서 직접 해제합니다.
 
 ```sql
 UPDATE admin_users
 SET account_status = 'ACTIVE', login_fail_count = 0, locked_until = NULL
-WHERE login_id = 'admin';
+WHERE email = 'admin@example.com';
 ```
 
 회원 계정도 같은 정책(5회 실패 → 10분 잠금)이며, 필요 시 아래처럼 해제합니다.
@@ -1238,8 +1240,8 @@ npm run test:integration
 | 10  | 승인 후 수정 시 `REQUESTED` 복귀 및 주차면 해제            |
 | 11  | 예약 취소 시 주차면 해제                                   |
 | 12  | 출차 예정 알림 중복 발송 방지                              |
-| 13  | `PARKING_ADMIN`의 시스템 설정 접근 실패                    |
-| 14  | `SYSTEM_ADMIN`의 주차면·관리자 관리 성공                   |
+| 13  | 관리자 세션 검증 (비활성 계정·세션 없음 차단)              |
+| 14  | 관리자의 주차면·관리자 계정 관리 성공                      |
 | 15  | 회원가입 / 중복 이메일 가입 실패 / 비밀번호 해시 저장      |
 | 16  | 회원 로그인 실패 5회 시 계정 잠금                          |
 | 17  | 내 정보 수정 결과가 자동완성 원본에 반영                   |
@@ -1474,22 +1476,22 @@ POST 를 사용하고, 일치하는 예약 목록(`reservationId`(내부 식별�
 | `POST`   | `/api/admin/reservations/[id]/no-show` | 관리자       | 미방문 처리                |
 | `PUT`    | `/api/admin/reservations/[id]/space`   | 관리자       | 주차 위치 변경             |
 | `GET`    | `/api/admin/parking-spaces`            | 관리자       | 주차면 목록                |
-| `POST`   | `/api/admin/parking-spaces`            | SYSTEM_ADMIN | 주차면 생성                |
-| `PUT`    | `/api/admin/parking-spaces/[id]`       | SYSTEM_ADMIN | 주차면 수정·비활성화       |
-| `DELETE` | `/api/admin/parking-spaces/[id]`       | SYSTEM_ADMIN | 주차면 삭제 (미사용분만)   |
+| `POST`   | `/api/admin/parking-spaces`            | 관리자       | 주차면 생성                |
+| `PUT`    | `/api/admin/parking-spaces/[id]`       | 관리자       | 주차면 수정·비활성화       |
+| `DELETE` | `/api/admin/parking-spaces/[id]`       | 관리자       | 주차면 삭제 (미사용분만)   |
 | `GET`    | `/api/admin/parking-areas`             | 관리자       | 주차 구역 목록             |
-| `POST`   | `/api/admin/parking-areas`             | SYSTEM_ADMIN | 주차 구역 생성             |
-| `PUT`    | `/api/admin/parking-areas/[id]`        | SYSTEM_ADMIN | 구역 정보 수정             |
+| `POST`   | `/api/admin/parking-areas`             | 관리자       | 주차 구역 생성             |
+| `PUT`    | `/api/admin/parking-areas/[id]`        | 관리자       | 구역 정보 수정             |
 | `GET`    | `/api/admin/parking-areas/[id]/map`    | 관리자       | 도면 내려받기              |
-| `POST`   | `/api/admin/parking-areas/[id]/map`    | SYSTEM_ADMIN | 도면 업로드·교체           |
-| `DELETE` | `/api/admin/parking-areas/[id]/map`    | SYSTEM_ADMIN | 도면 삭제                  |
-| `GET`    | `/api/admin/settings`                  | SYSTEM_ADMIN | 설정 + 알림 이메일 조회    |
-| `PUT`    | `/api/admin/settings`                  | SYSTEM_ADMIN | 설정 / 알림 이메일 저장    |
-| `GET`    | `/api/admin/admin-users`               | SYSTEM_ADMIN | 관리자 계정 목록           |
-| `POST`   | `/api/admin/admin-users`               | SYSTEM_ADMIN | 관리자 계정 생성           |
-| `PUT`    | `/api/admin/admin-users/[id]`          | SYSTEM_ADMIN | 관리자 계정 수정·비활성화  |
+| `POST`   | `/api/admin/parking-areas/[id]/map`    | 관리자       | 도면 업로드·교체           |
+| `DELETE` | `/api/admin/parking-areas/[id]/map`    | 관리자       | 도면 삭제                  |
+| `GET`    | `/api/admin/settings`                  | 관리자       | 설정 + 알림 이메일 조회    |
+| `PUT`    | `/api/admin/settings`                  | 관리자       | 설정 / 알림 이메일 저장    |
+| `GET`    | `/api/admin/admin-users`               | 관리자       | 관리자 계정 목록           |
+| `POST`   | `/api/admin/admin-users`               | 관리자       | 관리자 계정 생성           |
+| `PUT`    | `/api/admin/admin-users/[id]`          | 관리자       | 관리자 계정 수정·비활성화  |
 | `GET`    | `/api/admin/email-logs`                | 관리자       | 이메일 발송 이력           |
-| `GET`    | `/api/admin/audit-logs`                | SYSTEM_ADMIN | 감사 로그 (감사 로그 기록) |
+| `GET`    | `/api/admin/audit-logs`                | 관리자       | 감사 로그 (감사 로그 기록) |
 
 ### 스케줄러 API
 
@@ -1542,7 +1544,6 @@ POST 를 사용하고, 일치하는 예약 목록(`reservationId`(내부 식별�
 - IP 기준 레이트 리밋을 로그인·가입·예약 신청·성명·차량번호 조회·토큰 조회에 적용합니다.
 - 미인증 접근은 `proxy`가 로그인 페이지로 리다이렉트하고, 각 페이지/Route Handler에서
   `requireActiveAdmin()` / `requireActiveUser()`로 **다시 검증**합니다(세션 발급 후 비활성화된 계정 차단).
-- `PARKING_ADMIN`은 `requireSystemAdmin()`이 보호하는 기능에 접근할 수 없습니다(403).
 
 #### 관리자 세션과 회원 세션의 분리
 

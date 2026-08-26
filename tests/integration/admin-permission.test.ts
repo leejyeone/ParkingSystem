@@ -1,24 +1,20 @@
-import { AccountStatus, AdminRole, SpaceType } from '@prisma/client';
+import { AccountStatus, SpaceType } from '@prisma/client';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ForbiddenError, UnauthorizedError, ConflictError } from '@/lib/errors';
+import { ConflictError, UnauthorizedError } from '@/lib/errors';
 import { verifyPassword } from '@/lib/password';
-import {
-  loginAdmin,
-  MAX_LOGIN_FAILURES,
-  requireActiveAdmin,
-  requireSystemAdmin,
-} from '@/services/admin-auth-service';
+import { loginAdmin, MAX_LOGIN_FAILURES, requireActiveAdmin } from '@/services/admin-auth-service';
 import { createAdminUser, listAdminUsers, updateAdminUser } from '@/services/admin-user-service';
 import { createParkingSpace, updateParkingSpace } from '@/services/parking-space-service';
 import { getSystemSettings, updateSystemSettings } from '@/services/settings-service';
 import { prisma, resetDatabase, seedFixtures, type TestFixtures } from './helpers';
 
 /**
- * 13~14. 권한 분리 및 관리자 계정/주차면 관리 시나리오.
+ * 관리자 로그인 및 관리자 계정/주차면 관리 시나리오.
  *
- * requireSystemAdmin() 은 next/headers 의 쿠키에 의존하므로,
- * 여기서는 세션 조회 부분만 모킹하고 권한 판정 로직 자체를 검증한다.
+ * 관리자는 단일 권한만 존재하며 계정 간 권한 차이는 없다.
+ * requireActiveAdmin() 은 next/headers 의 쿠키에 의존하므로,
+ * 여기서는 세션 조회 부분만 모킹하고 판정 로직 자체를 검증한다.
  */
 
 const sessionMock = vi.hoisted(() => ({ getAdminSession: vi.fn() }));
@@ -42,54 +38,54 @@ afterAll(async () => {
 
 describe('관리자 로그인', () => {
   it('올바른 자격 증명으로 로그인하면 세션 정보를 반환한다', async () => {
-    const session = await loginAdmin({ loginId: 'sysadmin', password: 'Admin!2345' });
+    const session = await loginAdmin({ email: 'sysadmin@example.com', password: 'Admin!2345' });
 
-    expect(session.adminUserId).toBe(fixtures.systemAdminId);
-    expect(session.roleCode).toBe(AdminRole.SYSTEM_ADMIN);
+    expect(session.adminUserId).toBe(fixtures.adminId);
 
-    const admin = await prisma.adminUser.findUnique({ where: { loginId: 'sysadmin' } });
+    const admin = await prisma.adminUser.findUnique({ where: { email: 'sysadmin@example.com' } });
     expect(admin?.lastLoginAt).not.toBeNull();
     expect(admin?.loginFailCount).toBe(0);
   });
 
   it('비밀번호가 틀리면 실패 횟수가 증가한다', async () => {
-    await expect(loginAdmin({ loginId: 'sysadmin', password: 'wrong' })).rejects.toBeInstanceOf(
-      UnauthorizedError,
-    );
+    await expect(
+      loginAdmin({ email: 'sysadmin@example.com', password: 'wrong' }),
+    ).rejects.toBeInstanceOf(UnauthorizedError);
 
-    const admin = await prisma.adminUser.findUnique({ where: { loginId: 'sysadmin' } });
+    const admin = await prisma.adminUser.findUnique({ where: { email: 'sysadmin@example.com' } });
     expect(admin?.loginFailCount).toBe(1);
   });
 
   it(`실패가 ${MAX_LOGIN_FAILURES}회 누적되면 계정이 잠긴다`, async () => {
     for (let attempt = 0; attempt < MAX_LOGIN_FAILURES; attempt += 1) {
-      await loginAdmin({ loginId: 'sysadmin', password: 'wrong' }).catch(() => undefined);
+      await loginAdmin({ email: 'sysadmin@example.com', password: 'wrong' }).catch(() => undefined);
     }
 
-    const admin = await prisma.adminUser.findUnique({ where: { loginId: 'sysadmin' } });
+    const admin = await prisma.adminUser.findUnique({ where: { email: 'sysadmin@example.com' } });
     expect(admin?.accountStatus).toBe(AccountStatus.LOCKED);
     expect(admin?.lockedUntil).not.toBeNull();
 
     // 잠긴 뒤에는 올바른 비밀번호로도 로그인할 수 없다.
-    await expect(loginAdmin({ loginId: 'sysadmin', password: 'Admin!2345' })).rejects.toThrowError(
-      /잠금/,
-    );
+    await expect(
+      loginAdmin({ email: 'sysadmin@example.com', password: 'Admin!2345' }),
+    ).rejects.toThrowError(/잠금/);
   });
 
   it('존재하지 않는 계정도 동일한 메시지로 응답한다', async () => {
-    const unknown = await loginAdmin({ loginId: 'nobody', password: 'x' }).catch(
+    const unknown = await loginAdmin({ email: 'nobody@example.com', password: 'x' }).catch(
       (error: Error) => error.message,
     );
-    const wrongPassword = await loginAdmin({ loginId: 'sysadmin', password: 'x' }).catch(
-      (error: Error) => error.message,
-    );
+    const wrongPassword = await loginAdmin({
+      email: 'sysadmin@example.com',
+      password: 'x',
+    }).catch((error: Error) => error.message);
 
     expect(unknown).toBe(wrongPassword);
   });
 
   it('모든 로그인 시도가 기록된다', async () => {
-    await loginAdmin({ loginId: 'sysadmin', password: 'Admin!2345' });
-    await loginAdmin({ loginId: 'sysadmin', password: 'wrong' }).catch(() => undefined);
+    await loginAdmin({ email: 'sysadmin@example.com', password: 'Admin!2345' });
+    await loginAdmin({ email: 'sysadmin@example.com', password: 'wrong' }).catch(() => undefined);
 
     const attempts = await prisma.adminLoginAttempt.findMany({
       orderBy: { loginAttemptId: 'asc' },
@@ -98,32 +94,16 @@ describe('관리자 로그인', () => {
   });
 });
 
-describe('13. PARKING_ADMIN 의 시스템 설정 접근 실패', () => {
-  it('PARKING_ADMIN 은 requireSystemAdmin 에서 차단된다', async () => {
-    sessionMock.getAdminSession.mockResolvedValue({
-      adminUserId: fixtures.parkingAdminId,
-      loginId: 'parkadmin',
-      adminName: '주차관리자',
-      roleCode: AdminRole.PARKING_ADMIN,
-    });
-
-    await expect(requireSystemAdmin()).rejects.toBeInstanceOf(ForbiddenError);
-    // 일반 관리자 기능에는 접근할 수 있다.
-    await expect(requireActiveAdmin()).resolves.toMatchObject({
-      roleCode: AdminRole.PARKING_ADMIN,
-    });
-  });
-
+describe('관리자 세션 검증', () => {
   it('비활성화된 계정은 세션이 있어도 차단된다', async () => {
     await prisma.adminUser.update({
-      where: { adminUserId: fixtures.parkingAdminId },
+      where: { adminUserId: fixtures.secondAdminId },
       data: { accountStatus: AccountStatus.INACTIVE },
     });
     sessionMock.getAdminSession.mockResolvedValue({
-      adminUserId: fixtures.parkingAdminId,
-      loginId: 'parkadmin',
+      adminUserId: fixtures.secondAdminId,
+      email: 'parkadmin@example.com',
       adminName: '주차관리자',
-      roleCode: AdminRole.PARKING_ADMIN,
     });
 
     await expect(requireActiveAdmin()).rejects.toBeInstanceOf(UnauthorizedError);
@@ -133,24 +113,23 @@ describe('13. PARKING_ADMIN 의 시스템 설정 접근 실패', () => {
     sessionMock.getAdminSession.mockResolvedValue(null);
     await expect(requireActiveAdmin()).rejects.toBeInstanceOf(UnauthorizedError);
   });
+
+  it('활성 계정은 세션 검증을 통과한다', async () => {
+    sessionMock.getAdminSession.mockResolvedValue({
+      adminUserId: fixtures.adminId,
+      email: 'sysadmin@example.com',
+      adminName: '시스템관리자',
+    });
+    await expect(requireActiveAdmin()).resolves.toMatchObject({ adminUserId: fixtures.adminId });
+  });
 });
 
-describe('14. SYSTEM_ADMIN 의 주차면 및 관리자 관리', () => {
-  it('SYSTEM_ADMIN 은 시스템 설정을 저장할 수 있다', async () => {
-    sessionMock.getAdminSession.mockResolvedValue({
-      adminUserId: fixtures.systemAdminId,
-      loginId: 'sysadmin',
-      adminName: '시스템관리자',
-      roleCode: AdminRole.SYSTEM_ADMIN,
-    });
-    await expect(requireSystemAdmin()).resolves.toMatchObject({
-      roleCode: AdminRole.SYSTEM_ADMIN,
-    });
-
+describe('관리자 계정 및 주차면 관리', () => {
+  it('시스템 설정을 저장할 수 있다', async () => {
     const before = await getSystemSettings();
     const after = await updateSystemSettings(
       { ...before, reservationMinLeadMinutes: 90, doubleParkingEnabled: false },
-      fixtures.systemAdminId,
+      fixtures.adminId,
     );
 
     expect(after.reservationMinLeadMinutes).toBe(90);
@@ -168,14 +147,14 @@ describe('14. SYSTEM_ADMIN 의 주차면 및 관리자 관리', () => {
         isActive: true,
         memo: null,
       },
-      { adminUserId: fixtures.systemAdminId },
+      { adminUserId: fixtures.adminId },
     );
     expect(created.spaceCode).toBe('A-99');
 
     const updated = await updateParkingSpace(
       created.spaceId,
       { isActive: false },
-      { adminUserId: fixtures.systemAdminId },
+      { adminUserId: fixtures.adminId },
     );
     expect(updated.isActive).toBe(false);
 
@@ -196,7 +175,7 @@ describe('14. SYSTEM_ADMIN 의 주차면 및 관리자 관리', () => {
           displayOrder: 1,
           isActive: true,
         },
-        { adminUserId: fixtures.systemAdminId },
+        { adminUserId: fixtures.adminId },
       ),
     ).rejects.toBeInstanceOf(ConflictError);
   });
@@ -204,13 +183,11 @@ describe('14. SYSTEM_ADMIN 의 주차면 및 관리자 관리', () => {
   it('관리자 계정을 생성하면 비밀번호가 해시로 저장된다', async () => {
     const created = await createAdminUser(
       {
-        loginId: 'newadmin',
+        email: 'new@example.com',
         password: 'NewAdmin!2345',
         adminName: '신규관리자',
-        email: 'new@example.com',
-        roleCode: AdminRole.PARKING_ADMIN,
       },
-      { adminUserId: fixtures.systemAdminId },
+      { adminUserId: fixtures.adminId },
     );
 
     const saved = await prisma.adminUser.findUnique({
@@ -224,13 +201,11 @@ describe('14. SYSTEM_ADMIN 의 주차면 및 관리자 관리', () => {
   it('관리자 계정을 생성하면 그 이메일이 알림 수신자 목록에 자동으로 등록된다', async () => {
     await createAdminUser(
       {
-        loginId: 'notifyadmin',
+        email: 'notify@example.com',
         password: 'NewAdmin!2345',
         adminName: '알림관리자',
-        email: 'notify@example.com',
-        roleCode: AdminRole.PARKING_ADMIN,
       },
-      { adminUserId: fixtures.systemAdminId },
+      { adminUserId: fixtures.adminId },
     );
 
     const notificationEmail = await prisma.adminNotificationEmail.findUnique({
@@ -255,13 +230,11 @@ describe('14. SYSTEM_ADMIN 의 주차면 및 관리자 관리', () => {
 
     await createAdminUser(
       {
-        loginId: 'existingadmin',
+        email: 'existing@example.com',
         password: 'NewAdmin!2345',
         adminName: '기존이메일관리자',
-        email: 'existing@example.com',
-        roleCode: AdminRole.PARKING_ADMIN,
       },
-      { adminUserId: fixtures.systemAdminId },
+      { adminUserId: fixtures.adminId },
     );
 
     const notificationEmail = await prisma.adminNotificationEmail.findUnique({
@@ -276,31 +249,34 @@ describe('14. SYSTEM_ADMIN 의 주차면 및 관리자 관리', () => {
     await expect(
       createAdminUser(
         {
-          loginId: 'weak',
+          email: 'weak@example.com',
           password: 'short',
           adminName: '약한비번',
-          email: 'weak@example.com',
-          roleCode: AdminRole.PARKING_ADMIN,
         },
-        { adminUserId: fixtures.systemAdminId },
+        { adminUserId: fixtures.adminId },
       ),
     ).rejects.toThrowError(/비밀번호/);
   });
 
   it('목록에는 이메일이 마스킹 없이 그대로 표시된다', async () => {
     const list = await listAdminUsers();
-    const sysadmin = list.find((user) => user.loginId === 'sysadmin');
+    const sysadmin = list.find((user) => user.email === 'sysadmin@example.com');
 
     expect(sysadmin?.email).toBe('sysadmin@example.com');
   });
 
-  it('마지막 활성 SYSTEM_ADMIN 은 비활성화할 수 없다', async () => {
+  it('마지막 활성 관리자는 비활성화할 수 없다', async () => {
+    await prisma.adminUser.update({
+      where: { adminUserId: fixtures.secondAdminId },
+      data: { accountStatus: AccountStatus.INACTIVE },
+    });
+
     await expect(
       updateAdminUser(
-        fixtures.systemAdminId,
+        fixtures.adminId,
         { accountStatus: AccountStatus.INACTIVE },
-        { adminUserId: fixtures.systemAdminId },
+        { adminUserId: fixtures.adminId },
       ),
-    ).rejects.toThrowError(/시스템 관리자가 최소 1명/);
+    ).rejects.toThrowError(/활성 상태의 관리자가 최소 1명/);
   });
 });

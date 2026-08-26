@@ -101,7 +101,7 @@ export async function issueAccessTokenForOwnReservation(params: {
   userId: number;
 }): Promise<string> {
   const reservation = await prisma.parkingReservation.findFirst({
-    where: { reservationId: params.reservationId, userId: params.userId },
+    where: { reservationId: params.reservationId, visitorUserId: params.userId },
     select: { reservationId: true, visitEndAt: true },
   });
 

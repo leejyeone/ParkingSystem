@@ -22,12 +22,6 @@ datasource db {
 // Enum
 // ---------------------------------------------------------------------------
 
-/// 관리자 역할
-enum AdminRole {
-  PARKING_ADMIN
-  SYSTEM_ADMIN
-}
-
 /// 관리자 계정 상태
 enum AccountStatus {
   ACTIVE
@@ -93,13 +87,11 @@ enum EmailSendStatus {
 
 model AdminUser {
   adminUserId   Int           @id @default(autoincrement()) @map("admin_user_id")
-  loginId       String        @unique(map: "uq_admin_users_login_id") @map("login_id") @db.VarChar(50)
   /// bcrypt 해시. 평문 비밀번호는 절대 저장하지 않는다.
   passwordHash  String        @map("password_hash") @db.VarChar(255)
   adminName     String        @map("admin_name") @db.VarChar(50)
   email         String        @unique(map: "uq_admin_users_email") @db.VarChar(255)
   phone         String?       @db.VarChar(20)
-  roleCode      AdminRole     @map("role_code")
   accountStatus AccountStatus @default(ACTIVE) @map("account_status")
 
   /// brute-force 방지용. 연속 로그인 실패 횟수
@@ -161,6 +153,44 @@ model SiteUser {
 }
 
 // ---------------------------------------------------------------------------
+// employees - 직원 계정
+//
+// 방문객(SiteUser)과 완전히 별도의 테이블·로그인 세션이다. 그룹웨어 SSO 연동은
+// 이 테이블에만 필드를 추가하면 되고, SiteUser/방문객 인증 코드는 전혀 손댈 필요가 없다.
+// ---------------------------------------------------------------------------
+
+model EmployeeUser {
+  employeeUserId Int    @id @default(autoincrement()) @map("employee_user_id")
+  email          String @unique(map: "uq_employee_users_email") @db.VarChar(255)
+  /// bcrypt 해시. 평문 비밀번호는 절대 저장하지 않는다.
+  passwordHash   String @map("password_hash") @db.VarChar(255)
+
+  /// 신청 폼 자동완성용 기본 정보. 직원은 항상 본인이 속한 사업장이므로 방문객(SiteUser)의
+  /// "방문 상호 또는 소속 사업장명"과 달리 사업장명 하나만 있으면 된다.
+  name       String  @db.VarChar(50)
+  branchName String  @map("branch_name") @db.VarChar(100)
+  vehicleNo  String? @map("vehicle_no") @db.VarChar(20)
+
+  accountStatus AccountStatus @default(ACTIVE) @map("account_status")
+
+  /// brute-force 방지용. 연속 로그인 실패 횟수
+  loginFailCount Int       @default(0) @map("login_fail_count")
+  /// 계정 임시 잠금 해제 시각
+  lockedUntil    DateTime? @map("locked_until")
+
+  lastLoginAt       DateTime? @map("last_login_at")
+  passwordChangedAt DateTime? @map("password_changed_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
+
+  reservations ParkingReservation[]
+
+  @@index([accountStatus], map: "idx_employee_users_account_status")
+  @@map("employee_users")
+}
+
+// ---------------------------------------------------------------------------
 // 8-2. parking_areas
 // ---------------------------------------------------------------------------
 
@@ -219,8 +249,12 @@ model ParkingReservation {
   reservationId Int    @id @default(autoincrement()) @map("reservation_id")
   reservationNo String @unique(map: "uq_parking_reservations_no") @map("reservation_no") @db.VarChar(30)
 
-  /// 로그인 회원이 신청한 경우에만 연결된다. 비로그인 신청은 NULL.
-  userId Int? @map("user_id")
+  /// 방문객 회원이 로그인해서 본인 명의로 신청한 경우에만 연결된다. 비로그인/직원 신청은 NULL.
+  visitorUserId Int? @map("visitor_user_id")
+
+  /// 직원이 관여한 예약(본인 방문 또는 담당 방문객 대리 신청)이면 그 직원 계정. 그 외에는 NULL.
+  /// requesterType 이 EMPLOYEE 면 본인 방문, VISITOR 면 대리 신청이라는 뜻이다.
+  employeeUserId Int? @map("employee_user_id")
 
   requesterType       RequesterType @map("requester_type")
   companyOrBranchName String        @map("company_or_branch_name") @db.VarChar(100)
@@ -257,13 +291,15 @@ model ParkingReservation {
 
   assignedSpace ParkingSpace? @relation("ReservationAssignedSpace", fields: [assignedSpaceId], references: [spaceId], onDelete: SetNull)
   approvalAdmin AdminUser?    @relation("ReservationApprovalAdmin", fields: [approvalAdminId], references: [adminUserId], onDelete: SetNull)
-  user          SiteUser?     @relation(fields: [userId], references: [userId], onDelete: SetNull)
+  visitorUser   SiteUser?     @relation(fields: [visitorUserId], references: [userId], onDelete: SetNull)
+  employeeUser  EmployeeUser? @relation(fields: [employeeUserId], references: [employeeUserId], onDelete: SetNull)
 
   accessTokens ReservationAccessToken[]
   statusLogs   ParkingReservationStatusLog[]
   emailLogs    EmailSendLog[]
 
-  @@index([userId, createdAt], map: "idx_reservations_user_created")
+  @@index([visitorUserId, createdAt], map: "idx_reservations_visitor_user_created")
+  @@index([employeeUserId, createdAt], map: "idx_reservations_employee_user_created")
   @@index([createdAt], map: "idx_reservations_created")
   @@index([reservationStatus], map: "idx_reservations_status")
   @@index([visitStartAt, visitEndAt], map: "idx_reservations_visit_range")
@@ -424,13 +460,13 @@ model SystemSetting {
 
 model AdminLoginAttempt {
   loginAttemptId Int      @id @default(autoincrement()) @map("login_attempt_id")
-  loginId        String   @map("login_id") @db.VarChar(50)
+  email          String   @map("email") @db.VarChar(255)
   succeeded      Boolean  @map("succeeded")
   ipAddress      String?  @map("ip_address") @db.VarChar(64)
   userAgent      String?  @map("user_agent") @db.VarChar(500)
   createdAt      DateTime @default(now()) @map("created_at")
 
-  @@index([loginId, createdAt], map: "idx_login_attempts_login_created")
+  @@index([email, createdAt], map: "idx_login_attempts_email_created")
   @@index([ipAddress, createdAt], map: "idx_login_attempts_ip_created")
   @@map("admin_login_attempts")
 }

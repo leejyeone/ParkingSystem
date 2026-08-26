@@ -137,6 +137,10 @@ export default async function AdminReservationDetailPage({ params }: PageProps) 
               requesterEmail: reservation.requesterEmail,
               privacyConsentText: `${formatKstDateTime(reservation.privacyConsentAt)} 동의`,
               createdAtText: formatKstDateTime(reservation.createdAt),
+              employeeUserText:
+                reservation.employeeUser && reservation.requesterType === 'VISITOR'
+                  ? `${reservation.employeeUser.name} (${reservation.employeeUser.email}) 직원이 대리 신청`
+                  : null,
             }}
           />
 

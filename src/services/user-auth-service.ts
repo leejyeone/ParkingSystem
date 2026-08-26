@@ -60,7 +60,7 @@ export type SignUpResult = UserSession & {
  *
  * 가입 시점뿐 아니라 로그인할 때마다 실행한다. 회원이 로그아웃 상태에서 신청하거나
  * 안내 메일 링크로만 처리한 예약이 계정에 영영 붙지 않는 것을 막기 위함이다.
- * 이미 다른 계정에 연결된 예약(userId != null)은 대상에서 제외한다.
+ * 이미 다른 계정에 연결된 예약(visitorUserId != null)은 대상에서 제외한다.
  */
 export async function linkReservationsToUser(
   params: { userId: number; email: string; name: string },
@@ -68,11 +68,11 @@ export async function linkReservationsToUser(
 ): Promise<number> {
   const linked = await db.parkingReservation.updateMany({
     where: {
-      userId: null,
+      visitorUserId: null,
       requesterEmail: params.email.trim().toLowerCase(),
       requesterName: params.name.trim(),
     },
-    data: { userId: params.userId },
+    data: { visitorUserId: params.userId },
   });
   return linked.count;
 }

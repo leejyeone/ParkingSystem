@@ -9,7 +9,7 @@ import { apiRequest } from '@/lib/client/api-client';
 
 export function AdminLoginForm({ redirectTo }: { redirectTo: string }) {
   const router = useRouter();
-  const [loginId, setLoginId] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -23,7 +23,7 @@ export function AdminLoginForm({ redirectTo }: { redirectTo: string }) {
 
     const response = await apiRequest<{ adminName: string }>('/api/admin/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ loginId, password }),
+      body: JSON.stringify({ email, password }),
     });
 
     if (response.ok) {
@@ -46,15 +46,16 @@ export function AdminLoginForm({ redirectTo }: { redirectTo: string }) {
           </Alert>
         )}
 
-        <FormField label="로그인 ID" htmlFor="loginId" required errors={fieldErrors.loginId}>
+        <FormField label="이메일" htmlFor="email" required errors={fieldErrors.email}>
           <input
-            id="loginId"
-            name="loginId"
-            className={inputClassName(Boolean(fieldErrors.loginId))}
-            value={loginId}
-            onChange={(event) => setLoginId(event.target.value)}
-            autoComplete="username"
-            maxLength={50}
+            id="email"
+            name="email"
+            type="email"
+            className={inputClassName(Boolean(fieldErrors.email))}
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            autoComplete="email"
+            maxLength={255}
           />
         </FormField>
 

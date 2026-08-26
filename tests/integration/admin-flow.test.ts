@@ -41,13 +41,13 @@ describe('7. 승인 대기 예약을 일반 주차면으로 승인', () => {
 
     const approved = await approveReservation({
       reservationId: reservation.reservationId,
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
     });
 
     expect(approved.reservationStatus).toBe(ReservationStatus.APPROVED);
     expect(approved.assignedSpaceId).toBe(fixtures.normalSpaceIds[0]);
     expect(approved.assignedSpace?.spaceType).toBe(SpaceType.NORMAL);
-    expect(approved.approvalAdminId).toBe(fixtures.parkingAdminId);
+    expect(approved.approvalAdminId).toBe(fixtures.secondAdminId);
     expect(approved.approvedAt).not.toBeNull();
 
     const approvedMails = await prisma.emailSendLog.findMany({
@@ -62,7 +62,7 @@ describe('7. 승인 대기 예약을 일반 주차면으로 승인', () => {
     const approved = await approveReservation({
       reservationId: reservation.reservationId,
       spaceId: fixtures.normalSpaceIds[1],
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
     });
 
     expect(approved.assignedSpaceId).toBe(fixtures.normalSpaceIds[1]);
@@ -72,13 +72,13 @@ describe('7. 승인 대기 예약을 일반 주차면으로 승인', () => {
     const { reservation } = await createReservation(baseReservationInput());
     await approveReservation({
       reservationId: reservation.reservationId,
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
     });
 
     const audit = await prisma.auditLog.findFirst({
       where: { actionType: AUDIT_ACTIONS.RESERVATION_APPROVE },
     });
-    expect(audit?.actorAdminId).toBe(fixtures.parkingAdminId);
+    expect(audit?.actorAdminId).toBe(fixtures.secondAdminId);
     expect(audit?.targetId).toBe(String(reservation.reservationId));
   });
 
@@ -86,13 +86,13 @@ describe('7. 승인 대기 예약을 일반 주차면으로 승인', () => {
     const { reservation } = await createReservation(baseReservationInput());
     await approveReservation({
       reservationId: reservation.reservationId,
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
     });
 
     await expect(
       approveReservation({
         reservationId: reservation.reservationId,
-        adminUserId: fixtures.parkingAdminId,
+        adminUserId: fixtures.secondAdminId,
       }),
     ).rejects.toBeInstanceOf(InvalidStateTransitionError);
   });
@@ -115,7 +115,7 @@ describe('8. 일반 주차면 만차 시 이중주차로 승인', () => {
     const first = await createReservation(baseReservationInput(range));
     await approveReservation({
       reservationId: first.reservation.reservationId,
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
     });
 
     const second = await createReservation(
@@ -125,7 +125,7 @@ describe('8. 일반 주차면 만차 시 이중주차로 승인', () => {
     // 배정 위치는 승인 시점에 정해진다. (일반이 다 찼으므로 이중주차)
     const approved = await approveReservation({
       reservationId: second.reservation.reservationId,
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
     });
 
     expect(approved.assignedSpace?.spaceType).toBe(SpaceType.DOUBLE);
@@ -151,7 +151,7 @@ describe('8. 일반 주차면 만차 시 이중주차로 승인', () => {
       );
       await approveReservation({
         reservationId: created.reservation.reservationId,
-        adminUserId: fixtures.parkingAdminId,
+        adminUserId: fixtures.secondAdminId,
       });
     }
 
@@ -162,7 +162,7 @@ describe('8. 일반 주차면 만차 시 이중주차로 승인', () => {
     await expect(
       approveReservation({
         reservationId: overflow.reservation.reservationId,
-        adminUserId: fixtures.parkingAdminId,
+        adminUserId: fixtures.secondAdminId,
       }),
     ).rejects.toThrowError(/배정 가능한 주차면이 없습니다/);
   });
@@ -181,7 +181,7 @@ describe('9. 동일 주차면의 중복 시간대 승인 실패', () => {
     await approveReservation({
       reservationId: first.reservation.reservationId,
       spaceId: fixtures.normalSpaceIds[0],
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
     });
 
     const second = await createReservation(
@@ -196,7 +196,7 @@ describe('9. 동일 주차면의 중복 시간대 승인 실패', () => {
       approveReservation({
         reservationId: second.reservation.reservationId,
         spaceId: fixtures.normalSpaceIds[0],
-        adminUserId: fixtures.parkingAdminId,
+        adminUserId: fixtures.secondAdminId,
       }),
     ).rejects.toBeInstanceOf(ConflictError);
   });
@@ -208,7 +208,7 @@ describe('9. 동일 주차면의 중복 시간대 승인 실패', () => {
     await approveReservation({
       reservationId: first.reservation.reservationId,
       spaceId: fixtures.normalSpaceIds[0],
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
     });
 
     const second = await createReservation(
@@ -222,7 +222,7 @@ describe('9. 동일 주차면의 중복 시간대 승인 실패', () => {
     const approved = await approveReservation({
       reservationId: second.reservation.reservationId,
       spaceId: fixtures.normalSpaceIds[0],
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
     });
     expect(approved.assignedSpaceId).toBe(fixtures.normalSpaceIds[0]);
   });
@@ -240,7 +240,7 @@ describe('반려 / 입차 / 출차 / 미방문 처리', () => {
     const rejected = await rejectReservation({
       reservationId: reservation.reservationId,
       rejectionReason: '해당 시간대 주차 공간 부족',
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
     });
 
     expect(rejected.reservationStatus).toBe(ReservationStatus.REJECTED);
@@ -257,13 +257,13 @@ describe('반려 / 입차 / 출차 / 미방문 처리', () => {
     const { reservation } = await createReservation(baseReservationInput());
     await approveReservation({
       reservationId: reservation.reservationId,
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
     });
 
     const parking = await markEntry({
       reservationId: reservation.reservationId,
       actualEntryAt: new Date(),
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
     });
     expect(parking.reservationStatus).toBe(ReservationStatus.PARKING);
     expect(parking.actualEntryAt).not.toBeNull();
@@ -271,7 +271,7 @@ describe('반려 / 입차 / 출차 / 미방문 처리', () => {
     const exited = await markExit({
       reservationId: reservation.reservationId,
       actualExitAt: new Date(),
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
     });
     expect(exited.reservationStatus).toBe(ReservationStatus.EXITED);
     expect(exited.actualExitAt).not.toBeNull();
@@ -284,7 +284,7 @@ describe('반려 / 입차 / 출차 / 미방문 처리', () => {
       markEntry({
         reservationId: reservation.reservationId,
         actualEntryAt: new Date(),
-        adminUserId: fixtures.parkingAdminId,
+        adminUserId: fixtures.secondAdminId,
       }),
     ).rejects.toBeInstanceOf(InvalidStateTransitionError);
   });
@@ -293,12 +293,12 @@ describe('반려 / 입차 / 출차 / 미방문 처리', () => {
     const { reservation } = await createReservation(baseReservationInput());
     await approveReservation({
       reservationId: reservation.reservationId,
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
     });
 
     const noShow = await markNoShow({
       reservationId: reservation.reservationId,
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
     });
 
     expect(noShow.reservationStatus).toBe(ReservationStatus.NO_SHOW);
@@ -310,13 +310,13 @@ describe('반려 / 입차 / 출차 / 미방문 처리', () => {
     await approveReservation({
       reservationId: reservation.reservationId,
       spaceId: fixtures.normalSpaceIds[0],
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
     });
 
     const changed = await changeAssignedSpace({
       reservationId: reservation.reservationId,
       spaceId: fixtures.normalSpaceIds[1],
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
     });
 
     expect(changed.assignedSpaceId).toBe(fixtures.normalSpaceIds[1]);
@@ -331,7 +331,7 @@ describe('반려 / 입차 / 출차 / 미방문 처리', () => {
     const { reservation } = await createReservation(baseReservationInput());
 
     await getReservationDetailForAdmin(reservation.reservationId, {
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
       requestContext: { ipAddress: '10.0.0.1', userAgent: 'vitest' },
     });
 
@@ -347,7 +347,7 @@ describe('반려 / 입차 / 출차 / 미방문 처리', () => {
     await listReservationsForAdmin(
       { requesterName: '홍길동', vehicleNo: '12가3456' },
       {
-        adminUserId: fixtures.parkingAdminId,
+        adminUserId: fixtures.secondAdminId,
         requestContext: { ipAddress: '10.0.0.2', userAgent: 'vitest' },
       },
     );
@@ -373,7 +373,7 @@ describe('반려 / 입차 / 출차 / 미방문 처리', () => {
   it('같은 관리자가 5분 안에 같은 대상을 반복 열람하면 한 건으로 묶인다', async () => {
     const { reservation } = await createReservation(baseReservationInput());
     const actor = {
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
       requestContext: { ipAddress: '10.0.0.3', userAgent: 'vitest' },
     };
 
@@ -396,12 +396,12 @@ describe('반려 / 입차 / 출차 / 미방문 처리', () => {
     await approveReservation({
       reservationId: first.reservation.reservationId,
       spaceId: fixtures.normalSpaceIds[0],
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
     });
     await approveReservation({
       reservationId: second.reservation.reservationId,
       spaceId: fixtures.normalSpaceIds[1],
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
     });
 
     const approveCount = await prisma.auditLog.count({
@@ -421,7 +421,7 @@ describe('12. 출차 예정 알림 중복 발송 방지', () => {
     const { reservation } = await createReservation(baseReservationInput());
     await approveReservation({
       reservationId: reservation.reservationId,
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
     });
 
     // 출차 예정 시각을 5분 뒤로 옮겨 알림 대상으로 만든다.
@@ -452,7 +452,7 @@ describe('12. 출차 예정 알림 중복 발송 방지', () => {
     const { reservation } = await createReservation(baseReservationInput());
     await approveReservation({
       reservationId: reservation.reservationId,
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
     });
 
     await prisma.parkingReservation.update({
@@ -476,7 +476,7 @@ describe('12. 출차 예정 알림 중복 발송 방지', () => {
     const { reservation } = await createReservation(baseReservationInput());
     await approveReservation({
       reservationId: reservation.reservationId,
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
     });
 
     const result = await runExitReminderJob();
@@ -487,7 +487,7 @@ describe('12. 출차 예정 알림 중복 발송 방지', () => {
     const { reservation } = await createReservation(baseReservationInput());
     await approveReservation({
       reservationId: reservation.reservationId,
-      adminUserId: fixtures.parkingAdminId,
+      adminUserId: fixtures.secondAdminId,
     });
     await prisma.parkingReservation.update({
       where: { reservationId: reservation.reservationId },

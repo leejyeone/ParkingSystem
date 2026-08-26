@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState, type ChangeEvent, type FormEvent } from 'react';
 
 import { Alert } from '@/components/ui/alert';
@@ -32,14 +33,27 @@ export type ReservationFormInitialValues = {
 };
 
 type CreateResponse = {
+  reservationId: number;
   reservationNo: string;
   reservationStatus: string;
   visitRangeText: string;
   emailNoticeSentTo: string;
 };
 
+/**
+ * visitor: 방문객 본인 신청 (공개, 로그인 선택)
+ * employee-self: 직원 본인 방문 신청 (로그인 필수, 동의 카드 없음)
+ * employee-proxy: 직원이 담당 방문객을 대신 신청 (로그인 필수, "동의 확인" 체크로 대체)
+ */
+export type ReservationFormMode = 'visitor' | 'employee-self' | 'employee-proxy';
+
+const ENDPOINT_BY_MODE: Record<ReservationFormMode, string> = {
+  visitor: '/api/reservations',
+  'employee-self': '/api/reservations/employee',
+  'employee-proxy': '/api/reservations/employee/proxy',
+};
+
 type FormState = {
-  requesterType: 'VISITOR' | 'EMPLOYEE';
   companyOrBranchName: string;
   requesterName: string;
   requesterEmail: string;
@@ -53,7 +67,6 @@ type FormState = {
 
 function buildInitialState(initialValues?: ReservationFormInitialValues): FormState {
   return {
-    requesterType: 'VISITOR',
     companyOrBranchName: initialValues?.companyOrBranchName ?? '',
     requesterName: initialValues?.requesterName ?? '',
     requesterEmail: initialValues?.requesterEmail ?? '',
@@ -67,10 +80,12 @@ function buildInitialState(initialValues?: ReservationFormInitialValues): FormSt
 }
 
 export function ReservationForm({
+  mode,
   settings,
   initialValues,
   autofilled = false,
 }: {
+  mode: ReservationFormMode;
   settings: Settings;
   initialValues?: ReservationFormInitialValues;
   /** 로그인 회원 정보로 자동완성된 상태인지 */
@@ -105,21 +120,26 @@ export function ReservationForm({
     setFormError(null);
     setFieldErrors({});
 
-    const response = await apiRequest<CreateResponse>('/api/reservations', {
+    const basePayload = {
+      companyOrBranchName: form.companyOrBranchName,
+      requesterName: form.requesterName,
+      requesterEmail: form.requesterEmail,
+      vehicleNo: form.vehicleNo,
+      visitPurpose: form.visitPurpose || null,
+      requestMemo: form.requestMemo || null,
+      visitStartAt: form.visitStartAt,
+      visitEndAt: form.visitEndAt,
+    };
+    const payload =
+      mode === 'visitor'
+        ? { ...basePayload, privacyConsent: form.privacyConsent }
+        : mode === 'employee-proxy'
+          ? { ...basePayload, visitorConsentConfirmed: form.privacyConsent }
+          : basePayload;
+
+    const response = await apiRequest<CreateResponse>(ENDPOINT_BY_MODE[mode], {
       method: 'POST',
-      body: JSON.stringify({
-        requesterType: form.requesterType,
-        companyOrBranchName: form.companyOrBranchName,
-        requesterName: form.requesterName,
-        requesterEmail: form.requesterEmail,
-        vehicleNo: form.vehicleNo,
-        visitPurpose: form.visitPurpose || null,
-        requestMemo: form.requestMemo || null,
-        visitStartAt: form.visitStartAt,
-        visitEndAt: form.visitEndAt,
-        // 직원은 동의 카드를 보여주지 않는 대신, 서버 스키마가 요구하는 동의값을 자동으로 채운다.
-        privacyConsent: form.requesterType === 'EMPLOYEE' ? true : form.privacyConsent,
-      }),
+      body: JSON.stringify(payload),
     });
 
     setSubmitting(false);
@@ -136,7 +156,14 @@ export function ReservationForm({
   }
 
   if (result) {
-    return <CompletionView result={result} />;
+    return (
+      <CompletionView
+        mode={mode}
+        result={result}
+        requesterName={form.requesterName}
+        vehicleNo={form.vehicleNo}
+      />
+    );
   }
 
   // 방문 목적/요청 메모는 선택 입력이라 뺀다. 서버가 최종 검증하며, 이건 버튼 활성화용 힌트일 뿐이다.
@@ -147,8 +174,12 @@ export function ReservationForm({
     form.vehicleNo.trim() !== '' &&
     form.visitStartAt !== '' &&
     form.visitEndAt !== '' &&
-    // 직원은 개인정보 수집·이용 동의 카드를 보여주지 않으므로 체크 여부를 요구하지 않는다.
-    (form.requesterType === 'EMPLOYEE' || form.privacyConsent);
+    // 직원 본인 신청은 개인정보 수집·이용 동의 카드를 보여주지 않으므로 체크 여부를 요구하지 않는다.
+    (mode === 'employee-self' || form.privacyConsent);
+
+  // 서버 검증 오류 필드명이 모드별로 다르다(privacyConsent vs visitorConsentConfirmed).
+  const consentFieldErrors =
+    mode === 'employee-proxy' ? fieldErrors.visitorConsentConfirmed : fieldErrors.privacyConsent;
 
   return (
     <form onSubmit={handleSubmit} noValidate>
@@ -171,40 +202,7 @@ export function ReservationForm({
       <div className="card">
         <div className="card-body space-y-5">
           <FormField
-            label="신청 구분"
-            htmlFor="requesterType"
-            required
-            errors={fieldErrors.requesterType}
-          >
-            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="신청 구분">
-              {(
-                [
-                  { value: 'VISITOR', label: '방문객', desc: '외부 방문' },
-                  { value: 'EMPLOYEE', label: '직원', desc: '타 사업장 근무' },
-                ] as const
-              ).map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  role="radio"
-                  aria-checked={form.requesterType === option.value}
-                  onClick={() => update('requesterType', option.value)}
-                  className={`min-h-16 rounded-lg border-2 px-3 py-2 text-left transition ${
-                    form.requesterType === option.value
-                      ? 'border-brand-600 bg-brand-50'
-                      : 'border-slate-200 bg-white'
-                  }`}
-                >
-                  <span className="block text-sm font-bold text-slate-900">{option.label}</span>
-                  <span className="block text-xs text-slate-500">{option.desc}</span>
-                </button>
-              ))}
-            </div>
-            <input type="hidden" id="requesterType" value={form.requesterType} readOnly />
-          </FormField>
-
-          <FormField
-            label={form.requesterType === 'VISITOR' ? '방문상호' : '소속 사업장명'}
+            label={mode === 'employee-self' ? '소속 사업장명' : '방문상호'}
             htmlFor="companyOrBranchName"
             required
             errors={fieldErrors.companyOrBranchName}
@@ -345,7 +343,7 @@ export function ReservationForm({
         </div>
       </div>
 
-      {form.requesterType === 'VISITOR' && (
+      {mode !== 'employee-self' && (
         <div className="card mt-4">
           <div className="card-body">
             <h2 className="card-title">개인정보 수집 및 이용 동의</h2>
@@ -369,9 +367,7 @@ export function ReservationForm({
             <label
               htmlFor="privacyConsent"
               className={`mt-3 flex min-h-12 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 ${
-                fieldErrors.privacyConsent
-                  ? 'border-red-400 bg-red-50'
-                  : 'border-slate-300 bg-white'
+                consentFieldErrors ? 'border-red-400 bg-red-50' : 'border-slate-300 bg-white'
               }`}
             >
               <input
@@ -383,12 +379,14 @@ export function ReservationForm({
                 onChange={(event) => update('privacyConsent', event.target.checked)}
               />
               <span className="text-sm font-semibold text-slate-800">
-                위 내용을 확인하였으며 개인정보 수집 및 이용에 동의합니다.
+                {mode === 'employee-proxy'
+                  ? '방문객에게 위 수집·이용 목적을 안내하였고, 방문객으로부터 개인정보 수집·이용 동의를 확인하였습니다.'
+                  : '위 내용을 확인하였으며 개인정보 수집 및 이용에 동의합니다.'}
               </span>
             </label>
-            {fieldErrors.privacyConsent && (
+            {consentFieldErrors && (
               <p className="field-error" role="alert">
-                {fieldErrors.privacyConsent[0]}
+                {consentFieldErrors[0]}
               </p>
             )}
           </div>
@@ -408,7 +406,50 @@ export function ReservationForm({
   );
 }
 
-function CompletionView({ result }: { result: CreateResponse }) {
+function CompletionView({
+  mode,
+  result,
+  requesterName,
+  vehicleNo,
+}: {
+  mode: ReservationFormMode;
+  result: CreateResponse;
+  /** 방금 제출한 신청자 성명/차량번호. 방문객 조회 화면으로 자동 진입하는 데 쓴다. */
+  requesterName: string;
+  vehicleNo: string;
+}) {
+  const router = useRouter();
+  const isEmployee = mode !== 'visitor';
+  const [lookingUp, setLookingUp] = useState(false);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+
+  /**
+   * 방문객은 이 예약을 성명·차량번호로 다시 검증해 접근 토큰을 발급받아 곧바로
+   * 조회 화면으로 이동한다. 방금 신청한 값을 그대로 쓰므로 다시 입력할 필요가 없다.
+   */
+  async function handleLookupNow() {
+    if (lookingUp) return;
+    setLookingUp(true);
+    setLookupError(null);
+
+    const response = await apiRequest<{ accessPath: string }>('/api/reservations/lookup/access', {
+      method: 'POST',
+      body: JSON.stringify({
+        reservationId: result.reservationId,
+        requesterName,
+        vehicleNo,
+      }),
+    });
+
+    if (response.ok) {
+      router.push(response.data.accessPath);
+      return;
+    }
+
+    setLookingUp(false);
+    setLookupError(response.error.message);
+  }
+
   return (
     <div className="card" data-testid="reservation-complete">
       <div className="card-body">
@@ -451,14 +492,26 @@ function CompletionView({ result }: { result: CreateResponse }) {
             </p>
             <p className="mt-1">메일이 도착하지 않으면 스팸함을 확인해 주세요.</p>
           </Alert>
+          {lookupError && <Alert variant="error">{lookupError}</Alert>}
         </div>
 
         <div className="mt-5 grid gap-2 sm:grid-cols-2">
-          <Link href="/reservations/lookup" className="btn btn-primary">
-            내 예약 조회하기
-          </Link>
-          <Link href="/" className="btn btn-secondary">
-            처음으로
+          {isEmployee ? (
+            <Link href="/employee/reservations" className="btn btn-primary">
+              내 신청 내역
+            </Link>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleLookupNow}
+              disabled={lookingUp}
+            >
+              {lookingUp ? '조회 중…' : '방금 신청한 예약 조회하기'}
+            </button>
+          )}
+          <Link href={isEmployee ? '/employee' : '/'} className="btn btn-secondary">
+            {isEmployee ? '직원 홈으로' : '처음으로'}
           </Link>
         </div>
       </div>
