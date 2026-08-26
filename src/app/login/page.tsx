@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { UserLoginForm } from '@/components/user/user-login-form';
+import { resolveHomeHref } from '@/lib/home-link';
 import { safeUserRedirect } from '@/lib/user-page-guard';
 import { getUserSession } from '@/lib/user-session';
 
@@ -13,7 +14,7 @@ export const metadata: Metadata = { title: '로그인' };
 type PageProps = { searchParams: Promise<{ redirect?: string }> };
 
 export default async function UserLoginPage({ searchParams }: PageProps) {
-  const session = await getUserSession();
+  const [session, homeHref] = await Promise.all([getUserSession(), resolveHomeHref()]);
   const { redirect: redirectParam } = await searchParams;
   const redirectTo = safeUserRedirect(redirectParam);
 
@@ -24,7 +25,7 @@ export default async function UserLoginPage({ searchParams }: PageProps) {
   return (
     <main className="app-container max-w-md">
       <div className="mb-6 text-center">
-        <Link href="/" className="text-brand-700 text-xs font-semibold">
+        <Link href={homeHref} className="text-brand-700 text-xs font-semibold">
           ← 처음으로
         </Link>
         <h1 className="mt-2 text-2xl font-black text-slate-900">로그인</h1>

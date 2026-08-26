@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ParkingMap } from '@/components/parking-map';
 import { ReservationAccessPanel } from '@/components/reservation/reservation-access-panel';
 import { Alert } from '@/components/ui/alert';
+import { resolveHomeHref } from '@/lib/home-link';
 import { toRequesterReservationView } from '@/lib/serializers/reservation-view';
 import { resolveAccessToken } from '@/services/reservation-access-service';
 import { getReservationForRequester } from '@/services/reservation-service';
@@ -26,6 +27,7 @@ type PageProps = { params: Promise<{ token: string }> };
  */
 export default async function ReservationAccessPage({ params }: PageProps) {
   const { token } = await params;
+  const homeHref = await resolveHomeHref();
 
   let resolvedReservationId: number;
   try {
@@ -53,6 +55,7 @@ export default async function ReservationAccessPage({ params }: PageProps) {
 
       <ReservationAccessPanel
         token={token}
+        homeHref={homeHref}
         initialReservation={view}
         settings={{
           reservationMinLeadMinutes: settings.reservationMinLeadMinutes,

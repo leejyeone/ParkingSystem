@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { UserSignUpForm } from '@/components/user/user-signup-form';
+import { resolveHomeHref } from '@/lib/home-link';
 import { getUserSession } from '@/lib/user-session';
 
 export const dynamic = 'force-dynamic';
@@ -10,7 +11,7 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: '회원가입' };
 
 export default async function SignUpPage() {
-  const session = await getUserSession();
+  const [session, homeHref] = await Promise.all([getUserSession(), resolveHomeHref()]);
   if (session) {
     redirect('/mypage');
   }
@@ -18,7 +19,7 @@ export default async function SignUpPage() {
   return (
     <main className="app-container max-w-md">
       <div className="mb-6 text-center">
-        <Link href="/" className="text-brand-700 text-xs font-semibold">
+        <Link href={homeHref} className="text-brand-700 text-xs font-semibold">
           ← 처음으로
         </Link>
         <h1 className="mt-2 text-2xl font-black text-slate-900">회원가입</h1>

@@ -3,6 +3,7 @@ import Link from 'next/link';
 
 import { ReservationLookupForm } from '@/components/reservation/reservation-lookup-form';
 import { Alert } from '@/components/ui/alert';
+import { resolveHomeHref } from '@/lib/home-link';
 import { getUserSession } from '@/lib/user-session';
 
 export const dynamic = 'force-dynamic';
@@ -17,12 +18,12 @@ export const metadata: Metadata = { title: '내 예약 조회' };
  *  2) 접수/승인 메일에 포함된 보안 링크 (/r/<token>)
  */
 export default async function ReservationLookupPage() {
-  const session = await getUserSession();
+  const [session, homeHref] = await Promise.all([getUserSession(), resolveHomeHref()]);
 
   return (
     <main className="app-container">
       <div className="mb-4">
-        <Link href="/" className="text-brand-700 text-sm font-semibold">
+        <Link href={homeHref} className="text-brand-700 text-sm font-semibold">
           ← 처음으로
         </Link>
         <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">내 예약 조회</h1>

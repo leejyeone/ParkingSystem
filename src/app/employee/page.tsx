@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { EmployeeLogoutButton } from '@/components/employee/employee-logout-button';
 import { DEFAULT_SETTINGS } from '@/domain/system-settings';
 import { requireEmployeePage } from '@/lib/employee-page-guard';
 import { getEmployeeProfile } from '@/services/employee-auth-service';
@@ -20,16 +19,13 @@ export default async function EmployeeHomePage() {
 
   return (
     <main className="app-container">
-      <header className="mb-6 flex items-start justify-between gap-3">
-        <div>
-          <p className="text-brand-700 text-xs font-bold tracking-widest">SYNOPEX VISIT</p>
-          <h1 className="mt-2 text-2xl font-black text-slate-900 sm:text-3xl">직원 홈</h1>
-          <p className="mt-2 text-sm leading-relaxed text-slate-600">
-            {profile?.branchName ?? '소속 정보 없음'} {profile?.name ?? session.name}
-            님, 안녕하세요.
-          </p>
-        </div>
-        <EmployeeLogoutButton />
+      <header className="mb-6 text-center">
+        <p className="text-brand-700 text-xs font-bold tracking-widest">SYNOPEX VISIT</p>
+        <h1 className="mt-2 text-2xl font-black text-slate-900 sm:text-3xl">시노펙스 방문 예약</h1>
+        <p className="mt-2 text-sm leading-relaxed text-slate-600">
+          {profile?.branchName ?? '소속 정보 없음'} {profile?.name ?? session.name}
+          님, 안녕하세요.
+        </p>
       </header>
 
       <nav className="grid gap-3">
@@ -40,7 +36,7 @@ export default async function EmployeeHomePage() {
           방문객을 대신 신청합니다
         </Link>
         <Link href="/employee/reservations" className="btn btn-secondary btn-lg w-full">
-          내 신청 내역
+          마이페이지
         </Link>
       </nav>
 

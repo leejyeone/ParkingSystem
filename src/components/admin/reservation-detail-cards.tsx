@@ -187,11 +187,12 @@ export function RequesterInfoCard({
   editable: boolean;
   initial: EditableFields;
   readOnly: {
+    requesterType: 'VISITOR' | 'EMPLOYEE';
     requesterTypeLabel: string;
     requesterEmail: string;
     privacyConsentText: string;
     createdAtText: string;
-    /** 직원이 대신 신청한 건이면 담당 직원 안내 문구. 그 외에는 null. */
+    /** 직원이 대신 신청한 건이면 당사 담당 직원 이름/이메일. 그 외에는 null. */
     employeeUserText: string | null;
   };
 }) {
@@ -216,7 +217,7 @@ export function RequesterInfoCard({
         <div className="mt-3 space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
             <FormField
-              label="방문 상호/사업장"
+              label={readOnly.requesterType === 'EMPLOYEE' ? '사업장' : '방문 상호'}
               htmlFor="edit-company"
               required
               errors={state.fieldErrors.companyOrBranchName}
@@ -291,8 +292,11 @@ export function RequesterInfoCard({
       ) : (
         <dl className="mt-3">
           <Row term="신청 구분" desc={readOnly.requesterTypeLabel} />
-          {readOnly.employeeUserText && <Row term="대리 신청" desc={readOnly.employeeUserText} />}
-          <Row term="방문 상호/사업장" desc={initial.companyOrBranchName} />
+          {readOnly.employeeUserText && <Row term="당사 담당자" desc={readOnly.employeeUserText} />}
+          <Row
+            term={readOnly.requesterType === 'EMPLOYEE' ? '사업장' : '방문 상호'}
+            desc={initial.companyOrBranchName}
+          />
           <Row term="성명" desc={initial.requesterName} />
           <Row term="이메일" desc={readOnly.requesterEmail} />
           <Row term="차량번호" desc={initial.vehicleNo} />

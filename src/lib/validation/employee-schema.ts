@@ -28,3 +28,15 @@ export const employeeLoginSchema = z.object({
     .min(1, '비밀번호를 입력해 주세요.')
     .max(100, '비밀번호는 100자 이하로 입력해 주세요.'),
 });
+
+export const employeeProfileUpdateSchema = z.object({
+  name: requiredText(50, '성명'),
+  branchName: requiredText(100, '소속 사업장명'),
+  vehicleNo: optionalVehicleNoSchema,
+  /** 값이 있을 때만 비밀번호를 변경한다. */
+  password: z
+    .string()
+    .min(USER_PASSWORD_MIN_LENGTH, USER_PASSWORD_POLICY_MESSAGE)
+    .max(100, '비밀번호는 100자 이하로 입력해 주세요.')
+    .optional(),
+});

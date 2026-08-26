@@ -8,6 +8,7 @@ import { Alert } from '@/components/ui/alert';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { REQUESTER_TYPE_LABEL } from '@/domain/reservation-status';
 import { formatKstRange } from '@/lib/datetime';
+import { resolveHomeHref } from '@/lib/home-link';
 import { requireUserPage } from '@/lib/user-page-guard';
 import { listReservationsForUser } from '@/services/reservation-service';
 import { getSystemSettings } from '@/services/settings-service';
@@ -21,6 +22,7 @@ type PageProps = { searchParams: Promise<{ linked?: string }> };
 
 export default async function MyPage({ searchParams }: PageProps) {
   const session = await requireUserPage('/mypage');
+  const homeHref = await resolveHomeHref();
   const linkedCount = Number((await searchParams).linked);
 
   const profile = await getUserProfile(session.userId);
@@ -47,7 +49,7 @@ export default async function MyPage({ searchParams }: PageProps) {
     <main className="app-container space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <Link href="/" className="text-brand-700 text-sm font-semibold">
+          <Link href={homeHref} className="text-brand-700 text-sm font-semibold">
             ← 처음으로
           </Link>
           <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">마이페이지</h1>

@@ -139,7 +139,7 @@ export function resolveDisplayStatus(
 
 export const REQUESTER_TYPE_LABEL = {
   VISITOR: '방문객',
-  EMPLOYEE: '직원',
+  EMPLOYEE: '시노펙스 직원',
 } as const;
 
 export const SPACE_TYPE_LABEL = {

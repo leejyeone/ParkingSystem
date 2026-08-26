@@ -16,7 +16,6 @@ export type BulkRejectableItem = {
   reservationNo: string;
   reservationStatus: ReservationStatus;
   requesterType: RequesterType;
-  employeeUserId: number | null;
   companyOrBranchName: string;
   requesterName: string;
   requesterEmail: string;
@@ -268,12 +267,7 @@ export function ReservationBulkRejectTable({
                       {item.visitStartText}
                       <br />~ {item.visitEndText}
                     </td>
-                    <td>
-                      {REQUESTER_TYPE_LABEL[item.requesterType]}
-                      {item.employeeUserId && item.requesterType === 'VISITOR' && (
-                        <span className="badge ml-1 bg-slate-100 text-slate-700">대리신청</span>
-                      )}
-                    </td>
+                    <td>{REQUESTER_TYPE_LABEL[item.requesterType]}</td>
                     <td className="text-xs">{item.requesterEmail}</td>
                     <td className="font-mono text-xs">{item.reservationNo}</td>
                     <td className="text-xs whitespace-nowrap text-slate-500">

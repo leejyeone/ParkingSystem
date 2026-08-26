@@ -37,7 +37,7 @@ async function signUpEmployee(page: Page) {
   await page.getByLabel('차량번호').fill(EMPLOYEE.vehicleNo);
   await page.getByRole('button', { name: '가입하고 시작하기' }).click();
 
-  await expect(page.getByRole('heading', { name: '직원 홈' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '시노펙스 방문 예약' })).toBeVisible();
 }
 
 test('직원 회원가입하면 직원 홈으로 이동하고 소속 정보가 보인다', async ({ page }) => {
@@ -74,7 +74,7 @@ test('직원 본인 방문 신청은 동의 카드 없이 완료되고 직원 �
   await expect(page.getByTestId('reservation-complete')).toBeVisible();
 
   await page.getByRole('link', { name: '직원 홈으로' }).click();
-  await expect(page.getByRole('heading', { name: '직원 홈' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '시노펙스 방문 예약' })).toBeVisible();
 
   const saved = await prisma.parkingReservation.findFirst();
   expect(saved?.requesterType).toBe('EMPLOYEE');
@@ -131,7 +131,38 @@ test('직원의 내 신청 내역에는 본인 방문과 대리 신청이 구분
   await expect(page.getByTestId('reservation-complete')).toBeVisible();
 
   await page.goto('/employee/reservations');
-  await expect(page.getByText('신청 내역 (2건)')).toBeVisible();
-  await expect(page.getByText('내 방문')).toBeVisible();
-  await expect(page.getByText('대신 신청함')).toBeVisible();
+  await expect(page.getByText('내 예약 (2건)')).toBeVisible();
+  // 대리 신청 건에만 방문 상호명 태그가 붙고, 본인 방문 건에는 태그가 붙지 않는다.
+  await expect(page.getByText('외부 협력업체', { exact: true })).toHaveCount(1);
+});
+
+test('내 신청 내역에서 카드를 누르면 예약 상세 조회 화면으로 이동한다', async ({ page }) => {
+  await signUpEmployee(page);
+
+  await page.goto('/employee/reservations/new');
+  await page.getByLabel('입차 예정 시간').fill(tomorrowInput(10));
+  await page.getByLabel('출차 예정 시간').fill(tomorrowInput(12));
+  await page.getByRole('button', { name: '방문 신청하기' }).click();
+  await expect(page.getByTestId('reservation-complete')).toBeVisible();
+  const reservationNo = await page.getByTestId('reservation-no').innerText();
+
+  await page.goto('/employee/reservations');
+  await page.getByText(reservationNo).click();
+
+  await expect(page).toHaveURL(/\/r\//);
+  await expect(page.getByRole('heading', { name: '내 예약' })).toBeVisible();
+  await expect(page.getByText(EMPLOYEE.name)).toBeVisible();
+});
+
+test('내 신청 내역에서 내 정보를 수정할 수 있다', async ({ page }) => {
+  await signUpEmployee(page);
+
+  await page.goto('/employee/reservations');
+  await page.getByLabel('소속 사업장명').fill('시노펙스 부산사업장');
+  await page.getByRole('button', { name: '내 정보 저장' }).click();
+
+  await expect(page.getByText('내 정보를 저장했습니다.')).toBeVisible();
+
+  await page.goto('/employee/reservations/new');
+  await expect(page.getByLabel('소속 사업장명')).toHaveValue('시노펙스 부산사업장');
 });

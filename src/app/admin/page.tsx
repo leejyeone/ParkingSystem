@@ -55,6 +55,9 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
 
   const maxHourlyUsage = Math.max(1, ...dashboard.hourlyUsage.map((slot) => slot.usedCount));
   const showSpace = dashboard.spaceAssignmentEnabled;
+  // 도면(주차 평면도)에는 비활성 주차면도 회색으로 표시해야 하지만, 아래 표는 실제 배정 가능한
+  // 주차면만 보여주면 되므로 비활성 주차면은 제외한다.
+  const activeSpaces = dashboard.spaces.filter((space) => space.isActive);
 
   return (
     <main className="app-container-wide space-y-4">
@@ -287,7 +290,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
             <h2 className="card-title">
               주차면 현황
               <span className="ml-2 text-xs font-bold text-slate-500">
-                {dashboard.spaces.filter((space) => space.status === 'IN_USE').length}면 사용 중
+                {activeSpaces.filter((space) => space.status === 'IN_USE').length}면 사용 중
               </span>
             </h2>
             <p className="field-hint">입차 예정: 입차 처리 미완료, 사용 중: 입차 처리 완료</p>
@@ -314,7 +317,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {dashboard.spaces.map((space) => (
+                  {activeSpaces.map((space) => (
                     <tr key={space.spaceId}>
                       <td className="font-mono font-bold">{space.spaceCode}</td>
                       <td>

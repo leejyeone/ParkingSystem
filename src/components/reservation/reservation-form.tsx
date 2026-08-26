@@ -498,7 +498,7 @@ function CompletionView({
         <div className="mt-5 grid gap-2 sm:grid-cols-2">
           {isEmployee ? (
             <Link href="/employee/reservations" className="btn btn-primary">
-              내 신청 내역
+              마이페이지
             </Link>
           ) : (
             <button

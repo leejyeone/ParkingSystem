@@ -8,6 +8,7 @@ import {
 import { Alert } from '@/components/ui/alert';
 import { DEFAULT_SETTINGS } from '@/domain/system-settings';
 import { earliestSelectableInput } from '@/lib/datetime';
+import { resolveHomeHref } from '@/lib/home-link';
 import { getUserSession } from '@/lib/user-session';
 import { getSystemSettings } from '@/services/settings-service';
 import { getUserProfile } from '@/services/user-auth-service';
@@ -20,7 +21,7 @@ export default async function NewReservationPage() {
   const settings = await getSystemSettings().catch(() => DEFAULT_SETTINGS);
 
   // 로그인 회원이면 저장된 정보로 폼을 자동완성한다. 비로그인이면 빈 폼 그대로.
-  const session = await getUserSession();
+  const [session, homeHref] = await Promise.all([getUserSession(), resolveHomeHref()]);
   const profile = session ? await getUserProfile(session.userId) : null;
 
   const initialValues: ReservationFormInitialValues | undefined = profile
@@ -35,7 +36,7 @@ export default async function NewReservationPage() {
   return (
     <main className="app-container pb-4">
       <div className="mb-4">
-        <Link href="/" className="text-brand-700 text-sm font-semibold">
+        <Link href={homeHref} className="text-brand-700 text-sm font-semibold">
           ← 처음으로
         </Link>
         <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">방문 신청</h1>

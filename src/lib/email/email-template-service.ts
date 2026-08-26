@@ -67,7 +67,10 @@ function baseRows(data: ReservationEmailData): Row[] {
   return [
     { label: '예약번호', value: data.reservationNo },
     { label: '신청 구분', value: REQUESTER_TYPE_LABEL[data.requesterType] },
-    { label: '방문 상호/사업장', value: data.companyOrBranchName },
+    {
+      label: data.requesterType === RequesterType.EMPLOYEE ? '사업장' : '방문 상호',
+      value: data.companyOrBranchName,
+    },
     { label: '신청자', value: data.requesterName },
     { label: '차량번호', value: data.vehicleNo },
     { label: '방문 시간', value: formatKstRange(data.visitStartAt, data.visitEndAt) },
