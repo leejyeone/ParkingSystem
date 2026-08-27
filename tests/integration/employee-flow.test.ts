@@ -10,7 +10,7 @@ import {
   listReservationsForEmployee,
   listReservationsForUser,
 } from '@/services/reservation-service';
-import { enterByEmployeeCode } from '@/services/employee-auth-service';
+import { enterByEmail, enterByEmployeeCode } from '@/services/employee-auth-service';
 import { signUpUser } from '@/services/user-auth-service';
 import {
   baseReservationInput,
@@ -66,6 +66,27 @@ describe('직원 계정은 사번만으로 진입한다(비밀번호 없음)', (
     expect(visitorSession.email).toBe(email);
     const employeeSession = await enterByEmployeeCode('E2002');
     expect(employeeSession.employeeUserId).toBe(employee.employeeUserId);
+  });
+});
+
+describe('개발 편의용: 이메일로도 진입할 수 있다(운영 계약인 사번의 보조 경로)', () => {
+  it('시드된 이메일로 진입하면 세션이 발급되고 마지막 로그인 시각이 갱신된다', async () => {
+    const employee = await seedEmployeeFixture({ email: 'dev-entry@example.com' });
+
+    const session = await enterByEmail('dev-entry@example.com');
+    expect(session.employeeUserId).toBe(employee.employeeUserId);
+    expect(session.employeeCode).toBe(employee.employeeCode);
+
+    const updated = await prisma.employeeUser.findUniqueOrThrow({
+      where: { employeeUserId: employee.employeeUserId },
+    });
+    expect(updated.lastLoginAt).not.toBeNull();
+  });
+
+  it('존재하지 않는 이메일로는 진입할 수 없다', async () => {
+    await expect(enterByEmail('no-such-employee@example.com')).rejects.toBeInstanceOf(
+      NotFoundError,
+    );
   });
 });
 

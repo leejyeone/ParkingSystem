@@ -1,0 +1,8 @@
+# 어떤 OS/로컬 git 설정(core.autocrlf)에서 체크아웃하든 텍스트 파일은 항상 LF로
+# 통일한다 — prettier 설정(.prettierrc: endOfLine: "lf")과 일치시켜, Windows에서
+# core.autocrlf=true로 체크아웃해도 git status에 줄바꿈 차이만으로 파일이 "수정됨"으로
+# 잘못 뜨는 문제가 재발하지 않게 한다.
+* text=auto eol=lf
+
+# 이진 파일은 텍스트 변환 대상에서 제외한다.
+*.ico binary

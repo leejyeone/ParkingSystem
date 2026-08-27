@@ -3,8 +3,8 @@ import { expect, test } from '@playwright/test';
 import {
   clearMailOutbox,
   clientIpFor,
-  EMPLOYEE_CODE,
   EMPLOYEE_DEPARTMENT_NAME,
+  EMPLOYEE_EMAIL,
   EMPLOYEE_NAME,
   prisma,
   resetE2eDatabase,
@@ -12,9 +12,12 @@ import {
 } from './fixtures';
 
 /**
- * 직원(로그인 필수, 사번 진입) 흐름 E2E
- *   사번으로 진입 → 직원 홈 → 본인 방문 신청(동의 카드 없음) / 방문객 대리 신청(동의 확인 체크)
- *   → 내 신청 내역에 구분 표시
+ * 직원(로그인 필수) 흐름 E2E
+ *   이메일로 진입(개발용 진입 화면) → 직원 홈 → 본인 방문 신청(동의 카드 없음) /
+ *   방문객 대리 신청(동의 확인 체크) → 내 신청 내역에 구분 표시
+ *
+ * 운영 계약은 사번(`?empId=`) 기반이지만, 개발용 진입 화면(`/employee/login`)은 이메일을
+ * 받아 내부적으로 사번을 찾아 세션을 발급한다 — 이 스펙은 그 개발용 경로를 그대로 검증한다.
  */
 
 test.beforeEach(async ({ page }, testInfo) => {
@@ -31,13 +34,13 @@ test.afterAll(async () => {
 
 async function enterAsEmployee(page: import('@playwright/test').Page) {
   await page.goto('/employee/login');
-  await page.getByLabel('사번').fill(EMPLOYEE_CODE);
+  await page.getByLabel('이메일').fill(EMPLOYEE_EMAIL);
   await page.getByRole('button', { name: '진입하기' }).click();
 
   await expect(page.getByRole('heading', { name: '시노펙스 방문 예약' })).toBeVisible();
 }
 
-test('시드된 사번으로 진입하면 직원 홈으로 이동하고 부서 정보가 보인다', async ({ page }) => {
+test('시드된 이메일로 진입하면 직원 홈으로 이동하고 부서 정보가 보인다', async ({ page }) => {
   await enterAsEmployee(page);
 
   await expect(
@@ -45,13 +48,13 @@ test('시드된 사번으로 진입하면 직원 홈으로 이동하고 부서 �
   ).toBeVisible();
 });
 
-test('등록되지 않은 사번으로는 진입할 수 없다', async ({ page }) => {
+test('등록되지 않은 이메일로는 진입할 수 없다', async ({ page }) => {
   await page.goto('/employee/login');
-  await page.getByLabel('사번').fill('NO-SUCH-CODE');
+  await page.getByLabel('이메일').fill('no-such-employee@example.com');
   await page.getByRole('button', { name: '진입하기' }).click();
 
   await expect(page).toHaveURL(/\/employee\/login/);
-  await expect(page.getByText('등록되지 않은 사번입니다.')).toBeVisible();
+  await expect(page.getByText('등록되지 않은 이메일입니다.')).toBeVisible();
 });
 
 test('비로그인 상태로 /employee 에 접근하면 직원 로그인 화면으로 이동한다', async ({ page }) => {
