@@ -164,15 +164,17 @@ test('내 신청 내역에서 카드를 누르면 예약 상세 조회 화면으
   await expect(page.getByText(EMPLOYEE_NAME)).toBeVisible();
 });
 
-test('내 신청 내역에서 차량번호를 수정할 수 있다', async ({ page }) => {
+test('내 신청 내역에서 차량번호와 소속 사업장명을 수정할 수 있다', async ({ page }) => {
   await enterAsEmployee(page);
 
   await page.goto('/employee/reservations');
   await page.getByLabel('차량번호').fill('78마1234');
+  await page.getByLabel('소속 사업장명').fill('시노펙스 부산사업장');
   await page.getByRole('button', { name: '내 정보 저장' }).click();
 
   await expect(page.getByText('내 정보를 저장했습니다.')).toBeVisible();
 
   await page.goto('/employee/reservations/new');
   await expect(page.getByLabel('차량번호')).toHaveValue('78마1234');
+  await expect(page.getByLabel('소속 사업장명')).toHaveValue('시노펙스 부산사업장');
 });

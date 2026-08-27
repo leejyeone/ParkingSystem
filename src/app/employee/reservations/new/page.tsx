@@ -22,6 +22,7 @@ export default async function EmployeeNewReservationPage() {
 
   const initialValues: ReservationFormInitialValues | undefined = profile
     ? {
+        companyOrBranchName: profile.companyOrBranchName ?? '',
         requesterName: profile.name,
         requesterEmail: profile.email,
         vehicleNo: profile.vehicleNo ?? '',

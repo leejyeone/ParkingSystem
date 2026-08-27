@@ -6,6 +6,7 @@ import { DashboardAutoRefresher } from '@/components/admin/dashboard-auto-refres
 import { ParkingFloorTabs } from '@/components/admin/parking-floor-tabs';
 import { SpaceTypeBadge } from '@/components/ui/status-badge';
 import { Alert } from '@/components/ui/alert';
+import { formatAdminCompanyOrBranchName } from '@/domain/reservation-status';
 import { requireAdminPage } from '@/lib/admin-page-guard';
 import { formatKstTime, todayKstDateString } from '@/lib/datetime';
 import { getDashboardData, type SpaceOccupancyStatus } from '@/services/dashboard-service';
@@ -230,7 +231,12 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
                             {formatKstTime(reservation.visitEndAt)}
                           </Link>
                         </td>
-                        <td>{reservation.companyOrBranchName}</td>
+                        <td>
+                          {formatAdminCompanyOrBranchName(
+                            reservation.requesterType,
+                            reservation.companyOrBranchName,
+                          )}
+                        </td>
                         <td>{reservation.requesterName}</td>
                         <td className="font-mono text-xs">{reservation.vehicleNo}</td>
                       </ClickableTableRow>

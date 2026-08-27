@@ -24,6 +24,7 @@ export type EmployeeProfile = {
   name: string;
   departmentName: string;
   vehicleNo: string | null;
+  companyOrBranchName: string | null;
 };
 
 /** 사번으로 진입. 그룹웨어가 넘겨준 사번(또는 개발용 진입 폼에 직접 입력한 사번)을 그대로 받는다. */
@@ -133,17 +134,19 @@ export async function getEmployeeProfile(employeeUserId: number): Promise<Employ
       name: true,
       departmentName: true,
       vehicleNo: true,
+      companyOrBranchName: true,
     },
   });
 }
 
 export type UpdateEmployeeProfileInput = {
   vehicleNo?: string | null;
+  companyOrBranchName?: string | null;
 };
 
 /**
  * 직원 자기 정보 수정. 이름/이메일/부서는 명부(그룹웨어/시드 스크립트)로만 갱신되므로
- * 여기서 다루지 않는다 — 직원이 직접 바꿀 수 있는 건 차량번호뿐이다.
+ * 여기서 다루지 않는다 — 직원이 직접 바꿀 수 있는 건 차량번호·소속 사업장명뿐이다.
  */
 export async function updateEmployeeProfile(
   employeeUserId: number,
@@ -153,7 +156,10 @@ export async function updateEmployeeProfile(
 
   return prisma.employeeUser.update({
     where: { employeeUserId },
-    data: { vehicleNo: vehicleNo || null },
+    data: {
+      vehicleNo: vehicleNo || null,
+      companyOrBranchName: input.companyOrBranchName?.trim() || null,
+    },
     select: {
       employeeUserId: true,
       employeeCode: true,
@@ -161,6 +167,7 @@ export async function updateEmployeeProfile(
       name: true,
       departmentName: true,
       vehicleNo: true,
+      companyOrBranchName: true,
     },
   });
 }

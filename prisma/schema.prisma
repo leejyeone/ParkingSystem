@@ -165,17 +165,20 @@ model SiteUser {
 // ---------------------------------------------------------------------------
 
 model EmployeeUser {
-  employeeUserId Int     @id @default(autoincrement()) @map("employee_user_id")
+  employeeUserId      Int     @id @default(autoincrement()) @map("employee_user_id")
   /// 그룹웨어 세션의 사번(Fsacode/CCode). 로그인·그룹웨어 매핑의 유일한 키 — 비밀번호는 없다.
-  employeeCode   String  @unique(map: "uq_employee_users_employee_code") @map("employee_code") @db.VarChar(20)
-  email          String  @unique(map: "uq_employee_users_email") @db.VarChar(255)
-  name           String  @db.VarChar(50)
+  employeeCode        String  @unique(map: "uq_employee_users_employee_code") @map("employee_code") @db.VarChar(20)
+  email               String  @unique(map: "uq_employee_users_email") @db.VarChar(255)
+  name                String  @db.VarChar(50)
   /// 그룹웨어 조회 결과의 부서명(buseo).
-  departmentName String  @map("department_name") @db.VarChar(100)
+  departmentName      String  @map("department_name") @db.VarChar(100)
   /// 그룹웨어 조회 결과의 부서코드(DEPT_ID). 화면에는 노출하지 않고 향후 그룹웨어 재대조용으로만 보관.
-  departmentCode String? @map("department_code") @db.VarChar(50)
+  departmentCode      String? @map("department_code") @db.VarChar(50)
   /// 신청 폼 자동완성용(선택). 명부 엑셀에는 없는 값이라 직원이 마이페이지에서 직접 입력해 채운다.
-  vehicleNo      String? @map("vehicle_no") @db.VarChar(20)
+  vehicleNo           String? @map("vehicle_no") @db.VarChar(20)
+  /// 신청 폼 자동완성용(선택). 명부 엑셀에 없는 값(사업장 정보 없음)이라 직원이 마이페이지에서
+  /// 직접 입력해 채운다. 본인 방문 신청 폼에서만 자동완성되며, 대리 신청(방문객의 소속)과는 무관하다.
+  companyOrBranchName String? @map("company_or_branch_name") @db.VarChar(100)
 
   accountStatus AccountStatus @default(ACTIVE) @map("account_status")
 

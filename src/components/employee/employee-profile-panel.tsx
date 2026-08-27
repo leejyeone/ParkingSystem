@@ -14,17 +14,20 @@ type Profile = {
   name: string;
   departmentName: string;
   vehicleNo: string | null;
+  companyOrBranchName: string | null;
 };
 
 /**
  * 직원 내 정보 패널.
  *
  * 이름/이메일/부서/사번은 명부(그룹웨어/시드 스크립트)로만 갱신되므로 읽기 전용으로
- * 보여주고, 직원이 직접 바꿀 수 있는 건 차량번호(방문 신청 폼 자동완성용)뿐이다.
+ * 보여주고, 직원이 직접 바꿀 수 있는 건 차량번호·소속 사업장명(둘 다 방문 신청 폼
+ * 자동완성용, 명부에 없는 값이라 본인이 채워야 한다)뿐이다.
  */
 export function EmployeeProfilePanel({ profile }: { profile: Profile }) {
   const router = useRouter();
   const [vehicleNo, setVehicleNo] = useState(profile.vehicleNo ?? '');
+  const [companyOrBranchName, setCompanyOrBranchName] = useState(profile.companyOrBranchName ?? '');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [message, setMessage] = useState<{ variant: 'success' | 'error'; text: string } | null>(
     null,
@@ -43,7 +46,7 @@ export function EmployeeProfilePanel({ profile }: { profile: Profile }) {
 
     const response = await apiRequest('/api/employee/profile', {
       method: 'PUT',
-      body: JSON.stringify({ vehicleNo }),
+      body: JSON.stringify({ vehicleNo, companyOrBranchName }),
     });
 
     setSubmitting(false);
@@ -64,8 +67,8 @@ export function EmployeeProfilePanel({ profile }: { profile: Profile }) {
         <div>
           <h2 className="card-title">내 정보</h2>
           <p className="field-hint">
-            이름·이메일·부서는 사내 명부 기준으로 표시되며 여기서 바꿀 수 없습니다. 차량번호는 방문
-            신청 시 자동으로 입력됩니다.
+            이름·이메일·부서는 사내 명부 기준으로 표시되며 여기서 바꿀 수 없습니다. 차량번호·소속
+            사업장명은 본인 방문 신청 시 자동으로 입력됩니다.
           </p>
         </div>
 
@@ -102,6 +105,21 @@ export function EmployeeProfilePanel({ profile }: { profile: Profile }) {
             value={profile.email}
             disabled
             readOnly
+          />
+        </FormField>
+
+        <FormField
+          label="소속 사업장명"
+          htmlFor="employee-profile-company"
+          hint="비워 두면 본인 방문 신청 시 직접 입력합니다."
+          errors={fieldErrors.companyOrBranchName}
+        >
+          <input
+            id="employee-profile-company"
+            className={inputClassName(Boolean(fieldErrors.companyOrBranchName))}
+            value={companyOrBranchName}
+            onChange={(event) => setCompanyOrBranchName(event.target.value)}
+            maxLength={100}
           />
         </FormField>
 

@@ -5,6 +5,7 @@ import { useState, type ReactNode } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { FormField, inputClassName } from '@/components/ui/form-field';
+import { formatAdminCompanyOrBranchName } from '@/domain/reservation-status';
 import { apiRequest } from '@/lib/client/api-client';
 
 /**
@@ -295,7 +296,10 @@ export function RequesterInfoCard({
           {readOnly.employeeUserText && <Row term="당사 담당자" desc={readOnly.employeeUserText} />}
           <Row
             term={readOnly.requesterType === 'EMPLOYEE' ? '사업장' : '방문 상호'}
-            desc={initial.companyOrBranchName}
+            desc={formatAdminCompanyOrBranchName(
+              readOnly.requesterType,
+              initial.companyOrBranchName,
+            )}
           />
           <Row term="성명" desc={initial.requesterName} />
           <Row term="이메일" desc={readOnly.requesterEmail} />

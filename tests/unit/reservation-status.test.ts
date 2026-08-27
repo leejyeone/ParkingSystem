@@ -5,6 +5,7 @@ import {
   ALLOWED_TRANSITIONS,
   assertTransition,
   canTransition,
+  formatAdminCompanyOrBranchName,
   isTerminalStatus,
 } from '@/domain/reservation-status';
 import { InvalidStateTransitionError } from '@/lib/errors';
@@ -55,5 +56,29 @@ describe('예약 상태 전이 규칙', () => {
     for (const status of Object.values(ReservationStatus)) {
       expect(ALLOWED_TRANSITIONS[status]).toBeDefined();
     }
+  });
+});
+
+describe('관리자 화면의 "사업장" 표시 형식', () => {
+  it('직원 본인 방문은 "시노펙스 {사업장}사업장" 형식으로 맞춘다', () => {
+    expect(formatAdminCompanyOrBranchName('EMPLOYEE', '동탄')).toBe('시노펙스 동탄사업장');
+  });
+
+  it('이미 "사업장" 접미사를 입력했으면 중복으로 붙이지 않는다', () => {
+    expect(formatAdminCompanyOrBranchName('EMPLOYEE', '동탄사업장')).toBe('시노펙스 동탄사업장');
+  });
+
+  it('이미 "시노펙스"가 포함되어 있으면 그대로 둔다', () => {
+    expect(formatAdminCompanyOrBranchName('EMPLOYEE', '시노펙스 대구사업장')).toBe(
+      '시노펙스 대구사업장',
+    );
+  });
+
+  it('값이 비어 있으면 그대로 둔다', () => {
+    expect(formatAdminCompanyOrBranchName('EMPLOYEE', '')).toBe('');
+  });
+
+  it('방문객 신청은 형식을 맞추지 않고 원문 그대로 둔다', () => {
+    expect(formatAdminCompanyOrBranchName('VISITOR', '외부 협력업체')).toBe('외부 협력업체');
   });
 });

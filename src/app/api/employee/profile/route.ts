@@ -26,7 +26,7 @@ export async function GET() {
   }
 }
 
-/** PUT /api/employee/profile — 내 정보 수정 (비밀번호는 값이 있을 때만 변경) */
+/** PUT /api/employee/profile — 내 정보 수정 (차량번호·소속 사업장명만 변경 가능) */
 export async function PUT(request: NextRequest) {
   try {
     const session = await requireActiveEmployee();

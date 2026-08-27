@@ -7,6 +7,7 @@ import { ReservationBulkRejectTable } from '@/components/admin/reservation-bulk-
 import { Alert } from '@/components/ui/alert';
 import { FilterBar, type FilterChip } from '@/components/admin/filter-bar';
 import {
+  formatAdminCompanyOrBranchName,
   REQUESTER_TYPE_LABEL,
   reservationStatusFilterOptions,
   RESERVATION_STATUS_LABEL,
@@ -255,7 +256,10 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
               reservationNo: reservation.reservationNo,
               reservationStatus: reservation.reservationStatus,
               requesterType: reservation.requesterType,
-              companyOrBranchName: reservation.companyOrBranchName,
+              companyOrBranchName: formatAdminCompanyOrBranchName(
+                reservation.requesterType,
+                reservation.companyOrBranchName,
+              ),
               requesterName: reservation.requesterName,
               requesterEmail: reservation.requesterEmail,
               vehicleNo: reservation.vehicleNo,

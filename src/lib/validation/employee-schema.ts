@@ -1,7 +1,12 @@
 import { AccountStatus } from '@prisma/client';
 import { z } from 'zod';
 
-import { emailSchema, optionalVehicleNoSchema, requiredText } from '@/lib/validation/common';
+import {
+  emailSchema,
+  optionalText,
+  optionalVehicleNoSchema,
+  requiredText,
+} from '@/lib/validation/common';
 
 /** 사번으로 진입(비밀번호 없음). 그룹웨어 링크의 실제 착지점이 쓰는 운영 계약이다. */
 export const employeeCodeEntrySchema = z.object({
@@ -13,9 +18,13 @@ export const employeeEmailEntrySchema = z.object({
   email: emailSchema,
 });
 
-/** 직원 자기 정보 수정. 이름/이메일/부서는 명부로만 갱신되므로 차량번호만 받는다. */
+/**
+ * 직원 자기 정보 수정. 이름/이메일/부서는 명부로만 갱신되므로 차량번호·소속 사업장명만
+ * 받는다 — 둘 다 명부에 없는 값이라 직원이 직접 채워야 신청 폼 자동완성에 쓸 수 있다.
+ */
 export const employeeProfileUpdateSchema = z.object({
   vehicleNo: optionalVehicleNoSchema,
+  companyOrBranchName: optionalText(100, '소속 사업장명'),
 });
 
 /** 관리자용 직원 계정 관리 입력 스키마. 계정 생성은 시드 스크립트로만 이루어지므로 상태 변경만 다룬다. */
