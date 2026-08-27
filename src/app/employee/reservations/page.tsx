@@ -79,6 +79,9 @@ export default async function EmployeeReservationsPage() {
                             {reservation.companyOrBranchName}
                           </span>
                         )}
+                        {reservation.recurringScheduleId != null && (
+                          <span className="badge bg-indigo-100 text-indigo-700">반복</span>
+                        )}
                         <StatusBadge status={reservation.displayStatus} />
                       </div>
                     </div>

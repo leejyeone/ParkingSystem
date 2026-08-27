@@ -26,6 +26,7 @@ type MenuItem = {
 const MENU: MenuItem[] = [
   { href: '/admin', label: '대시보드' },
   { href: '/admin/reservations', label: '예약 목록' },
+  { href: '/admin/recurring-reservations', label: '반복 예약 관리' },
   { href: '/admin/employees', label: '직원 관리' },
   {
     href: '/admin/settings',

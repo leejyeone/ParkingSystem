@@ -23,6 +23,10 @@ const EMAIL_TYPE_LABEL: Record<EmailType, string> = {
   CANCELLED: '취소',
   EXIT_REMINDER: '출차 예정',
   ENTRY_REMINDER: '입차 예정(담당자)',
+  RECURRING_SCHEDULE_CREATED: '반복 예약 등록',
+  RECURRING_SCHEDULE_UPDATED: '반복 예약 수정',
+  RECURRING_OCCURRENCE_SKIPPED: '반복 예약 날짜 제외',
+  RECURRING_SCHEDULE_CANCELLED: '반복 예약 삭제',
 };
 
 const STATUS_LABEL: Record<EmailSendStatus, string> = {

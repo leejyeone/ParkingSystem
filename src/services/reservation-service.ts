@@ -67,6 +67,8 @@ const ACTIVE_STATUSES: ReservationStatus[] = [
 const RESERVATION_WITH_SPACES = {
   assignedSpace: { select: { spaceId: true, spaceCode: true, spaceType: true } },
   employeeUser: { select: { name: true, email: true } },
+  /** skipEmail 이 true 인 반복 예약 시리즈 소속이면 모든 개별 알림 메일을 억제한다. */
+  recurringSchedule: { select: { scheduleId: true, skipEmail: true } },
 } satisfies Prisma.ParkingReservationInclude;
 
 export type ReservationWithSpaces = Prisma.ParkingReservationGetPayload<{
@@ -142,7 +144,7 @@ async function assertNoVehicleOverlap(
 }
 
 /** 승인/배정 시 대상 주차면 행을 잠가 동시 승인 경합을 막는다. */
-async function lockSpaceRow(tx: Prisma.TransactionClient, spaceId: number): Promise<void> {
+export async function lockSpaceRow(tx: Prisma.TransactionClient, spaceId: number): Promise<void> {
   await tx.$queryRaw`SELECT space_id FROM parking_spaces WHERE space_id = ${spaceId} FOR UPDATE`;
 }
 
@@ -491,13 +493,15 @@ export async function updateReservationByRequester(
   });
 
   const accessUrl = await issueAccessUrl(updated.reservationId, updated.visitEndAt);
-  await dispatchQuietly(
-    sendUpdatedEmails(toReservationForEmail(updated), {
-      accessUrl,
-      previousVisitStartAt,
-      previousVisitEndAt,
-    }),
-  );
+  if (!updated.recurringSchedule?.skipEmail) {
+    await dispatchQuietly(
+      sendUpdatedEmails(toReservationForEmail(updated), {
+        accessUrl,
+        previousVisitStartAt,
+        previousVisitEndAt,
+      }),
+    );
+  }
 
   return updated;
 }
@@ -659,14 +663,16 @@ export async function updateReservationByAdmin(
   });
 
   const accessUrl = await issueAccessUrl(updated.reservationId, updated.visitEndAt);
-  await dispatchQuietly(
-    sendUpdatedEmails(toReservationForEmail(updated), {
-      accessUrl,
-      previousVisitStartAt,
-      previousVisitEndAt,
-      changedByAdmin: true,
-    }),
-  );
+  if (!updated.recurringSchedule?.skipEmail) {
+    await dispatchQuietly(
+      sendUpdatedEmails(toReservationForEmail(updated), {
+        accessUrl,
+        previousVisitStartAt,
+        previousVisitEndAt,
+        changedByAdmin: true,
+      }),
+    );
+  }
 
   return updated;
 }
@@ -717,7 +723,9 @@ export async function cancelReservationByRequester(
     return result;
   });
 
-  await dispatchQuietly(sendCancelledEmails(toReservationForEmail(cancelled)));
+  if (!cancelled.recurringSchedule?.skipEmail) {
+    await dispatchQuietly(sendCancelledEmails(toReservationForEmail(cancelled)));
+  }
   return cancelled;
 }
 
@@ -854,12 +862,14 @@ export async function approveReservation(
   const accessUrl = await issueAccessUrl(approved.reservationId, approved.visitEndAt);
   const forEmail = toReservationForEmail(approved);
 
-  await dispatchQuietly(
-    (async () => {
-      // 이중주차 배정 안내는 승인 메일 본문에 포함된다. (별도 발송하지 않음)
-      await sendApprovedEmail(forEmail, { accessUrl });
-    })(),
-  );
+  if (!approved.recurringSchedule?.skipEmail) {
+    await dispatchQuietly(
+      (async () => {
+        // 이중주차 배정 안내는 승인 메일 본문에 포함된다. (별도 발송하지 않음)
+        await sendApprovedEmail(forEmail, { accessUrl });
+      })(),
+    );
+  }
 
   return approved;
 }
@@ -898,7 +908,7 @@ async function approveWithoutSpace(
   return result;
 }
 
-async function assertSpaceAssignable(
+export async function assertSpaceAssignable(
   tx: Prisma.TransactionClient,
   spaceId: number,
   doubleParkingEnabled: boolean,
@@ -974,7 +984,9 @@ export async function rejectReservation(
     context: params.requestContext,
   });
 
-  await dispatchQuietly(sendRejectedEmail(toReservationForEmail(rejected)));
+  if (!rejected.recurringSchedule?.skipEmail) {
+    await dispatchQuietly(sendRejectedEmail(toReservationForEmail(rejected)));
+  }
   return rejected;
 }
 
@@ -1098,11 +1110,13 @@ export async function changeAssignedSpace(
 
   const accessUrl = await issueAccessUrl(updated.reservationId, updated.visitEndAt);
   const forEmail = toReservationForEmail(updated);
-  await dispatchQuietly(
-    (async () => {
-      await sendApprovedEmail(forEmail, { accessUrl });
-    })(),
-  );
+  if (!updated.recurringSchedule?.skipEmail) {
+    await dispatchQuietly(
+      (async () => {
+        await sendApprovedEmail(forEmail, { accessUrl });
+      })(),
+    );
+  }
 
   return updated;
 }
@@ -1433,6 +1447,8 @@ export type ReservationListItem = {
   assignedSpaceCode: string | null;
   assignedSpaceType: SpaceType | null;
   createdAt: Date;
+  /** 반복 예약(정기 주차 배정)으로 생성된 occurrence 이면 그 시리즈 ID. 일반 예약은 null. */
+  recurringScheduleId: number | null;
 };
 
 /**
@@ -1549,6 +1565,7 @@ export function toReservationListItem(
     assignedSpaceCode: reservation.assignedSpace?.spaceCode ?? null,
     assignedSpaceType: reservation.assignedSpace?.spaceType ?? null,
     createdAt: reservation.createdAt,
+    recurringScheduleId: reservation.recurringSchedule?.scheduleId ?? null,
   };
 }
 

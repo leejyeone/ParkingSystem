@@ -41,6 +41,10 @@ const ACTION_LABEL: Record<string, string> = {
   ADMIN_USER_DEACTIVATE: '관리자 계정 비활성화',
   ADMIN_LOGIN: '관리자 로그인',
   ADMIN_LOGOUT: '관리자 로그아웃',
+  RECURRING_SCHEDULE_CREATE: '반복 예약 등록',
+  RECURRING_SCHEDULE_UPDATE: '반복 예약 수정',
+  RECURRING_SCHEDULE_DELETE: '반복 예약 삭제',
+  RECURRING_OCCURRENCE_SKIP: '반복 예약 날짜 제외',
 };
 
 type PageProps = {

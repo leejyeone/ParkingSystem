@@ -4,7 +4,9 @@ import { getAppBaseUrl } from '@/lib/env';
 import { getEmailProvider } from '@/lib/email/email-provider-factory';
 import { EmailSendError } from '@/lib/email/email-provider';
 import {
+  renderRecurringScheduleEmail,
   renderReservationEmail,
+  type RecurringScheduleEmailData,
   type ReservationEmailData,
   type RenderedEmail,
 } from '@/lib/email/email-template-service';
@@ -468,6 +470,89 @@ export async function sendEntryReminderEmail(
     to: reservation.hostEmployee.email,
     rendered,
     dedupeOccurrence: reservation.visitStartAt.toISOString().slice(0, 16),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 반복 예약(정기 주차 배정) 시리즈 자체에 대한 메일
+//
+// skipEmail 설정과 무관하게 항상 발송한다 — skipEmail 은 "매일 반복되는 개별 occurrence
+// 알림"의 노이즈만 줄이는 설정이고, 시리즈 생성/수정/개별 날짜 제외/삭제는 직원이 자신의
+// 반복 주차 배정 자체를 알 수 있는 유일한 통로라 항상 보낸다.
+// ---------------------------------------------------------------------------
+
+export type RecurringScheduleForEmail = Omit<
+  RecurringScheduleEmailData,
+  'createdCount' | 'skippedDates' | 'cancelledCount' | 'skipDate' | 'skipReason'
+> & {
+  requesterEmail: string;
+};
+
+/** 반복 예약 시리즈 생성 안내 */
+export async function sendRecurringScheduleCreatedEmail(
+  schedule: RecurringScheduleForEmail,
+  info: { createdCount: number; skippedDates: string[] },
+): Promise<EmailDispatchResult> {
+  const rendered = renderRecurringScheduleEmail(EmailType.RECURRING_SCHEDULE_CREATED, {
+    ...schedule,
+    createdCount: info.createdCount,
+    skippedDates: info.skippedDates,
+  });
+  return sendEmailWithLog({
+    reservationId: null,
+    emailType: EmailType.RECURRING_SCHEDULE_CREATED,
+    to: schedule.requesterEmail,
+    rendered,
+  });
+}
+
+/** 반복 예약 시리즈 일정(요일/시간/기간) 변경 안내 */
+export async function sendRecurringScheduleUpdatedEmail(
+  schedule: RecurringScheduleForEmail,
+  info: { cancelledCount: number; createdCount: number; skippedDates: string[] },
+): Promise<EmailDispatchResult> {
+  const rendered = renderRecurringScheduleEmail(EmailType.RECURRING_SCHEDULE_UPDATED, {
+    ...schedule,
+    cancelledCount: info.cancelledCount,
+    createdCount: info.createdCount,
+    skippedDates: info.skippedDates,
+  });
+  return sendEmailWithLog({
+    reservationId: null,
+    emailType: EmailType.RECURRING_SCHEDULE_UPDATED,
+    to: schedule.requesterEmail,
+    rendered,
+  });
+}
+
+/** 반복 예약 시리즈 중 특정 날짜 제외(연차 등) 안내 */
+export async function sendRecurringOccurrenceSkippedEmail(
+  schedule: RecurringScheduleForEmail,
+  info: { skipDate: string; reason: string },
+): Promise<EmailDispatchResult> {
+  const rendered = renderRecurringScheduleEmail(EmailType.RECURRING_OCCURRENCE_SKIPPED, {
+    ...schedule,
+    skipDate: info.skipDate,
+    skipReason: info.reason,
+  });
+  return sendEmailWithLog({
+    reservationId: null,
+    emailType: EmailType.RECURRING_OCCURRENCE_SKIPPED,
+    to: schedule.requesterEmail,
+    rendered,
+  });
+}
+
+/** 반복 예약 시리즈 전체 취소 안내 */
+export async function sendRecurringScheduleCancelledEmail(
+  schedule: RecurringScheduleForEmail,
+): Promise<EmailDispatchResult> {
+  const rendered = renderRecurringScheduleEmail(EmailType.RECURRING_SCHEDULE_CANCELLED, schedule);
+  return sendEmailWithLog({
+    reservationId: null,
+    emailType: EmailType.RECURRING_SCHEDULE_CANCELLED,
+    to: schedule.requesterEmail,
+    rendered,
   });
 }
 

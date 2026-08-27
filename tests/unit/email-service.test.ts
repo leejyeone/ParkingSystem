@@ -4,7 +4,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setEmailProviderForTesting } from '@/lib/email/email-provider-factory';
 import { MockEmailProvider } from '@/lib/email/mock-email-provider';
 import { buildDedupeKey, requiresDedupe, sendEmailWithLog } from '@/lib/email/email-service';
-import { renderReservationEmail } from '@/lib/email/email-template-service';
+import {
+  renderRecurringScheduleEmail,
+  renderReservationEmail,
+  type ReservationEmailType,
+} from '@/lib/email/email-template-service';
+
+/** renderReservationEmail 이 다루는(예약 1건 단위) 이메일 종류만 — 반복 예약 시리즈용 3종은 제외. */
+const RESERVATION_EMAIL_TYPES: ReservationEmailType[] = [
+  EmailType.REQUEST_RECEIVED,
+  EmailType.NEW_REQUEST_TO_ADMIN,
+  EmailType.APPROVED,
+  EmailType.REJECTED,
+  EmailType.UPDATED,
+  EmailType.CANCELLED,
+  EmailType.EXIT_REMINDER,
+  EmailType.ENTRY_REMINDER,
+];
 
 const mocks = vi.hoisted(() => ({
   create: vi.fn(),
@@ -176,11 +192,49 @@ describe('이메일 템플릿', () => {
   });
 
   it('8종 이메일 모두 렌더링할 수 있다', () => {
-    for (const emailType of Object.values(EmailType)) {
+    for (const emailType of RESERVATION_EMAIL_TYPES) {
       const email = renderReservationEmail(emailType, data);
       expect(email.subject).toBeTruthy();
       expect(email.html).toBeTruthy();
       expect(email.text).toBeTruthy();
     }
+  });
+});
+
+describe('반복 예약(정기 주차 배정) 시리즈 메일', () => {
+  const scheduleData = {
+    employeeName: '김직원',
+    departmentName: '생산1팀',
+    spaceCode: 'B1-23',
+    startDate: '2026-08-01',
+    endDate: '2026-09-30',
+    weekdaysLabel: '월, 화, 수, 목, 금',
+    dailyStartTime: '09:00',
+    dailyEndTime: '18:00',
+  };
+
+  it('생성/날짜 제외/전체 취소 3종 모두 렌더링할 수 있다', () => {
+    const created = renderRecurringScheduleEmail(EmailType.RECURRING_SCHEDULE_CREATED, {
+      ...scheduleData,
+      createdCount: 42,
+      skippedDates: ['2026-08-15'],
+    });
+    expect(created.subject).toBeTruthy();
+    expect(created.html).toContain('2026-08-15');
+
+    const skipped = renderRecurringScheduleEmail(EmailType.RECURRING_OCCURRENCE_SKIPPED, {
+      ...scheduleData,
+      skipDate: '2026-08-20',
+      skipReason: '연차',
+    });
+    expect(skipped.subject).toBeTruthy();
+    expect(skipped.html).toContain('연차');
+
+    const cancelled = renderRecurringScheduleEmail(
+      EmailType.RECURRING_SCHEDULE_CANCELLED,
+      scheduleData,
+    );
+    expect(cancelled.subject).toBeTruthy();
+    expect(cancelled.html).toContain('B1-23');
   });
 });

@@ -46,6 +46,32 @@ export type UpdateEmployeeUserInput = {
   accountStatus: AccountStatus;
 };
 
+export type EmployeeUserProfileForAdmin = {
+  employeeUserId: number;
+  name: string;
+  email: string;
+  departmentName: string;
+  vehicleNo: string | null;
+};
+
+/** 반복 예약 등록 화면 등 관리자 전용 폼에서 직원 선택 시 성명·이메일·차량번호를 자동 채우기 위한 조회. */
+export async function getEmployeeUserProfileForAdmin(
+  employeeUserId: number,
+): Promise<EmployeeUserProfileForAdmin> {
+  const employee = await prisma.employeeUser.findFirst({
+    where: { employeeUserId, deletedAt: null, accountStatus: AccountStatus.ACTIVE },
+    select: {
+      employeeUserId: true,
+      name: true,
+      email: true,
+      departmentName: true,
+      vehicleNo: true,
+    },
+  });
+  if (!employee) throw new NotFoundError('직원 계정을 찾을 수 없습니다.');
+  return employee;
+}
+
 /** 직원 계정 상태(활성·비활성) 전환. 이름/부서/이메일은 명부로만 갱신되므로 여기서 다루지 않는다. */
 export async function updateEmployeeUser(
   employeeUserId: number,

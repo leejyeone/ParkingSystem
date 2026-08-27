@@ -21,6 +21,7 @@ export async function resetDatabase(): Promise<void> {
   await prisma.parkingReservationStatusLog.deleteMany();
   await prisma.reservationAccessToken.deleteMany();
   await prisma.parkingReservation.deleteMany();
+  await prisma.recurringReservationSchedule.deleteMany();
   await prisma.siteUser.deleteMany();
   await prisma.employeeUser.deleteMany();
   await prisma.parkingSpace.deleteMany();

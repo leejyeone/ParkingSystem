@@ -73,6 +73,16 @@ enum EmailType {
   CANCELLED
   EXIT_REMINDER
   ENTRY_REMINDER
+  RECURRING_SCHEDULE_CREATED
+  RECURRING_SCHEDULE_UPDATED
+  RECURRING_OCCURRENCE_SKIPPED
+  RECURRING_SCHEDULE_CANCELLED
+}
+
+/// 반복 예약(정기 주차 배정) 시리즈 상태
+enum RecurringScheduleStatus {
+  ACTIVE
+  CANCELLED
 }
 
 /// 이메일 발송 상태
@@ -106,10 +116,11 @@ model AdminUser {
   updatedAt         DateTime  @updatedAt @map("updated_at")
   deletedAt         DateTime? @map("deleted_at")
 
-  approvedReservations ParkingReservation[]          @relation("ReservationApprovalAdmin")
-  statusLogs           ParkingReservationStatusLog[]
-  auditLogs            AuditLog[]
-  updatedSettings      SystemSetting[]
+  approvedReservations      ParkingReservation[]           @relation("ReservationApprovalAdmin")
+  statusLogs                ParkingReservationStatusLog[]
+  auditLogs                 AuditLog[]
+  updatedSettings           SystemSetting[]
+  createdRecurringSchedules RecurringReservationSchedule[]
 
   @@index([accountStatus], map: "idx_admin_users_account_status")
   @@map("admin_users")
@@ -187,7 +198,8 @@ model EmployeeUser {
   updatedAt   DateTime  @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
 
-  reservations ParkingReservation[]
+  reservations       ParkingReservation[]
+  recurringSchedules RecurringReservationSchedule[]
 
   @@index([accountStatus], map: "idx_employee_users_account_status")
   @@map("employee_users")
@@ -236,8 +248,9 @@ model ParkingSpace {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  area                 ParkingArea          @relation(fields: [areaId], references: [areaId])
-  assignedReservations ParkingReservation[] @relation("ReservationAssignedSpace")
+  area                 ParkingArea                    @relation(fields: [areaId], references: [areaId])
+  assignedReservations ParkingReservation[]           @relation("ReservationAssignedSpace")
+  recurringSchedules   RecurringReservationSchedule[]
 
   @@unique([areaId, spaceCode], map: "uq_parking_spaces_area_code")
   @@index([spaceType, isActive, displayOrder], map: "idx_parking_spaces_type_active_order")
@@ -278,6 +291,9 @@ model ParkingReservation {
 
   assignedSpaceId Int? @map("assigned_space_id")
 
+  /// 반복 예약(정기 주차 배정)으로 생성된 occurrence 이면 그 시리즈. 일반 예약은 NULL.
+  recurringScheduleId Int? @map("recurring_schedule_id")
+
   reservationStatus ReservationStatus @default(REQUESTED) @map("reservation_status")
 
   approvalAdminId Int?      @map("approval_admin_id")
@@ -292,10 +308,11 @@ model ParkingReservation {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  assignedSpace ParkingSpace? @relation("ReservationAssignedSpace", fields: [assignedSpaceId], references: [spaceId], onDelete: SetNull)
-  approvalAdmin AdminUser?    @relation("ReservationApprovalAdmin", fields: [approvalAdminId], references: [adminUserId], onDelete: SetNull)
-  visitorUser   SiteUser?     @relation(fields: [visitorUserId], references: [userId], onDelete: SetNull)
-  employeeUser  EmployeeUser? @relation(fields: [employeeUserId], references: [employeeUserId], onDelete: SetNull)
+  assignedSpace     ParkingSpace?                 @relation("ReservationAssignedSpace", fields: [assignedSpaceId], references: [spaceId], onDelete: SetNull)
+  approvalAdmin     AdminUser?                    @relation("ReservationApprovalAdmin", fields: [approvalAdminId], references: [adminUserId], onDelete: SetNull)
+  visitorUser       SiteUser?                     @relation(fields: [visitorUserId], references: [userId], onDelete: SetNull)
+  employeeUser      EmployeeUser?                 @relation(fields: [employeeUserId], references: [employeeUserId], onDelete: SetNull)
+  recurringSchedule RecurringReservationSchedule? @relation(fields: [recurringScheduleId], references: [scheduleId], onDelete: SetNull)
 
   accessTokens ReservationAccessToken[]
   statusLogs   ParkingReservationStatusLog[]
@@ -310,6 +327,7 @@ model ParkingReservation {
   @@index([vehicleNo, visitStartAt, visitEndAt], map: "idx_reservations_vehicle_range")
   @@index([requesterEmail, createdAt], map: "idx_reservations_email_created")
   @@index([approvalAdminId], map: "idx_reservations_approval_admin")
+  @@index([recurringScheduleId], map: "idx_reservations_recurring_schedule")
   @@map("parking_reservations")
 }
 
@@ -352,6 +370,59 @@ model ParkingReservationStatusLog {
   @@index([reservationId, createdAt], map: "idx_status_logs_reservation_created")
   @@index([changedByAdminId], map: "idx_status_logs_admin")
   @@map("parking_reservation_status_logs")
+}
+
+// ---------------------------------------------------------------------------
+// recurring_reservation_schedules — 반복 예약(정기 주차 배정)
+//
+// 관리자가 특정 직원에게 특정 주차면을 기간·요일·매일 시간대로 미리 선점해 주는
+// 시리즈. 등록 즉시 기간 내 해당 요일의 ParkingReservation 을 전부 만들어 둔다
+// (occurrences 관계) — 입·출차·승인·반려·취소는 그 occurrence 행에 대해 기존 로직을
+// 그대로 쓴다. 이 테이블 자체는 "무엇을, 왜 반복으로 만들었는지"의 메타데이터만 갖는다.
+// ---------------------------------------------------------------------------
+
+model RecurringReservationSchedule {
+  scheduleId Int @id @default(autoincrement()) @map("schedule_id")
+
+  employeeUserId  Int @map("employee_user_id")
+  assignedSpaceId Int @map("assigned_space_id")
+
+  requesterName       String  @map("requester_name") @db.VarChar(50)
+  requesterEmail      String  @map("requester_email") @db.VarChar(255)
+  companyOrBranchName String? @map("company_or_branch_name") @db.VarChar(100)
+  /// 공백/하이픈을 제거해 정규화한 차량번호. 시리즈의 모든 occurrence 가 이 값을 쓴다.
+  vehicleNo           String  @map("vehicle_no") @db.VarChar(20)
+
+  startDate      DateTime @map("start_date") @db.Date
+  endDate        DateTime @map("end_date") @db.Date
+  /// JS Date.getDay() 기준 비트마스크: bit0=일 bit1=월 ... bit6=토. 예) 평일만 = 0b0111110 = 62.
+  weekdaysMask   Int      @map("weekdays_mask")
+  /// "HH:mm" (parkingOpenTime/parkingCloseTime 시스템 설정과 동일한 형식)
+  dailyStartTime String   @map("daily_start_time") @db.VarChar(5)
+  dailyEndTime   String   @map("daily_end_time") @db.VarChar(5)
+
+  /// true 면 occurrence 를 REQUESTED 대신 곧바로 APPROVED 로 만든다(승인 절차 생략).
+  skipApproval Boolean @default(false) @map("skip_approval")
+  /// true 면 이 시리즈의 occurrence 에 대해서는 접수/승인/반려/변경/취소/출차 임박 등
+  /// 어떤 개별 알림 메일도 보내지 않는다. 시리즈 생성/개별 날짜 제외/시리즈 전체 취소
+  /// 안내 메일은 이 값과 무관하게 항상 나간다(src/lib/email/email-service.ts 참고).
+  skipEmail    Boolean @default(false) @map("skip_email")
+
+  status RecurringScheduleStatus @default(ACTIVE)
+
+  createdByAdminId Int      @map("created_by_admin_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  employeeUser   EmployeeUser         @relation(fields: [employeeUserId], references: [employeeUserId])
+  assignedSpace  ParkingSpace         @relation(fields: [assignedSpaceId], references: [spaceId])
+  createdByAdmin AdminUser            @relation(fields: [createdByAdminId], references: [adminUserId])
+  occurrences    ParkingReservation[]
+
+  @@index([employeeUserId], map: "idx_recurring_schedules_employee")
+  @@index([assignedSpaceId], map: "idx_recurring_schedules_space")
+  @@index([status], map: "idx_recurring_schedules_status")
+  @@map("recurring_reservation_schedules")
 }
 
 // ---------------------------------------------------------------------------

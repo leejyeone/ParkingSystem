@@ -138,6 +138,7 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
         include: {
           assignedSpace: { select: { spaceId: true, spaceCode: true, spaceType: true } },
           employeeUser: { select: { name: true, email: true } },
+          recurringSchedule: { select: { scheduleId: true, skipEmail: true } },
         },
         orderBy: [{ visitStartAt: 'asc' }, { reservationId: 'asc' }],
       }),

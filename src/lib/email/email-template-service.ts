@@ -224,11 +224,20 @@ function spaceGuideText(data: ReservationEmailData): string {
   return data.assignedSpaceCode;
 }
 
+/** 예약 1건에 대한 메일(반복 예약 시리즈 자체에 대한 메일은 별도 타입 참고). */
+export type ReservationEmailType = Exclude<
+  EmailType,
+  | 'RECURRING_SCHEDULE_CREATED'
+  | 'RECURRING_SCHEDULE_UPDATED'
+  | 'RECURRING_OCCURRENCE_SKIPPED'
+  | 'RECURRING_SCHEDULE_CANCELLED'
+>;
+
 /**
  * 이메일 종류별 렌더링.
  */
 export function renderReservationEmail(
-  emailType: EmailType,
+  emailType: ReservationEmailType,
   data: ReservationEmailData,
 ): RenderedEmail {
   const rows = baseRows(data);
@@ -445,6 +454,146 @@ export function renderReservationEmail(
       };
       return {
         subject: `[시노펙스] 방문객 입차 예정 안내 (${minutes}분 전)`,
+        html: renderHtmlLayout(params),
+        text: renderTextLayout(params),
+      };
+    }
+
+    default: {
+      const exhaustiveCheck: never = emailType;
+      throw new Error(`지원하지 않는 이메일 종류입니다: ${String(exhaustiveCheck)}`);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 반복 예약(정기 주차 배정) 시리즈 자체에 대한 메일
+//
+// 예약 1건이 아니라 시리즈(기간·요일·시간대 전체)에 대한 안내라 ReservationEmailData
+// 모양을 억지로 맞추지 않고 별도 타입/렌더 함수를 둔다. skipEmail 설정과 무관하게 항상
+// 발송되는 메일이다(src/services/recurring-reservation-service.ts 참고).
+// ---------------------------------------------------------------------------
+
+export type RecurringScheduleEmailType = Extract<
+  EmailType,
+  | 'RECURRING_SCHEDULE_CREATED'
+  | 'RECURRING_SCHEDULE_UPDATED'
+  | 'RECURRING_OCCURRENCE_SKIPPED'
+  | 'RECURRING_SCHEDULE_CANCELLED'
+>;
+
+export type RecurringScheduleEmailData = {
+  employeeName: string;
+  departmentName: string;
+  spaceCode: string;
+  startDate: string; // 'yyyy-MM-dd'
+  endDate: string;
+  weekdaysLabel: string; // 예: '월,화,수,목,금'
+  dailyStartTime: string; // 'HH:mm'
+  dailyEndTime: string;
+  adminDetailUrl?: string | null;
+  /** RECURRING_SCHEDULE_CREATED, RECURRING_SCHEDULE_UPDATED 전용 */
+  createdCount?: number;
+  skippedDates?: string[];
+  /** RECURRING_SCHEDULE_UPDATED 전용: 새 일정과 맞지 않아 정리된 기존 예정 방문 건수 */
+  cancelledCount?: number;
+  /** RECURRING_OCCURRENCE_SKIPPED 전용 */
+  skipDate?: string;
+  skipReason?: string;
+};
+
+function recurringScheduleRows(data: RecurringScheduleEmailData): Row[] {
+  return [
+    { label: '대상자', value: `${data.employeeName} (${data.departmentName})` },
+    { label: '주차면', value: data.spaceCode },
+    { label: '기간', value: `${data.startDate} ~ ${data.endDate}` },
+    { label: '요일', value: data.weekdaysLabel },
+    { label: '시간대', value: `${data.dailyStartTime} ~ ${data.dailyEndTime}` },
+  ];
+}
+
+export function renderRecurringScheduleEmail(
+  emailType: RecurringScheduleEmailType,
+  data: RecurringScheduleEmailData,
+): RenderedEmail {
+  const rows = recurringScheduleRows(data);
+
+  switch (emailType) {
+    case EmailType.RECURRING_SCHEDULE_CREATED: {
+      const notices = ['방문 신청 절차 없이 등록된 정기 배정입니다.'];
+      if (data.skippedDates && data.skippedDates.length > 0) {
+        notices.push(
+          `다음 날짜는 해당 주차면이 이미 사용 중이라 배정에서 제외되었습니다: ${data.skippedDates.join(', ')}`,
+        );
+      }
+      const params = {
+        title: '반복 주차 배정이 등록되었습니다',
+        lead: `${data.employeeName}님, 아래 일정으로 반복 주차 배정이 등록되었습니다.`,
+        rows: [...rows, { label: '생성된 건수', value: `${data.createdCount ?? 0}건` }],
+        notices,
+        buttonLabel: data.adminDetailUrl ? '반복 예약 상세 보기' : undefined,
+        buttonUrl: data.adminDetailUrl,
+      };
+      return {
+        subject: '[시노펙스] 반복 주차 배정이 등록되었습니다',
+        html: renderHtmlLayout(params),
+        text: renderTextLayout(params),
+      };
+    }
+
+    case EmailType.RECURRING_SCHEDULE_UPDATED: {
+      const notices = ['변경 전 예정되어 있던 방문 중 새 일정과 맞지 않는 건은 정리되었습니다.'];
+      if (data.skippedDates && data.skippedDates.length > 0) {
+        notices.push(
+          `다음 날짜는 해당 주차면이 이미 사용 중이라 새 일정에서 제외되었습니다: ${data.skippedDates.join(', ')}`,
+        );
+      }
+      const params = {
+        title: '반복 주차 배정 일정이 변경되었습니다',
+        lead: `${data.employeeName}님, 반복 주차 배정 일정이 아래와 같이 변경되었습니다.`,
+        rows: [
+          ...rows,
+          { label: '정리된 기존 건수', value: `${data.cancelledCount ?? 0}건` },
+          { label: '새로 생성된 건수', value: `${data.createdCount ?? 0}건` },
+        ],
+        notices,
+        buttonLabel: data.adminDetailUrl ? '반복 예약 상세 보기' : undefined,
+        buttonUrl: data.adminDetailUrl,
+      };
+      return {
+        subject: '[시노펙스] 반복 주차 배정 일정이 변경되었습니다',
+        html: renderHtmlLayout(params),
+        text: renderTextLayout(params),
+      };
+    }
+
+    case EmailType.RECURRING_OCCURRENCE_SKIPPED: {
+      const params = {
+        title: '반복 주차 배정 중 일부 날짜가 제외되었습니다',
+        lead: `${data.employeeName}님, 아래 반복 주차 배정 중 특정 날짜가 제외 처리되었습니다.`,
+        rows: [
+          ...rows,
+          { label: '제외된 날짜', value: data.skipDate ?? '-' },
+          { label: '사유', value: data.skipReason ?? '-' },
+        ],
+        buttonLabel: data.adminDetailUrl ? '반복 예약 상세 보기' : undefined,
+        buttonUrl: data.adminDetailUrl,
+      };
+      return {
+        subject: '[시노펙스] 반복 주차 배정 날짜 제외 안내',
+        html: renderHtmlLayout(params),
+        text: renderTextLayout(params),
+      };
+    }
+
+    case EmailType.RECURRING_SCHEDULE_CANCELLED: {
+      const params = {
+        title: '반복 주차 배정이 삭제되었습니다',
+        lead: `${data.employeeName}님, 아래 반복 주차 배정이 삭제되었습니다. 남아 있던 예정 방문도 함께 취소되었습니다.`,
+        rows,
+      };
+      return {
+        subject: '[시노펙스] 반복 주차 배정이 삭제되었습니다',
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };
