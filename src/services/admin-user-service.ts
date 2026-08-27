@@ -85,6 +85,10 @@ export async function createAdminUser(
        * 정작 신규 신청/승인 알림을 못 받는 사고를 막기 위함이다. 이미 같은 이메일이
        * 알림 목록에 있으면(예: 공용 배포 주소로 미리 등록됐던 경우) 기존 설정(수신
        * 여부, 활성화 상태)은 그대로 두고 건드리지 않는다.
+       *
+       * isActive 는 false 로 넣는다 — 계정을 만든다고 곧바로 실제 메일을 받기 시작하면
+       * 관리자가 의도하지 않은 수신자가 늘어날 수 있으니, 알림 이메일 설정 화면에서
+       * 직접 확인하고 켜도록 한다.
        */
       await tx.adminNotificationEmail.upsert({
         where: { email },
@@ -92,8 +96,8 @@ export async function createAdminUser(
           email,
           recipientName: input.adminName.trim(),
           receiveNewRequest: true,
-          receiveApprovalAlert: true,
-          isActive: true,
+          receiveChangeAlert: true,
+          isActive: false,
         },
         update: {},
       });

@@ -363,8 +363,12 @@ model AdminNotificationEmail {
   email               String  @unique(map: "uq_admin_notification_emails_email") @db.VarChar(255)
   recipientName       String? @map("recipient_name") @db.VarChar(50)
 
-  receiveNewRequest    Boolean @default(true) @map("receive_new_request")
-  receiveApprovalAlert Boolean @default(true) @map("receive_approval_alert")
+  receiveNewRequest  Boolean @default(true) @map("receive_new_request")
+  /// 신청자가 직접 변경(UPDATED)·취소(CANCELLED)했을 때만 관리자에게 알림을 보낸다
+  /// (관리자 본인이 고친 건은 제외). 승인(APPROVED)/반려(REJECTED) 메일은 신청자에게만
+  /// 가고 이 플래그와 무관하다 — src/lib/email/email-service.ts 의 getAdminRecipients
+  /// 호출부 참고.
+  receiveChangeAlert Boolean @default(true) @map("receive_change_alert")
 
   isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")

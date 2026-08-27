@@ -17,7 +17,7 @@ export type NotificationEmailInput = {
   email: string;
   recipientName?: string | null;
   receiveNewRequest: boolean;
-  receiveApprovalAlert: boolean;
+  receiveChangeAlert: boolean;
   isActive: boolean;
 };
 
@@ -34,13 +34,13 @@ export async function upsertNotificationEmail(
         email,
         recipientName: input.recipientName?.trim() || null,
         receiveNewRequest: input.receiveNewRequest,
-        receiveApprovalAlert: input.receiveApprovalAlert,
+        receiveChangeAlert: input.receiveChangeAlert,
         isActive: input.isActive,
       },
       update: {
         recipientName: input.recipientName?.trim() || null,
         receiveNewRequest: input.receiveNewRequest,
-        receiveApprovalAlert: input.receiveApprovalAlert,
+        receiveChangeAlert: input.receiveChangeAlert,
         isActive: input.isActive,
       },
     });
@@ -55,7 +55,7 @@ export async function upsertNotificationEmail(
         domain: email.split('@')[1] ?? null,
         isActive: saved.isActive,
         receiveNewRequest: saved.receiveNewRequest,
-        receiveApprovalAlert: saved.receiveApprovalAlert,
+        receiveChangeAlert: saved.receiveChangeAlert,
       },
       context: actor.requestContext,
     });

@@ -201,7 +201,7 @@ async function seedNotificationEmails(): Promise<void> {
         email,
         recipientName: '주차 관리 담당자',
         receiveNewRequest: true,
-        receiveApprovalAlert: true,
+        receiveChangeAlert: true,
         isActive: true,
       },
       update: { isActive: true },

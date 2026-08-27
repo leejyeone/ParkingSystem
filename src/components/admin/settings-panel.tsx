@@ -17,7 +17,7 @@ type NotificationEmail = {
   email: string;
   recipientName: string | null;
   receiveNewRequest: boolean;
-  receiveApprovalAlert: boolean;
+  receiveChangeAlert: boolean;
   isActive: boolean;
 };
 
@@ -308,7 +308,7 @@ export function PolicySection({ initialSettings }: { initialSettings: SystemSett
 type NotificationDraft = {
   recipientName: string;
   receiveNewRequest: boolean;
-  receiveApprovalAlert: boolean;
+  receiveChangeAlert: boolean;
   isActive: boolean;
 };
 
@@ -316,7 +316,7 @@ function toNotificationDraft(item: NotificationEmail): NotificationDraft {
   return {
     recipientName: item.recipientName ?? '',
     receiveNewRequest: item.receiveNewRequest,
-    receiveApprovalAlert: item.receiveApprovalAlert,
+    receiveChangeAlert: item.receiveChangeAlert,
     isActive: item.isActive,
   };
 }
@@ -325,14 +325,14 @@ function toNotificationDraftById(emails: NotificationEmail[], id: number): Notif
   const found = emails.find((item) => item.notificationEmailId === id);
   return found
     ? toNotificationDraft(found)
-    : { recipientName: '', receiveNewRequest: true, receiveApprovalAlert: true, isActive: true };
+    : { recipientName: '', receiveNewRequest: true, receiveChangeAlert: true, isActive: true };
 }
 
 function isSameNotification(a: NotificationDraft, b: NotificationDraft): boolean {
   return (
     a.recipientName === b.recipientName &&
     a.receiveNewRequest === b.receiveNewRequest &&
-    a.receiveApprovalAlert === b.receiveApprovalAlert &&
+    a.receiveChangeAlert === b.receiveChangeAlert &&
     a.isActive === b.isActive
   );
 }
@@ -410,7 +410,7 @@ function NotificationTable({ emails }: { emails: NotificationEmail[] }) {
             email: item.email,
             recipientName: draft.recipientName || null,
             receiveNewRequest: draft.receiveNewRequest,
-            receiveApprovalAlert: draft.receiveApprovalAlert,
+            receiveChangeAlert: draft.receiveChangeAlert,
             isActive: draft.isActive,
           },
         }),
@@ -497,7 +497,7 @@ function NotificationTable({ emails }: { emails: NotificationEmail[] }) {
                 <th className={editing ? 'w-64' : ''}>이메일</th>
                 <th className={editing ? 'w-40' : ''}>수신자</th>
                 <th className={editing ? 'w-24' : ''}>신규신청</th>
-                <th className={editing ? 'w-24' : ''}>승인/변경</th>
+                <th className={editing ? 'w-24' : ''}>변경/취소</th>
                 <th className={editing ? 'w-32' : ''}>상태</th>
                 {editing && <th className="w-20"></th>}
               </tr>
@@ -513,7 +513,7 @@ function NotificationTable({ emails }: { emails: NotificationEmail[] }) {
                       <td className="text-xs">{item.email}</td>
                       <td className="text-xs">{item.recipientName ?? '-'}</td>
                       <td>{item.receiveNewRequest ? '✓' : '-'}</td>
-                      <td>{item.receiveApprovalAlert ? '✓' : '-'}</td>
+                      <td>{item.receiveChangeAlert ? '✓' : '-'}</td>
                       <td>
                         <span
                           className={`badge ${item.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}
@@ -563,14 +563,14 @@ function NotificationTable({ emails }: { emails: NotificationEmail[] }) {
                       <input
                         type="checkbox"
                         className="accent-brand-700 size-5"
-                        checked={draft.receiveApprovalAlert}
+                        checked={draft.receiveChangeAlert}
                         disabled={isRemoved}
                         onChange={(event) =>
                           updateDraft(item.notificationEmailId, {
-                            receiveApprovalAlert: event.target.checked,
+                            receiveChangeAlert: event.target.checked,
                           })
                         }
-                        aria-label={`${item.email} 승인/변경 알림`}
+                        aria-label={`${item.email} 변경/취소 알림`}
                       />
                     </td>
                     <td>
@@ -632,7 +632,7 @@ export function NotificationSection({ emails }: { emails: NotificationEmail[] })
     email: '',
     recipientName: '',
     receiveNewRequest: true,
-    receiveApprovalAlert: true,
+    receiveChangeAlert: true,
     isActive: true,
   });
 
@@ -674,7 +674,7 @@ export function NotificationSection({ emails }: { emails: NotificationEmail[] })
             {(
               [
                 ['receiveNewRequest', '신규 신청 알림'],
-                ['receiveApprovalAlert', '변경/취소 알림'],
+                ['receiveChangeAlert', '변경/취소 알림'],
                 ['isActive', '활성화'],
               ] as const
             ).map(([key, label]) => (

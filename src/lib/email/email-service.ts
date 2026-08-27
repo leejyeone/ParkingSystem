@@ -247,7 +247,7 @@ export function buildAccessUrl(rawToken: string): string {
   return buildReservationAccessUrl(getAppBaseUrl(), rawToken);
 }
 
-type AdminRecipientFlag = 'receiveNewRequest' | 'receiveApprovalAlert';
+type AdminRecipientFlag = 'receiveNewRequest' | 'receiveChangeAlert';
 
 /** 활성화된 관리자 알림 수신자 목록 */
 export async function getAdminRecipients(flag: AdminRecipientFlag): Promise<string[]> {
@@ -377,7 +377,7 @@ export async function sendUpdatedEmails(
     adminDetailUrl: buildAdminDetailUrl(reservation.reservationId),
   });
 
-  const admins = options.changedByAdmin ? [] : await getAdminRecipients('receiveApprovalAlert');
+  const admins = options.changedByAdmin ? [] : await getAdminRecipients('receiveChangeAlert');
   return Promise.all([
     ...requesterMailRecipients(reservation).map((to) =>
       sendEmailWithLog({
@@ -403,7 +403,7 @@ export async function sendCancelledEmails(
   reservation: ReservationForEmail,
 ): Promise<EmailDispatchResult[]> {
   const rendered = renderReservationEmail(EmailType.CANCELLED, await toEmailData(reservation));
-  const admins = await getAdminRecipients('receiveApprovalAlert');
+  const admins = await getAdminRecipients('receiveChangeAlert');
   return Promise.all([
     ...requesterMailRecipients(reservation).map((to) =>
       sendEmailWithLog({

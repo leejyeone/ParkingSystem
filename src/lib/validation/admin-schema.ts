@@ -197,7 +197,7 @@ export const notificationEmailSchema = z.object({
   email: emailSchema,
   recipientName: optionalText(50, '수신자 이름'),
   receiveNewRequest: z.boolean().default(true),
-  receiveApprovalAlert: z.boolean().default(true),
+  receiveChangeAlert: z.boolean().default(true),
   isActive: z.boolean().default(true),
 });
 

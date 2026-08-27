@@ -199,9 +199,12 @@ describe('관리자 계정 및 주차면 관리', () => {
   });
 
   it('관리자 계정을 생성하면 그 이메일이 알림 수신자 목록에 자동으로 등록된다', async () => {
+    // seedFixtures() 가 이미 'notify@example.com' 을 알림 수신자로 심어 두므로(다른
+    // 테스트용 픽스처), 여기서는 그와 겹치지 않는 이메일을 써야 upsert 의 create
+    // 경로(신규 등록)를 실제로 검증한다 — 겹치면 update:{} no-op 경로만 타게 된다.
     await createAdminUser(
       {
-        email: 'notify@example.com',
+        email: 'brand-new-notify-admin@example.com',
         password: 'NewAdmin!2345',
         adminName: '알림관리자',
       },
@@ -209,12 +212,13 @@ describe('관리자 계정 및 주차면 관리', () => {
     );
 
     const notificationEmail = await prisma.adminNotificationEmail.findUnique({
-      where: { email: 'notify@example.com' },
+      where: { email: 'brand-new-notify-admin@example.com' },
     });
     expect(notificationEmail).not.toBeNull();
-    expect(notificationEmail?.isActive).toBe(true);
+    // 계정 생성만으로 곧바로 실제 메일을 받기 시작하지 않도록 비활성으로 등록된다.
+    expect(notificationEmail?.isActive).toBe(false);
     expect(notificationEmail?.receiveNewRequest).toBe(true);
-    expect(notificationEmail?.receiveApprovalAlert).toBe(true);
+    expect(notificationEmail?.receiveChangeAlert).toBe(true);
   });
 
   it('이미 알림 수신자로 등록된 이메일로 관리자를 만들어도 기존 수신 설정을 덮어쓰지 않는다', async () => {
@@ -223,7 +227,7 @@ describe('관리자 계정 및 주차면 관리', () => {
         email: 'existing@example.com',
         recipientName: '기존 배포 주소',
         receiveNewRequest: false,
-        receiveApprovalAlert: false,
+        receiveChangeAlert: false,
         isActive: false,
       },
     });
@@ -242,7 +246,7 @@ describe('관리자 계정 및 주차면 관리', () => {
     });
     expect(notificationEmail?.isActive).toBe(false);
     expect(notificationEmail?.receiveNewRequest).toBe(false);
-    expect(notificationEmail?.receiveApprovalAlert).toBe(false);
+    expect(notificationEmail?.receiveChangeAlert).toBe(false);
   });
 
   it('비밀번호 정책을 만족하지 않으면 계정을 만들 수 없다', async () => {

@@ -112,7 +112,7 @@ export async function seedFixtures(options: { normalSpaces?: number } = {}): Pro
       recipientName: '알림 수신자',
       isActive: true,
       receiveNewRequest: true,
-      receiveApprovalAlert: true,
+      receiveChangeAlert: true,
     },
   });
 
