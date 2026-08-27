@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
+import { ClickableTableRow } from '@/components/admin/clickable-table-row';
 import { requireAdminPage } from '@/lib/admin-page-guard';
 import { listRecurringSchedules } from '@/services/recurring-reservation-service';
 
@@ -44,8 +45,8 @@ export default async function RecurringReservationsPage() {
                   <th>기간</th>
                   <th>요일</th>
                   <th>시간대</th>
-                  <th>승인 생략</th>
-                  <th>메일 생략</th>
+                  <th>관리자 승인</th>
+                  <th>메일 발송</th>
                   <th>상태</th>
                 </tr>
               </thead>
@@ -58,7 +59,10 @@ export default async function RecurringReservationsPage() {
                   </tr>
                 ) : (
                   schedules.map((schedule) => (
-                    <tr key={schedule.scheduleId}>
+                    <ClickableTableRow
+                      key={schedule.scheduleId}
+                      href={`/admin/recurring-reservations/${schedule.scheduleId}`}
+                    >
                       <td>
                         <Link
                           href={`/admin/recurring-reservations/${schedule.scheduleId}`}
@@ -69,20 +73,20 @@ export default async function RecurringReservationsPage() {
                       </td>
                       <td className="font-mono text-xs">{schedule.spaceCode}</td>
                       <td className="text-xs whitespace-nowrap">
-                        {schedule.startDate} ~ {schedule.endDate}
+                        {schedule.startDate} ~ {schedule.endDate ?? ''}
                       </td>
                       <td className="text-xs">{schedule.weekdaysLabel}</td>
                       <td className="text-xs whitespace-nowrap">
                         {schedule.dailyStartTime} ~ {schedule.dailyEndTime}
                       </td>
-                      <td>{schedule.skipApproval ? '✓' : '-'}</td>
-                      <td>{schedule.skipEmail ? '✓' : '-'}</td>
+                      <td>{schedule.approvalEnabled ? 'O' : 'X'}</td>
+                      <td>{schedule.emailEnabled ? 'O' : 'X'}</td>
                       <td>
                         <span className={`badge ${STATUS_CLASS[schedule.status]}`}>
                           {STATUS_LABEL[schedule.status]}
                         </span>
                       </td>
-                    </tr>
+                    </ClickableTableRow>
                   ))
                 )}
               </tbody>

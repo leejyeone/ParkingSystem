@@ -29,8 +29,8 @@ export async function POST(request: NextRequest) {
         weekdaysMask: payload.weekdays,
         dailyStartTime: payload.dailyStartTime,
         dailyEndTime: payload.dailyEndTime,
-        skipApproval: payload.skipApproval,
-        skipEmail: payload.skipEmail,
+        approvalEnabled: payload.approvalEnabled,
+        emailEnabled: payload.emailEnabled,
       },
       {
         adminUserId: session.adminUserId,

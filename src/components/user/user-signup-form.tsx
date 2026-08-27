@@ -109,7 +109,7 @@ export function UserSignUpForm() {
         </FormField>
 
         <FormField
-          label="방문 상호 또는 소속 사업장명"
+          label="방문 상호"
           htmlFor="signup-company"
           required
           errors={fieldErrors.companyOrBranchName}
@@ -119,7 +119,6 @@ export function UserSignUpForm() {
             className={inputClassName(Boolean(fieldErrors.companyOrBranchName))}
             value={form.companyOrBranchName}
             onChange={(event) => update('companyOrBranchName', event.target.value)}
-            placeholder="예) 시노펙스 / 대구사업장"
             autoComplete="organization"
             maxLength={100}
           />

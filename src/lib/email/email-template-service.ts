@@ -470,7 +470,7 @@ export function renderReservationEmail(
 // 반복 예약(정기 주차 배정) 시리즈 자체에 대한 메일
 //
 // 예약 1건이 아니라 시리즈(기간·요일·시간대 전체)에 대한 안내라 ReservationEmailData
-// 모양을 억지로 맞추지 않고 별도 타입/렌더 함수를 둔다. skipEmail 설정과 무관하게 항상
+// 모양을 억지로 맞추지 않고 별도 타입/렌더 함수를 둔다. emailEnabled 설정과 무관하게 항상
 // 발송되는 메일이다(src/services/recurring-reservation-service.ts 참고).
 // ---------------------------------------------------------------------------
 

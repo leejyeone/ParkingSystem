@@ -30,8 +30,8 @@ export function RecurringScheduleEditForm({
     weekdaysMask: number;
     dailyStartTime: string;
     dailyEndTime: string;
-    skipApproval: boolean;
-    skipEmail: boolean;
+    approvalEnabled: boolean;
+    emailEnabled: boolean;
   };
 }) {
   const router = useRouter();
@@ -40,8 +40,8 @@ export function RecurringScheduleEditForm({
   const [weekdays, setWeekdays] = useState<boolean[]>(maskToWeekdays(initial.weekdaysMask));
   const [dailyStartTime, setDailyStartTime] = useState(initial.dailyStartTime);
   const [dailyEndTime, setDailyEndTime] = useState(initial.dailyEndTime);
-  const [skipApproval, setSkipApproval] = useState(initial.skipApproval);
-  const [skipEmail, setSkipEmail] = useState(initial.skipEmail);
+  const [approvalEnabled, setApprovalEnabled] = useState(initial.approvalEnabled);
+  const [emailEnabled, setEmailEnabled] = useState(initial.emailEnabled);
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -70,8 +70,8 @@ export function RecurringScheduleEditForm({
           weekdays,
           dailyStartTime,
           dailyEndTime,
-          skipApproval,
-          skipEmail,
+          approvalEnabled,
+          emailEnabled,
         }),
       },
     );
@@ -157,7 +157,7 @@ export function RecurringScheduleEditForm({
             <FormField
               label="종료일"
               htmlFor="recurring-end"
-              hint="비워두면 시작일로부터 6개월 동안 자동으로 등록됩니다."
+              hint="비워두면 종료일 없이 무기한으로 등록되며, 예약은 6개월씩 생성됩니다."
               errors={fieldErrors.endDate}
             >
               <input
@@ -234,11 +234,11 @@ export function RecurringScheduleEditForm({
             <input
               type="checkbox"
               className="accent-brand-700 size-5"
-              checked={skipApproval}
-              onChange={(event) => setSkipApproval(event.target.checked)}
+              checked={approvalEnabled}
+              onChange={(event) => setApprovalEnabled(event.target.checked)}
             />
             <span className="text-sm font-semibold text-slate-800">
-              승인 절차 생략 (바로 승인 완료)
+              관리자 승인 사용 (해제하면 바로 자동 승인됩니다)
             </span>
           </label>
 
@@ -246,11 +246,11 @@ export function RecurringScheduleEditForm({
             <input
               type="checkbox"
               className="accent-brand-700 size-5"
-              checked={skipEmail}
-              onChange={(event) => setSkipEmail(event.target.checked)}
+              checked={emailEnabled}
+              onChange={(event) => setEmailEnabled(event.target.checked)}
             />
             <span className="text-sm font-semibold text-slate-800">
-              개별 예약 알림 메일 생략 (시리즈 수정/제외/삭제 안내는 항상 발송됩니다)
+              개별 예약 알림 메일 발송 (해제해도 시리즈 수정/제외/삭제 안내는 항상 발송됩니다)
             </span>
           </label>
         </div>

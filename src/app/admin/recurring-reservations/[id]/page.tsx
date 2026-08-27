@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
+import { RecurringScheduleDeleteButton } from '@/components/admin/recurring-schedule-delete-button';
 import { RecurringScheduleOccurrenceTable } from '@/components/admin/recurring-schedule-occurrence-table';
 import { parseNumericId } from '@/lib/api-helpers';
 import { requireAdminPage } from '@/lib/admin-page-guard';
@@ -32,12 +33,15 @@ export default async function RecurringReservationDetailPage({ params }: PagePro
             {schedule.employeeName} ({schedule.departmentName}) 반복 예약
           </h1>
           {schedule.status === 'ACTIVE' && (
-            <Link
-              href={`/admin/recurring-reservations/${schedule.scheduleId}/edit`}
-              className="btn btn-secondary min-h-9 px-3 text-xs"
-            >
-              반복 일정 수정
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/admin/recurring-reservations/${schedule.scheduleId}/edit`}
+                className="btn btn-secondary min-h-9 px-3 text-xs"
+              >
+                반복 일정 수정
+              </Link>
+              <RecurringScheduleDeleteButton scheduleId={schedule.scheduleId} />
+            </div>
           )}
         </div>
       </div>
@@ -52,7 +56,7 @@ export default async function RecurringReservationDetailPage({ params }: PagePro
             <div className="definition-row">
               <dt className="definition-term">기간</dt>
               <dd className="definition-desc">
-                {schedule.startDate} ~ {schedule.endDate}
+                {schedule.startDate} ~ {schedule.endDate ?? ''}
               </dd>
             </div>
             <div className="definition-row">
@@ -66,32 +70,22 @@ export default async function RecurringReservationDetailPage({ params }: PagePro
               </dd>
             </div>
             <div className="definition-row">
-              <dt className="definition-term">승인 절차</dt>
-              <dd className="definition-desc">
-                {schedule.skipApproval ? '생략(자동 승인)' : '사용'}
-              </dd>
+              <dt className="definition-term">관리자 승인</dt>
+              <dd className="definition-desc">{schedule.approvalEnabled ? 'O' : 'X'}</dd>
             </div>
             <div className="definition-row">
-              <dt className="definition-term">개별 알림 메일</dt>
-              <dd className="definition-desc">{schedule.skipEmail ? '생략' : '발송'}</dd>
+              <dt className="definition-term">메일 발송</dt>
+              <dd className="definition-desc">{schedule.emailEnabled ? 'O' : 'X'}</dd>
             </div>
             <div className="definition-row">
               <dt className="definition-term">상태</dt>
               <dd className="definition-desc">{STATUS_LABEL[schedule.status]}</dd>
-            </div>
-            <div className="definition-row">
-              <dt className="definition-term">건수</dt>
-              <dd className="definition-desc">
-                진행 {schedule.activeOccurrenceCount}건 / 전체 {schedule.occurrenceCount}건
-              </dd>
             </div>
           </dl>
         </div>
       </section>
 
       <RecurringScheduleOccurrenceTable
-        scheduleId={schedule.scheduleId}
-        scheduleActive={schedule.status === 'ACTIVE'}
         occurrences={occurrences.map((occurrence) => ({
           reservationId: occurrence.reservationId,
           reservationNo: occurrence.reservationNo,

@@ -37,8 +37,9 @@ export default async function RecurringReservationEditPage({ params }: PageProps
           {schedule.employeeName} ({schedule.departmentName}) 반복 예약 수정
         </h1>
         <p className="mt-1 text-sm text-slate-600">
-          {schedule.spaceCode} 주차면 배정의 요일·시간·기간을 변경합니다. 저장하면 아직 방문 전인
-          예정 일정이 새 패턴으로 다시 생성됩니다.
+          {schedule.spaceCode} 주차면 배정의 요일·시간·기간을 변경합니다. 새 일정에 그대로 남는
+          날짜는 손대지 않고, 더 이상 해당하지 않는 날짜만 정리한 뒤 필요한 날짜만 새로 생성합니다.
+          종료일을 비우면 무기한으로 저장되며, 예약은 그래도 6개월치만 생성됩니다.
         </p>
       </div>
 
@@ -46,12 +47,12 @@ export default async function RecurringReservationEditPage({ params }: PageProps
         scheduleId={scheduleId}
         initial={{
           startDate: schedule.startDate,
-          endDate: schedule.endDate,
+          endDate: schedule.endDate ?? '',
           weekdaysMask: schedule.weekdaysMask,
           dailyStartTime: schedule.dailyStartTime,
           dailyEndTime: schedule.dailyEndTime,
-          skipApproval: schedule.skipApproval,
-          skipEmail: schedule.skipEmail,
+          approvalEnabled: schedule.approvalEnabled,
+          emailEnabled: schedule.emailEnabled,
         }}
       />
     </main>

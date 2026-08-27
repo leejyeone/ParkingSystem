@@ -26,8 +26,8 @@ const schedulePatternFields = {
   weekdays: weekdaysSchema,
   dailyStartTime: timeOfDaySchema,
   dailyEndTime: timeOfDaySchema,
-  skipApproval: z.boolean().default(false),
-  skipEmail: z.boolean().default(true),
+  approvalEnabled: z.boolean().default(true),
+  emailEnabled: z.boolean().default(false),
 };
 
 export const createRecurringScheduleSchema = z

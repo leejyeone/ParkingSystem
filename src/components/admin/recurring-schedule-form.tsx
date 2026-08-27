@@ -45,8 +45,8 @@ export function RecurringScheduleForm({ spaces }: { spaces: SpaceOption[] }) {
   const [weekdays, setWeekdays] = useState<boolean[]>(DEFAULT_WEEKDAYS);
   const [dailyStartTime, setDailyStartTime] = useState('09:00');
   const [dailyEndTime, setDailyEndTime] = useState('18:00');
-  const [skipApproval, setSkipApproval] = useState(true);
-  const [skipEmail, setSkipEmail] = useState(true);
+  const [approvalEnabled, setApprovalEnabled] = useState(false);
+  const [emailEnabled, setEmailEnabled] = useState(false);
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -118,8 +118,8 @@ export function RecurringScheduleForm({ spaces }: { spaces: SpaceOption[] }) {
         weekdays,
         dailyStartTime,
         dailyEndTime,
-        skipApproval,
-        skipEmail,
+        approvalEnabled,
+        emailEnabled,
       }),
     });
 
@@ -288,7 +288,7 @@ export function RecurringScheduleForm({ spaces }: { spaces: SpaceOption[] }) {
             <FormField
               label="종료일"
               htmlFor="recurring-end"
-              hint="비워두면 시작일로부터 6개월 동안 자동으로 등록됩니다."
+              hint="비워두면 종료일 없이 무기한으로 등록되며, 예약은 6개월씩 생성됩니다."
               errors={fieldErrors.endDate}
             >
               <input
@@ -365,11 +365,11 @@ export function RecurringScheduleForm({ spaces }: { spaces: SpaceOption[] }) {
             <input
               type="checkbox"
               className="accent-brand-700 size-5"
-              checked={skipApproval}
-              onChange={(event) => setSkipApproval(event.target.checked)}
+              checked={approvalEnabled}
+              onChange={(event) => setApprovalEnabled(event.target.checked)}
             />
             <span className="text-sm font-semibold text-slate-800">
-              승인 절차 생략 (바로 승인 완료)
+              관리자 승인 사용 (해제하면 바로 자동 승인됩니다)
             </span>
           </label>
 
@@ -377,11 +377,11 @@ export function RecurringScheduleForm({ spaces }: { spaces: SpaceOption[] }) {
             <input
               type="checkbox"
               className="accent-brand-700 size-5"
-              checked={skipEmail}
-              onChange={(event) => setSkipEmail(event.target.checked)}
+              checked={emailEnabled}
+              onChange={(event) => setEmailEnabled(event.target.checked)}
             />
             <span className="text-sm font-semibold text-slate-800">
-              개별 예약 알림 메일 생략 (시리즈 생성/제외/취소 안내는 항상 발송됩니다)
+              개별 예약 알림 메일 발송 (해제해도 시리즈 생성/제외/취소 안내는 항상 발송됩니다)
             </span>
           </label>
         </div>
