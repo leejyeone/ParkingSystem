@@ -32,9 +32,12 @@ export const createReservationSchema = z.object({
 
 export type CreateReservationPayload = z.infer<typeof createReservationSchema>;
 
-/** 직원 본인 방문 신청 (로그인 필수). requesterType=EMPLOYEE 고정, 동의 카드 없음. */
+/**
+ * 직원 본인 방문 신청 (로그인 필수). requesterType=EMPLOYEE 고정, 동의 카드 없음.
+ * 소속 사업장명은 직원 명부에 없는 값이라 선택 입력이다(방문객/대리 신청과 달리 필수가 아니다).
+ */
 export const createEmployeeReservationSchema = z.object({
-  companyOrBranchName: requiredText(100, '소속 사업장명'),
+  companyOrBranchName: optionalText(100, '소속 사업장명'),
   requesterName: requiredText(50, '성명'),
   requesterEmail: emailSchema,
   vehicleNo: vehicleNoSchema,

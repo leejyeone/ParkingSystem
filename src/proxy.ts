@@ -51,7 +51,7 @@ export const config = {
     '/admin',
     '/admin/((?!login).*)',
     '/employee',
-    '/employee/((?!login|signup).*)',
+    '/employee/((?!login).*)',
     '/mypage',
     '/mypage/(.*)',
   ],

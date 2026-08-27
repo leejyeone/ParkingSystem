@@ -2,7 +2,6 @@ import type { NextRequest } from 'next/server';
 
 import { apiSuccess, handleApiError } from '@/lib/api-response';
 import { formatKstRange } from '@/lib/datetime';
-import { ForbiddenError } from '@/lib/errors';
 import { requireActiveEmployee } from '@/services/employee-auth-service';
 import { consumeRateLimit } from '@/lib/rate-limit';
 import { createEmployeeReservationSchema } from '@/lib/validation/reservation-schema';
@@ -18,9 +17,6 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: NextRequest) {
   try {
     const session = await requireActiveEmployee();
-    if (session.mustChangePassword) {
-      throw new ForbiddenError('비밀번호를 먼저 변경해 주세요.');
-    }
 
     consumeRateLimit({
       key: `reservation:employee:${session.employeeUserId}`,

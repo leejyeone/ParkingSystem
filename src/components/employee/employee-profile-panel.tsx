@@ -9,39 +9,30 @@ import { apiRequest } from '@/lib/client/api-client';
 import { normalizeVehicleNo } from '@/lib/vehicle';
 
 type Profile = {
+  employeeCode: string;
   email: string;
   name: string;
-  branchName: string;
-  department: string | null;
+  departmentName: string;
   vehicleNo: string | null;
 };
 
 /**
- * 직원 내 정보 수정 패널.
- * 여기 저장된 값만 방문 신청 폼 자동완성에 사용된다.
- * (신청 폼에서 값을 고쳐도 직원 정보는 바뀌지 않는다)
+ * 직원 내 정보 패널.
+ *
+ * 이름/이메일/부서/사번은 명부(그룹웨어/시드 스크립트)로만 갱신되므로 읽기 전용으로
+ * 보여주고, 직원이 직접 바꿀 수 있는 건 차량번호(방문 신청 폼 자동완성용)뿐이다.
  */
 export function EmployeeProfilePanel({ profile }: { profile: Profile }) {
   const router = useRouter();
-  const [form, setForm] = useState({
-    name: profile.name,
-    branchName: profile.branchName,
-    department: profile.department ?? '',
-    vehicleNo: profile.vehicleNo ?? '',
-    password: '',
-  });
+  const [vehicleNo, setVehicleNo] = useState(profile.vehicleNo ?? '');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [message, setMessage] = useState<{ variant: 'success' | 'error'; text: string } | null>(
     null,
   );
   const [submitting, setSubmitting] = useState(false);
 
-  function update(key: keyof typeof form, value: string) {
-    setForm((previous) => ({ ...previous, [key]: value }));
-  }
-
   function handleVehicleNoChange(event: ChangeEvent<HTMLInputElement>) {
-    update('vehicleNo', normalizeVehicleNo(event.target.value));
+    setVehicleNo(normalizeVehicleNo(event.target.value));
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -52,20 +43,12 @@ export function EmployeeProfilePanel({ profile }: { profile: Profile }) {
 
     const response = await apiRequest('/api/employee/profile', {
       method: 'PUT',
-      body: JSON.stringify({
-        name: form.name,
-        branchName: form.branchName,
-        department: form.department,
-        vehicleNo: form.vehicleNo,
-        // 비워 두면 비밀번호는 변경하지 않는다.
-        ...(form.password ? { password: form.password } : {}),
-      }),
+      body: JSON.stringify({ vehicleNo }),
     });
 
     setSubmitting(false);
 
     if (response.ok) {
-      setForm((previous) => ({ ...previous, password: '' }));
       setMessage({ variant: 'success', text: '내 정보를 저장했습니다.' });
       router.refresh();
       return;
@@ -80,7 +63,10 @@ export function EmployeeProfilePanel({ profile }: { profile: Profile }) {
       <div className="card-body space-y-5">
         <div>
           <h2 className="card-title">내 정보</h2>
-          <p className="field-hint">방문 신청 시 아래 정보가 자동으로 입력됩니다.</p>
+          <p className="field-hint">
+            이름·이메일·부서는 사내 명부 기준으로 표시되며 여기서 바꿀 수 없습니다. 차량번호는 방문
+            신청 시 자동으로 입력됩니다.
+          </p>
         </div>
 
         {message && (
@@ -89,57 +75,33 @@ export function EmployeeProfilePanel({ profile }: { profile: Profile }) {
           </Alert>
         )}
 
-        <FormField
-          label="이메일"
-          htmlFor="employee-profile-email"
-          hint="이메일은 변경할 수 없습니다."
-        >
+        <FormField label="이름" htmlFor="employee-profile-name">
+          <input
+            id="employee-profile-name"
+            className="input"
+            value={profile.name}
+            disabled
+            readOnly
+          />
+        </FormField>
+
+        <FormField label="부서" htmlFor="employee-profile-department">
+          <input
+            id="employee-profile-department"
+            className="input"
+            value={profile.departmentName}
+            disabled
+            readOnly
+          />
+        </FormField>
+
+        <FormField label="이메일" htmlFor="employee-profile-email">
           <input
             id="employee-profile-email"
             className="input"
             value={profile.email}
             disabled
             readOnly
-          />
-        </FormField>
-
-        <FormField label="성명" htmlFor="employee-profile-name" required errors={fieldErrors.name}>
-          <input
-            id="employee-profile-name"
-            className={inputClassName(Boolean(fieldErrors.name))}
-            value={form.name}
-            onChange={(event) => update('name', event.target.value)}
-            maxLength={50}
-          />
-        </FormField>
-
-        <FormField
-          label="소속 사업장명"
-          htmlFor="employee-profile-branch"
-          required
-          errors={fieldErrors.branchName}
-        >
-          <input
-            id="employee-profile-branch"
-            className={inputClassName(Boolean(fieldErrors.branchName))}
-            value={form.branchName}
-            onChange={(event) => update('branchName', event.target.value)}
-            maxLength={100}
-          />
-        </FormField>
-
-        <FormField
-          label="부서"
-          htmlFor="employee-profile-department"
-          hint="선택 입력입니다."
-          errors={fieldErrors.department}
-        >
-          <input
-            id="employee-profile-department"
-            className={inputClassName(Boolean(fieldErrors.department))}
-            value={form.department}
-            onChange={(event) => update('department', event.target.value)}
-            maxLength={100}
           />
         </FormField>
 
@@ -152,27 +114,10 @@ export function EmployeeProfilePanel({ profile }: { profile: Profile }) {
           <input
             id="employee-profile-vehicle"
             className={inputClassName(Boolean(fieldErrors.vehicleNo))}
-            value={form.vehicleNo}
+            value={vehicleNo}
             onChange={handleVehicleNoChange}
             placeholder="12가3456"
             maxLength={20}
-          />
-        </FormField>
-
-        <FormField
-          label="새 비밀번호"
-          htmlFor="employee-profile-password"
-          hint="변경할 때만 입력하세요. 8자 이상"
-          errors={fieldErrors.password}
-        >
-          <input
-            id="employee-profile-password"
-            type="password"
-            className={inputClassName(Boolean(fieldErrors.password))}
-            value={form.password}
-            onChange={(event) => update('password', event.target.value)}
-            autoComplete="new-password"
-            maxLength={100}
           />
         </FormField>
 

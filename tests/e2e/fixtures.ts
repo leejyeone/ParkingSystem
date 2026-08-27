@@ -20,6 +20,13 @@ export const ADMIN_PASSWORD = 'E2eAdmin!2345';
 /** 방문 신청 폼의 "당사 담당자" 검색에서 고르는 기본 대상. */
 export const HOST_EMPLOYEE_NAME = '박담당';
 export const HOST_EMPLOYEE_EMAIL = 'e2e-host-employee@example.com';
+export const HOST_EMPLOYEE_CODE = 'E-HOST-001';
+
+/** 직원 본인 로그인(사번 진입) 플로우 테스트용 계정. */
+export const EMPLOYEE_CODE = 'E-SELF-001';
+export const EMPLOYEE_EMAIL = 'e2e-employee@example.com';
+export const EMPLOYEE_NAME = '김직원';
+export const EMPLOYEE_DEPARTMENT_NAME = '시노펙스 대구사업장';
 
 /** playwright.config.ts 에서 설정한 경로와 동일해야 한다. */
 const OUTBOX_DIR = process.env.MAIL_OUTBOX_DIR
@@ -54,11 +61,21 @@ export async function resetE2eDatabase(): Promise<void> {
   // 이 계정을 검색해서 골라야 신청이 완료된다.
   await prisma.employeeUser.create({
     data: {
-      passwordHash: await bcrypt.hash('E2eHost!2345', 10),
+      employeeCode: HOST_EMPLOYEE_CODE,
       name: HOST_EMPLOYEE_NAME,
-      branchName: '본사',
-      department: '총무팀',
+      departmentName: '총무팀',
       email: HOST_EMPLOYEE_EMAIL,
+      accountStatus: AccountStatus.ACTIVE,
+    },
+  });
+
+  // 직원 본인 로그인(사번 진입) 플로우 테스트용 계정.
+  await prisma.employeeUser.create({
+    data: {
+      employeeCode: EMPLOYEE_CODE,
+      name: EMPLOYEE_NAME,
+      departmentName: EMPLOYEE_DEPARTMENT_NAME,
+      email: EMPLOYEE_EMAIL,
       accountStatus: AccountStatus.ACTIVE,
     },
   });

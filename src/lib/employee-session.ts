@@ -19,6 +19,7 @@ export const EMPLOYEE_SESSION_TYPE = 'employee';
 
 export type EmployeeSession = {
   employeeUserId: number;
+  employeeCode: string;
   email: string;
   name: string;
 };
@@ -31,6 +32,7 @@ export async function signEmployeeSessionToken(session: EmployeeSession): Promis
   const maxAgeSeconds = getSessionMaxAgeMinutes() * 60;
   return new SignJWT({
     typ: EMPLOYEE_SESSION_TYPE,
+    employeeCode: session.employeeCode,
     email: session.email,
     name: session.name,
   })
@@ -50,6 +52,7 @@ export async function verifyEmployeeSessionToken(token: string): Promise<Employe
 
     return {
       employeeUserId,
+      employeeCode: String(payload.employeeCode ?? ''),
       email: String(payload.email ?? ''),
       name: String(payload.name ?? ''),
     };

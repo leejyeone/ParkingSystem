@@ -185,7 +185,8 @@ export function ReservationForm({
 
   // 방문 목적/요청 메모는 선택 입력이라 뺀다. 서버가 최종 검증하며, 이건 버튼 활성화용 힌트일 뿐이다.
   const isFormValid =
-    form.companyOrBranchName.trim() !== '' &&
+    // 직원 본인 신청은 소속 사업장명이 명부에 없는 값이라 선택 입력이다.
+    (mode === 'employee-self' || form.companyOrBranchName.trim() !== '') &&
     form.requesterName.trim() !== '' &&
     form.requesterEmail.trim() !== '' &&
     form.vehicleNo.trim() !== '' &&
@@ -223,7 +224,8 @@ export function ReservationForm({
           <FormField
             label={mode === 'employee-self' ? '소속 사업장명' : '방문상호'}
             htmlFor="companyOrBranchName"
-            required
+            required={mode !== 'employee-self'}
+            hint={mode === 'employee-self' ? '선택 입력입니다.' : undefined}
             errors={fieldErrors.companyOrBranchName}
           >
             <input

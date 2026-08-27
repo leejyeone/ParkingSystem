@@ -14,13 +14,11 @@ export type SelectedEmployee = {
 type EmployeeDirectoryEntry = {
   employeeUserId: number;
   name: string;
-  branchName: string;
-  department: string | null;
+  departmentName: string;
 };
 
 function toLabel(entry: EmployeeDirectoryEntry): string {
-  const affiliation = entry.department || entry.branchName;
-  return affiliation ? `${entry.name} (${affiliation})` : entry.name;
+  return entry.departmentName ? `${entry.name} (${entry.departmentName})` : entry.name;
 }
 
 /**
@@ -119,9 +117,7 @@ export function EmployeeSearchSelect({
                     onClick={() => handleSelect(entry)}
                   >
                     <span className="font-semibold text-slate-900">{entry.name}</span>
-                    <span className="ml-1 text-xs text-slate-500">
-                      {entry.department || entry.branchName || ''}
-                    </span>
+                    <span className="ml-1 text-xs text-slate-500">{entry.departmentName}</span>
                   </button>
                 </li>
               ))}

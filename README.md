@@ -217,7 +217,7 @@ flowchart TD
 ```mermaid
 flowchart TD
     A["/employee 접속"] --> B{로그인 상태?}
-    B -->|아니오| C["/employee/login (또는 /employee/signup)"]
+    B -->|아니오| C["/employee/login (사번 입력)"]
     C --> D[직원 홈]
     B -->|예| D
     D --> E["내 방문을 신청합니다"]
@@ -234,8 +234,13 @@ flowchart TD
 
 > `/employee` 는 관리자 화면처럼 URL 직접 입력으로만 접근하며, 로그인 상태가 아니면
 > `/employee/login` 으로 리다이렉트됩니다. 직원 계정(`EmployeeUser`)은 방문객 계정
-> (`SiteUser`)과 완전히 별도의 테이블·세션이며, 신청 구분(`requesterType`)은 화면에서
-> 선택하지 않고 어느 진입점·어느 신청 화면을 사용했는지에 따라 서버가 강제로 결정합니다.
+> (`SiteUser`)과 완전히 별도의 테이블·세션이며, 비밀번호가 없습니다 — 전 직원 명부를
+> `scripts/import-employees.ts` 로 미리 심어 두고, 사번(`employeeCode`)만 맞으면
+> `GET /api/employee/enter?empId=사번` 에서 그 즉시 세션이 발급됩니다(그룹웨어가 실제로
+> 넘겨주는 `page.asp?Fsacode=사번` 방식과 동일한 모양). `/employee/login` 은 그 그룹웨어
+> 리다이렉트를 흉내 낸 개발 전용 화면이며, 실제 그룹웨어 연동 시에는 치우면 됩니다.
+> 신청 구분(`requesterType`)은 화면에서 선택하지 않고 어느 진입점·어느 신청 화면을
+> 사용했는지에 따라 서버가 강제로 결정합니다.
 > 방문객을 대신 신청하는 경우 방문객 본인 대신 담당 직원이 "방문객 동의를 확인했음"을
 > 체크합니다. 대신 신청하는 화면에서만 "당사 담당자" 선택란이 있고 기본값은 로그인한
 > 본인이며, 다른 직원이 실제 담당자라면 검색해서 바꿀 수 있습니다. 직원 본인 방문

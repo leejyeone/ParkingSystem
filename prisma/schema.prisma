@@ -156,41 +156,33 @@ model SiteUser {
 // ---------------------------------------------------------------------------
 // employees - 직원 계정
 //
-// 방문객(SiteUser)과 완전히 별도의 테이블·로그인 세션이다. 그룹웨어 SSO 연동은
-// 이 테이블에만 필드를 추가하면 되고, SiteUser/방문객 인증 코드는 전혀 손댈 필요가 없다.
+// 방문객(SiteUser)과 완전히 별도의 테이블·로그인 세션이다. 비밀번호가 없다 —
+// 전 직원 명부 엑셀을 시드 스크립트(scripts/import-employees.ts)로 1회성 주입해 두고,
+// 로그인은 사번(employeeCode)만 맞으면 그 즉시 세션이 발급된다. 그룹웨어가 실제로
+// 넘겨주는 방식(`page.asp?Fsacode=사번` GET 파라미터)과 동일한 모양이다 — 운영에서는
+// 그룹웨어가 이미 로그인된 사용자에게만 이 링크를 태워주므로 그 시점에 사번을 아는 것
+// 자체가 신뢰 경계 역할을 한다. 그룹웨어 SSO 연동 시에도 이 테이블만 손보면 된다.
 // ---------------------------------------------------------------------------
 
 model EmployeeUser {
-  employeeUserId Int    @id @default(autoincrement()) @map("employee_user_id")
-  email          String @unique(map: "uq_employee_users_email") @db.VarChar(255)
-  /// bcrypt 해시. 평문 비밀번호는 절대 저장하지 않는다.
-  passwordHash   String @map("password_hash") @db.VarChar(255)
-
-  /// 신청 폼 자동완성용 기본 정보. 직원은 항상 본인이 속한 사업장이므로 방문객(SiteUser)의
-  /// "방문 상호 또는 소속 사업장명"과 달리 사업장명 하나만 있으면 된다.
-  name       String  @db.VarChar(50)
-  /// 소속 부서. 사업장명(branchName)과 별개 항목이다.
-  department String? @db.VarChar(100)
-  branchName String  @map("branch_name") @db.VarChar(100)
-  vehicleNo  String? @map("vehicle_no") @db.VarChar(20)
+  employeeUserId Int     @id @default(autoincrement()) @map("employee_user_id")
+  /// 그룹웨어 세션의 사번(Fsacode/CCode). 로그인·그룹웨어 매핑의 유일한 키 — 비밀번호는 없다.
+  employeeCode   String  @unique(map: "uq_employee_users_employee_code") @map("employee_code") @db.VarChar(20)
+  email          String  @unique(map: "uq_employee_users_email") @db.VarChar(255)
+  name           String  @db.VarChar(50)
+  /// 그룹웨어 조회 결과의 부서명(buseo).
+  departmentName String  @map("department_name") @db.VarChar(100)
+  /// 그룹웨어 조회 결과의 부서코드(DEPT_ID). 화면에는 노출하지 않고 향후 그룹웨어 재대조용으로만 보관.
+  departmentCode String? @map("department_code") @db.VarChar(50)
+  /// 신청 폼 자동완성용(선택). 명부 엑셀에는 없는 값이라 직원이 마이페이지에서 직접 입력해 채운다.
+  vehicleNo      String? @map("vehicle_no") @db.VarChar(20)
 
   accountStatus AccountStatus @default(ACTIVE) @map("account_status")
 
-  /// 관리자가 만든 계정(고정 초기 비밀번호)은 true 로 시작해 로그인 시 비밀번호 변경을
-  /// 강제한다. 본인이 직접 가입한 계정은 이미 본인이 정한 비밀번호라 false 로 시작한다.
-  /// 비밀번호를 바꾸면(관리자 강제 변경/마이페이지 모두) false 로 풀린다.
-  mustChangePassword Boolean @default(false) @map("must_change_password")
-
-  /// brute-force 방지용. 연속 로그인 실패 횟수
-  loginFailCount Int       @default(0) @map("login_fail_count")
-  /// 계정 임시 잠금 해제 시각
-  lockedUntil    DateTime? @map("locked_until")
-
-  lastLoginAt       DateTime? @map("last_login_at")
-  passwordChangedAt DateTime? @map("password_changed_at")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
-  deletedAt         DateTime? @map("deleted_at")
+  lastLoginAt DateTime? @map("last_login_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
 
   reservations ParkingReservation[]
 

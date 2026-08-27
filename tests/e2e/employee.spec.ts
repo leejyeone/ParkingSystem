@@ -1,20 +1,21 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
-import { clearMailOutbox, clientIpFor, prisma, resetE2eDatabase, tomorrowInput } from './fixtures';
+import {
+  clearMailOutbox,
+  clientIpFor,
+  EMPLOYEE_CODE,
+  EMPLOYEE_DEPARTMENT_NAME,
+  EMPLOYEE_NAME,
+  prisma,
+  resetE2eDatabase,
+  tomorrowInput,
+} from './fixtures';
 
 /**
- * 직원(로그인 필수) 흐름 E2E
- *   직원 회원가입 → 직원 홈 → 본인 방문 신청(동의 카드 없음) / 방문객 대리 신청(동의 확인 체크)
+ * 직원(로그인 필수, 사번 진입) 흐름 E2E
+ *   사번으로 진입 → 직원 홈 → 본인 방문 신청(동의 카드 없음) / 방문객 대리 신청(동의 확인 체크)
  *   → 내 신청 내역에 구분 표시
  */
-
-const EMPLOYEE = {
-  email: 'e2e-employee@example.com',
-  password: 'Employee!2345',
-  name: '김직원',
-  branchName: '시노펙스 대구사업장',
-  vehicleNo: '56다7890',
-};
 
 test.beforeEach(async ({ page }, testInfo) => {
   await page.setExtraHTTPHeaders({
@@ -28,27 +29,32 @@ test.afterAll(async () => {
   await prisma.$disconnect();
 });
 
-async function signUpEmployee(page: Page) {
-  await page.goto('/employee/signup');
-  await page.getByLabel('이메일').fill(EMPLOYEE.email);
-  await page.getByLabel('비밀번호').fill(EMPLOYEE.password);
-  await page.getByLabel('성명').fill(EMPLOYEE.name);
-  await page.getByLabel('소속 사업장명').fill(EMPLOYEE.branchName);
-  await page.getByLabel('차량번호').fill(EMPLOYEE.vehicleNo);
-  await page.getByRole('button', { name: '가입하고 시작하기' }).click();
+async function enterAsEmployee(page: import('@playwright/test').Page) {
+  await page.goto('/employee/login');
+  await page.getByLabel('사번').fill(EMPLOYEE_CODE);
+  await page.getByRole('button', { name: '진입하기' }).click();
 
   await expect(page.getByRole('heading', { name: '시노펙스 방문 예약' })).toBeVisible();
 }
 
-test('직원 회원가입하면 직원 홈으로 이동하고 소속 정보가 보인다', async ({ page }) => {
-  await signUpEmployee(page);
+test('시드된 사번으로 진입하면 직원 홈으로 이동하고 부서 정보가 보인다', async ({ page }) => {
+  await enterAsEmployee(page);
 
   await expect(
-    page.getByText(`${EMPLOYEE.branchName} ${EMPLOYEE.name}님, 안녕하세요.`),
+    page.getByText(`${EMPLOYEE_DEPARTMENT_NAME} ${EMPLOYEE_NAME}님, 안녕하세요.`),
   ).toBeVisible();
 });
 
-test('비로그인 상태로 /employee 에 접근하면 직원 로그인 페이지로 이동한다', async ({ page }) => {
+test('등록되지 않은 사번으로는 진입할 수 없다', async ({ page }) => {
+  await page.goto('/employee/login');
+  await page.getByLabel('사번').fill('NO-SUCH-CODE');
+  await page.getByRole('button', { name: '진입하기' }).click();
+
+  await expect(page).toHaveURL(/\/employee\/login/);
+  await expect(page.getByText('등록되지 않은 사번입니다.')).toBeVisible();
+});
+
+test('비로그인 상태로 /employee 에 접근하면 직원 로그인 화면으로 이동한다', async ({ page }) => {
   await page.goto('/employee');
 
   await expect(page).toHaveURL(/\/employee\/login/);
@@ -58,15 +64,14 @@ test('비로그인 상태로 /employee 에 접근하면 직원 로그인 페이�
 test('직원 본인 방문 신청은 동의 카드 없이 완료되고 직원 홈으로 돌아갈 수 있다', async ({
   page,
 }) => {
-  await signUpEmployee(page);
+  await enterAsEmployee(page);
 
   await page.goto('/employee/reservations/new');
-  await expect(page.getByLabel('소속 사업장명')).toHaveValue(EMPLOYEE.branchName);
-  await expect(page.getByLabel('성명')).toHaveValue(EMPLOYEE.name);
-  await expect(page.getByLabel('차량번호')).toHaveValue(EMPLOYEE.vehicleNo);
+  await expect(page.getByLabel('성명')).toHaveValue(EMPLOYEE_NAME);
   // 직원 본인 신청은 개인정보 수집·이용 동의 카드 자체가 없다.
   await expect(page.getByText('개인정보 수집 및 이용 동의')).toHaveCount(0);
 
+  await page.getByLabel('차량번호').fill('56다7890');
   await page.getByLabel('입차 예정 시간').fill(tomorrowInput(10));
   await page.getByLabel('출차 예정 시간').fill(tomorrowInput(12));
   await page.getByRole('button', { name: '방문 신청하기' }).click();
@@ -83,10 +88,10 @@ test('직원 본인 방문 신청은 동의 카드 없이 완료되고 직원 �
 });
 
 test('직원의 방문객 대리 신청은 방문객 동의 확인 체크가 필요하다', async ({ page }) => {
-  await signUpEmployee(page);
+  await enterAsEmployee(page);
 
   await page.goto('/employee/reservations/proxy');
-  await expect(page.getByText(`담당자: ${EMPLOYEE.name}`)).toBeVisible();
+  await expect(page.getByText(`담당자: ${EMPLOYEE_NAME}`)).toBeVisible();
 
   await page.getByLabel('방문상호').fill('외부 협력업체');
   await page.getByLabel('성명').fill('방문객1');
@@ -111,9 +116,10 @@ test('직원의 방문객 대리 신청은 방문객 동의 확인 체크가 필
 });
 
 test('직원의 내 신청 내역에는 본인 방문과 대리 신청이 구분되어 나온다', async ({ page }) => {
-  await signUpEmployee(page);
+  await enterAsEmployee(page);
 
   await page.goto('/employee/reservations/new');
+  await page.getByLabel('차량번호').fill('56다7890');
   await page.getByLabel('입차 예정 시간').fill(tomorrowInput(10));
   await page.getByLabel('출차 예정 시간').fill(tomorrowInput(12));
   await page.getByRole('button', { name: '방문 신청하기' }).click();
@@ -137,9 +143,10 @@ test('직원의 내 신청 내역에는 본인 방문과 대리 신청이 구분
 });
 
 test('내 신청 내역에서 카드를 누르면 예약 상세 조회 화면으로 이동한다', async ({ page }) => {
-  await signUpEmployee(page);
+  await enterAsEmployee(page);
 
   await page.goto('/employee/reservations/new');
+  await page.getByLabel('차량번호').fill('56다7890');
   await page.getByLabel('입차 예정 시간').fill(tomorrowInput(10));
   await page.getByLabel('출차 예정 시간').fill(tomorrowInput(12));
   await page.getByRole('button', { name: '방문 신청하기' }).click();
@@ -151,18 +158,18 @@ test('내 신청 내역에서 카드를 누르면 예약 상세 조회 화면으
 
   await expect(page).toHaveURL(/\/r\//);
   await expect(page.getByRole('heading', { name: '내 예약' })).toBeVisible();
-  await expect(page.getByText(EMPLOYEE.name)).toBeVisible();
+  await expect(page.getByText(EMPLOYEE_NAME)).toBeVisible();
 });
 
-test('내 신청 내역에서 내 정보를 수정할 수 있다', async ({ page }) => {
-  await signUpEmployee(page);
+test('내 신청 내역에서 차량번호를 수정할 수 있다', async ({ page }) => {
+  await enterAsEmployee(page);
 
   await page.goto('/employee/reservations');
-  await page.getByLabel('소속 사업장명').fill('시노펙스 부산사업장');
+  await page.getByLabel('차량번호').fill('78마1234');
   await page.getByRole('button', { name: '내 정보 저장' }).click();
 
   await expect(page.getByText('내 정보를 저장했습니다.')).toBeVisible();
 
   await page.goto('/employee/reservations/new');
-  await expect(page.getByLabel('소속 사업장명')).toHaveValue('시노펙스 부산사업장');
+  await expect(page.getByLabel('차량번호')).toHaveValue('78마1234');
 });

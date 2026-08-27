@@ -12,8 +12,7 @@ import { prisma } from '@/lib/prisma';
 export type EmployeeDirectoryEntry = {
   employeeUserId: number;
   name: string;
-  branchName: string;
-  department: string | null;
+  departmentName: string;
 };
 
 const SEARCH_RESULT_LIMIT = 20;
@@ -26,13 +25,9 @@ export async function searchActiveEmployees(query: string): Promise<EmployeeDire
     where: {
       deletedAt: null,
       accountStatus: AccountStatus.ACTIVE,
-      OR: [
-        { name: { contains: trimmed } },
-        { department: { contains: trimmed } },
-        { branchName: { contains: trimmed } },
-      ],
+      OR: [{ name: { contains: trimmed } }, { departmentName: { contains: trimmed } }],
     },
-    select: { employeeUserId: true, name: true, branchName: true, department: true },
+    select: { employeeUserId: true, name: true, departmentName: true },
     orderBy: [{ name: 'asc' }],
     take: SEARCH_RESULT_LIMIT,
   });

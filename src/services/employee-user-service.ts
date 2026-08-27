@@ -1,7 +1,6 @@
-import { AccountStatus, Prisma } from '@prisma/client';
+import { AccountStatus } from '@prisma/client';
 
-import { ConflictError, NotFoundError } from '@/lib/errors';
-import { hashPassword } from '@/lib/password';
+import { NotFoundError } from '@/lib/errors';
 import { prisma } from '@/lib/prisma';
 import type { RequestContext } from '@/lib/request-context';
 import { AUDIT_ACTIONS, AUDIT_TARGETS, writeAuditLog } from '@/services/audit-service';
@@ -9,17 +8,18 @@ import { AUDIT_ACTIONS, AUDIT_TARGETS, writeAuditLog } from '@/services/audit-se
 /**
  * 관리자용 직원 계정 관리.
  *
- * 그룹웨어 SSO 연동 전까지 관리자가 직원 계정을 직접 만들고, 퇴사자를 비활성화하기 위한
- * 최소 기능이다. 초기 비밀번호는 모두 동일하게 부여하고, 직원이 로그인 후 마이페이지에서
- * 직접 바꾸도록 안내한다.
+ * 계정 생성 자체는 여기서 다루지 않는다 — 전 직원 명부는 scripts/import-employees.ts
+ * 로 1회성 시드 주입되고, 입사자가 생기면 그 스크립트를 최신 명부로 다시 돌리면 된다.
+ * 관리자는 여기서 목록을 보고 퇴사자 등을 비활성화만 한다.
+ *
+ * 사번(employeeCode)은 비밀번호 없이 로그인하는 유일한 자격 증명이라, 비밀번호 해시와
+ * 같은 취급으로 관리자 화면에도 절대 내려보내지 않는다(select 자체에서 제외).
  */
-export const EMPLOYEE_INITIAL_PASSWORD = 'Synopex123!@#';
 
 export type EmployeeUserListItem = {
   employeeUserId: number;
   name: string;
-  branchName: string;
-  department: string | null;
+  departmentName: string;
   email: string;
   accountStatus: AccountStatus;
   lastLoginAt: Date | null;
@@ -33,8 +33,7 @@ export async function listEmployeeUsers(): Promise<EmployeeUserListItem[]> {
     select: {
       employeeUserId: true,
       name: true,
-      branchName: true,
-      department: true,
+      departmentName: true,
       email: true,
       accountStatus: true,
       lastLoginAt: true,
@@ -43,61 +42,11 @@ export async function listEmployeeUsers(): Promise<EmployeeUserListItem[]> {
   });
 }
 
-export type CreateEmployeeUserInput = {
-  email: string;
-  name: string;
-  branchName: string;
-  department?: string | null;
-};
-
-export async function createEmployeeUser(
-  input: CreateEmployeeUserInput,
-  actor: { adminUserId: number; requestContext?: RequestContext },
-) {
-  const email = input.email.trim().toLowerCase();
-
-  try {
-    const created = await prisma.employeeUser.create({
-      data: {
-        email,
-        passwordHash: await hashPassword(EMPLOYEE_INITIAL_PASSWORD),
-        name: input.name.trim(),
-        branchName: input.branchName.trim(),
-        department: input.department?.trim() || null,
-        accountStatus: AccountStatus.ACTIVE,
-        passwordChangedAt: new Date(),
-        // 고정된 초기 비밀번호를 그대로 쓰므로, 첫 로그인 때 반드시 바꾸도록 강제한다.
-        mustChangePassword: true,
-      },
-      select: { employeeUserId: true, email: true },
-    });
-
-    await writeAuditLog({
-      actorAdminId: actor.adminUserId,
-      actionType: AUDIT_ACTIONS.EMPLOYEE_USER_CREATE,
-      targetType: AUDIT_TARGETS.EMPLOYEE_USER,
-      targetId: created.employeeUserId,
-      detail: { email: created.email },
-      context: actor.requestContext,
-    });
-
-    return created;
-  } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      throw new ConflictError('이미 사용 중인 이메일입니다.', 'DUPLICATE_EMPLOYEE_USER');
-    }
-    throw error;
-  }
-}
-
 export type UpdateEmployeeUserInput = {
-  name?: string;
-  branchName?: string;
-  department?: string;
-  accountStatus?: AccountStatus;
+  accountStatus: AccountStatus;
 };
 
-/** 직원 계정 수정 — 이름/소속/부서, 계정 상태(활성·비활성). 이메일과 비밀번호는 여기서 다루지 않는다. */
+/** 직원 계정 상태(활성·비활성) 전환. 이름/부서/이메일은 명부로만 갱신되므로 여기서 다루지 않는다. */
 export async function updateEmployeeUser(
   employeeUserId: number,
   input: UpdateEmployeeUserInput,
@@ -110,19 +59,7 @@ export async function updateEmployeeUser(
 
   const updated = await prisma.employeeUser.update({
     where: { employeeUserId },
-    data: {
-      ...(input.name !== undefined ? { name: input.name.trim() } : {}),
-      ...(input.branchName !== undefined ? { branchName: input.branchName.trim() } : {}),
-      ...(input.department !== undefined ? { department: input.department.trim() || null } : {}),
-      ...(input.accountStatus !== undefined
-        ? {
-            accountStatus: input.accountStatus,
-            // 재활성화 시 로그인 실패 횟수·잠금을 함께 푼다.
-            loginFailCount: input.accountStatus === AccountStatus.ACTIVE ? 0 : undefined,
-            lockedUntil: input.accountStatus === AccountStatus.ACTIVE ? null : undefined,
-          }
-        : {}),
-    },
+    data: { accountStatus: input.accountStatus },
     select: { employeeUserId: true, email: true, accountStatus: true },
   });
 

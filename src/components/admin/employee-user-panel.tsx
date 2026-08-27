@@ -4,15 +4,13 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 import { Alert } from '@/components/ui/alert';
-import { FormField, inputClassName } from '@/components/ui/form-field';
 import { apiRequest } from '@/lib/client/api-client';
 import { formatKstDateTime } from '@/lib/datetime';
 
 type EmployeeUser = {
   employeeUserId: number;
   name: string;
-  branchName: string;
-  department: string | null;
+  departmentName: string;
   email: string;
   accountStatus: 'ACTIVE' | 'INACTIVE' | 'LOCKED';
   lastLoginAt: string | null;
@@ -32,36 +30,7 @@ const ACCOUNT_STATUS_CLASS = {
   INACTIVE: 'bg-slate-200 text-slate-600',
 } as const;
 
-function useMutation() {
-  const router = useRouter();
-  const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState<{ variant: 'success' | 'error'; text: string } | null>(
-    null,
-  );
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
-
-  async function mutate(url: string, method: 'POST' | 'PUT', body: unknown, successText: string) {
-    setPending(true);
-    setMessage(null);
-    setFieldErrors({});
-
-    const response = await apiRequest(url, { method, body: JSON.stringify(body) });
-    setPending(false);
-
-    if (response.ok) {
-      setMessage({ variant: 'success', text: successText });
-      router.refresh();
-      return true;
-    }
-    setFieldErrors(response.error.fieldErrors ?? {});
-    setMessage({ variant: 'error', text: response.error.message });
-    return false;
-  }
-
-  return { pending, message, fieldErrors, mutate };
-}
-
-/** 활성 여부를 보여주고 바로 전환하는 작은 스위치. 잠금 상태에서 켜면 잠금도 함께 풀린다. */
+/** 활성 여부를 보여주고 바로 전환하는 작은 스위치. */
 function ActiveSwitch({
   checked,
   disabled,
@@ -97,13 +66,15 @@ function ActiveSwitch({
 /**
  * 직원 계정 목록.
  *
- * 평소에는 계정별 스위치로 바로 활성·비활성을 전환한다. [선택]을 누르면 선택 모드로
- * 바뀌어 여러 행을 체크박스로 골라 한 번에 활성화/비활성화할 수 있다(예약 일괄 반려와
- * 같은 패턴). 이름·소속·부서 정보는 직원이 마이페이지에서 직접 수정한다.
+ * 계정 생성은 명부 시드 스크립트(scripts/import-employees.ts)로만 이루어지므로 여기서는
+ * 만들지 않는다 — 평소에는 계정별 스위치로 바로 활성·비활성을 전환한다. [선택]을 누르면
+ * 선택 모드로 바뀌어 여러 행을 체크박스로 골라 한 번에 활성화/비활성화할 수 있다.
  */
-function EmployeeUserTable({ employeeUsers }: { employeeUsers: EmployeeUser[] }) {
+export function EmployeeUserPanel({ employeeUsers }: { employeeUsers: EmployeeUser[] }) {
   const router = useRouter();
   const [query, setQuery] = useState('');
+  // 직원 계정은 비밀번호가 없어 브루트포스 잠금(LOCKED) 자체가 생기지 않으므로 필터 대상에 두지 않는다.
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
   const [pendingId, setPendingId] = useState<number | null>(null);
   const [message, setMessage] = useState<{ variant: 'success' | 'error'; text: string } | null>(
     null,
@@ -115,14 +86,22 @@ function EmployeeUserTable({ employeeUsers }: { employeeUsers: EmployeeUser[] })
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [bulkResult, setBulkResult] = useState<BulkStatusResult | null>(null);
 
+  const statusCounts = {
+    ALL: employeeUsers.length,
+    ACTIVE: employeeUsers.filter((user) => user.accountStatus === 'ACTIVE').length,
+    INACTIVE: employeeUsers.filter((user) => user.accountStatus === 'INACTIVE').length,
+  };
+
   const normalizedQuery = query.trim().toLowerCase();
-  const filteredUsers = normalizedQuery
-    ? employeeUsers.filter((user) =>
-        [user.name, user.branchName, user.department ?? '', user.email].some((field) =>
+  const filteredUsers = employeeUsers
+    .filter((user) => statusFilter === 'ALL' || user.accountStatus === statusFilter)
+    .filter(
+      (user) =>
+        !normalizedQuery ||
+        [user.name, user.departmentName, user.email].some((field) =>
           field.toLowerCase().includes(normalizedQuery),
         ),
-      )
-    : employeeUsers;
+    );
 
   const filteredIds = filteredUsers.map((user) => user.employeeUserId);
   const allFilteredSelected = filteredIds.length > 0 && filteredIds.every((id) => selected.has(id));
@@ -181,7 +160,6 @@ function EmployeeUserTable({ employeeUsers }: { employeeUsers: EmployeeUser[] })
     setPendingId(user.employeeUserId);
     setMessage(null);
 
-    // LOCKED 상태에서 켜면(활성으로) 로그인 실패로 걸린 잠금도 함께 풀린다.
     const nextStatus = user.accountStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
     const response = await apiRequest(`/api/admin/employees/${user.employeeUserId}`, {
       method: 'PUT',
@@ -208,12 +186,14 @@ function EmployeeUserTable({ employeeUsers }: { employeeUsers: EmployeeUser[] })
     <section className="card">
       <div className="card-body">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="card-title">직원 관리 ({employeeUsers.length}명)</h2>
+          <h2 className="card-title">
+            직원 관리 ({filteredUsers.length}/{employeeUsers.length}명)
+          </h2>
           <div className="flex flex-wrap items-center gap-2">
             <input
               type="search"
               className="input w-full sm:w-64"
-              placeholder="이름·소속·부서·이메일 검색"
+              placeholder="이름·부서·이메일 검색"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               aria-label="직원 검색"
@@ -229,10 +209,33 @@ function EmployeeUserTable({ employeeUsers }: { employeeUsers: EmployeeUser[] })
             )}
           </div>
         </div>
-        <p className="field-hint">
-          스위치를 끄면 퇴사자 등 해당 계정의 로그인을 막습니다. 이름·소속·부서 정보는 직원이
-          마이페이지에서 직접 수정합니다.
-        </p>
+
+        <div className="mt-2 flex flex-wrap gap-1.5" role="tablist" aria-label="상태 필터">
+          {(
+            [
+              { key: 'ALL', label: '전체' },
+              { key: 'ACTIVE', label: '활성' },
+              { key: 'INACTIVE', label: '비활성' },
+            ] as const
+          ).map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              role="tab"
+              aria-selected={statusFilter === tab.key}
+              onClick={() => setStatusFilter(tab.key)}
+              className={`rounded-full px-3 py-1 text-xs font-bold transition ${
+                statusFilter === tab.key
+                  ? 'bg-brand-700 text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {tab.label} ({statusCounts[tab.key]})
+            </button>
+          ))}
+        </div>
+
+        <p className="field-hint mt-2">스위치를 끄면 퇴사자 등 해당 계정의 로그인을 막습니다.</p>
 
         {message && (
           <div className="mt-3">
@@ -316,7 +319,6 @@ function EmployeeUserTable({ employeeUsers }: { employeeUsers: EmployeeUser[] })
                   </th>
                 )}
                 <th>이름</th>
-                <th>소속 사업장명</th>
                 <th>부서</th>
                 <th>이메일</th>
                 <th>상태</th>
@@ -348,8 +350,7 @@ function EmployeeUserTable({ employeeUsers }: { employeeUsers: EmployeeUser[] })
                       </td>
                     )}
                     <td>{user.name}</td>
-                    <td>{user.branchName || '-'}</td>
-                    <td>{user.department || '-'}</td>
+                    <td>{user.departmentName || '-'}</td>
                     <td className="text-xs">{user.email}</td>
                     <td>
                       <span className={`badge ${ACCOUNT_STATUS_CLASS[user.accountStatus]}`}>
@@ -377,113 +378,5 @@ function EmployeeUserTable({ employeeUsers }: { employeeUsers: EmployeeUser[] })
         </div>
       </div>
     </section>
-  );
-}
-
-function EmployeeUserCreateSection() {
-  const { pending, message, fieldErrors, mutate } = useMutation();
-  const [form, setForm] = useState({ email: '', name: '', branchName: '', department: '' });
-
-  return (
-    <section className="card">
-      <div className="card-body space-y-4">
-        <h2 className="card-title">직원 추가</h2>
-        <p className="field-hint">
-          초기 비밀번호는 <span className="font-mono font-bold">Synopex123!@#</span> 로 동일하게
-          설정됩니다. 직원에게 안내해 최초 로그인 후 비밀번호를 바꾸도록 해 주세요.
-        </p>
-
-        {message && (
-          <Alert variant={message.variant === 'success' ? 'success' : 'error'}>
-            {message.text}
-          </Alert>
-        )}
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <FormField label="이메일" htmlFor="employee-email" required errors={fieldErrors.email}>
-            <input
-              id="employee-email"
-              type="email"
-              className={inputClassName(Boolean(fieldErrors.email))}
-              value={form.email}
-              onChange={(event) => setForm({ ...form, email: event.target.value })}
-            />
-          </FormField>
-          <FormField label="성명" htmlFor="employee-name" required errors={fieldErrors.name}>
-            <input
-              id="employee-name"
-              className={inputClassName(Boolean(fieldErrors.name))}
-              value={form.name}
-              onChange={(event) => setForm({ ...form, name: event.target.value })}
-            />
-          </FormField>
-          <FormField
-            label="소속 사업장명"
-            htmlFor="employee-branch"
-            required
-            errors={fieldErrors.branchName}
-          >
-            <input
-              id="employee-branch"
-              className={inputClassName(Boolean(fieldErrors.branchName))}
-              value={form.branchName}
-              onChange={(event) => setForm({ ...form, branchName: event.target.value })}
-            />
-          </FormField>
-          <FormField
-            label="부서"
-            htmlFor="employee-department"
-            hint="선택 입력입니다."
-            errors={fieldErrors.department}
-          >
-            <input
-              id="employee-department"
-              className={inputClassName(Boolean(fieldErrors.department))}
-              value={form.department}
-              onChange={(event) => setForm({ ...form, department: event.target.value })}
-            />
-          </FormField>
-        </div>
-
-        <button
-          type="button"
-          className="btn btn-primary"
-          disabled={pending || !form.email || !form.name || !form.branchName}
-          onClick={async () => {
-            const saved = await mutate(
-              '/api/admin/employees',
-              'POST',
-              form,
-              '직원을 추가했습니다.',
-            );
-            if (saved) setForm({ email: '', name: '', branchName: '', department: '' });
-          }}
-        >
-          {pending ? '추가 중…' : '직원 추가'}
-        </button>
-      </div>
-    </section>
-  );
-}
-
-export function EmployeeUserPanel({ employeeUsers }: { employeeUsers: EmployeeUser[] }) {
-  const [showCreate, setShowCreate] = useState(false);
-
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <button
-          type="button"
-          className="btn btn-primary min-h-9 px-3 text-xs"
-          onClick={() => setShowCreate((previous) => !previous)}
-        >
-          {showCreate ? '닫기' : '+ 직원 추가'}
-        </button>
-      </div>
-
-      {showCreate && <EmployeeUserCreateSection />}
-
-      <EmployeeUserTable employeeUsers={employeeUsers} />
-    </div>
   );
 }

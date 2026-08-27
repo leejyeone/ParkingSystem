@@ -39,7 +39,7 @@ export default async function EmployeeReservationsPage() {
           <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">마이페이지</h1>
           {profile && (
             <p className="mt-1 text-sm text-slate-600">
-              {profile.branchName} {profile.name}님, 안녕하세요.
+              {profile.departmentName} {profile.name}님, 안녕하세요.
             </p>
           )}
         </div>

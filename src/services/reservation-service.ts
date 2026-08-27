@@ -213,7 +213,8 @@ async function loadReservationOrThrow(
 
 export type CreateReservationInput = {
   requesterType: RequesterType;
-  companyOrBranchName: string;
+  /** 직원 본인 방문 신청만 선택 입력이라 null 일 수 있다(명부에 없는 값이라 자동완성 대상이 아니다). */
+  companyOrBranchName: string | null;
   requesterName: string;
   requesterEmail: string;
   vehicleNo: string;
@@ -269,7 +270,7 @@ export async function createReservation(input: CreateReservationInput): Promise<
           visitorUserId: input.visitorUserId ?? null,
           employeeUserId: input.employeeUserId ?? null,
           requesterType: input.requesterType,
-          companyOrBranchName: input.companyOrBranchName,
+          companyOrBranchName: input.companyOrBranchName ?? '',
           requesterName: input.requesterName,
           requesterEmail: input.requesterEmail,
           vehicleNo,

@@ -150,29 +150,33 @@ export function futureVisitRange(
   };
 }
 
-/** 직원 계정 픽스처. 방문객(SiteUser)과 완전히 별도 테이블이라 이메일이 겹쳐도 서로 무관하다. */
+/**
+ * 직원 계정 픽스처. 방문객(SiteUser)과 완전히 별도 테이블이라 이메일이 겹쳐도 서로 무관하다.
+ * 비밀번호가 없는 사번 기반 로그인이라, 시드 스크립트가 명부를 심어 두는 것과 같은
+ * 모양으로 employeeCode 만으로 계정을 만든다.
+ */
 export async function seedEmployeeFixture(
   overrides: Partial<{
     email: string;
-    password: string;
+    employeeCode: string;
     name: string;
-    branchName: string;
+    departmentName: string;
   }> = {},
-): Promise<{ employeeUserId: number; email: string; password: string }> {
+): Promise<{ employeeUserId: number; email: string; employeeCode: string }> {
   const email = overrides.email ?? 'employee@example.com';
-  const password = overrides.password ?? 'Employee!2345';
+  const employeeCode = overrides.employeeCode ?? `E${Math.floor(Math.random() * 1_000_000)}`;
 
   const employee = await prisma.employeeUser.create({
     data: {
       email,
-      passwordHash: await bcrypt.hash(password, 10),
+      employeeCode,
       name: overrides.name ?? '김직원',
-      branchName: overrides.branchName ?? '시노펙스 본사',
+      departmentName: overrides.departmentName ?? '시노펙스 본사',
       accountStatus: AccountStatus.ACTIVE,
     },
   });
 
-  return { employeeUserId: employee.employeeUserId, email, password };
+  return { employeeUserId: employee.employeeUserId, email, employeeCode };
 }
 
 export function baseReservationInput(overrides: Record<string, unknown> = {}) {
