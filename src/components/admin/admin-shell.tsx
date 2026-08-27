@@ -15,7 +15,7 @@ type Props = {
 type MenuItem = {
   href: string;
   label: string;
-  /** 시스템 설정처럼 화면 안에 여러 섹션이 있으면 그 하위 라우트를 메뉴로 둔다. */
+  /** 대분류 아래 여러 화면이 묶이면 그 하위 라우트를 메뉴로 둔다. */
   children?: { href: string; label: string }[];
 };
 
@@ -25,21 +25,47 @@ type MenuItem = {
  */
 const MENU: MenuItem[] = [
   { href: '/admin', label: '대시보드' },
-  { href: '/admin/reservations', label: '예약 목록' },
-  { href: '/admin/recurring-reservations', label: '반복 예약 관리' },
-  { href: '/admin/employees', label: '직원 관리' },
+  {
+    href: '/admin/reservations',
+    label: '예약',
+    children: [
+      { href: '/admin/reservations', label: '전체 예약' },
+      { href: '/admin/recurring-reservations', label: '반복 예약 관리' },
+    ],
+  },
   {
     href: '/admin/settings',
     label: '시스템 설정',
     children: [
       { href: '/admin/settings', label: '주차장 정보' },
       { href: '/admin/settings/areas-spaces', label: '구역·주차면' },
-      { href: '/admin/settings/notifications', label: '관리자 이메일' },
-      { href: '/admin/settings/admins', label: '관리자 계정' },
+      { href: '/admin/email-logs', label: '이메일 이력' },
     ],
   },
-  { href: '/admin/email-logs', label: '이메일 이력' },
+  {
+    href: '/admin/users',
+    label: '사용자 관리',
+    children: [
+      { href: '/admin/users/employees', label: '등록 직원 관리' },
+      { href: '/admin/users/admins', label: '관리자 계정' },
+      { href: '/admin/users/notifications', label: '관리자 이메일' },
+    ],
+  },
 ];
+
+/**
+ * 이 메뉴 항목(자식 포함)이 지금 경로에 해당하는지 판정한다.
+ *
+ * "예약"·"시스템 설정"처럼 자식들의 URL 이 서로 다른 최상위 경로에 흩어져 있을 수 있어서
+ * (예: `/admin/reservations` 그룹 안에 `/admin/recurring-reservations` 자식이 있음),
+ * 항목 자신의 href 뿐 아니라 모든 자식의 href 도 함께 확인해야 한다.
+ */
+function menuItemMatches(item: MenuItem, pathname: string): boolean {
+  const matches = (href: string) =>
+    href === '/admin' ? pathname === '/admin' : pathname.startsWith(href);
+  if (matches(item.href)) return true;
+  return item.children?.some((child) => matches(child.href)) ?? false;
+}
 
 /**
  * 관리자 화면 뼈대: 좌측 사이드바 + 본문.
@@ -59,10 +85,10 @@ export function AdminShell({ adminName, children }: Props) {
   const [desktopCollapsed, setDesktopCollapsed] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [showPasswordPanel, setShowPasswordPanel] = useState(false);
-  // 하위 메뉴가 있는 항목(현재는 "시스템 설정") 중 지금 펼쳐진 것의 href. 처음 진입할 때는
-  // 지금 보고 있는 페이지가 속한 항목을 미리 펼쳐 둔다.
+  // 하위 메뉴가 있는 항목("예약" / "시스템 설정" / "사용자 관리") 중 지금 펼쳐진 것의 href.
+  // 처음 진입할 때는 지금 보고 있는 페이지가 속한 항목을 미리 펼쳐 둔다.
   const [expandedHref, setExpandedHref] = useState<string | null>(
-    () => MENU.find((item) => item.children && pathname.startsWith(item.href))?.href ?? null,
+    () => MENU.find((item) => item.children && menuItemMatches(item, pathname))?.href ?? null,
   );
 
   // 메뉴를 눌러 페이지가 바뀌면 모바일 드로어는 자동으로 닫는다. effect 대신 렌더 중
@@ -135,8 +161,7 @@ export function AdminShell({ adminName, children }: Props) {
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
           {MENU.map((item) => {
-            const active =
-              item.href === '/admin' ? pathname === '/admin' : pathname.startsWith(item.href);
+            const active = menuItemMatches(item, pathname);
 
             if (!item.children) {
               return (

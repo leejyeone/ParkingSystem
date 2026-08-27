@@ -76,17 +76,19 @@ const B1_INACTIVE_RANGES: readonly [number, number][] = [
   [43, 59],
 ];
 
-function b1BlockName(order: number): string {
-  if (order <= 7) return '우상단';
-  if (order <= 14) return '우측 중단';
-  if (order <= 19) return '우측 세로';
-  if (order <= 27) return '중앙';
-  if (order <= 59) return '남측 장변';
-  return '이중주차';
-}
+const B1_INACTIVE_MEMOS: readonly [number, number, string][] = [
+  [1, 7, '임원 전용 구역'],
+  [28, 39, '동탄 직원 전용 구역'],
+  [43, 59, '자재 적치 중'],
+];
 
 function b1IsActive(order: number): boolean {
   return !B1_INACTIVE_RANGES.some(([start, end]) => order >= start && order <= end);
+}
+
+function b1Memo(order: number): string | null {
+  const match = B1_INACTIVE_MEMOS.find(([start, end]) => order >= start && order <= end);
+  return match ? match[2] : null;
 }
 
 async function seedAreaAndSpaces(): Promise<void> {
@@ -107,6 +109,7 @@ async function seedAreaAndSpaces(): Promise<void> {
     const spaceCode = `B1-${String(order).padStart(2, '0')}`;
     const spaceType = order >= B1_DOUBLE_FROM ? SpaceType.DOUBLE : SpaceType.NORMAL;
     const isActive = b1IsActive(order);
+    const memo = b1Memo(order);
     await prisma.parkingSpace.upsert({
       where: { areaId_spaceCode: { areaId: area.areaId, spaceCode } },
       create: {
@@ -115,9 +118,9 @@ async function seedAreaAndSpaces(): Promise<void> {
         spaceType,
         displayOrder: order,
         isActive,
-        memo: b1BlockName(order),
+        memo,
       },
-      update: { spaceType, displayOrder: order, isActive },
+      update: { spaceType, displayOrder: order, isActive, memo },
     });
   }
 

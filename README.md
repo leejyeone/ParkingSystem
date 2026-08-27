@@ -689,13 +689,15 @@ SynopexParking/
 │  │  │  ├─ page.tsx                              # 대시보드
 │  │  │  ├─ reservations/page.tsx  [id]/page.tsx  # 예약 목록 / 상세
 │  │  │  ├─ recurring-reservations/                # 반복 예약(정기 주차 배정) 목록/등록/상세/수정 (4-5, 18절 참고)
-│  │  │  ├─ employees/page.tsx                    # 직원 계정 목록 · 활성/비활성 전환
 │  │  │  ├─ settings/                             # 시스템 설정 (사이드바 하위 메뉴로 분리된 라우트)
 │  │  │  │  ├─ page.tsx                           #   주차장 정보
-│  │  │  │  ├─ areas-spaces/page.tsx              #   구역·주차면
-│  │  │  │  ├─ notifications/page.tsx             #   관리자 알림 이메일
-│  │  │  │  └─ admins/page.tsx                    #   관리자 계정
-│  │  │  ├─ email-logs/page.tsx                   # 이메일 발송 이력
+│  │  │  │  └─ areas-spaces/page.tsx              #   구역·주차면
+│  │  │  ├─ users/                                # 사용자 관리 (공용 레이아웃 + 하위 메뉴)
+│  │  │  │  ├─ layout.tsx                         #   가드 + 공용 헤더
+│  │  │  │  ├─ employees/page.tsx                 #   등록 직원 관리(계정 목록 · 활성/비활성 전환)
+│  │  │  │  ├─ admins/page.tsx                    #   관리자 계정
+│  │  │  │  └─ notifications/page.tsx             #   관리자 이메일
+│  │  │  ├─ email-logs/page.tsx                   # 이메일 발송 이력 (사이드바에서는 "시스템 설정" 하위)
 │  │  │  └─ audit-logs/page.tsx                   # 감사 로그
 │  │  └─ api/                                     # Route Handlers (공개/관리자/cron)
 │  ├─ components/
@@ -1310,7 +1312,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 ### 비밀번호 변경 절차
 
 1. <http://localhost:3000/admin/login> 에서 초기 계정으로 로그인
-2. 상단 **[시스템 설정] → [관리자 계정]** 탭
+2. 좌측 사이드바 **[사용자 관리] → [관리자 계정]**
 3. 실제 담당자 계정을 새로 생성
 4. 새 계정으로 다시 로그인한 뒤, 초기 `admin` 계정을 **비활성화**
 
@@ -1325,7 +1327,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 ### 계정이 잠겼을 때
 
 로그인 5회 연속 실패 시 계정이 10분간 잠깁니다.
-다른 관리자가 [시스템 설정] → [관리자 계정]에서 **활성화** 버튼을 누르면 즉시 해제됩니다
+다른 관리자가 [사용자 관리] → [관리자 계정]에서 **활성화** 버튼을 누르면 즉시 해제됩니다
 (실패 횟수도 함께 초기화됩니다).
 
 모든 관리자가 잠겼다면 DB에서 직접 해제합니다.
