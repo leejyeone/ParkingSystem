@@ -51,7 +51,9 @@ export function RecurringScheduleForm({
   const [weekdays, setWeekdays] = useState<boolean[]>(DEFAULT_WEEKDAYS);
   const [dailyStartTime, setDailyStartTime] = useState('09:00');
   const [dailyEndTime, setDailyEndTime] = useState('18:00');
-  const [approvalEnabled, setApprovalEnabled] = useState(false);
+  // 관리자가 이미 확인하고 등록하는 흐름이라 기본은 "승인 생략"(자동 승인) — 체크를
+  // 해제해야 일반 방문 신청처럼 승인 대기 상태로 만들어진다.
+  const [skipApproval, setSkipApproval] = useState(true);
   const [emailEnabled, setEmailEnabled] = useState(false);
   const [autoEntryExitEnabled, setAutoEntryExitEnabled] = useState(false);
   const [hiddenFromReservationList, setHiddenFromReservationList] = useState(true);
@@ -126,7 +128,7 @@ export function RecurringScheduleForm({
         weekdays,
         dailyStartTime,
         dailyEndTime,
-        approvalEnabled,
+        approvalEnabled: !skipApproval,
         emailEnabled,
         autoEntryExitEnabled: entryExitManagementEnabled ? autoEntryExitEnabled : false,
         hiddenFromReservationList,
@@ -375,11 +377,11 @@ export function RecurringScheduleForm({
             <input
               type="checkbox"
               className="accent-brand-700 size-5"
-              checked={approvalEnabled}
-              onChange={(event) => setApprovalEnabled(event.target.checked)}
+              checked={skipApproval}
+              onChange={(event) => setSkipApproval(event.target.checked)}
             />
             <span className="text-ink text-sm font-semibold">
-              관리자 승인 사용 (해제하면 바로 자동 승인됩니다)
+              관리자 승인 생략
             </span>
           </label>
 
@@ -391,7 +393,7 @@ export function RecurringScheduleForm({
               onChange={(event) => setEmailEnabled(event.target.checked)}
             />
             <span className="text-ink text-sm font-semibold">
-              개별 예약 알림 메일 발송 (해제해도 시리즈 생성/제외/취소 안내는 항상 발송됩니다)
+              신청 직원에게 개별 예약 알림 메일 발송
             </span>
           </label>
 
@@ -408,8 +410,7 @@ export function RecurringScheduleForm({
               onChange={(event) => setAutoEntryExitEnabled(event.target.checked)}
             />
             <span className="text-ink text-sm font-semibold">
-              입출차 자동 처리 (켜면 예정 시간이 되었을 때 주차 관리자 조작 없이 자동으로 입차·출차
-              처리됩니다)
+              입출차 자동 처리
               {!entryExitManagementEnabled && ' — 입·출차 관리가 꺼져 있어 사용할 수 없습니다'}
             </span>
           </label>
@@ -421,10 +422,7 @@ export function RecurringScheduleForm({
               checked={hiddenFromReservationList}
               onChange={(event) => setHiddenFromReservationList(event.target.checked)}
             />
-            <span className="text-ink text-sm font-semibold">
-              전체 예약 목록에서 숨기기 (켜면 이 시리즈의 예약이 관리자 [전체 예약] 목록에 나타나지
-              않습니다 — 주차 관리자도 볼 수 없게 됩니다)
-            </span>
+            <span className="text-ink text-sm font-semibold">전체 예약 목록에서 숨기기</span>
           </label>
         </div>
       </section>
