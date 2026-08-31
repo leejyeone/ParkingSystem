@@ -12,7 +12,7 @@ export const metadata: Metadata = { title: '반복 예약 관리' };
 const STATUS_LABEL = { ACTIVE: '진행 중', CANCELLED: '취소됨' } as const;
 const STATUS_CLASS = {
   ACTIVE: 'bg-emerald-100 text-emerald-800',
-  CANCELLED: 'bg-slate-200 text-slate-600',
+  CANCELLED: 'bg-surface-active text-ink-muted',
 } as const;
 
 export default async function RecurringReservationsPage() {
@@ -24,8 +24,8 @@ export default async function RecurringReservationsPage() {
     <main className="app-container-wide space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-black text-slate-900 sm:text-2xl">반복 예약 관리</h1>
-          <p className="mt-1 text-sm text-slate-600">
+          <h1 className="text-ink text-xl font-black sm:text-2xl">반복 예약 관리</h1>
+          <p className="text-ink-muted mt-1 text-sm">
             관리자가 특정 직원에게 특정 주차면을 기간·요일·시간대로 미리 배정합니다.
           </p>
         </div>
@@ -53,7 +53,7 @@ export default async function RecurringReservationsPage() {
               <tbody>
                 {schedules.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center text-sm text-slate-500">
+                    <td colSpan={8} className="text-ink-faint text-center text-sm">
                       등록된 반복 예약이 없습니다.
                     </td>
                   </tr>

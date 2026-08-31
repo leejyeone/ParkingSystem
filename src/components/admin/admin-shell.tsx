@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 import { AdminPasswordPanel } from '@/components/admin/admin-password-panel';
+import { ThemeToggleButton, useDarkMode } from '@/components/admin/theme-toggle';
 import { apiRequest } from '@/lib/client/api-client';
 
 type Props = {
@@ -85,6 +86,7 @@ export function AdminShell({ adminName, children }: Props) {
   const [desktopCollapsed, setDesktopCollapsed] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [showPasswordPanel, setShowPasswordPanel] = useState(false);
+  const { isDark, toggle: toggleDark } = useDarkMode();
   // 하위 메뉴가 있는 항목("예약" / "시스템 설정" / "사용자 관리") 중 지금 펼쳐진 것의 href.
   // 처음 진입할 때는 지금 보고 있는 페이지가 속한 항목을 미리 펼쳐 둔다.
   const [expandedHref, setExpandedHref] = useState<string | null>(
@@ -107,13 +109,13 @@ export function AdminShell({ adminName, children }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 lg:flex">
+    <div className={`bg-bg min-h-screen lg:flex ${isDark ? 'dark' : ''}`}>
       {/* PC 에서 사이드바를 접었을 때, 다시 펼치는 버튼. 접힌 사이드바는 폭이 0 이라 안의
           버튼을 누를 수 없으므로 화면에 따로 떠 있는 버튼을 둔다. */}
       {desktopCollapsed && (
         <button
           type="button"
-          className="fixed top-4 left-4 z-40 hidden rounded-lg border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 lg:flex"
+          className="border-line bg-surface text-ink-muted hover:bg-surface-muted fixed top-4 left-4 z-40 hidden rounded-lg border p-2 shadow-sm transition lg:flex"
           aria-label="사이드바 펼치기"
           onClick={() => setDesktopCollapsed(false)}
         >
@@ -132,18 +134,18 @@ export function AdminShell({ adminName, children }: Props) {
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white transition-transform duration-200 ease-out lg:sticky lg:inset-auto lg:top-0 lg:h-screen lg:translate-x-0 lg:transition-[width] ${
+        className={`border-line bg-surface fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r transition-transform duration-200 ease-out lg:sticky lg:inset-auto lg:top-0 lg:h-screen lg:translate-x-0 lg:transition-[width] ${
           drawerOpen ? 'translate-x-0' : '-translate-x-full'
         } ${desktopCollapsed ? 'lg:w-0 lg:overflow-hidden lg:border-r-0' : 'lg:w-64'}`}
       >
-        <div className="flex h-16 items-center justify-between gap-2 border-b border-slate-200 px-4">
-          <Link href="/admin" className="text-lg font-black whitespace-nowrap text-slate-900">
+        <div className="border-line flex h-16 items-center justify-between gap-2 border-b px-4">
+          <Link href="/admin" className="text-ink text-lg font-black whitespace-nowrap">
             시스템 관리
           </Link>
           {/* 모바일: 드로어 닫기. PC: 사이드바 접기. 화면 폭에 따라 하나만 보인다. */}
           <button
             type="button"
-            className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 lg:hidden"
+            className="text-ink-faint hover:bg-surface-hover rounded-lg p-1.5 transition lg:hidden"
             aria-label="메뉴 닫기"
             onClick={() => setDrawerOpen(false)}
           >
@@ -151,7 +153,7 @@ export function AdminShell({ adminName, children }: Props) {
           </button>
           <button
             type="button"
-            className="hidden rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 lg:block"
+            className="text-ink-faint hover:bg-surface-hover hidden rounded-lg p-1.5 transition lg:block"
             aria-label="사이드바 접기"
             onClick={() => setDesktopCollapsed(true)}
           >
@@ -169,7 +171,7 @@ export function AdminShell({ adminName, children }: Props) {
                   key={item.href}
                   href={item.href}
                   className={`block rounded-lg px-3 py-2.5 text-sm font-bold whitespace-nowrap transition ${
-                    active ? 'bg-brand-700 text-white' : 'text-slate-600 hover:bg-slate-100'
+                    active ? 'bg-brand-700 text-white' : 'text-ink-muted hover:bg-surface-hover'
                   }`}
                 >
                   {item.label}
@@ -185,7 +187,7 @@ export function AdminShell({ adminName, children }: Props) {
                 <button
                   type="button"
                   className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-bold whitespace-nowrap transition ${
-                    active ? 'bg-brand-700 text-white' : 'text-slate-600 hover:bg-slate-100'
+                    active ? 'bg-brand-700 text-white' : 'text-ink-muted hover:bg-surface-hover'
                   }`}
                   aria-expanded={expanded}
                   onClick={() => setExpandedHref(expanded ? null : item.href)}
@@ -194,7 +196,7 @@ export function AdminShell({ adminName, children }: Props) {
                   <ChevronIcon className={expanded ? 'rotate-180' : ''} />
                 </button>
                 {expanded && (
-                  <div className="mt-1 ml-3 space-y-0.5 border-l border-slate-200 pl-3">
+                  <div className="border-line mt-1 ml-3 space-y-0.5 border-l pl-3">
                     {item.children.map((child) => {
                       const childActive = pathname === child.href;
                       return (
@@ -204,7 +206,7 @@ export function AdminShell({ adminName, children }: Props) {
                           className={`block rounded-lg px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap transition ${
                             childActive
                               ? 'bg-brand-50 text-brand-700'
-                              : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                              : 'text-ink-faint hover:bg-surface-hover hover:text-ink-muted'
                           }`}
                         >
                           {child.label}
@@ -225,18 +227,18 @@ export function AdminShell({ adminName, children }: Props) {
           화면 최상단 고정 바. 관리자 이름·역할과 로그아웃을 여기 한 곳에 모아 둔다
           (예전에는 사이드바 맨 아래에 있었다). 모바일에서는 왼쪽에 햄버거 버튼도 같이 둔다.
         */}
-        <div className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4">
+        <div className="border-line bg-surface sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b px-4">
           <div className="flex items-center gap-3 lg:hidden">
             <button
               type="button"
-              className="rounded-lg p-2 text-slate-600 transition hover:bg-slate-100"
+              className="text-ink-muted hover:bg-surface-hover rounded-lg p-2 transition"
               aria-label="메뉴 열기"
               aria-expanded={drawerOpen}
               onClick={() => setDrawerOpen(true)}
             >
               <HamburgerIcon />
             </button>
-            <Link href="/admin" className="text-lg font-black text-slate-900">
+            <Link href="/admin" className="text-ink text-lg font-black">
               시스템 관리
             </Link>
           </div>
@@ -245,15 +247,16 @@ export function AdminShell({ adminName, children }: Props) {
           <div className="hidden lg:block" />
 
           <div className="flex items-center gap-3">
+            <ThemeToggleButton isDark={isDark} onToggle={toggleDark} />
             <button
               type="button"
               className="text-right transition hover:opacity-70"
               onClick={() => setShowPasswordPanel(true)}
             >
-              <span className="block text-sm font-bold whitespace-nowrap text-slate-900">
+              <span className="text-ink block text-sm font-bold whitespace-nowrap">
                 {adminName}
               </span>
-              <span className="hidden text-xs whitespace-nowrap text-slate-500 sm:block">
+              <span className="text-ink-faint hidden text-xs whitespace-nowrap sm:block">
                 시스템 관리자
               </span>
             </button>

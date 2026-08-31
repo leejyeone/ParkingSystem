@@ -106,7 +106,7 @@ export default async function AdminReservationDetailPage({ params }: PageProps) 
           ← 예약 목록
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-3">
-          <h1 className="font-mono text-xl font-black text-slate-900 sm:text-2xl">
+          <h1 className="text-ink font-mono text-xl font-black sm:text-2xl">
             {reservation.reservationNo}
           </h1>
           <StatusBadge status={reservation.reservationStatus} />

@@ -595,11 +595,15 @@ AND existing.visit_end_at > new.visit_start_at
 
 > **대시보드의 주차 평면도는 업로드 이미지가 아니라 화면에서 그립니다.**
 > 도면 좌표는 [`src/domain/parking-map-layout.ts`](src/domain/parking-map-layout.ts) 에 있고,
-> [`ParkingMap`](src/components/admin/parking-map.tsx) 이 주차면 상태를 겹쳐 색으로 표시합니다.
+> [`ParkingMap`](src/components/parking-map.tsx) 이 주차면 상태를 겹쳐 색으로 표시합니다.
 > 좌표는 담당자가 전달한 두 장의 PPT 도면(지하 1층/지상 1층, 엘리베이터 위치 기준으로 맞춘
 > 최종안)의 스크린샷에서 각 주차면·엘리베이터·설비실 사각형의 픽셀 경계 상자를 추출해 그대로
 > 옮긴 값입니다(20px = 1 유닛). 실측 CAD 치수가 아니라 "그 도면 이미지와 정확히 같은 비율"을
 > 재현하는 것이 목적이며, 지하 1층(`MAIN`)·지상 1층(`GROUND`) 두 층 모두 지원합니다.
+> 모서리가 둥근 모노톤 사각형(엘리베이터·비주차 개방 구역·차량 출입구 화살표)으로
+> 다시 디자인했고, 두 층이 같은 뷰박스 크기(가장 큰 건물 기준)를 공유하도록 해 탭을
+> 오가도 엘리베이터 등 공통 요소 위치가 화면상 어긋나지 않습니다. 좌표를 다시 맞춰야
+> 하면 `parking-map-layout.ts` 의 좌표값을 직접 고치면 됩니다.
 >
 > | 색     | 의미                                |
 > | ------ | ----------------------------------- |
@@ -658,6 +662,25 @@ Seed 도 도면을 넣지 않으므로, 최초 설치 후 관리자가 직접 �
 - **`vehicles` / 일반 사용자 `users` 테이블 없음**: 차량번호는 `parking_reservations`에 직접 저장하며,
   차량번호로 과거 이력·개인정보를 자동완성하거나 조회하는 기능은 제공하지 않습니다.
 
+#### 다크모드 (관리자 전용)
+
+> 방문객·직원용 화면(신청/조회)은 라이트로 고정이고, **관리자 화면(`/admin/*`)만** 다크모드를
+> 지원합니다. 상단 헤더의 해/달 버튼([`ThemeToggleButton`](src/components/admin/theme-toggle.tsx))으로
+> 켜고 끄며, 선택은 `localStorage` 에 저장돼 새로고침해도 유지됩니다.
+>
+> 색은 [`globals.css`](src/app/globals.css) 의 의미 기반 토큰(`--color-bg`, `--color-surface`,
+> `--color-ink`, `--color-line` 등)으로 관리합니다. 라이트 값은 기존에 쓰던 슬레이트 배색과
+> 동일하고, `.dark` 클래스 아래에서만 어두운 값으로 다시 정의됩니다(Tailwind v4
+> `@custom-variant dark`). 이 `.dark` 클래스는 [`AdminShell`](src/components/admin/admin-shell.tsx)
+> 최상위 래퍼에만 붙으므로, 공용 UI 컴포넌트(`src/components/ui/*`)를 방문객 화면에서
+> 그대로 재사용해도 `.dark` 밖이라 항상 라이트로 보입니다 — 컴포넌트를 두 벌로 나눌 필요가
+> 없습니다.
+>
+> 새 관리자 화면을 만들 때는 `bg-white`/`text-slate-900` 같은 고정 색상 대신
+> `bg-surface`/`text-ink` 등 토큰 유틸리티를 씁니다. 배지·경고처럼 의미가 고정된 색(빨강 =
+> 위험, 초록 = 성공 등)은 토큰化하지 않고 그대로 둡니다 — 다크에서도 "위험은 빨강"이라는
+> 의미는 유지하는 게 낫기 때문입니다.
+
 ---
 
 ## 8. 프로젝트 폴더 구조
@@ -703,7 +726,8 @@ SynopexParking/
 │  ├─ components/
 │  │  └─ reservation/  user/  employee/  admin/  ui/  # 화면 컴포넌트
 │  │     # reservation/employee-search-select.tsx : "당사 담당자" 검색·선택 콤보박스
-│  │     # admin/admin-shell.tsx : 관리자 사이드바 메뉴 정의
+│  │     # admin/admin-shell.tsx : 관리자 사이드바 메뉴 정의 + 다크모드 토글 배치
+│  │     # admin/theme-toggle.tsx : 다크모드 on/off 상태(localStorage)·토글 버튼
 │  │     # admin/recurring-schedule-form.tsx, recurring-schedule-edit-form.tsx,
 │  │     #   recurring-schedule-occurrence-table.tsx : 반복 예약 등록/수정/상세 UI
 │  ├─ domain/                                     # 순수 비즈니스 규칙 (DB 비의존)

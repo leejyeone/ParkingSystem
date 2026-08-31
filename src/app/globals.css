@@ -4,7 +4,10 @@
  * 본사 방문 예약 관리 시스템 - 전역 스타일
  *
  * - 모바일 우선(최소 360px)으로 설계한다.
- * - 사내 업무 시스템 특성상 라이트 테마 단일 구성으로 고정해 가독성을 일정하게 유지한다.
+ * - 방문객용 화면(신청/조회)은 라이트 고정이다. 관리자 화면(/admin/*)만 다크모드를
+ *   지원한다 — `.dark` 클래스를 관리자 최상위 래퍼(AdminShell)에만 붙이고 색상은
+ *   전부 아래 의미 기반 토큰을 거치므로, 공용 UI 컴포넌트를 그대로 재사용해도
+ *   `.dark` 밖의 방문객 화면은 항상 라이트로 남는다.
  */
 
 @theme {
@@ -16,13 +19,44 @@
   --color-brand-700: #1d4ed8;
   --color-brand-900: #1e3a8a;
 
+  /* 의미 기반 색상 토큰. 기본값(= 라이트)은 기존에 쓰던 슬레이트 배색 그대로다. */
+  --color-bg: #f1f5f9;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f8fafc;
+  --color-surface-hover: #f1f5f9;
+  --color-surface-active: #e2e8f0;
+  --color-ink: #0f172a;
+  --color-ink-muted: #475569;
+  --color-ink-faint: #64748b;
+  --color-line: #e2e8f0;
+  --color-line-muted: #f1f5f9;
+
   --font-sans:
     'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, -apple-system, 'Segoe UI',
     sans-serif;
 }
 
+/* Tailwind v4 커스텀 variant — `dark:` 유틸리티가 `.dark` 조상이 있을 때만 적용되게 한다. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   color-scheme: light;
+}
+
+/* 관리자 다크모드일 때만 토큰을 다시 정의한다. */
+.dark {
+  color-scheme: dark;
+
+  --color-bg: #0f172a;
+  --color-surface: #1e293b;
+  --color-surface-muted: #17233b;
+  --color-surface-hover: #243247;
+  --color-surface-active: #334155;
+  --color-ink: #e2e8f0;
+  --color-ink-muted: #94a3b8;
+  --color-ink-faint: #7c8aa0;
+  --color-line: #334155;
+  --color-line-muted: #1e293b;
 }
 
 html {
@@ -31,8 +65,8 @@ html {
 
 body {
   min-width: 320px;
-  background-color: #f1f5f9;
-  color: #0f172a;
+  background-color: var(--color-bg);
+  color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
@@ -83,7 +117,7 @@ input[type='datetime-local'] {
   }
 
   .card {
-    @apply rounded-xl border border-slate-200 bg-white shadow-sm;
+    @apply border-line bg-surface rounded-xl border shadow-sm;
   }
 
   .card-body {
@@ -91,11 +125,11 @@ input[type='datetime-local'] {
   }
 
   .card-title {
-    @apply text-base font-bold text-slate-900 sm:text-lg;
+    @apply text-ink text-base font-bold sm:text-lg;
   }
 
   .label {
-    @apply mb-1.5 block text-sm font-semibold text-slate-700;
+    @apply text-ink-muted mb-1.5 block text-sm font-semibold;
   }
 
   .label-required::after {
@@ -104,7 +138,7 @@ input[type='datetime-local'] {
   }
 
   .input {
-    @apply focus:border-brand-500 focus:ring-brand-200 block w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-900 transition outline-none placeholder:text-slate-400 focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500;
+    @apply focus:border-brand-500 focus:ring-brand-200 border-line bg-surface text-ink placeholder:text-ink-faint disabled:bg-surface-hover disabled:text-ink-faint block w-full min-w-0 rounded-lg border px-3 py-2.5 transition outline-none focus:ring-2;
   }
 
   .input-error {
@@ -116,7 +150,7 @@ input[type='datetime-local'] {
   }
 
   .field-hint {
-    @apply mt-1.5 text-xs text-slate-500;
+    @apply text-ink-faint mt-1.5 text-xs;
   }
 
   .btn {
@@ -128,7 +162,7 @@ input[type='datetime-local'] {
   }
 
   .btn-secondary {
-    @apply border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
+    @apply border-line bg-surface text-ink-muted hover:bg-surface-muted border;
   }
 
   .btn-danger {
@@ -137,11 +171,11 @@ input[type='datetime-local'] {
 
   /* 표 안의 삭제처럼 자주 노출되는 위험 동작용. 채우지 않고 테두리와 글씨만 빨갛게 둔다. */
   .btn-danger-outline {
-    @apply border border-red-300 bg-white text-red-600 hover:bg-red-50;
+    @apply bg-surface border border-red-300 text-red-600 hover:bg-red-50;
   }
 
   .btn-ghost {
-    @apply text-slate-600 hover:bg-slate-100;
+    @apply text-ink-muted hover:bg-surface-hover;
   }
 
   .btn-lg {
@@ -161,28 +195,28 @@ input[type='datetime-local'] {
   }
 
   .data-table th {
-    @apply border-b border-slate-200 bg-slate-50 px-3 py-2.5 text-left text-xs font-bold whitespace-nowrap text-slate-600;
+    @apply border-line bg-surface-muted text-ink-muted border-b px-3 py-2.5 text-left text-xs font-bold whitespace-nowrap;
   }
 
   .data-table td {
-    @apply border-b border-slate-100 px-3 py-2.5 align-middle text-slate-800;
+    @apply border-line-muted text-ink border-b px-3 py-2.5 align-middle;
   }
 
   .definition-row {
-    @apply flex flex-col gap-0.5 border-b border-slate-100 py-2.5 sm:flex-row sm:gap-4 sm:py-3;
+    @apply border-line-muted flex flex-col gap-0.5 border-b py-2.5 sm:flex-row sm:gap-4 sm:py-3;
   }
 
   .definition-term {
-    @apply text-xs font-bold text-slate-500 sm:w-40 sm:shrink-0 sm:text-sm;
+    @apply text-ink-faint text-xs font-bold sm:w-40 sm:shrink-0 sm:text-sm;
   }
 
   .definition-desc {
-    @apply text-sm break-words text-slate-900;
+    @apply text-ink text-sm break-words;
   }
 
   /* 모바일 하단 고정 액션 영역 */
   .sticky-actions {
-    @apply sticky bottom-0 z-20 -mx-4 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none;
+    @apply border-line bg-surface/95 sticky bottom-0 z-20 -mx-4 border-t px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none;
     padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
   }
 }

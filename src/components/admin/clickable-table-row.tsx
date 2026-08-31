@@ -25,7 +25,7 @@ export function ClickableTableRow({ href, children }: { href: string; children: 
   return (
     <tr
       onClick={handleClick}
-      className="cursor-pointer transition hover:bg-slate-50"
+      className="hover:bg-surface-muted cursor-pointer transition"
       data-testid="reservation-row"
     >
       {children}

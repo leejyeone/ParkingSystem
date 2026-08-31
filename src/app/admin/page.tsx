@@ -20,7 +20,7 @@ const SPACE_STATUS_LABEL: Record<SpaceOccupancyStatus, string> = {
 };
 
 const SPACE_STATUS_CLASS: Record<SpaceOccupancyStatus, string> = {
-  EMPTY: 'bg-slate-100 text-slate-500',
+  EMPTY: 'bg-surface-hover text-ink-faint',
   RESERVED: 'bg-amber-100 text-amber-800',
   IN_USE: 'bg-emerald-100 text-emerald-800',
 };
@@ -71,8 +71,8 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-black text-slate-900 sm:text-2xl">대시보드</h1>
-          <p className="mt-1 text-sm text-slate-600">
+          <h1 className="text-ink text-xl font-black sm:text-2xl">대시보드</h1>
+          <p className="text-ink-muted mt-1 text-sm">
             기준일: {date} ({weekdayOf(date)}){' '}
             <DashboardAutoRefresher intervalMinutes={dashboard.dashboardRefreshIntervalMinutes} />
           </p>
@@ -174,7 +174,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
           <div className="flex items-center justify-between">
             <h2 className="card-title">
               승인 대기 목록
-              <span className="ml-2 text-xs font-bold text-slate-500">
+              <span className="text-ink-faint ml-2 text-xs font-bold">
                 이 날짜 {dashboard.pendingCount}건 / 전체 {dashboard.pendingTotalCount}건
               </span>
             </h2>
@@ -187,7 +187,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
           </div>
 
           {dashboard.pendingReservations.length === 0 ? (
-            <p className="mt-4 text-sm text-slate-500">
+            <p className="text-ink-faint mt-4 text-sm">
               이 날짜에는 승인 대기 중인 예약이 없습니다.
               {dashboard.pendingTotalCount > 0 ? (
                 <>
@@ -266,7 +266,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
           >
             {dashboard.hourlyUsage.map((slot) => (
               <div key={slot.hour} className="flex min-w-0 flex-col items-center gap-1">
-                <span className="text-[10px] font-bold text-slate-500 tabular-nums">
+                <span className="text-ink-faint text-[10px] font-bold tabular-nums">
                   {slot.usedCount}
                 </span>
                 <div
@@ -275,7 +275,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
                   aria-hidden
                 />
                 {/* 좁은 화면에서는 "시" 를 빼야 숫자가 겹치지 않는다. */}
-                <span className="text-[10px] text-slate-500 tabular-nums">
+                <span className="text-ink-faint text-[10px] tabular-nums">
                   {slot.hour}
                   <span className="hidden sm:inline">시</span>
                 </span>
@@ -304,7 +304,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
           <div className="card-body">
             <h2 className="card-title">
               주차면 현황
-              <span className="ml-2 text-xs font-bold text-slate-500">
+              <span className="text-ink-faint ml-2 text-xs font-bold">
                 {activeSpaces.filter((space) => space.status === 'IN_USE').length}면 사용 중
               </span>
             </h2>
@@ -381,7 +381,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
                       </td>
                       <td>
                         {space.occupancies.length === 0 ? (
-                          <span className="text-xs text-slate-400">-</span>
+                          <span className="text-ink-faint text-xs">-</span>
                         ) : (
                           <ul className="space-y-1">
                             {space.occupancies.map((occupancy) => (
@@ -424,15 +424,15 @@ function StatCard({
     brand: 'text-brand-700',
     warning: 'text-orange-600',
     amber: 'text-amber-600',
-    slate: 'text-slate-700',
+    slate: 'text-ink-muted dark:text-white',
   }[tone];
 
   return (
     <div className="card">
       <div className="p-4">
-        <p className="text-xs font-bold text-slate-500">{label}</p>
+        <p className="text-ink-faint text-xs font-bold">{label}</p>
         <p className={`mt-1 text-xl font-black sm:text-2xl ${toneClass}`}>{value}</p>
-        {hint ? <p className="mt-0.5 text-xs font-bold text-slate-500">{hint}</p> : null}
+        {hint ? <p className="text-ink-faint mt-0.5 text-xs font-bold">{hint}</p> : null}
       </div>
     </div>
   );

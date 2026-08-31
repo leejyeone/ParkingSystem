@@ -96,8 +96,8 @@ export default async function AdminAuditLogsPage({ searchParams }: PageProps) {
   return (
     <main className="app-container-wide space-y-4">
       <div>
-        <h1 className="text-xl font-black text-slate-900 sm:text-2xl">감사 로그</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <h1 className="text-ink text-xl font-black sm:text-2xl">감사 로그</h1>
+        <p className="text-ink-muted mt-1 text-sm">
           개인정보 열람, 승인/반려, 설정 변경 등 주요 관리자 행위 기록입니다. 「개인정보의 안전성
           확보조치 기준」 제8조에 따른 접속기록으로, 1년간 보관 후 자동 삭제됩니다. 같은 관리자가
           같은 대상을 5분 안에 반복 열람한 경우는 한 건으로 묶입니다.
@@ -125,7 +125,7 @@ export default async function AdminAuditLogsPage({ searchParams }: PageProps) {
                 ))}
               </select>
             </div>
-            <label className="flex items-center gap-2 pb-2 text-sm text-slate-700">
+            <label className="text-ink-muted flex items-center gap-2 pb-2 text-sm">
               <input
                 type="checkbox"
                 name="includeViews"
@@ -147,10 +147,10 @@ export default async function AdminAuditLogsPage({ searchParams }: PageProps) {
 
       <section className="card">
         <div className="card-body">
-          <p className="text-sm font-bold text-slate-700">
+          <p className="text-ink-muted text-sm font-bold">
             전체 {result.totalCount}건
             {includeViews ? null : (
-              <span className="ml-2 text-xs font-normal text-slate-500">
+              <span className="text-ink-faint ml-2 text-xs font-normal">
                 (개인정보 열람 기록 {hiddenViewCount}건 숨김 —{' '}
                 <Link href={buildHref({ includeViews: '1' })} className="text-brand-700 font-bold">
                   포함해서 보기
@@ -190,14 +190,14 @@ export default async function AdminAuditLogsPage({ searchParams }: PageProps) {
                       {log.targetId ? ` #${log.targetId}` : ''}
                     </td>
                     <td className="text-xs whitespace-nowrap">{log.ipAddress ?? '-'}</td>
-                    <td className="max-w-[320px] text-xs break-words text-slate-500">
+                    <td className="text-ink-faint max-w-[320px] text-xs break-words">
                       {log.detailJson ? JSON.stringify(log.detailJson) : '-'}
                     </td>
                   </tr>
                 ))}
                 {result.items.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="py-6 text-center text-sm text-slate-500">
+                    <td colSpan={6} className="text-ink-faint py-6 text-center text-sm">
                       감사 로그가 없습니다.
                     </td>
                   </tr>

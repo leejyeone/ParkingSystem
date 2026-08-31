@@ -76,7 +76,7 @@ export function AdminLoginForm({ redirectTo }: { redirectTo: string }) {
           {submitting ? '로그인 중…' : '로그인'}
         </button>
 
-        <p className="text-center text-xs text-slate-500">
+        <p className="text-ink-faint text-center text-xs">
           로그인 실패가 5회 누적되면 계정이 10분간 잠금됩니다.
         </p>
       </div>

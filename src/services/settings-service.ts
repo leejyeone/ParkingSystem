@@ -46,39 +46,47 @@ export async function updateSystemSettings(
     ),
   );
 
-  if (before.doubleParkingEnabled && !values.doubleParkingEnabled) {
-    await deactivateDoubleParkingSpaces(adminUserId);
+  if (before.doubleParkingEnabled !== values.doubleParkingEnabled) {
+    await setDoubleParkingSpacesActive(adminUserId, values.doubleParkingEnabled);
   }
 
   return getSystemSettings();
 }
 
 /**
- * 이중주차 사용을 끌 때, 남아 있는 이중주차(DOUBLE) 주차면을 일괄 비활성화한다.
+ * 이중주차 사용 토글은 항상 모든 이중주차(DOUBLE) 주차면에 대해 일괄 동작해야 한다.
+ * 켜면 비활성 상태인 이중주차면을 전부 활성화하고, 끄면 활성 상태인 이중주차면을 전부
+ * 비활성화한다.
  *
- * 설정만 꺼두면 새 배정만 막힐 뿐 화면·목록에는 여전히 "활성" 주차면으로 남아
- * 혼란을 준다. 개별 비활성화(updateParkingSpace)와 동일하게 주차면 단위 감사 로그를 남긴다.
+ * 설정만 바꿔 두면 새 배정 가능 여부만 달라질 뿐 화면·목록의 개별 주차면 상태는 그대로
+ * 남아 혼란을 준다. 개별 활성/비활성화(updateParkingSpace)와 동일하게 주차면 단위
+ * 감사 로그를 남긴다.
  */
-async function deactivateDoubleParkingSpaces(adminUserId: number): Promise<void> {
+async function setDoubleParkingSpacesActive(adminUserId: number, active: boolean): Promise<void> {
   const spaces = await prisma.parkingSpace.findMany({
-    where: { spaceType: SpaceType.DOUBLE, isActive: true },
+    where: { spaceType: SpaceType.DOUBLE, isActive: !active },
     select: { spaceId: true, spaceCode: true },
   });
   if (spaces.length === 0) return;
 
   await prisma.parkingSpace.updateMany({
     where: { spaceId: { in: spaces.map((space) => space.spaceId) } },
-    data: { isActive: false },
+    data: { isActive: active },
   });
 
   await Promise.all(
     spaces.map((space) =>
       writeAuditLog({
         actorAdminId: adminUserId,
-        actionType: AUDIT_ACTIONS.PARKING_SPACE_DEACTIVATE,
+        actionType: active
+          ? AUDIT_ACTIONS.PARKING_SPACE_UPDATE
+          : AUDIT_ACTIONS.PARKING_SPACE_DEACTIVATE,
         targetType: AUDIT_TARGETS.PARKING_SPACE,
         targetId: space.spaceId,
-        detail: { spaceCode: space.spaceCode, reason: 'DOUBLE_PARKING_DISABLED' },
+        detail: {
+          spaceCode: space.spaceCode,
+          reason: active ? 'DOUBLE_PARKING_ENABLED' : 'DOUBLE_PARKING_DISABLED',
+        },
       }),
     ),
   );

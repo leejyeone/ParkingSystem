@@ -43,7 +43,7 @@ export function EmailLogResendButton({ emailLogId }: { emailLogId: number }) {
     <div className="flex flex-col items-start gap-1">
       <button
         type="button"
-        className="inline-flex items-center gap-1 rounded-full border border-slate-300 px-2 py-0.5 text-[11px] font-bold whitespace-nowrap text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+        className="border-line text-ink-muted hover:bg-surface-muted inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60"
         disabled={pending}
         onClick={handleResend}
       >

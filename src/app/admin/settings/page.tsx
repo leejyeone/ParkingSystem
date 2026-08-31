@@ -14,8 +14,8 @@ export default async function AdminSettingsPolicyPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-xl font-black text-slate-900 sm:text-2xl">주차장 정보</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <h1 className="text-ink text-xl font-black sm:text-2xl">주차장 정보</h1>
+        <p className="text-ink-muted mt-1 text-sm">
           운영 시간, 최대 이용 시간, 주차면 배정·이중주차·입출차 관리 사용 여부 등 주차장 운영
           정책을 설정합니다. 변경 내역은 감사 로그에 기록됩니다.
         </p>

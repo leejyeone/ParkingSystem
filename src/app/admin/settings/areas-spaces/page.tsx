@@ -19,8 +19,8 @@ export default async function AdminSettingsAreasSpacesPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-xl font-black text-slate-900 sm:text-2xl">구역·주차면</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <h1 className="text-ink text-xl font-black sm:text-2xl">구역·주차면</h1>
+        <p className="text-ink-muted mt-1 text-sm">
           주차 구역과 개별 주차면을 등록·수정하고, 도면 이미지를 관리합니다. 변경 내역은 감사 로그에
           기록됩니다.
         </p>

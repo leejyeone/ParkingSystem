@@ -309,7 +309,7 @@ export function RecurringScheduleForm({ spaces }: { spaces: SpaceOption[] }) {
                   className={`flex min-h-10 min-w-10 cursor-pointer items-center justify-center rounded-lg border px-3 text-sm font-bold ${
                     weekdays[index]
                       ? 'border-brand-700 bg-brand-700 text-white'
-                      : 'border-slate-300 bg-white text-slate-600'
+                      : 'border-line bg-surface text-ink-muted'
                   }`}
                 >
                   <input
@@ -361,26 +361,26 @@ export function RecurringScheduleForm({ spaces }: { spaces: SpaceOption[] }) {
         <div className="card-body space-y-3">
           <h2 className="card-title">승인 · 메일 옵션</h2>
 
-          <label className="flex min-h-11 items-center gap-3 rounded-lg border border-slate-200 px-3">
+          <label className="border-line flex min-h-11 items-center gap-3 rounded-lg border px-3">
             <input
               type="checkbox"
               className="accent-brand-700 size-5"
               checked={approvalEnabled}
               onChange={(event) => setApprovalEnabled(event.target.checked)}
             />
-            <span className="text-sm font-semibold text-slate-800">
+            <span className="text-ink text-sm font-semibold">
               관리자 승인 사용 (해제하면 바로 자동 승인됩니다)
             </span>
           </label>
 
-          <label className="flex min-h-11 items-center gap-3 rounded-lg border border-slate-200 px-3">
+          <label className="border-line flex min-h-11 items-center gap-3 rounded-lg border px-3">
             <input
               type="checkbox"
               className="accent-brand-700 size-5"
               checked={emailEnabled}
               onChange={(event) => setEmailEnabled(event.target.checked)}
             />
-            <span className="text-sm font-semibold text-slate-800">
+            <span className="text-ink text-sm font-semibold">
               개별 예약 알림 메일 발송 (해제해도 시리즈 생성/제외/취소 안내는 항상 발송됩니다)
             </span>
           </label>

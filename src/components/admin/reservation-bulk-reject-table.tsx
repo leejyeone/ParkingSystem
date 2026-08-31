@@ -122,9 +122,9 @@ export function ReservationBulkRejectTable({
   return (
     <div>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="flex flex-wrap items-center gap-2 text-sm font-bold text-slate-700">
+        <p className="text-ink-muted flex flex-wrap items-center gap-2 text-sm font-bold">
           <span>전체 {totalCount}건</span>
-          <span className={pendingCount > 0 ? 'text-amber-700' : 'text-slate-400'}>
+          <span className={pendingCount > 0 ? 'text-amber-700' : 'text-ink-faint'}>
             · 미승인 {pendingCount}건
           </span>
         </p>
@@ -160,13 +160,13 @@ export function ReservationBulkRejectTable({
       )}
 
       {bulkMode && (
-        <div className="mt-3 rounded-lg border border-slate-300 bg-slate-50 p-3">
+        <div className="border-line bg-surface-muted mt-3 rounded-lg border p-3">
           {error && (
             <div className="mb-3">
               <Alert variant="error">{error}</Alert>
             </div>
           )}
-          <p className="text-sm font-bold text-slate-700">
+          <p className="text-ink-muted text-sm font-bold">
             승인 대기 건만 선택할 수 있습니다. {selected.size}건 선택됨
           </p>
           <textarea
@@ -199,7 +199,7 @@ export function ReservationBulkRejectTable({
       )}
 
       {items.length === 0 ? (
-        <p className="mt-4 text-sm text-slate-500">조건에 해당하는 예약이 없습니다.</p>
+        <p className="text-ink-faint mt-4 text-sm">조건에 해당하는 예약이 없습니다.</p>
       ) : (
         <div className="table-scroll mt-3">
           <table className="data-table">
@@ -270,7 +270,7 @@ export function ReservationBulkRejectTable({
                     <td>{REQUESTER_TYPE_LABEL[item.requesterType]}</td>
                     <td className="text-xs">{item.requesterEmail}</td>
                     <td className="font-mono text-xs">{item.reservationNo}</td>
-                    <td className="text-xs whitespace-nowrap text-slate-500">
+                    <td className="text-ink-faint text-xs whitespace-nowrap">
                       {item.createdAtText}
                     </td>
                   </>
@@ -281,7 +281,7 @@ export function ReservationBulkRejectTable({
                     <tr
                       key={item.reservationId}
                       data-testid="reservation-row"
-                      className={`transition ${eligible ? 'cursor-pointer hover:bg-slate-50' : 'opacity-50'}`}
+                      className={`transition ${eligible ? 'hover:bg-surface-muted cursor-pointer' : 'opacity-50'}`}
                       onClick={() => eligible && toggle(item.reservationId)}
                     >
                       {rowCells}

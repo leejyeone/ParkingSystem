@@ -20,8 +20,8 @@ export default async function NewRecurringReservationPage() {
         <Link href="/admin/recurring-reservations" className="text-brand-700 text-sm font-semibold">
           ← 반복 예약 관리
         </Link>
-        <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">반복 예약 등록</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <h1 className="text-ink mt-2 text-xl font-black sm:text-2xl">반복 예약 등록</h1>
+        <p className="text-ink-muted mt-1 text-sm">
           등록하면 그 자리에서 기간 내 선택한 요일의 예약이 전부 생성됩니다.
         </p>
       </div>

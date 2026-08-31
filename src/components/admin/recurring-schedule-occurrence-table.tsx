@@ -163,14 +163,12 @@ export function RecurringScheduleOccurrenceTable({ occurrences }: { occurrences:
                 </button>
               </div>
 
-              <p className="text-sm text-slate-600">
-                
-                
+              <p className="text-ink-muted text-sm">
                 {formatKstRange(
                   new Date(skippingOccurrence.visitStartAt),
                   new Date(skippingOccurrence.visitEndAt),
                 )}
-                 의 예약을 제외 처리합니다. 나머지 반복 일정은 그대로 유지됩니다.
+                의 예약을 제외 처리합니다. 나머지 반복 일정은 그대로 유지됩니다.
               </p>
 
               {skipError && <Alert variant="error">{skipError}</Alert>}

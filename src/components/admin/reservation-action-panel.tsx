@@ -312,7 +312,7 @@ export function ReservationActionPanel({
               </div>
             )}
             {canExit && (
-              <div className={canEntry ? 'border-t border-slate-100 pt-3' : undefined}>
+              <div className={canEntry ? 'border-line-muted border-t pt-3' : undefined}>
                 <FormField
                   label="실제 출차 시각"
                   htmlFor="exit-time"
@@ -342,7 +342,7 @@ export function ReservationActionPanel({
             )}
 
             {canNoShow && (
-              <div className="border-t border-slate-100 pt-3">
+              <div className="border-line-muted border-t pt-3">
                 <FormField
                   label="미방문 처리 사유"
                   htmlFor="no-show-reason"

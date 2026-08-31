@@ -116,8 +116,8 @@ export default async function AdminEmailLogsPage({ searchParams }: PageProps) {
   return (
     <main className="app-container-wide space-y-4">
       <div>
-        <h1 className="text-xl font-black text-slate-900 sm:text-2xl">이메일 발송 이력</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <h1 className="text-ink text-xl font-black sm:text-2xl">이메일 발송 이력</h1>
+        <p className="text-ink-muted mt-1 text-sm">
           Gmail API 발송 실패 시 실패 사유를 이 화면에서 확인할 수 있습니다. 수신자 주소는
           마스킹됩니다.
         </p>
@@ -181,7 +181,7 @@ export default async function AdminEmailLogsPage({ searchParams }: PageProps) {
 
       <section className="card">
         <div className="card-body">
-          <p className="text-sm font-bold text-slate-700">
+          <p className="text-ink-muted text-sm font-bold">
             전체 {result.totalCount}건 · {result.page} / {result.totalPages} 페이지
           </p>
           <div className="table-scroll mt-3">
@@ -226,7 +226,7 @@ export default async function AdminEmailLogsPage({ searchParams }: PageProps) {
                             ? 'bg-emerald-100 text-emerald-800'
                             : log.sendStatus === 'FAILED'
                               ? 'bg-red-100 text-red-700'
-                              : 'bg-slate-100 text-slate-600'
+                              : 'bg-surface-hover text-ink-muted'
                         }`}
                       >
                         {statusLabel(log)}
@@ -239,7 +239,7 @@ export default async function AdminEmailLogsPage({ searchParams }: PageProps) {
                       {log.canResend ? (
                         <EmailLogResendButton emailLogId={log.emailLogId} />
                       ) : log.resolved ? (
-                        <span className="text-slate-500">완료</span>
+                        <span className="text-ink-faint">완료</span>
                       ) : (
                         '-'
                       )}
@@ -248,7 +248,7 @@ export default async function AdminEmailLogsPage({ searchParams }: PageProps) {
                 ))}
                 {result.items.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="py-6 text-center text-sm text-slate-500">
+                    <td colSpan={8} className="text-ink-faint py-6 text-center text-sm">
                       발송 이력이 없습니다.
                     </td>
                   </tr>
@@ -267,7 +267,7 @@ export default async function AdminEmailLogsPage({ searchParams }: PageProps) {
                   이전
                 </Link>
               )}
-              <span className="text-sm text-slate-600">
+              <span className="text-ink-muted text-sm">
                 {result.page} / {result.totalPages}
               </span>
               {result.page < result.totalPages && (

@@ -96,7 +96,7 @@ export function MapImageUploader({
       <p className="label">도면 이미지</p>
 
       {previewUrl ? (
-        <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+        <div className="border-line bg-surface-muted overflow-hidden rounded-lg border">
           {/* 저장된 도면은 DB 에서, 선택한 파일은 data URL 로 미리 본다. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -106,7 +106,7 @@ export function MapImageUploader({
           />
         </div>
       ) : (
-        <p className="rounded-lg border border-dashed border-slate-300 px-3 py-6 text-center text-xs text-slate-400">
+        <p className="border-line text-ink-faint rounded-lg border border-dashed px-3 py-6 text-center text-xs">
           {markedForRemoval ? '저장하면 도면이 삭제됩니다.' : '등록된 도면이 없습니다.'}
         </p>
       )}
@@ -117,7 +117,7 @@ export function MapImageUploader({
           type="file"
           accept={MAP_IMAGE_ACCEPT}
           disabled={disabled || markedForRemoval}
-          className="text-sm file:mr-3 file:min-h-9 file:rounded-lg file:border file:border-slate-300 file:bg-white file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-slate-700"
+          className="file:border-line file:bg-surface file:text-ink-muted text-sm file:mr-3 file:min-h-9 file:rounded-lg file:border file:px-3 file:py-1.5 file:text-xs file:font-bold"
           aria-label={`${area.areaName} 도면 파일 선택`}
           onChange={(event) => {
             const file = event.target.files?.[0];

@@ -25,7 +25,7 @@ export function ParkingFloorTabs({ areas }: { areas: AreaGroup[] }) {
   return (
     <div>
       {areas.length > 1 && (
-        <nav className="mb-3 flex gap-1 overflow-x-auto rounded-lg bg-slate-100 p-1">
+        <nav className="bg-surface-hover mb-3 flex gap-1 overflow-x-auto rounded-lg p-1">
           {areas.map((area) => (
             <button
               key={area.areaId}
@@ -34,7 +34,7 @@ export function ParkingFloorTabs({ areas }: { areas: AreaGroup[] }) {
               className={`rounded-md px-3 py-2 text-sm font-bold whitespace-nowrap transition ${
                 area.areaId === selected.areaId
                   ? 'bg-brand-700 text-white'
-                  : 'text-slate-600 hover:bg-slate-200'
+                  : 'text-ink-muted hover:bg-surface-active'
               }`}
             >
               {area.areaName}
@@ -46,7 +46,7 @@ export function ParkingFloorTabs({ areas }: { areas: AreaGroup[] }) {
       {layout ? (
         <ParkingMap spaces={selected.spaces} layout={layout} />
       ) : (
-        <p className="text-sm text-slate-500">이 구역은 아직 평면도가 없습니다.</p>
+        <p className="text-ink-faint text-sm">이 구역은 아직 평면도가 없습니다.</p>
       )}
     </div>
   );

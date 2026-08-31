@@ -29,7 +29,7 @@ export default async function RecurringReservationDetailPage({ params }: PagePro
           ← 반복 예약 관리
         </Link>
         <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-          <h1 className="text-xl font-black text-slate-900 sm:text-2xl">
+          <h1 className="text-ink text-xl font-black sm:text-2xl">
             {schedule.employeeName} ({schedule.departmentName}) 반복 예약
           </h1>
           {schedule.status === 'ACTIVE' && (

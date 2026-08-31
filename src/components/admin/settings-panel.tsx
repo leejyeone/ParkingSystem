@@ -220,7 +220,7 @@ export function PolicySection({ initialSettings }: { initialSettings: SystemSett
         </div>
 
         <div className="space-y-2">
-          <label className="flex min-h-12 items-center gap-3 rounded-lg border border-slate-300 px-3">
+          <label className="border-line flex min-h-12 items-center gap-3 rounded-lg border px-3">
             <input
               type="checkbox"
               className="accent-brand-700 size-5"
@@ -229,9 +229,9 @@ export function PolicySection({ initialSettings }: { initialSettings: SystemSett
                 setForm({ ...form, spaceAssignmentEnabled: event.target.checked })
               }
             />
-            <span className="text-sm font-semibold text-slate-800">주차면 배정 사용</span>
+            <span className="text-ink text-sm font-semibold">주차면 배정 사용</span>
           </label>
-          <p className="text-xs text-slate-500">
+          <p className="text-ink-faint text-xs">
             끄면 특정 주차 위치를 배정하지 않고 <strong>주차 가능 여부만</strong> 관리합니다. 승인
             메일, 예약 목록·상세, 대시보드에서 주차 위치 관련 항목이 함께 사라집니다. 이미 배정된
             예약의 기록은 그대로 보존되며, 다시 켜면 복원됩니다.
@@ -260,8 +260,8 @@ export function PolicySection({ initialSettings }: { initialSettings: SystemSett
           )}
 
           <label
-            className={`flex min-h-12 items-center gap-3 rounded-lg border border-slate-300 px-3 ${
-              form.spaceAssignmentEnabled ? '' : 'bg-slate-50 opacity-60'
+            className={`border-line flex min-h-12 items-center gap-3 rounded-lg border px-3 ${
+              form.spaceAssignmentEnabled ? '' : 'bg-surface-muted opacity-60'
             }`}
           >
             <input
@@ -271,17 +271,17 @@ export function PolicySection({ initialSettings }: { initialSettings: SystemSett
               disabled={!form.spaceAssignmentEnabled}
               onChange={(event) => setForm({ ...form, doubleParkingEnabled: event.target.checked })}
             />
-            <span className="text-sm font-semibold text-slate-800">이중주차 사용</span>
+            <span className="text-ink text-sm font-semibold">이중주차 사용</span>
           </label>
           {form.spaceAssignmentEnabled ? null : (
-            <p className="text-xs text-slate-500">
+            <p className="text-ink-faint text-xs">
               주차면 배정을 끈 상태에서는 이중주차 설정이 적용되지 않습니다.
             </p>
           )}
         </div>
 
         <div className="space-y-2">
-          <label className="flex min-h-12 items-center gap-3 rounded-lg border border-slate-300 px-3">
+          <label className="border-line flex min-h-12 items-center gap-3 rounded-lg border px-3">
             <input
               type="checkbox"
               className="accent-brand-700 size-5"
@@ -290,9 +290,9 @@ export function PolicySection({ initialSettings }: { initialSettings: SystemSett
                 setForm({ ...form, entryExitManagementEnabled: event.target.checked })
               }
             />
-            <span className="text-sm font-semibold text-slate-800">실제 입·출차 관리 사용</span>
+            <span className="text-ink text-sm font-semibold">실제 입·출차 관리 사용</span>
           </label>
-          <p className="text-xs text-slate-500">
+          <p className="text-ink-faint text-xs">
             켜면 관리자 예약 상세에 [입·출차 처리] 영역이 나타나고, 실제 입차/출차 시각을
             기록합니다. 신청자 화면의 &ldquo;사용 중&rdquo;/&ldquo;사용 완료&rdquo; 표시도 이 기록을
             기준으로 바뀝니다. 끄면(기본값) 실제 출입을 확인할 수단이 없다는 뜻이므로, 이와 관련된
@@ -516,7 +516,7 @@ function NotificationTable({ emails }: { emails: NotificationEmail[] }) {
                       <td>{item.receiveChangeAlert ? '✓' : '-'}</td>
                       <td>
                         <span
-                          className={`badge ${item.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}
+                          className={`badge ${item.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-surface-active text-ink-muted'}`}
                         >
                           {item.isActive ? '활성' : '비활성'}
                         </span>
@@ -613,7 +613,7 @@ function NotificationTable({ emails }: { emails: NotificationEmail[] }) {
 
               {emails.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="text-center text-sm text-slate-500">
+                  <td colSpan={5} className="text-ink-faint text-center text-sm">
                     등록된 알림 이메일이 없습니다.
                   </td>
                 </tr>
@@ -680,7 +680,7 @@ export function NotificationSection({ emails }: { emails: NotificationEmail[] })
             ).map(([key, label]) => (
               <label
                 key={key}
-                className="flex min-h-11 items-center gap-3 rounded-lg border border-slate-200 px-3"
+                className="border-line flex min-h-11 items-center gap-3 rounded-lg border px-3"
               >
                 <input
                   type="checkbox"
@@ -688,7 +688,7 @@ export function NotificationSection({ emails }: { emails: NotificationEmail[] })
                   checked={form[key]}
                   onChange={(event) => setForm({ ...form, [key]: event.target.checked })}
                 />
-                <span className="text-sm text-slate-700">{label}</span>
+                <span className="text-ink-muted text-sm">{label}</span>
               </label>
             ))}
           </div>
@@ -1055,12 +1055,12 @@ export function SpaceSection({
 
           {/* 구역·도면 — 주차면 표 위에 둔다. */}
           <div className="mt-4 space-y-3">
-            <h3 className="text-sm font-bold text-slate-700">구역 및 도면</h3>
+            <h3 className="text-ink-muted text-sm font-bold">구역 및 도면</h3>
             {areas.length === 0 && <p className="field-hint">등록된 구역이 없습니다.</p>}
             {areas.map((area) => {
               const draft = areaDraftOf(area);
               return (
-                <div key={area.areaId} className="rounded-lg border border-slate-200 p-3">
+                <div key={area.areaId} className="border-line rounded-lg border p-3">
                   {editing ? (
                     <div className="space-y-3">
                       <div className="grid gap-3 sm:grid-cols-2">
@@ -1107,7 +1107,7 @@ export function SpaceSection({
                         }
                       />
 
-                      <label className="flex min-h-12 items-center gap-3 rounded-lg border border-slate-300 px-3">
+                      <label className="border-line flex min-h-12 items-center gap-3 rounded-lg border px-3">
                         <input
                           type="checkbox"
                           className="accent-brand-700 size-5"
@@ -1116,27 +1116,27 @@ export function SpaceSection({
                             updateAreaDraft(area.areaId, { isActive: event.target.checked })
                           }
                         />
-                        <span className="text-sm font-semibold text-slate-800">구역 활성화</span>
+                        <span className="text-ink text-sm font-semibold">구역 활성화</span>
                       </label>
                     </div>
                   ) : (
                     <dl className="grid gap-1 text-sm">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-bold text-slate-900">{area.areaName}</span>
+                        <span className="text-ink font-bold">{area.areaName}</span>
                         <span
                           className={`badge ${
                             area.isActive
                               ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-slate-200 text-slate-600'
+                              : 'bg-surface-active text-ink-muted'
                           }`}
                         >
                           {area.isActive ? '활성' : '비활성'}
                         </span>
                       </div>
                       {area.description && (
-                        <p className="text-xs text-slate-500">{area.description}</p>
+                        <p className="text-ink-faint text-xs">{area.description}</p>
                       )}
-                      <p className="text-xs break-all text-slate-500">
+                      <p className="text-ink-faint text-xs break-all">
                         도면: {area.mapImageName ?? '등록 안 함'}
                       </p>
                       {area.mapImageName && (
@@ -1147,7 +1147,7 @@ export function SpaceSection({
                           )}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="mt-1 block max-w-xs overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
+                          className="border-line bg-surface-muted mt-1 block max-w-xs overflow-hidden rounded-lg border"
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
@@ -1167,7 +1167,7 @@ export function SpaceSection({
             })}
           </div>
 
-          <h3 className="mt-5 text-sm font-bold text-slate-700">주차면</h3>
+          <h3 className="text-ink-muted mt-5 text-sm font-bold">주차면</h3>
           <div className="table-scroll mt-2">
             {/*
               편집 모드는 칸마다 입력·선택이 들어가서 보기 모드와 필요한 폭이 다르다. auto
@@ -1200,7 +1200,7 @@ export function SpaceSection({
                         </td>
                         <td className="whitespace-nowrap">{space.isActive ? '활성' : '비활성'}</td>
                         <td className="text-xs">{space.area.areaName}</td>
-                        <td className="text-xs text-slate-500">{space.memo ?? '-'}</td>
+                        <td className="text-ink-faint text-xs">{space.memo ?? '-'}</td>
                       </tr>
                     );
                   }
@@ -1376,7 +1376,7 @@ export function SpaceSection({
                           ))}
                         </select>
                       </td>
-                      <td className="text-xs whitespace-nowrap text-slate-500">활성</td>
+                      <td className="text-ink-faint text-xs whitespace-nowrap">활성</td>
                       <td>
                         <select
                           className="input"
@@ -1735,7 +1735,7 @@ function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
                               ? 'bg-emerald-100 text-emerald-800'
                               : user.accountStatus === 'LOCKED'
                                 ? 'bg-orange-100 text-orange-800'
-                                : 'bg-slate-200 text-slate-600'
+                                : 'bg-surface-active text-ink-muted'
                           }`}
                         >
                           {ACCOUNT_STATUS_LABEL[user.accountStatus]}

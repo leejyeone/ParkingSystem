@@ -137,8 +137,8 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
   return (
     <main className="app-container-wide space-y-4">
       <div>
-        <h1 className="text-xl font-black text-slate-900 sm:text-2xl">예약 목록</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <h1 className="text-ink text-xl font-black sm:text-2xl">예약 목록</h1>
+        <p className="text-ink-muted mt-1 text-sm">
           신청자 개인정보가 그대로 표시됩니다. 상세 화면 열람 이력은 감사 로그에 기록되며, 업무 목적
           외 사용이나 외부 공유는 금지됩니다.
         </p>
@@ -279,7 +279,7 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
                   이전
                 </Link>
               )}
-              <span className="text-sm text-slate-600">
+              <span className="text-ink-muted text-sm">
                 {result.page} / {result.totalPages}
               </span>
               {result.page < result.totalPages && (

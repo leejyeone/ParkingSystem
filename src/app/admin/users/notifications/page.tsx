@@ -14,8 +14,8 @@ export default async function AdminUsersNotificationsPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-xl font-black text-slate-900 sm:text-2xl">관리자 이메일</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <h1 className="text-ink text-xl font-black sm:text-2xl">관리자 이메일</h1>
+        <p className="text-ink-muted mt-1 text-sm">
           예약 알림 메일을 받을 관리자 이메일 주소를 등록·수정합니다. 변경 내역은 감사 로그에
           기록됩니다.
         </p>

@@ -489,7 +489,7 @@ export function ScheduleCard({
           )}
 
           {(canEditEntryRecord || canEditExitRecord) && (
-            <div className="space-y-3 border-t border-slate-100 pt-3">
+            <div className="border-line-muted space-y-3 border-t pt-3">
               {canEditEntryRecord &&
                 (entryDraft !== null ? (
                   <FormField
@@ -521,7 +521,7 @@ export function ScheduleCard({
                     errors={state.fieldErrors.actualEntryAt}
                   >
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm text-slate-500">
+                      <span className="text-ink-faint text-sm">
                         저장하면 삭제되어 승인 완료 상태로 돌아갑니다. (차가 오지 않았다면 이후
                         미방문 처리)
                       </span>
@@ -567,7 +567,7 @@ export function ScheduleCard({
                     errors={state.fieldErrors.actualExitAt}
                   >
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm text-slate-500">
+                      <span className="text-ink-faint text-sm">
                         저장하면 삭제되어 입차 중 상태로 돌아갑니다.
                       </span>
                       <button

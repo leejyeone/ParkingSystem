@@ -27,7 +27,7 @@ const ACCOUNT_STATUS_LABEL = { ACTIVE: '활성', INACTIVE: '비활성', LOCKED: 
 const ACCOUNT_STATUS_CLASS = {
   ACTIVE: 'bg-emerald-100 text-emerald-800',
   LOCKED: 'bg-orange-100 text-orange-800',
-  INACTIVE: 'bg-slate-200 text-slate-600',
+  INACTIVE: 'bg-surface-active text-ink-muted',
 } as const;
 
 /** 활성 여부를 보여주고 바로 전환하는 작은 스위치. */
@@ -51,11 +51,11 @@ function ActiveSwitch({
       disabled={disabled}
       onClick={onToggle}
       className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-50 ${
-        checked ? 'bg-emerald-600' : 'bg-slate-300'
+        checked ? 'bg-emerald-600' : 'bg-line'
       }`}
     >
       <span
-        className={`inline-block size-3.5 transform rounded-full bg-white transition ${
+        className={`bg-surface inline-block size-3.5 transform rounded-full transition ${
           checked ? 'translate-x-[18px]' : 'translate-x-1'
         }`}
       />
@@ -227,7 +227,7 @@ export function EmployeeUserPanel({ employeeUsers }: { employeeUsers: EmployeeUs
               className={`rounded-full px-3 py-1 text-xs font-bold transition ${
                 statusFilter === tab.key
                   ? 'bg-brand-700 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  : 'bg-surface-hover text-ink-muted hover:bg-surface-active'
               }`}
             >
               {tab.label} ({statusCounts[tab.key]})
@@ -266,13 +266,13 @@ export function EmployeeUserPanel({ employeeUsers }: { employeeUsers: EmployeeUs
         )}
 
         {bulkMode && (
-          <div className="mt-3 rounded-lg border border-slate-300 bg-slate-50 p-3">
+          <div className="border-line bg-surface-muted mt-3 rounded-lg border p-3">
             {bulkError && (
               <div className="mb-3">
                 <Alert variant="error">{bulkError}</Alert>
               </div>
             )}
-            <p className="text-sm font-bold text-slate-700">{selected.size}건 선택됨</p>
+            <p className="text-ink-muted text-sm font-bold">{selected.size}건 선택됨</p>
             <div className="mt-2 flex flex-wrap gap-2">
               <button
                 type="button"
@@ -329,7 +329,7 @@ export function EmployeeUserPanel({ employeeUsers }: { employeeUsers: EmployeeUs
             <tbody>
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={bulkMode ? 7 : 7} className="text-center text-sm text-slate-500">
+                  <td colSpan={bulkMode ? 7 : 7} className="text-ink-faint text-center text-sm">
                     {employeeUsers.length === 0
                       ? '등록된 직원이 없습니다.'
                       : '검색 결과가 없습니다.'}
@@ -357,7 +357,7 @@ export function EmployeeUserPanel({ employeeUsers }: { employeeUsers: EmployeeUs
                         {ACCOUNT_STATUS_LABEL[user.accountStatus]}
                       </span>
                     </td>
-                    <td className="text-xs whitespace-nowrap text-slate-500">
+                    <td className="text-ink-faint text-xs whitespace-nowrap">
                       {user.lastLoginAt ? formatKstDateTime(new Date(user.lastLoginAt)) : '-'}
                     </td>
                     {!bulkMode && (

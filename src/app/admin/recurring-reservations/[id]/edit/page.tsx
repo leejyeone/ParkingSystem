@@ -33,10 +33,10 @@ export default async function RecurringReservationEditPage({ params }: PageProps
         >
           ← 반복 예약 상세
         </Link>
-        <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">
+        <h1 className="text-ink mt-2 text-xl font-black sm:text-2xl">
           {schedule.employeeName} ({schedule.departmentName}) 반복 예약 수정
         </h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <p className="text-ink-muted mt-1 text-sm">
           {schedule.spaceCode} 주차면 배정의 요일·시간·기간을 변경합니다. 새 일정에 그대로 남는
           날짜는 손대지 않고, 더 이상 해당하지 않는 날짜만 정리한 뒤 필요한 날짜만 새로 생성합니다.
           종료일을 비우면 무기한으로 저장되며, 예약은 그래도 6개월치만 생성됩니다.

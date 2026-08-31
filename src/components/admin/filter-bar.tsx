@@ -56,18 +56,18 @@ export function FilterBar({
             </span>
           </button>
 
-          {!hasChips && !open && <span className="text-sm text-slate-500">{emptyLabel}</span>}
+          {!hasChips && !open && <span className="text-ink-faint text-sm">{emptyLabel}</span>}
 
           {chips.map((chip) => (
             <Link
               key={chip.label}
               href={chip.removeHref}
-              className="badge bg-slate-100 text-slate-700 hover:bg-slate-200"
+              className="badge bg-surface-hover text-ink-muted hover:bg-surface-active"
               title={`${chip.label} 조건 해제`}
             >
-              <span className="font-normal text-slate-500">{chip.label}</span>
+              <span className="text-ink-faint font-normal">{chip.label}</span>
               <span className="font-bold">{chip.value}</span>
-              <span aria-hidden className="text-slate-400">
+              <span aria-hidden className="text-ink-faint">
                 ✕
               </span>
               <span className="sr-only">조건 해제</span>
@@ -75,14 +75,14 @@ export function FilterBar({
           ))}
 
           {hasChips && (
-            <Link href={resetHref} className="text-xs font-bold text-slate-500 underline">
+            <Link href={resetHref} className="text-ink-faint text-xs font-bold underline">
               전체 해제
             </Link>
           )}
         </div>
 
         {open && (
-          <div id={panelId} className="mt-4 border-t border-slate-100 pt-4">
+          <div id={panelId} className="border-line-muted mt-4 border-t pt-4">
             {children}
           </div>
         )}
