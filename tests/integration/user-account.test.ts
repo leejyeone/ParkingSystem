@@ -169,7 +169,7 @@ describe('회원 예약 연결 / 내 예약 목록', () => {
     );
     expect(reservation.visitorUserId).toBe(session.userId);
 
-    const myReservations = await listReservationsForUser(session.userId, {
+    const { items: myReservations } = await listReservationsForUser(session.userId, {
       entryExitManagementEnabled: false,
     });
     expect(myReservations).toHaveLength(1);
@@ -183,7 +183,7 @@ describe('회원 예약 연결 / 내 예약 목록', () => {
     await createReservation(baseReservationInput({ visitorUserId: other.userId }));
 
     expect(
-      await listReservationsForUser(mine.userId, { entryExitManagementEnabled: false }),
+      (await listReservationsForUser(mine.userId, { entryExitManagementEnabled: false })).items,
     ).toHaveLength(0);
   });
 
@@ -192,7 +192,7 @@ describe('회원 예약 연결 / 내 예약 목록', () => {
     await createReservation(baseReservationInput());
 
     expect(
-      await listReservationsForUser(session.userId, { entryExitManagementEnabled: false }),
+      (await listReservationsForUser(session.userId, { entryExitManagementEnabled: false })).items,
     ).toHaveLength(0);
   });
 });

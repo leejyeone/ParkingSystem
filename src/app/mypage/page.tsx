@@ -18,12 +18,14 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = { title: '마이페이지' };
 
-type PageProps = { searchParams: Promise<{ linked?: string }> };
+type PageProps = { searchParams: Promise<{ linked?: string; page?: string }> };
 
 export default async function MyPage({ searchParams }: PageProps) {
   const session = await requireUserPage('/mypage');
   const homeHref = await resolveHomeHref();
-  const linkedCount = Number((await searchParams).linked);
+  const params = await searchParams;
+  const linkedCount = Number(params.linked);
+  const page = Number(params.page) > 0 ? Number(params.page) : 1;
 
   const profile = await getUserProfile(session.userId);
 
@@ -40,7 +42,13 @@ export default async function MyPage({ searchParams }: PageProps) {
   });
 
   const settings = await getSystemSettings();
-  const reservations = await listReservationsForUser(session.userId, {
+  const {
+    items: reservations,
+    totalCount,
+    totalPages,
+  } = await listReservationsForUser(session.userId, {
+    page,
+    pageSize: 20,
     entryExitManagementEnabled: settings.entryExitManagementEnabled,
   });
   const showSpace = settings.spaceAssignmentEnabled;
@@ -75,7 +83,7 @@ export default async function MyPage({ searchParams }: PageProps) {
             </div>
           )}
 
-          <h2 className="card-title">내 예약 ({reservations.length}건)</h2>
+          <h2 className="card-title">내 예약 (전체 {totalCount}건)</h2>
           <p className="field-hint">
             수정·취소는 승인 대기 상태에서만 가능합니다.
             <br />
@@ -134,6 +142,30 @@ export default async function MyPage({ searchParams }: PageProps) {
                 </li>
               ))}
             </ul>
+          )}
+
+          {totalPages > 1 && (
+            <nav className="mt-4 flex items-center justify-center gap-2">
+              {page > 1 && (
+                <Link
+                  href={`/mypage?page=${page - 1}`}
+                  className="btn btn-secondary min-h-9 px-3 text-xs"
+                >
+                  이전
+                </Link>
+              )}
+              <span className="text-ink-muted text-sm">
+                {page} / {totalPages}
+              </span>
+              {page < totalPages && (
+                <Link
+                  href={`/mypage?page=${page + 1}`}
+                  className="btn btn-secondary min-h-9 px-3 text-xs"
+                >
+                  다음
+                </Link>
+              )}
+            </nav>
           )}
 
           <p className="field-hint mt-4">

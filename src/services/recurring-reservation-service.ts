@@ -515,6 +515,46 @@ export async function listRecurringSchedules(): Promise<RecurringScheduleListIte
   }));
 }
 
+/**
+ * 직원 마이페이지 "반복 예약" 탭용 — 해당 직원 앞으로 등록된 반복 예약 시리즈 목록.
+ * occurrence 를 매번 나열하면 목록이 뒤덮이므로, 관리자 목록 화면과 같은 방식으로
+ * 시리즈당 한 줄(주차면·기간·요일·시간대·상태) 요약만 보여준다.
+ *
+ * 관리자가 삭제(소프트 삭제, status=CANCELLED)한 시리즈는 제외한다 — 신청자는
+ * 애초에 그런 시리즈의 존재를 몰랐으므로 취소된 뒤에 새삼 보여줄 필요가 없다.
+ * (관리자용 listRecurringSchedules 는 감사 목적상 이 필터를 적용하지 않는다.)
+ */
+export async function listRecurringSchedulesForEmployee(
+  employeeUserId: number,
+): Promise<RecurringScheduleListItem[]> {
+  const schedules = await prisma.recurringReservationSchedule.findMany({
+    where: { employeeUserId, status: RecurringScheduleStatus.ACTIVE },
+    orderBy: [{ scheduleId: 'desc' }],
+    include: {
+      employeeUser: { select: { name: true, departmentName: true } },
+      assignedSpace: { select: { spaceCode: true } },
+    },
+  });
+
+  return schedules.map((schedule) => ({
+    scheduleId: schedule.scheduleId,
+    employeeUserId: schedule.employeeUserId,
+    employeeName: schedule.employeeUser.name,
+    departmentName: schedule.employeeUser.departmentName,
+    spaceCode: schedule.assignedSpace.spaceCode,
+    startDate: formatDateOnly(schedule.startDate),
+    endDate: schedule.endDate ? formatDateOnly(schedule.endDate) : null,
+    weekdaysMask: schedule.weekdaysMask,
+    weekdaysLabel: toWeekdaysLabel(schedule.weekdaysMask),
+    dailyStartTime: schedule.dailyStartTime,
+    dailyEndTime: schedule.dailyEndTime,
+    approvalEnabled: schedule.approvalEnabled,
+    emailEnabled: schedule.emailEnabled,
+    status: schedule.status,
+    createdAt: schedule.createdAt,
+  }));
+}
+
 export async function getRecurringScheduleDetail(scheduleId: number): Promise<{
   schedule: RecurringScheduleListItem;
   occurrences: ReservationListItem[];
@@ -851,9 +891,11 @@ export async function updateRecurringSchedule(
 // ---------------------------------------------------------------------------
 
 /**
- * 반복 일정 자체를 완전히 삭제한다(단순 취소가 아니라 목록에서 사라진다).
- * 아직 방문 전인 occurrence 는 전부 취소하고, 이미 지난 occurrence(실제 방문 기록)는
- * 그대로 남되 시리즈 연결만 끊어진다(스키마의 onDelete: SetNull).
+ * 반복 일정을 삭제한다. 사내 시스템 특성상 관리자 조작으로 행 자체가 사라지면 안
+ * 되므로, DB 에서 지우지 않고 status 를 CANCELLED 로 바꾸는 소프트 삭제다(기록은
+ * 영구 보존되고, 관리자 목록/감사 로그에는 계속 남는다). 아직 방문 전인 occurrence
+ * 는 전부 취소하고, 이미 지난 occurrence(실제 방문 기록)는 그대로 남는다 — 시리즈
+ * 행이 삭제되지 않으므로 recurringScheduleId 연결도 계속 유지된다.
  */
 export async function deleteRecurringSchedule(
   scheduleId: number,
@@ -877,7 +919,10 @@ export async function deleteRecurringSchedule(
   });
   const cancelledCount = await cancelOccurrences(activeOccurrences, '반복 예약 삭제', actor);
 
-  await prisma.recurringReservationSchedule.delete({ where: { scheduleId } });
+  await prisma.recurringReservationSchedule.update({
+    where: { scheduleId },
+    data: { status: RecurringScheduleStatus.CANCELLED },
+  });
 
   await writeAuditLog({
     actorAdminId: actor.adminUserId,

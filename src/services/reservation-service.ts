@@ -1569,22 +1569,71 @@ export function toReservationListItem(
   };
 }
 
+/** 방문객·직원 마이페이지의 페이지 단위 예약 목록 결과. */
+export type PagedReservationList = {
+  items: ReservationListItem[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+/**
+ * 과거(반복 예약 삭제를 소프트 삭제로 바꾸기 전) 하드 삭제 때문에 생긴 고아 occurrence
+ * 를 신청자 화면에서 걸러내기 위한 안전망. `recurringScheduleId` 가 시리즈 삭제로
+ * NULL 로 비워지면서 겉보기엔 평범한 "취소된 일반 예약"처럼 보였던 건들인데, 취소
+ * 사유가 항상 이 고정 문자열(`deleteRecurringSchedule` 내부 상수, 관리자가 입력하는
+ * 자유 텍스트 아님)이라 안전하게 구분할 수 있다. 소프트 삭제로 바뀐 뒤로는 이 조건에
+ * 걸릴 새 데이터가 생기지 않는다.
+ *
+ * `NOT: { recurringScheduleId: null, cancelReason: 반복 예약 삭제 }` 로 한 번에
+ * 적었더니, cancelReason 이 NULL 인(=취소된 적 없는) 정상 예약까지 전부 사라지는
+ * 사고가 났다 — SQL 에서 `cancel_reason = '반복 예약 삭제'` 는 컬럼이 NULL 이면
+ * TRUE/FALSE 가 아니라 NULL(unknown) 이 되고, `NOT NULL` 도 여전히 NULL 이라 WHERE
+ * 절이 그 행을 걸러내 버린다. cancelReason 이 NULL 인 경우를 명시적으로 먼저 통과
+ * 시켜서 이 3치 논리 함정을 피한다.
+ */
+const EXCLUDE_ORPHANED_RECURRING_CANCELLATIONS = {
+  OR: [
+    { recurringScheduleId: { not: null } },
+    { cancelReason: null },
+    { cancelReason: { not: '반복 예약 삭제' } },
+  ],
+} satisfies Prisma.ParkingReservationWhereInput;
+
 /**
  * 회원 마이페이지용 내 예약 목록.
  * 로그인 회원이 신청한 예약(visitor_user_id 로 연결된 건)만 조회한다.
  */
 export async function listReservationsForUser(
   userId: number,
-  options: { limit?: number; entryExitManagementEnabled: boolean },
-): Promise<ReservationListItem[]> {
-  const rows = await prisma.parkingReservation.findMany({
-    where: { visitorUserId: userId },
-    include: RESERVATION_WITH_SPACES,
-    orderBy: [{ visitStartAt: 'desc' }, { reservationId: 'desc' }],
-    take: Math.min(100, Math.max(1, options.limit ?? 50)),
-  });
+  options: { page?: number; pageSize?: number; entryExitManagementEnabled: boolean },
+): Promise<PagedReservationList> {
+  const page = Math.max(1, options.page ?? 1);
+  const pageSize = Math.min(100, Math.max(1, options.pageSize ?? 20));
+  const where: Prisma.ParkingReservationWhereInput = {
+    visitorUserId: userId,
+    ...EXCLUDE_ORPHANED_RECURRING_CANCELLATIONS,
+  };
 
-  return rows.map((row) => toReservationListItem(row, options.entryExitManagementEnabled));
+  const [totalCount, rows] = await Promise.all([
+    prisma.parkingReservation.count({ where }),
+    prisma.parkingReservation.findMany({
+      where,
+      include: RESERVATION_WITH_SPACES,
+      orderBy: [{ visitStartAt: 'desc' }, { reservationId: 'desc' }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+  ]);
+
+  return {
+    items: rows.map((row) => toReservationListItem(row, options.entryExitManagementEnabled)),
+    totalCount,
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(totalCount / pageSize)),
+  };
 }
 
 /**
@@ -1593,16 +1642,36 @@ export async function listReservationsForUser(
  */
 export async function listReservationsForEmployee(
   employeeUserId: number,
-  options: { limit?: number; entryExitManagementEnabled: boolean },
-): Promise<ReservationListItem[]> {
-  const rows = await prisma.parkingReservation.findMany({
-    where: { employeeUserId },
-    include: RESERVATION_WITH_SPACES,
-    orderBy: [{ visitStartAt: 'desc' }, { reservationId: 'desc' }],
-    take: Math.min(100, Math.max(1, options.limit ?? 50)),
-  });
+  options: { page?: number; pageSize?: number; entryExitManagementEnabled: boolean },
+): Promise<PagedReservationList> {
+  const page = Math.max(1, options.page ?? 1);
+  const pageSize = Math.min(100, Math.max(1, options.pageSize ?? 20));
+  // 반복 예약 occurrence 는 화면에서 시리즈 단위 요약(반복 예약 탭)으로 따로 보여주므로
+  // 여기서는 제외한다 — 안 그러면 페이지네이션 개수가 반복 occurrence 로 밀린다.
+  const where: Prisma.ParkingReservationWhereInput = {
+    employeeUserId,
+    recurringScheduleId: null,
+    ...EXCLUDE_ORPHANED_RECURRING_CANCELLATIONS,
+  };
 
-  return rows.map((row) => toReservationListItem(row, options.entryExitManagementEnabled));
+  const [totalCount, rows] = await Promise.all([
+    prisma.parkingReservation.count({ where }),
+    prisma.parkingReservation.findMany({
+      where,
+      include: RESERVATION_WITH_SPACES,
+      orderBy: [{ visitStartAt: 'desc' }, { reservationId: 'desc' }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+  ]);
+
+  return {
+    items: rows.map((row) => toReservationListItem(row, options.entryExitManagementEnabled)),
+    totalCount,
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(totalCount / pageSize)),
+  };
 }
 
 /**

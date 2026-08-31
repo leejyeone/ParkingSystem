@@ -154,7 +154,7 @@ describe('방문객/직원 예약 목록 분리', () => {
       employee.employeeUserId,
     );
 
-    const myReservations = await listReservationsForUser(visitorSession.userId, {
+    const { items: myReservations } = await listReservationsForUser(visitorSession.userId, {
       entryExitManagementEnabled: false,
     });
     expect(myReservations).toHaveLength(1);
@@ -172,7 +172,7 @@ describe('방문객/직원 예약 목록 분리', () => {
       employee.employeeUserId,
     );
 
-    const items = await listReservationsForEmployee(employee.employeeUserId, {
+    const { items } = await listReservationsForEmployee(employee.employeeUserId, {
       entryExitManagementEnabled: false,
     });
     expect(items).toHaveLength(2);

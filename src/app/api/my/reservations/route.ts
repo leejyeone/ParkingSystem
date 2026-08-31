@@ -14,7 +14,7 @@ export async function GET() {
     const reservations = await listReservationsForUser(session.userId, {
       entryExitManagementEnabled: settings.entryExitManagementEnabled,
     });
-    return apiSuccess(reservations);
+    return apiSuccess(reservations.items);
   } catch (error) {
     return handleApiError(error);
   }
