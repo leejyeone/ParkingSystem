@@ -464,9 +464,11 @@ model AdminNotificationEmail {
   /// 호출부 참고.
   receiveChangeAlert Boolean @default(true) @map("receive_change_alert")
 
-  isActive  Boolean  @default(true) @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  /// 소프트 삭제. `isActive` 는 "알림 수신 여부" 토글이라 삭제 여부와 별개로 둔다.
+  deletedAt DateTime? @map("deleted_at")
 
   @@index([isActive], map: "idx_admin_notification_emails_active")
   @@map("admin_notification_emails")

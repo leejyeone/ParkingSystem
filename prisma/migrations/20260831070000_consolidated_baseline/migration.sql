@@ -216,6 +216,7 @@ CREATE TABLE `admin_notification_emails` (
     `is_active` BOOLEAN NOT NULL DEFAULT true,
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updated_at` DATETIME(3) NOT NULL,
+    `deleted_at` DATETIME(3) NULL,
 
     UNIQUE INDEX `uq_admin_notification_emails_email`(`email`),
     INDEX `idx_admin_notification_emails_active`(`is_active`),

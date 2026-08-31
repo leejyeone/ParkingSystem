@@ -9,6 +9,7 @@ import { AUDIT_ACTIONS, AUDIT_TARGETS, writeAuditLog } from '@/services/audit-se
 
 export async function listNotificationEmails() {
   return prisma.adminNotificationEmail.findMany({
+    where: { deletedAt: null },
     orderBy: [{ isActive: 'desc' }, { notificationEmailId: 'asc' }],
   });
 }
@@ -42,6 +43,9 @@ export async function upsertNotificationEmail(
         receiveNewRequest: input.receiveNewRequest,
         receiveChangeAlert: input.receiveChangeAlert,
         isActive: input.isActive,
+        // 예전에 삭제(소프트 삭제)된 주소를 같은 이메일로 다시 등록하면 새 행을 만드는
+        // 대신 유니크 제약에 걸린 기존 행을 되살린다.
+        deletedAt: null,
       },
     });
 
@@ -70,10 +74,10 @@ export async function upsertNotificationEmail(
 }
 
 /**
- * 수신자를 목록에서 지운다.
+ * 수신자를 목록에서 지운다. (소프트 삭제 — deletedAt 만 채우고 행은 남긴다)
  *
- * 이 테이블을 참조하는 다른 테이블이 없어 실제로 삭제해도 이력이 깨지지 않는다.
- * 발송 기록은 email_send_logs 에 수신 주소가 그대로 남으므로 추적에도 문제가 없다.
+ * DB 는 실제로 지우지 않는다. `isActive` 는 "알림 수신 여부" 토글이라 삭제 표시로
+ * 재활용하면 일부러 꺼둔 수신자와 구분이 안 되므로 별도 필드를 쓴다.
  */
 export async function deleteNotificationEmail(
   notificationEmailId: number,
@@ -82,9 +86,12 @@ export async function deleteNotificationEmail(
   const current = await prisma.adminNotificationEmail.findUnique({
     where: { notificationEmailId },
   });
-  if (!current) throw new NotFoundError('알림 이메일을 찾을 수 없습니다.');
+  if (!current || current.deletedAt) throw new NotFoundError('알림 이메일을 찾을 수 없습니다.');
 
-  await prisma.adminNotificationEmail.delete({ where: { notificationEmailId } });
+  await prisma.adminNotificationEmail.update({
+    where: { notificationEmailId },
+    data: { deletedAt: new Date() },
+  });
 
   await writeAuditLog({
     actorAdminId: actor.adminUserId,

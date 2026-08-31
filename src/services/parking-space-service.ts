@@ -260,10 +260,11 @@ export async function updateParkingSpace(
 }
 
 /**
- * 주차면 삭제.
+ * 주차면 삭제. (소프트 삭제 — isActive 를 false 로 바꾸고 행은 남긴다)
  *
- * 예약이 참조한 적 있는 주차면은 지우지 않는다. FK 가 onDelete: SetNull 이라 지우면
- * 과거 예약의 배정 이력이 조용히 사라지기 때문이다. 이 경우 비활성화를 안내한다.
+ * 실제로 지우지 않는다. FK 가 onDelete: SetNull 이라 물리 삭제하면 과거 예약의
+ * 배정 이력이 조용히 사라지기 때문에, 예약에 쓰인 적이 있든 없든 항상 비활성화로
+ * 처리한다.
  */
 export async function deleteParkingSpace(
   spaceId: number,
@@ -275,18 +276,7 @@ export async function deleteParkingSpace(
   });
   if (!current) throw new NotFoundError('주차면을 찾을 수 없습니다.');
 
-  // 실제로 배정된 이력만 막는다. (FK 가 SetNull 이라 그냥 지우면 배정 이력이 조용히 사라진다)
-  const referenced = await prisma.parkingReservation.count({
-    where: { assignedSpaceId: spaceId },
-  });
-  if (referenced > 0) {
-    throw new ConflictError(
-      `이 주차면을 사용한 예약이 ${referenced}건 있어 삭제할 수 없습니다. 대신 비활성화해 주세요.`,
-      'SPACE_IN_USE',
-    );
-  }
-
-  await prisma.parkingSpace.delete({ where: { spaceId } });
+  await prisma.parkingSpace.update({ where: { spaceId }, data: { isActive: false } });
 
   await writeAuditLog({
     actorAdminId: actor.adminUserId,
