@@ -3,7 +3,11 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
-import { findLayoutForStallCode, type MapLayout } from '@/domain/parking-map-layout';
+import {
+  findLayoutForStallCode,
+  LAYOUTS_BY_AREA_CODE,
+  type MapLayout,
+} from '@/domain/parking-map-layout';
 import { formatKstTime } from '@/lib/datetime';
 import type { SpaceStatusRow } from '@/services/dashboard-service';
 
@@ -31,6 +35,26 @@ import type { SpaceStatusRow } from '@/services/dashboard-service';
 const U = 10;
 const u = (meters: number) => Math.round(meters * U * 10) / 10;
 
+/**
+ * 모든 층이 같은 viewBox 크기를 공유해야 "유닛 1개 = 화면 픽셀 1개" 비율이 층마다
+ * 똑같아진다 — 층별로 building.w/h 에 맞춰 viewBox 를 따로 잡으면, 건물 크기가 조금만
+ * 달라도(예: 지하 1층 79.35 vs 지상 1층 76) SVG 가 카드 폭에 맞춰 서로 다른 배율로
+ * 늘어나면서 엘리베이터처럼 두 층에 같은 좌표로 박아 둔 요소조차 화면상 위치·크기가
+ * 어긋나 보인다. 가장 큰 건물 기준으로 여백까지 포함한 크기를 한 번만 계산해 모든 층이
+ * 그대로 쓴다.
+ */
+const SHARED_VIEWBOX_W =
+  Math.max(...Object.values(LAYOUTS_BY_AREA_CODE).map((layout) => layout.building.w * 10)) + 16;
+const SHARED_VIEWBOX_H =
+  Math.max(...Object.values(LAYOUTS_BY_AREA_CODE).map((layout) => layout.building.h * 10)) + 16;
+
+/** 건물 외곽선·엘리베이터·차량 출입구 화살표 — 구조물은 전부 모노톤. */
+const STRUCT_FILL = '#52525b';
+const STRUCT_LINE = '#27272a';
+const ROOM_FILL = '#e8ebef';
+const ROOM_LINE = '#b8c0cc';
+const STALL_RADIUS = 4;
+
 type StallStyle = { fill: string; stroke: string; text: string };
 
 const AVAILABLE: StallStyle = { fill: '#fef9c3', stroke: '#a16207', text: '#713f12' };
@@ -42,6 +66,75 @@ const UNKNOWN: StallStyle = { fill: '#ffffff', stroke: '#cbd5e1', text: '#94a3b8
 const NEUTRAL: StallStyle = { fill: '#f8fafc', stroke: '#cbd5e1', text: '#cbd5e1' };
 /** 신청자 화면에서 본인에게 배정된 자리 */
 const MINE: StallStyle = { fill: '#22c55e', stroke: '#15803d', text: '#ffffff' };
+
+/**
+ * 다각형의 모든 꼭짓점을 같은 반지름으로 둥글린 path 문자열 하나를 만든다 — 비주차
+ * 개방 구역(roomShape)을 사각형 여러 개 대신 이음매 없는 도형 하나로 그리는 데 쓴다.
+ */
+function roundedPolygonPath(points: readonly (readonly [number, number])[], r: number): string {
+  const n = points.length;
+  const seg = (a: readonly [number, number], b: readonly [number, number], t: number) =>
+    [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t] as const;
+  const dist = (a: readonly [number, number], b: readonly [number, number]) =>
+    Math.hypot(b[0] - a[0], b[1] - a[1]);
+
+  let d = '';
+  for (let i = 0; i < n; i += 1) {
+    const prev = points[(i - 1 + n) % n];
+    const curr = points[i];
+    const next = points[(i + 1) % n];
+    const tIn = Math.min(r / dist(prev, curr), 0.5);
+    const tOut = Math.min(r / dist(curr, next), 0.5);
+    const enter = seg(curr, prev, tIn);
+    const exit = seg(curr, next, tOut);
+    d += i === 0 ? `M ${enter[0]} ${enter[1]} ` : `L ${enter[0]} ${enter[1]} `;
+    d += `Q ${curr[0]} ${curr[1]} ${exit[0]} ${exit[1]} `;
+  }
+  return `${d}Z`;
+}
+
+/** 차량 출입구 사각형 안에 진입/진출 화살표 2개만 그린다(박스·라벨 없음). */
+function EntranceArrows({ box }: { box: { x: number; y: number; w: number; h: number } }) {
+  const x = u(box.x);
+  const y = u(box.y);
+  const w = u(box.w);
+  const h = u(box.h);
+  const cx = x + w / 2;
+  const rowH = h / 2 - 3;
+  const y1 = y + rowH / 2;
+  const y2 = y + h - rowH / 2;
+
+  function arrow(cy: number, dir: 'left' | 'right') {
+    const half = w / 2 - 3;
+    const shaftW = 8;
+    const headW = 17;
+    const tailX = dir === 'left' ? cx + half : cx - half;
+    const tipX = dir === 'left' ? cx - half : cx + half;
+    const headBaseX = dir === 'left' ? tipX + headW : tipX - headW;
+    return (
+      <g key={dir}>
+        <rect
+          x={Math.min(tailX, headBaseX)}
+          y={cy - shaftW / 2}
+          width={Math.abs(headBaseX - tailX)}
+          height={shaftW}
+          fill={STRUCT_FILL}
+        />
+        <path
+          d={`M ${headBaseX} ${cy - 10} L ${tipX} ${cy} L ${headBaseX} ${cy + 10} Z`}
+          fill={STRUCT_FILL}
+        />
+      </g>
+    );
+  }
+
+  return (
+    <>
+      {arrow(y1, 'left')}
+      {arrow(y2, 'right')}
+    </>
+  );
+}
 
 function styleFor(space: SpaceStatusRow | undefined): StallStyle {
   if (!space) return UNKNOWN;
@@ -123,15 +216,11 @@ export function ParkingMap({ spaces, layout: explicitLayout, highlightCode }: Pr
     else counts.occupied += 1;
   }
 
-  const entranceW = layout.entrance ? layout.entrance.xOut - layout.building.w : 0;
-  // 진입 방향 화살표는 출입구 박스 위쪽에 둔다.
-  const arrowY = layout.entrance ? u(layout.entrance.yTop - 1.8) : 0;
-  // 오른쪽·아래쪽 여백은 왼쪽/위쪽(-8)과 대칭이 되도록 16 SVG unit 을 더한다.
-  // u() 는 미터 -> SVG unit 변환이므로, 먼저 미터 값을 스케일한 뒤에 여백(SVG unit)을
-  // 더해야 한다 — 여백을 미터로 착각해 u() 안에서 더하면 10배로 부풀어 도면이 카드
-  // 왼쪽으로 쏠려 보인다(예전에 실제로 있었던 버그).
-  const viewBoxW = u(layout.entrance?.xOut ?? layout.building.w) + 16;
-  const viewBoxH = u(layout.building.h) + 16;
+  // 층마다 다른 크기로 맞추지 않고 모든 층이 SHARED_VIEWBOX_W/H 를 그대로 쓴다 —
+  // 그래야 같은 좌표에 둔 요소(엘리베이터 등)가 층을 바꿔도 화면상 같은 위치·크기로
+  // 보인다. 건물이 공유 크기보다 작은 층은 오른쪽/아래쪽에 여백이 남을 뿐이다.
+  const viewBoxW = SHARED_VIEWBOX_W;
+  const viewBoxH = SHARED_VIEWBOX_H;
 
   return (
     <div className="space-y-3">
@@ -165,7 +254,7 @@ export function ParkingMap({ spaces, layout: explicitLayout, highlightCode }: Pr
       >
         {/*
           건물 배경. 방(rooms)이나 주차면으로 명시되지 않은 나머지 공간(통로·포장 구역 등)도
-          빈 흰 바탕이 아니라 "주차 구역이 아닌 공간"으로 회색으로 보이게 하는 바닥층이다.
+          빈 흰 바탕이 아니라 "주차 구역이 아닌 공간"으로 흰 바닥으로 보이게 하는 바닥층이다.
           방·주차면·출입구는 이 위에 그려 덮는다.
         */}
         <rect
@@ -173,34 +262,48 @@ export function ParkingMap({ spaces, layout: explicitLayout, highlightCode }: Pr
           y={0}
           width={u(layout.building.w)}
           height={u(layout.building.h)}
-          fill="#f1f5f9"
+          rx={STALL_RADIUS * 2}
+          fill="#ffffff"
         />
 
-        {layout.rooms.map((room) => (
-          <g key={`${room.x}-${room.y}`}>
-            <rect
-              x={u(room.x)}
-              y={u(room.y)}
-              width={u(room.w)}
-              height={u(room.h)}
-              fill="#e2e8f0"
-              stroke="#cbd5e1"
-              strokeWidth={1.5}
-            />
-            {room.label && (
-              <text
-                x={u(room.x + room.w / 2)}
-                y={u(room.y + room.h / 2) + 5}
-                fontSize={13}
-                fontWeight={700}
-                fill="#64748b"
-                textAnchor="middle"
-              >
-                {room.label}
-              </text>
+        {layout.roomShape ? (
+          <path
+            d={roundedPolygonPath(
+              layout.roomShape.map(([x, y]) => [u(x), u(y)]),
+              8,
             )}
-          </g>
-        ))}
+            fill={ROOM_FILL}
+            stroke={ROOM_LINE}
+            strokeWidth={1.5}
+          />
+        ) : (
+          layout.rooms.map((room) => (
+            <g key={`${room.x}-${room.y}`}>
+              <rect
+                x={u(room.x)}
+                y={u(room.y)}
+                width={u(room.w)}
+                height={u(room.h)}
+                fill="#e2e8f0"
+                stroke="#cbd5e1"
+                strokeWidth={1.5}
+              />
+              {room.label && (
+                <text
+                  x={u(room.x + room.w / 2)}
+                  y={u(room.y + room.h / 2)}
+                  fontSize={9}
+                  fontWeight={700}
+                  fill="#64748b"
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                >
+                  {room.label}
+                </text>
+              )}
+            </g>
+          ))
+        )}
 
         {layout.elevator && (
           <>
@@ -209,8 +312,9 @@ export function ParkingMap({ spaces, layout: explicitLayout, highlightCode }: Pr
               y={u(layout.elevator.y)}
               width={u(layout.elevator.w)}
               height={u(layout.elevator.h)}
-              fill="#3b82f6"
-              stroke="#1d4ed8"
+              rx={STALL_RADIUS * 2}
+              fill={STRUCT_FILL}
+              stroke={STRUCT_LINE}
               strokeWidth={2}
             />
             <text
@@ -226,36 +330,7 @@ export function ParkingMap({ spaces, layout: explicitLayout, highlightCode }: Pr
           </>
         )}
 
-        {layout.entrance && (
-          <>
-            <rect
-              x={u(layout.building.w)}
-              y={u(layout.entrance.yTop)}
-              width={u(entranceW)}
-              height={u(layout.entrance.yBottom - layout.entrance.yTop)}
-              fill="#dbeafe"
-              stroke="#2563eb"
-              strokeWidth={3}
-            />
-            <text
-              x={u((layout.building.w + layout.entrance.xOut) / 2)}
-              y={u((layout.entrance.yTop + layout.entrance.yBottom) / 2) + 6}
-              fontSize={16}
-              fontWeight={700}
-              fill="#1d4ed8"
-              textAnchor="middle"
-            >
-              {layout.entrance.label}
-            </text>
-            <path
-              d={`M ${u(layout.entrance.xOut)} ${arrowY} L ${u(layout.building.w) + 24} ${arrowY}`}
-              stroke="#1d4ed8"
-              strokeWidth={9}
-              fill="none"
-            />
-            <path d={`M ${u(layout.building.w) + 2} ${arrowY} l 24 -12 l 0 24 Z`} fill="#1d4ed8" />
-          </>
-        )}
+        {layout.entrance && <EntranceArrows box={layout.entrance} />}
 
         {/* 건물 외곽선 */}
         <rect
@@ -263,6 +338,7 @@ export function ParkingMap({ spaces, layout: explicitLayout, highlightCode }: Pr
           y={0}
           width={u(layout.building.w)}
           height={u(layout.building.h)}
+          rx={STALL_RADIUS * 2}
           fill="none"
           stroke="#0f172a"
           strokeWidth={4}
@@ -273,7 +349,7 @@ export function ParkingMap({ spaces, layout: explicitLayout, highlightCode }: Pr
           const mine = requesterView && stall.code === highlightCode;
           const style = requesterView ? (mine ? MINE : NEUTRAL) : styleFor(space);
           const cx = u(stall.x + stall.w / 2);
-          const cy = u(stall.y + stall.h / 2) + 3.5;
+          const cy = u(stall.y + stall.h / 2);
           const occupancies = requesterView ? [] : activeOccupancies(space);
           const isDisabledSpace = !requesterView && space?.spaceType === 'DISABLED';
           const label = (
@@ -283,6 +359,7 @@ export function ParkingMap({ spaces, layout: explicitLayout, highlightCode }: Pr
                 y={u(stall.y)}
                 width={u(stall.w)}
                 height={u(stall.h)}
+                rx={STALL_RADIUS}
                 fill={style.fill}
                 stroke={style.stroke}
                 strokeWidth={mine ? 3 : 1.2}
@@ -295,6 +372,7 @@ export function ParkingMap({ spaces, layout: explicitLayout, highlightCode }: Pr
                 fontWeight={700}
                 fill={style.text}
                 textAnchor="middle"
+                dominantBaseline="central"
                 transform={stall.rotated ? undefined : `rotate(-90 ${cx} ${cy})`}
               >
                 {stall.code}
