@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { ClickableTableRow } from '@/components/admin/clickable-table-row';
-import { requireAdminPage } from '@/lib/admin-page-guard';
+import { requireSystemAdminPage } from '@/lib/admin-page-guard';
 import { listRecurringSchedules } from '@/services/recurring-reservation-service';
 
 export const dynamic = 'force-dynamic';
@@ -16,7 +16,7 @@ const STATUS_CLASS = {
 } as const;
 
 export default async function RecurringReservationsPage() {
-  await requireAdminPage('/admin/recurring-reservations');
+  await requireSystemAdminPage('/admin/recurring-reservations');
 
   const schedules = await listRecurringSchedules();
 
@@ -47,13 +47,15 @@ export default async function RecurringReservationsPage() {
                   <th>시간대</th>
                   <th>관리자 승인</th>
                   <th>메일 발송</th>
+                  <th>입출차 자동</th>
+                  <th>목록 숨김</th>
                   <th>상태</th>
                 </tr>
               </thead>
               <tbody>
                 {schedules.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-ink-faint text-center text-sm">
+                    <td colSpan={10} className="text-ink-faint text-center text-sm">
                       등록된 반복 예약이 없습니다.
                     </td>
                   </tr>
@@ -81,6 +83,8 @@ export default async function RecurringReservationsPage() {
                       </td>
                       <td>{schedule.approvalEnabled ? 'O' : 'X'}</td>
                       <td>{schedule.emailEnabled ? 'O' : 'X'}</td>
+                      <td>{schedule.autoEntryExitEnabled ? 'O' : 'X'}</td>
+                      <td>{schedule.hiddenFromReservationList ? 'O' : 'X'}</td>
                       <td>
                         <span className={`badge ${STATUS_CLASS[schedule.status]}`}>
                           {STATUS_LABEL[schedule.status]}

@@ -1,14 +1,17 @@
 import type { Metadata } from 'next';
 
 import { EmployeeUserPanel } from '@/components/admin/employee-user-panel';
+import { requireSystemAdminPage } from '@/lib/admin-page-guard';
 import { listEmployeeUsers } from '@/services/employee-user-service';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = { title: '등록 직원 관리' };
 
-// 로그인 검증은 상위 레이아웃(layout.tsx)에서 이미 처리한다.
+// 로그인 검증은 상위 레이아웃(layout.tsx)에서 이미 처리한다. 이 화면은 그중에서도
+// 시스템 관리자만 볼 수 있다.
 export default async function AdminUsersEmployeesPage() {
+  await requireSystemAdminPage('/admin/users/employees');
   const employeeUsers = await listEmployeeUsers();
 
   return (

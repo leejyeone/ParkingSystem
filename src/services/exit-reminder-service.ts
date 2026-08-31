@@ -168,3 +168,87 @@ export async function runAutoNoShowJob(
   logger.info('자동 NO_SHOW 처리 완료', { processedCount: targets.length });
   return { processedCount: targets.length };
 }
+
+/**
+ * 반복 예약 시리즈에서 "입출차 자동 처리"(autoEntryExitEnabled)를 켠 occurrence 를
+ * 예정 시각(visitStartAt/visitEndAt)에 맞춰 자동으로 입차/출차 처리한다.
+ *
+ * 실제 admin 조작 없이 시스템이 처리하는 것이므로 actualEntryAt/actualExitAt 에는
+ * 작업이 실행된 시각이 아니라 원래 예정 시각을 그대로 기록한다 — 스케줄러 실행
+ * 간격(기본 60초)만큼의 오차가 기록에 남지 않게 하기 위함이다.
+ */
+export async function runAutoEntryExitJob(
+  now: Date = new Date(),
+): Promise<{ enteredCount: number; exitedCount: number }> {
+  const settings = await getSystemSettings();
+  if (!settings.entryExitManagementEnabled) {
+    return { enteredCount: 0, exitedCount: 0 };
+  }
+
+  const entryTargets = await prisma.parkingReservation.findMany({
+    where: {
+      recurringSchedule: { autoEntryExitEnabled: true },
+      reservationStatus: ReservationStatus.APPROVED,
+      actualEntryAt: null,
+      visitStartAt: { lte: now },
+    },
+    select: { reservationId: true, visitStartAt: true },
+  });
+
+  for (const target of entryTargets) {
+    await prisma.$transaction(async (tx) => {
+      await tx.parkingReservation.update({
+        where: { reservationId: target.reservationId },
+        data: { reservationStatus: ReservationStatus.PARKING, actualEntryAt: target.visitStartAt },
+      });
+      await tx.parkingReservationStatusLog.create({
+        data: {
+          reservationId: target.reservationId,
+          previousStatus: ReservationStatus.APPROVED,
+          currentStatus: ReservationStatus.PARKING,
+          changedByType: ChangedByType.SYSTEM,
+          // 실제 수동 입차 처리(markEntry)와 같은 문구를 쓴다 — "반복"이라는 단어로
+          // 이 예약이 반복 예약 occurrence 임을 알아채지 못하게 하기 위함이다.
+          changeReason: '실제 입차 처리',
+        },
+      });
+    });
+  }
+
+  const exitTargets = await prisma.parkingReservation.findMany({
+    where: {
+      recurringSchedule: { autoEntryExitEnabled: true },
+      reservationStatus: ReservationStatus.PARKING,
+      actualExitAt: null,
+      visitEndAt: { lte: now },
+    },
+    select: { reservationId: true, visitEndAt: true },
+  });
+
+  for (const target of exitTargets) {
+    await prisma.$transaction(async (tx) => {
+      await tx.parkingReservation.update({
+        where: { reservationId: target.reservationId },
+        data: { reservationStatus: ReservationStatus.EXITED, actualExitAt: target.visitEndAt },
+      });
+      await tx.parkingReservationStatusLog.create({
+        data: {
+          reservationId: target.reservationId,
+          previousStatus: ReservationStatus.PARKING,
+          currentStatus: ReservationStatus.EXITED,
+          changedByType: ChangedByType.SYSTEM,
+          changeReason: '실제 출차 처리',
+        },
+      });
+    });
+  }
+
+  if (entryTargets.length > 0 || exitTargets.length > 0) {
+    logger.info('반복 예약 입출차 자동 처리 완료', {
+      enteredCount: entryTargets.length,
+      exitedCount: exitTargets.length,
+    });
+  }
+
+  return { enteredCount: entryTargets.length, exitedCount: exitTargets.length };
+}

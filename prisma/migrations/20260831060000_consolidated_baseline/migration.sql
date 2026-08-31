@@ -6,6 +6,7 @@ CREATE TABLE `admin_users` (
     `email` VARCHAR(255) NOT NULL,
     `phone` VARCHAR(20) NULL,
     `account_status` ENUM('ACTIVE', 'INACTIVE', 'LOCKED') NOT NULL DEFAULT 'ACTIVE',
+    `role` ENUM('SYSTEM_ADMIN', 'PARKING_ADMIN') NOT NULL DEFAULT 'PARKING_ADMIN',
     `login_fail_count` INTEGER NOT NULL DEFAULT 0,
     `locked_until` DATETIME(3) NULL,
     `last_login_at` DATETIME(3) NULL,
@@ -16,6 +17,7 @@ CREATE TABLE `admin_users` (
 
     UNIQUE INDEX `uq_admin_users_email`(`email`),
     INDEX `idx_admin_users_account_status`(`account_status`),
+    INDEX `idx_admin_users_role`(`role`),
     PRIMARY KEY (`admin_user_id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -44,22 +46,20 @@ CREATE TABLE `users` (
 -- CreateTable
 CREATE TABLE `employee_users` (
     `employee_user_id` INTEGER NOT NULL AUTO_INCREMENT,
+    `employee_code` VARCHAR(20) NOT NULL,
     `email` VARCHAR(255) NOT NULL,
-    `password_hash` VARCHAR(255) NOT NULL,
     `name` VARCHAR(50) NOT NULL,
-    `department` VARCHAR(100) NULL,
-    `branch_name` VARCHAR(100) NOT NULL,
+    `department_name` VARCHAR(100) NOT NULL,
+    `department_code` VARCHAR(50) NULL,
     `vehicle_no` VARCHAR(20) NULL,
+    `company_or_branch_name` VARCHAR(100) NULL,
     `account_status` ENUM('ACTIVE', 'INACTIVE', 'LOCKED') NOT NULL DEFAULT 'ACTIVE',
-    `must_change_password` BOOLEAN NOT NULL DEFAULT false,
-    `login_fail_count` INTEGER NOT NULL DEFAULT 0,
-    `locked_until` DATETIME(3) NULL,
     `last_login_at` DATETIME(3) NULL,
-    `password_changed_at` DATETIME(3) NULL,
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updated_at` DATETIME(3) NOT NULL,
     `deleted_at` DATETIME(3) NULL,
 
+    UNIQUE INDEX `uq_employee_users_employee_code`(`employee_code`),
     UNIQUE INDEX `uq_employee_users_email`(`email`),
     INDEX `idx_employee_users_account_status`(`account_status`),
     PRIMARY KEY (`employee_user_id`)
@@ -121,6 +121,7 @@ CREATE TABLE `parking_reservations` (
     `actual_entry_at` DATETIME(3) NULL,
     `actual_exit_at` DATETIME(3) NULL,
     `assigned_space_id` INTEGER NULL,
+    `recurring_schedule_id` INTEGER NULL,
     `reservation_status` ENUM('REQUESTED', 'APPROVED', 'REJECTED', 'CANCELLED', 'PARKING', 'EXITED', 'NO_SHOW') NOT NULL DEFAULT 'REQUESTED',
     `approval_admin_id` INTEGER NULL,
     `approved_at` DATETIME(3) NULL,
@@ -142,6 +143,7 @@ CREATE TABLE `parking_reservations` (
     INDEX `idx_reservations_vehicle_range`(`vehicle_no`, `visit_start_at`, `visit_end_at`),
     INDEX `idx_reservations_email_created`(`requester_email`, `created_at`),
     INDEX `idx_reservations_approval_admin`(`approval_admin_id`),
+    INDEX `idx_reservations_recurring_schedule`(`recurring_schedule_id`),
     PRIMARY KEY (`reservation_id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -176,12 +178,41 @@ CREATE TABLE `parking_reservation_status_logs` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+CREATE TABLE `recurring_reservation_schedules` (
+    `schedule_id` INTEGER NOT NULL AUTO_INCREMENT,
+    `employee_user_id` INTEGER NOT NULL,
+    `assigned_space_id` INTEGER NOT NULL,
+    `requester_name` VARCHAR(50) NOT NULL,
+    `requester_email` VARCHAR(255) NOT NULL,
+    `company_or_branch_name` VARCHAR(100) NULL,
+    `vehicle_no` VARCHAR(20) NOT NULL,
+    `start_date` DATE NOT NULL,
+    `end_date` DATE NULL,
+    `weekdays_mask` INTEGER NOT NULL,
+    `daily_start_time` VARCHAR(5) NOT NULL,
+    `daily_end_time` VARCHAR(5) NOT NULL,
+    `approval_enabled` BOOLEAN NOT NULL DEFAULT true,
+    `email_enabled` BOOLEAN NOT NULL DEFAULT true,
+    `auto_entry_exit_enabled` BOOLEAN NOT NULL DEFAULT false,
+    `hidden_from_reservation_list` BOOLEAN NOT NULL DEFAULT true,
+    `status` ENUM('ACTIVE', 'CANCELLED') NOT NULL DEFAULT 'ACTIVE',
+    `created_by_admin_id` INTEGER NOT NULL,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updated_at` DATETIME(3) NOT NULL,
+
+    INDEX `idx_recurring_schedules_employee`(`employee_user_id`),
+    INDEX `idx_recurring_schedules_space`(`assigned_space_id`),
+    INDEX `idx_recurring_schedules_status`(`status`),
+    PRIMARY KEY (`schedule_id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
 CREATE TABLE `admin_notification_emails` (
     `notification_email_id` INTEGER NOT NULL AUTO_INCREMENT,
     `email` VARCHAR(255) NOT NULL,
     `recipient_name` VARCHAR(50) NULL,
     `receive_new_request` BOOLEAN NOT NULL DEFAULT true,
-    `receive_approval_alert` BOOLEAN NOT NULL DEFAULT true,
+    `receive_change_alert` BOOLEAN NOT NULL DEFAULT true,
     `is_active` BOOLEAN NOT NULL DEFAULT true,
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updated_at` DATETIME(3) NOT NULL,
@@ -195,7 +226,7 @@ CREATE TABLE `admin_notification_emails` (
 CREATE TABLE `email_send_logs` (
     `email_log_id` INTEGER NOT NULL AUTO_INCREMENT,
     `reservation_id` INTEGER NULL,
-    `email_type` ENUM('REQUEST_RECEIVED', 'NEW_REQUEST_TO_ADMIN', 'APPROVED', 'REJECTED', 'UPDATED', 'CANCELLED', 'EXIT_REMINDER', 'ENTRY_REMINDER') NOT NULL,
+    `email_type` ENUM('REQUEST_RECEIVED', 'NEW_REQUEST_TO_ADMIN', 'APPROVED', 'REJECTED', 'UPDATED', 'CANCELLED', 'EXIT_REMINDER', 'ENTRY_REMINDER', 'RECURRING_SCHEDULE_CREATED', 'RECURRING_SCHEDULE_UPDATED', 'RECURRING_OCCURRENCE_SKIPPED', 'RECURRING_SCHEDULE_CANCELLED') NOT NULL,
     `recipient_email` VARCHAR(255) NOT NULL,
     `subject` VARCHAR(300) NOT NULL,
     `body_html` LONGTEXT NULL,
@@ -277,6 +308,9 @@ ALTER TABLE `parking_reservations` ADD CONSTRAINT `parking_reservations_visitor_
 ALTER TABLE `parking_reservations` ADD CONSTRAINT `parking_reservations_employee_user_id_fkey` FOREIGN KEY (`employee_user_id`) REFERENCES `employee_users`(`employee_user_id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE `parking_reservations` ADD CONSTRAINT `parking_reservations_recurring_schedule_id_fkey` FOREIGN KEY (`recurring_schedule_id`) REFERENCES `recurring_reservation_schedules`(`schedule_id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE `reservation_access_tokens` ADD CONSTRAINT `reservation_access_tokens_reservation_id_fkey` FOREIGN KEY (`reservation_id`) REFERENCES `parking_reservations`(`reservation_id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -284,6 +318,15 @@ ALTER TABLE `parking_reservation_status_logs` ADD CONSTRAINT `parking_reservatio
 
 -- AddForeignKey
 ALTER TABLE `parking_reservation_status_logs` ADD CONSTRAINT `parking_reservation_status_logs_changed_by_admin_id_fkey` FOREIGN KEY (`changed_by_admin_id`) REFERENCES `admin_users`(`admin_user_id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `recurring_reservation_schedules` ADD CONSTRAINT `recurring_reservation_schedules_employee_user_id_fkey` FOREIGN KEY (`employee_user_id`) REFERENCES `employee_users`(`employee_user_id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `recurring_reservation_schedules` ADD CONSTRAINT `recurring_reservation_schedules_assigned_space_id_fkey` FOREIGN KEY (`assigned_space_id`) REFERENCES `parking_spaces`(`space_id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `recurring_reservation_schedules` ADD CONSTRAINT `recurring_reservation_schedules_created_by_admin_id_fkey` FOREIGN KEY (`created_by_admin_id`) REFERENCES `admin_users`(`admin_user_id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `email_send_logs` ADD CONSTRAINT `email_send_logs_resend_of_log_id_fkey` FOREIGN KEY (`resend_of_log_id`) REFERENCES `email_send_logs`(`email_log_id`) ON DELETE SET NULL ON UPDATE CASCADE;

@@ -1,3 +1,4 @@
+import { AdminRole } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 
 import { signAdminSessionToken, verifyAdminSessionToken } from '@/lib/session';
@@ -13,6 +14,7 @@ const ADMIN = {
   adminUserId: 3,
   email: 'admin@example.com',
   adminName: '시스템관리자',
+  role: AdminRole.SYSTEM_ADMIN,
 };
 
 describe('회원 세션 토큰', () => {

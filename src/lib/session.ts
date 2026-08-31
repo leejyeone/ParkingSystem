@@ -1,3 +1,4 @@
+import { AdminRole } from '@prisma/client';
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 
@@ -23,6 +24,7 @@ export type AdminSession = {
   adminUserId: number;
   email: string;
   adminName: string;
+  role: AdminRole;
 };
 
 function secretKey(): Uint8Array {
@@ -35,6 +37,7 @@ export async function signAdminSessionToken(session: AdminSession): Promise<stri
     typ: ADMIN_SESSION_TYPE,
     email: session.email,
     adminName: session.adminName,
+    role: session.role,
   })
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setSubject(String(session.adminUserId))
@@ -49,11 +52,15 @@ export async function verifyAdminSessionToken(token: string): Promise<AdminSessi
     const adminUserId = Number(payload.sub);
     if (payload.typ !== ADMIN_SESSION_TYPE) return null;
     if (!Number.isInteger(adminUserId) || adminUserId <= 0) return null;
+    // role 클레임이 없거나 알 수 없는 값이면(권한 분리 도입 이전에 발급된 구 토큰 등)
+    // 세션 자체를 무효로 본다 — 재로그인 시 최신 role 로 새 토큰이 발급된다.
+    if (!Object.values(AdminRole).includes(payload.role as AdminRole)) return null;
 
     return {
       adminUserId,
       email: String(payload.email ?? ''),
       adminName: String(payload.adminName ?? ''),
+      role: payload.role as AdminRole,
     };
   } catch {
     // 만료/위조/서명 불일치는 모두 "세션 없음" 으로 취급한다.

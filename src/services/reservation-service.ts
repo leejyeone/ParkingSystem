@@ -23,7 +23,13 @@ import {
   type DisplayReservationStatus,
 } from '@/domain/reservation-status';
 import { buildOverlapWhere } from '@/domain/time-overlap';
-import { formatKstDate, formatKstDateTime, formatKstRange } from '@/lib/datetime';
+import {
+  formatKstDate,
+  formatKstDateTime,
+  formatKstRange,
+  kstDayRangeUtc,
+  todayKstDateString,
+} from '@/lib/datetime';
 import {
   buildAccessUrl,
   dispatchQuietly,
@@ -1457,6 +1463,42 @@ export type ReservationListItem = {
  * 목록에도 성명/이메일/차량번호 원문이 포함되므로, actor 가 주어지면 감사 로그를 남긴다.
  * (actor 를 선택 인자로 둔 것은 내부 통계 등 감사 대상이 아닌 호출을 허용하기 위함이다)
  */
+/**
+ * 관리자 "전체 예약" 목록에서 반복 예약(정기 주차 배정) occurrence 를 걸러내는 조건.
+ * 반복 예약은 방문 신청/승인 절차 없이 주차면을 배정하는 시스템 관리자 전용 기능이라,
+ * 주차 관리자도 접근하는 전체 예약 목록에 흔적이 남으면 안 된다(반복 예약 관리 화면
+ * 자체가 이미 시스템 관리자 전용이므로, 상세 이력은 거기서 확인한다):
+ *
+ *  - 취소된 occurrence 는 사유(수정으로 인한 정리/개별 제외/시리즈 삭제)와 무관하게 항상
+ *    제외한다 — 애초에 신청자가 존재도 몰랐고 실제로 쓰이지도 않은 예약이기 때문이다.
+ *  - **오늘 이후(내일부터)의 예정 occurrence 는 시리즈 설정과 무관하게 항상 제외한다**
+ *    — 주차 관리자가 미래의 반복 배정을 미리 알 수 없게 하기 위함이다. 오늘 이미
+ *    지났거나 오늘 진행 중인 occurrence 는 실제 주차 사용 이력이라 그대로 보여준다
+ *    (대시보드 주차면 현황과 같은 원칙 — 실제 점유/이용 사실은 숨기지 않는다).
+ *  - 오늘·과거 occurrence 는 추가로 그 시리즈의 `hiddenFromReservationList` 값을
+ *    따른다(기본값 true — 시스템 관리자가 시리즈를 만들거나 수정할 때 끌 수 있다).
+ *
+ * `recurringScheduleId: { not: null }` 로 먼저 좁혀 둔 뒤에만 상태/시리즈 조건을 평가하므로,
+ * 일반 예약(recurringScheduleId 가 NULL)에서는 이 OR 조건 자체가 평가되지 않는다 — cancelReason
+ * 같은 nullable 컬럼을 조건 없이 곧장 비교하다 정상 예약까지 걸러졌던 이전 사고와 같은
+ * 3치 논리 함정을 피하기 위한 구조다.
+ */
+function buildExcludeHiddenRecurringOccurrences(now: Date): Prisma.ParkingReservationWhereInput {
+  // 한국시각 기준 "내일 00:00" — 이 시각 이후에 시작하는 occurrence 는 전부 미래다.
+  const tomorrowStartUtc = kstDayRangeUtc(todayKstDateString(now)).end;
+
+  return {
+    NOT: {
+      recurringScheduleId: { not: null },
+      OR: [
+        { reservationStatus: ReservationStatus.CANCELLED },
+        { visitStartAt: { gte: tomorrowStartUtc } },
+        { recurringSchedule: { hiddenFromReservationList: true } },
+      ],
+    },
+  };
+}
+
 export async function listReservationsForAdmin(
   filter: ReservationListFilter,
   actor?: AdminActionContext,
@@ -1481,6 +1523,7 @@ export async function listReservationsForAdmin(
     ...(filter.vehicleNo ? { vehicleNo: { contains: normalizeVehicleNo(filter.vehicleNo) } } : {}),
     ...(filter.requesterName ? { requesterName: { contains: filter.requesterName } } : {}),
     ...(filter.spaceCode ? { assignedSpace: { spaceCode: { contains: filter.spaceCode } } } : {}),
+    ...buildExcludeHiddenRecurringOccurrences(new Date()),
   };
 
   const where: Prisma.ParkingReservationWhereInput = {

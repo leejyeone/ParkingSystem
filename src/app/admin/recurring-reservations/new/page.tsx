@@ -2,17 +2,18 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { RecurringScheduleForm } from '@/components/admin/recurring-schedule-form';
-import { requireAdminPage } from '@/lib/admin-page-guard';
+import { requireSystemAdminPage } from '@/lib/admin-page-guard';
 import { listParkingSpaces } from '@/services/parking-space-service';
+import { getSystemSettings } from '@/services/settings-service';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = { title: '반복 예약 등록' };
 
 export default async function NewRecurringReservationPage() {
-  await requireAdminPage('/admin/recurring-reservations');
+  await requireSystemAdminPage('/admin/recurring-reservations');
 
-  const spaces = await listParkingSpaces();
+  const [spaces, settings] = await Promise.all([listParkingSpaces(), getSystemSettings()]);
 
   return (
     <main className="app-container-wide space-y-4">
@@ -32,6 +33,7 @@ export default async function NewRecurringReservationPage() {
           spaceCode: space.spaceCode,
           areaName: space.area.areaName,
         }))}
+        entryExitManagementEnabled={settings.entryExitManagementEnabled}
       />
     </main>
   );

@@ -15,6 +15,7 @@ function maskToWeekdays(mask: number): boolean[] {
 
 type UpdateResult = {
   cancelledCount: number;
+  updatedCount: number;
   createdCount: number;
   skippedDates: string[];
 };
@@ -22,6 +23,7 @@ type UpdateResult = {
 export function RecurringScheduleEditForm({
   scheduleId,
   initial,
+  entryExitManagementEnabled,
 }: {
   scheduleId: number;
   initial: {
@@ -32,7 +34,10 @@ export function RecurringScheduleEditForm({
     dailyEndTime: string;
     approvalEnabled: boolean;
     emailEnabled: boolean;
+    autoEntryExitEnabled: boolean;
+    hiddenFromReservationList: boolean;
   };
+  entryExitManagementEnabled: boolean;
 }) {
   const router = useRouter();
   const [startDate, setStartDate] = useState(initial.startDate);
@@ -42,6 +47,10 @@ export function RecurringScheduleEditForm({
   const [dailyEndTime, setDailyEndTime] = useState(initial.dailyEndTime);
   const [approvalEnabled, setApprovalEnabled] = useState(initial.approvalEnabled);
   const [emailEnabled, setEmailEnabled] = useState(initial.emailEnabled);
+  const [autoEntryExitEnabled, setAutoEntryExitEnabled] = useState(initial.autoEntryExitEnabled);
+  const [hiddenFromReservationList, setHiddenFromReservationList] = useState(
+    initial.hiddenFromReservationList,
+  );
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -72,6 +81,8 @@ export function RecurringScheduleEditForm({
           dailyEndTime,
           approvalEnabled,
           emailEnabled,
+          autoEntryExitEnabled: entryExitManagementEnabled ? autoEntryExitEnabled : false,
+          hiddenFromReservationList,
         }),
       },
     );
@@ -101,8 +112,8 @@ export function RecurringScheduleEditForm({
         <div className="card-body space-y-4">
           <Alert variant="success" title="반복 일정이 수정되었습니다">
             <p>
-              기존 예정 방문 {result.cancelledCount}건을 정리하고 새 일정으로 {result.createdCount}
-              건을 생성했습니다.
+              기존 예정 방문 중 {result.updatedCount}건은 시간만 갱신하고, {result.cancelledCount}
+              건은 취소했습니다. 새 일정으로 {result.createdCount}건을 생성했습니다.
             </p>
             {result.skippedDates.length > 0 && (
               <p className="mt-1">
@@ -251,6 +262,38 @@ export function RecurringScheduleEditForm({
             />
             <span className="text-ink text-sm font-semibold">
               개별 예약 알림 메일 발송 (해제해도 시리즈 수정/제외/삭제 안내는 항상 발송됩니다)
+            </span>
+          </label>
+
+          <label
+            className={`border-line flex min-h-11 items-center gap-3 rounded-lg border px-3 ${
+              entryExitManagementEnabled ? '' : 'opacity-50'
+            }`}
+          >
+            <input
+              type="checkbox"
+              className="accent-brand-700 size-5"
+              checked={autoEntryExitEnabled}
+              disabled={!entryExitManagementEnabled}
+              onChange={(event) => setAutoEntryExitEnabled(event.target.checked)}
+            />
+            <span className="text-ink text-sm font-semibold">
+              입출차 자동 처리 (켜면 예정 시간이 되었을 때 주차 관리자 조작 없이 자동으로 입차·출차
+              처리됩니다)
+              {!entryExitManagementEnabled && ' — 입·출차 관리가 꺼져 있어 사용할 수 없습니다'}
+            </span>
+          </label>
+
+          <label className="border-line flex min-h-11 items-center gap-3 rounded-lg border px-3">
+            <input
+              type="checkbox"
+              className="accent-brand-700 size-5"
+              checked={hiddenFromReservationList}
+              onChange={(event) => setHiddenFromReservationList(event.target.checked)}
+            />
+            <span className="text-ink text-sm font-semibold">
+              전체 예약 목록에서 숨기기 (켜면 이 시리즈의 예약이 관리자 [전체 예약] 목록에 나타나지
+              않습니다 — 주차 관리자도 볼 수 없게 됩니다)
             </span>
           </label>
         </div>

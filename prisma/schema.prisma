@@ -29,6 +29,14 @@ enum AccountStatus {
   LOCKED
 }
 
+/// 관리자 권한. 시스템 관리자만 반복 예약(정기 주차 배정)·이메일 이력·직원 등록·
+/// 관리자 계정 관리 화면에 접근할 수 있다 — 이 기능들은 방문 신청/승인 절차를
+/// 건너뛸 수 있어 주차 관리자의 정상 승인 흐름을 우회하는 통로가 될 수 있기 때문이다.
+enum AdminRole {
+  SYSTEM_ADMIN
+  PARKING_ADMIN
+}
+
 /// 주차면 유형
 enum SpaceType {
   NORMAL
@@ -104,6 +112,7 @@ model AdminUser {
   email         String        @unique(map: "uq_admin_users_email") @db.VarChar(255)
   phone         String?       @db.VarChar(20)
   accountStatus AccountStatus @default(ACTIVE) @map("account_status")
+  role          AdminRole     @default(PARKING_ADMIN) @map("role")
 
   /// brute-force 방지용. 연속 로그인 실패 횟수
   loginFailCount Int       @default(0) @map("login_fail_count")
@@ -123,6 +132,7 @@ model AdminUser {
   createdRecurringSchedules RecurringReservationSchedule[]
 
   @@index([accountStatus], map: "idx_admin_users_account_status")
+  @@index([role], map: "idx_admin_users_role")
   @@map("admin_users")
 }
 
@@ -409,6 +419,17 @@ model RecurringReservationSchedule {
   /// 어떤 개별 알림 메일도 보내지 않는다. 시리즈 생성/개별 날짜 제외/시리즈 전체 취소
   /// 안내 메일은 이 값과 무관하게 항상 나간다(src/lib/email/email-service.ts 참고).
   emailEnabled    Boolean @default(true) @map("email_enabled")
+  /// true 면 이 시리즈의 occurrence 는 예정 시각(visitStartAt/visitEndAt)이 되었을 때
+  /// 주차 관리자의 수동 입·출차 처리 없이 자동으로 입차/출차 처리된다
+  /// (src/services/exit-reminder-service.ts 의 runAutoEntryExitJob 참고). 시스템 설정의
+  /// 입·출차 관리 자체가 꺼져 있으면 이 값과 무관하게 동작하지 않는다.
+  autoEntryExitEnabled Boolean @default(false) @map("auto_entry_exit_enabled")
+  /// true(기본값) 면 이 시리즈의 occurrence 는 취소 여부와 무관하게 관리자 "전체 예약"
+  /// 목록(주차 관리자도 접근)에 나타나지 않는다 — 반복 예약은 방문 신청/승인 절차를
+  /// 우회하는 시스템 관리자 전용 기능이라, 기본적으로 주차 관리자에게는 보이지 않아야
+  /// 한다. 취소된 occurrence 는 이 값과 무관하게 항상 제외된다
+  /// (src/services/reservation-service.ts 의 EXCLUDE_HIDDEN_RECURRING_OCCURRENCES 참고).
+  hiddenFromReservationList Boolean @default(true) @map("hidden_from_reservation_list")
 
   status RecurringScheduleStatus @default(ACTIVE)
 

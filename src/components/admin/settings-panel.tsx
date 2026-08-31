@@ -48,8 +48,11 @@ type AdminUser = {
   email: string;
   phone: string | null;
   accountStatus: 'ACTIVE' | 'INACTIVE' | 'LOCKED';
+  role: 'SYSTEM_ADMIN' | 'PARKING_ADMIN';
   lastLoginAt: string | null;
 };
+
+const ADMIN_ROLE_LABEL = { SYSTEM_ADMIN: '시스템 관리자', PARKING_ADMIN: '주차 관리자' } as const;
 
 function useMutation() {
   const router = useRouter();
@@ -1710,6 +1713,7 @@ function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
                 <th className={editing ? 'w-32' : ''}>이름</th>
                 <th className={editing ? 'w-60' : ''}>이메일</th>
                 <th className={editing ? 'w-36' : ''}>연락처</th>
+                <th className={editing ? 'w-28' : ''}>권한</th>
                 <th className={editing ? 'w-32' : ''}>상태</th>
                 {editing && <th className="w-20"></th>}
               </tr>
@@ -1728,6 +1732,17 @@ function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
                       <td>{user.adminName}</td>
                       <td className="text-xs">{user.email}</td>
                       <td className="text-xs">{user.phone ?? '-'}</td>
+                      <td>
+                        <span
+                          className={`badge ${
+                            user.role === 'SYSTEM_ADMIN'
+                              ? 'bg-brand-100 text-brand-700'
+                              : 'bg-surface-active text-ink-muted'
+                          }`}
+                        >
+                          {ADMIN_ROLE_LABEL[user.role]}
+                        </span>
+                      </td>
                       <td>
                         <span
                           className={`badge ${
@@ -1780,6 +1795,19 @@ function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
                         }
                         aria-label={`${user.email} 연락처`}
                       />
+                    </td>
+                    <td>
+                      {/* 권한은 여기서 바꿀 수 없다 — 시스템 관리자 계정은 별도 "시스템 관리자
+                          추가" 화면으로만 만든다. */}
+                      <span
+                        className={`badge ${
+                          user.role === 'SYSTEM_ADMIN'
+                            ? 'bg-brand-100 text-brand-700'
+                            : 'bg-surface-active text-ink-muted'
+                        }`}
+                      >
+                        {ADMIN_ROLE_LABEL[user.role]}
+                      </span>
                     </td>
                     <td>
                       <select
@@ -1836,103 +1864,133 @@ function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
 }
 
 export function AdminUserSection({ adminUsers }: { adminUsers: AdminUser[] }) {
+  return (
+    <div className="space-y-4">
+      <AdminUserTable adminUsers={adminUsers} />
+      <AdminUserCreateForm />
+    </div>
+  );
+}
+
+/**
+ * 관리자 계정 생성 폼. 권한(시스템 관리자/주차 관리자)을 여기서 직접 선택한다 —
+ * 기본값은 주차 관리자. 이 화면 자체가 이미 시스템 관리자 전용이라, 권한을 고를 수
+ * 있어도 주차 관리자가 스스로를 승격시키는 경로가 되지 않는다.
+ */
+function AdminUserCreateForm() {
   const { pending, message, fieldErrors, mutate } = useMutation();
   const [form, setForm] = useState({
     email: '',
     password: '',
     adminName: '',
     phone: '',
+    role: 'PARKING_ADMIN' as 'SYSTEM_ADMIN' | 'PARKING_ADMIN',
   });
 
   return (
-    <div className="space-y-4">
-      <AdminUserTable adminUsers={adminUsers} />
+    <section className="card">
+      <div className="card-body space-y-4">
+        <h2 className="card-title">관리자 계정 추가</h2>
+        {message && (
+          <Alert variant={message.variant === 'success' ? 'success' : 'error'}>
+            {message.text}
+          </Alert>
+        )}
 
-      <section className="card">
-        <div className="card-body space-y-4">
-          <h2 className="card-title">관리자 계정 추가</h2>
-          {message && (
-            <Alert variant={message.variant === 'success' ? 'success' : 'error'}>
-              {message.text}
-            </Alert>
-          )}
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <FormField
-              label="이메일"
-              htmlFor="admin-email"
-              required
-              hint="이 이메일로 신규 신청/승인 알림 메일을 받도록 관리자 알림 이메일 목록에 자동 등록됩니다."
-              errors={fieldErrors.email}
-            >
-              <input
-                id="admin-email"
-                type="email"
-                className={inputClassName(Boolean(fieldErrors.email))}
-                value={form.email}
-                onChange={(event) => setForm({ ...form, email: event.target.value })}
-              />
-            </FormField>
-            <FormField
-              label="비밀번호"
-              htmlFor="admin-password"
-              required
-              hint="10자 이상, 영문 대/소문자·숫자·특수문자 중 3종류 이상"
-              errors={fieldErrors.password}
-            >
-              <input
-                id="admin-password"
-                type="password"
-                className={inputClassName(Boolean(fieldErrors.password))}
-                value={form.password}
-                onChange={(event) => setForm({ ...form, password: event.target.value })}
-                autoComplete="new-password"
-              />
-            </FormField>
-            <FormField label="이름" htmlFor="admin-name" required errors={fieldErrors.adminName}>
-              <input
-                id="admin-name"
-                className={inputClassName(Boolean(fieldErrors.adminName))}
-                value={form.adminName}
-                onChange={(event) => setForm({ ...form, adminName: event.target.value })}
-              />
-            </FormField>
-            <FormField label="연락처" htmlFor="admin-phone" errors={fieldErrors.phone}>
-              <input
-                id="admin-phone"
-                className={inputClassName(Boolean(fieldErrors.phone))}
-                value={form.phone}
-                onChange={(event) => setForm({ ...form, phone: event.target.value })}
-              />
-            </FormField>
-          </div>
-
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={pending || !form.email || !form.password}
-            onClick={async () => {
-              const saved = await mutate(
-                '/api/admin/admin-users',
-                'POST',
-                { ...form, phone: form.phone || null },
-                '관리자 계정을 생성했습니다.',
-              );
-              if (saved)
-                setForm({
-                  ...form,
-                  password: '',
-                  adminName: '',
-                  email: '',
-                  phone: '',
-                });
-            }}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField
+            label="이메일"
+            htmlFor="admin-email"
+            required
+            hint="이 이메일로 신규 신청/승인 알림 메일을 받도록 관리자 알림 이메일 목록에 자동 등록됩니다."
+            errors={fieldErrors.email}
           >
-            {pending ? '생성 중…' : '관리자 계정 생성'}
-          </button>
+            <input
+              id="admin-email"
+              type="email"
+              className={inputClassName(Boolean(fieldErrors.email))}
+              value={form.email}
+              onChange={(event) => setForm({ ...form, email: event.target.value })}
+            />
+          </FormField>
+          <FormField
+            label="비밀번호"
+            htmlFor="admin-password"
+            required
+            hint="10자 이상, 영문 대/소문자·숫자·특수문자 중 3종류 이상"
+            errors={fieldErrors.password}
+          >
+            <input
+              id="admin-password"
+              type="password"
+              className={inputClassName(Boolean(fieldErrors.password))}
+              value={form.password}
+              onChange={(event) => setForm({ ...form, password: event.target.value })}
+              autoComplete="new-password"
+            />
+          </FormField>
+          <FormField label="이름" htmlFor="admin-name" required errors={fieldErrors.adminName}>
+            <input
+              id="admin-name"
+              className={inputClassName(Boolean(fieldErrors.adminName))}
+              value={form.adminName}
+              onChange={(event) => setForm({ ...form, adminName: event.target.value })}
+            />
+          </FormField>
+          <FormField label="연락처" htmlFor="admin-phone" errors={fieldErrors.phone}>
+            <input
+              id="admin-phone"
+              className={inputClassName(Boolean(fieldErrors.phone))}
+              value={form.phone}
+              onChange={(event) => setForm({ ...form, phone: event.target.value })}
+            />
+          </FormField>
+          <FormField
+            label="권한"
+            htmlFor="admin-role"
+            hint="반복 예약·이메일 이력·직원 등록·관리자 계정 관리는 시스템 관리자만 볼 수 있습니다."
+            errors={fieldErrors.role}
+          >
+            <select
+              id="admin-role"
+              className={inputClassName(Boolean(fieldErrors.role))}
+              value={form.role}
+              onChange={(event) =>
+                setForm({ ...form, role: event.target.value as typeof form.role })
+              }
+            >
+              <option value="PARKING_ADMIN">주차 관리자</option>
+              <option value="SYSTEM_ADMIN">시스템 관리자</option>
+            </select>
+          </FormField>
         </div>
-      </section>
-    </div>
+
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={pending || !form.email || !form.password}
+          onClick={async () => {
+            const saved = await mutate(
+              '/api/admin/admin-users',
+              'POST',
+              { ...form, phone: form.phone || null },
+              '관리자 계정을 생성했습니다.',
+            );
+            if (saved)
+              setForm({
+                ...form,
+                password: '',
+                adminName: '',
+                email: '',
+                phone: '',
+                role: 'PARKING_ADMIN',
+              });
+          }}
+        >
+          {pending ? '생성 중…' : '관리자 계정 생성'}
+        </button>
+      </div>
+    </section>
   );
 }
 

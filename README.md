@@ -144,15 +144,18 @@
   검색 조건은 기본으로 접혀 있고 적용된 조건만 칩으로 표시
 - 예약 승인 및 주차면 확정 (트랜잭션 원자 처리)
 - 반려(사유 입력), 주차 위치 변경, 입차/출차/미방문 처리
-- **반복 예약(정기 주차 배정) 관리** — 특정 직원에게 특정 주차면을 기간·요일·시간대로 미리
-  배정, 승인/알림 메일 생략 여부를 시리즈마다 선택, 개별 날짜 제외(연차 등), 요일·시간·기간
-  수정, 시리즈 전체 삭제 (4-5, 18절 참고)
-- 직원 계정 목록 조회 및 활성/비활성 전환 (계정 생성은 명부 시드로만)
-- 이메일 발송 이력 조회 (실패 사유 포함) — 예약 목록과 동일한 접이식 검색 조건
-- 시스템 설정, 주차 구역·주차면, 관리자 계정, 알림 이메일 관리
+- **(시스템 관리자 전용) 반복 예약(정기 주차 배정) 관리** — 특정 직원에게 특정 주차면을
+  기간·요일·시간대로 미리 배정, 승인/알림 메일/입출차 자동 처리 여부를 시리즈마다 선택,
+  개별 날짜 제외(연차 등), 요일·시간·기간 수정, 시리즈 삭제(소프트 삭제) (3-4, 4-5, 18절 참고)
+- **(시스템 관리자 전용)** 직원 계정 목록 조회 및 활성/비활성 전환 (계정 생성은 명부 시드로만)
+- **(시스템 관리자 전용)** 이메일 발송 이력 조회 (실패 사유 포함) — 예약 목록과 동일한
+  접이식 검색 조건
+- 시스템 설정, 주차 구역·주차면, 알림 이메일 관리 (양쪽 권한 모두)
+- **(시스템 관리자 전용)** 관리자 계정 생성(권한을 시스템 관리자/주차 관리자 중 선택, 기본값
+  주차 관리자)·수정·비활성화
   - 관리자 계정을 새로 만들면 그 이메일이 **알림 이메일 목록에 자동 등록**된다(신규 신청/승인
     알림 모두 켠 상태). 이미 등록된 이메일이면 기존 수신 설정은 건드리지 않는다.
-- 감사 로그 조회
+- 감사 로그 조회 (양쪽 권한 모두)
 
 ### 시스템
 
@@ -220,18 +223,32 @@
 
 ### 3-4. 관리자
 
-관리자만 이메일 / 비밀번호로 로그인합니다. 관리자 계정은 **단일 권한만 존재**하며,
-계정 간 기능 차이는 없습니다(모든 관리자가 아래 기능 전부에 접근할 수 있습니다).
+관리자만 이메일 / 비밀번호로 로그인합니다. 관리자 계정은 **시스템 관리자
+(`SYSTEM_ADMIN`) / 주차 관리자(`PARKING_ADMIN`)** 두 권한으로 나뉩니다
+(`admin_users.role`). 반복 예약(정기 주차 배정)은 방문 신청/승인 절차 없이 바로
+주차면을 배정하는 기능이라, 시스템 관리자가 주차 관리자의 정상 승인 흐름을
+우회하는 통로가 될 수 있어 별도 권한으로 분리했습니다 — 관련 화면·API는 시스템
+관리자만 접근할 수 있고, 관리자 화면 사이드바의 "시스템 관리" 메뉴 자체가 주차
+관리자에게는 노출되지 않습니다.
+
+**두 권한 공통**
 
 - 예약 목록·상세 조회, 승인/반려, 주차 위치 배정/변경, 입차/출차/미방문 처리
-- 반복 예약(정기 주차 배정) 등록·조회·수정·삭제 (4-5절 참고)
-- 직원 계정 목록 조회 및 활성/비활성 전환
-- 이메일 발송 이력 조회
-- 관리자 계정 생성·수정·비활성화
 - 주차 구역 / 주차면 관리
-- 관리자 알림 이메일 관리
+- 관리자 알림 이메일 관리 (일반 예약 신규 신청/변경 알림 수신자)
 - 시스템 운영시간·정책 설정 (입·출차 관리 사용 여부 포함)
 - 감사 로그 조회
+
+**시스템 관리자 전용** ("시스템 관리" 메뉴)
+
+- 반복 예약(정기 주차 배정) 등록·조회·수정·삭제 (4-5절 참고)
+- 이메일 발송 이력 조회
+- 직원 계정 목록 조회 및 활성/비활성 전환
+- 관리자 계정 생성(권한을 시스템 관리자/주차 관리자 중 선택, 기본값 주차 관리자)·수정·비활성화
+
+반복 예약 시리즈가 생성/수정/제외/취소되면 안내 메일은 시스템 관리자(활성 계정)와
+해당 직원 본인에게만 발송됩니다 — 일반 예약 알림에 쓰는 관리자 알림 이메일 목록
+(`AdminNotificationEmail`, 주차 관리자 이메일도 섞여 있을 수 있음)은 거치지 않습니다.
 
 ---
 
@@ -336,16 +353,18 @@ flowchart TD
     E --> L[미방문 NO_SHOW 처리]
 ```
 
-### 4-5. 관리자의 반복 예약(정기 주차 배정) 관리
+### 4-5. 시스템 관리자의 반복 예약(정기 주차 배정) 관리
 
-관리자 페이지에서만 등록·조회·수정·삭제할 수 있는 특수 예약입니다. 특정 직원에게 특정
-주차면을 기간·요일·시간대로 미리 선점해 주는 기능이며, 구현은
+**시스템 관리자만** 등록·조회·수정·삭제할 수 있는 특수 예약입니다(3-4절). 방문 신청/승인
+절차 없이 특정 직원에게 특정 주차면을 기간·요일·시간대로 미리 선점해 주는 기능이며,
+구현은
 [`src/services/recurring-reservation-service.ts`](src/services/recurring-reservation-service.ts)에
-있습니다. 사이드바의 **[반복 예약 관리]** 메뉴로 들어갑니다.
+있습니다. 관리자 화면 사이드바의 **[시스템 관리 → 반복 예약 관리]** 메뉴로 들어갑니다
+(주차 관리자에게는 이 메뉴가 보이지 않고, URL을 직접 입력해도 접근할 수 없습니다).
 
 ```mermaid
 flowchart TD
-    A["반복 예약 등록<br/>대상 직원·주차면·기간·요일·매일 시간대·승인 생략·메일 생략"] --> B["등록 즉시 기간 내<br/>해당 요일 전체 예약 행 일괄 생성"]
+    A["반복 예약 등록<br/>대상 직원·주차면·기간·요일·매일 시간대<br/>승인/메일/입출차 자동 처리 옵션"] --> B["등록 즉시 기간 내<br/>해당 요일 전체 예약 행 일괄 생성"]
     B --> C{같은 시간대에<br/>이미 다른 예약이 있나?}
     C -->|있음| D[그 날짜만 건너뛰고<br/>건너뛴 날짜 목록 안내]
     C -->|없음| E[정상 생성]
@@ -353,33 +372,44 @@ flowchart TD
     E --> F
     F --> G["개별 날짜 제외<br/>(연차 등, 그 날짜 occurrence만 취소)"]
     F --> H["반복 일정 수정<br/>(요일·시간·기간)"]
-    F --> I["반복 예약 삭제<br/>(시리즈 자체를 DB에서 제거)"]
+    F --> I["반복 예약 삭제<br/>(소프트 삭제: status=CANCELLED)"]
     H --> J[아직 방문 전인 미래 occurrence를<br/>모두 정리하고 새 패턴으로 재생성]
-    I --> K[남은 예정 방문 취소 +<br/>시리즈 삭제, 지난 방문 기록은 유지]
+    I --> K[남은 예정 방문 취소 +<br/>시리즈는 CANCELLED 로 표시(기록 보존)]
 ```
 
 - **생성 방식**: 반복 일정을 나중에 배치로 만들지 않고, 등록하는 그 자리에서 기간 내 전체
   날짜의 `ParkingReservation`(occurrence) 행을 한꺼번에 만듭니다. 기간에는 상한(180일 ≈
   6개월)이 있어 무한정 쌓이지 않으며, **종료일을 비우면 시작일로부터 자동으로 180일**이 채워집니다.
-- **승인/알림은 시리즈마다 개별 설정**: `skipApproval`(체크하면 occurrence가 즉시 `APPROVED`로
-  생성), `skipEmail`(체크하면 그 시리즈의 개별 occurrence 알림 메일을 전부 억제 — 승인·반려·변경·
-  취소는 물론 **출차 예정 알림까지** 억제됩니다)을 등록 시 고를 수 있습니다.
-- **시리즈 알림은 `skipEmail`과 무관하게 항상 발송**: 시리즈 생성 / 개별 날짜 제외 / 요일·시간·
-  기간 수정 / 시리즈 삭제, 이 네 시점에는 직원 본인에게 항상 안내 메일이 갑니다. `skipEmail`은
-  어디까지나 "매일 반복되는 개별 occurrence 알림"의 노이즈만 줄이는 설정이지, 직원이 자신의
-  반복 배정 자체를 알 방법을 없애는 설정이 아니기 때문입니다.
+- **시리즈마다 개별 설정 3가지**:
+  - `approvalEnabled`(관리자 승인 사용): 해제하면 occurrence가 즉시 `APPROVED`로 생성됩니다
+    (기본 켜짐).
+  - `emailEnabled`(개별 예약 알림 메일 발송): 해제하면 그 시리즈의 개별 occurrence 알림
+    메일을 전부 억제합니다 — 승인·반려·변경·취소는 물론 **출차 예정 알림까지** 억제됩니다
+    (기본 꺼짐).
+  - `autoEntryExitEnabled`(입출차 자동 처리): 켜면 occurrence 가 예정 시각
+    (`visitStartAt`/`visitEndAt`)이 되었을 때 주차 관리자의 수동 입/출차 처리 없이 자동으로
+    `PARKING`→`EXITED` 로 전환됩니다(기본 꺼짐, 시스템 설정의 입·출차 관리가 꺼져 있으면
+    동작하지 않습니다). 내장 스케줄러(17절)가 매 주기 처리하며, 처리 이력은
+    `changedByType: SYSTEM` 상태 로그로 남습니다.
+- **시리즈 알림(생성/개별 날짜 제외/수정/삭제)은 `emailEnabled`와 무관하게 항상 발송**되고,
+  받는 사람도 정해져 있습니다: **해당 직원 본인 + 활성 시스템 관리자 전원**입니다. 일반
+  예약 알림에 쓰는 관리자 알림 이메일 목록(`AdminNotificationEmail`, 주차 관리자 이메일이
+  섞여 있을 수 있음)은 거치지 않습니다 — 주차 관리자에게는 반복 예약의 존재 자체가
+  알려지지 않습니다.
 - **입·출차 관리와는 완전히 동일하게 동작**: 반복으로 생성된 occurrence 도 그냥
   `ParkingReservation` 한 건이라, 승인/반려/수정/입차/출차/미방문 처리에 별도 분기가 없습니다.
   관리자 예약 목록·상세에서도 일반 예약과 **똑같이 보이며 "반복 예약"이라는 표시를 따로 하지
   않습니다.** 오직 신청자(직원)의 "내 신청 내역" 화면에만 내부 설정 없이 "반복" 태그 하나만
   붙습니다.
-- **수정은 요일·시간·기간만**: 대상 직원과 주차면은 바꿀 수 없습니다(바꾸려면 삭제 후 재등록).
-  저장하면 아직 방문 전인 미래 occurrence는 전부 취소되고 새 패턴으로 다시 생성되며, 이미
-  지났거나 진행 중인 방문 기록은 건드리지 않습니다. 새 패턴에서 충돌하는 날짜는 등록 때와
-  동일하게 건너뛰고 안내합니다.
-- **삭제는 시리즈 자체를 제거**: 단순 "취소 표시"가 아니라 `recurring_reservation_schedules`
-  행을 실제로 삭제합니다. 남아 있던 예정 방문은 모두 취소 처리되고, 이미 지나간 occurrence(실제
-  방문 기록)는 그대로 남되 시리즈 연결만 끊어집니다(`recurringScheduleId` → `NULL`).
+- **수정은 요일·시간·기간·위 3가지 옵션만**: 대상 직원과 주차면은 바꿀 수 없습니다(바꾸려면
+  삭제 후 재등록). 저장하면 아직 방문 전인 미래 occurrence는 전부 취소되고 새 패턴으로 다시
+  생성되며, 이미 지났거나 진행 중인 방문 기록은 건드리지 않습니다. 새 패턴에서 충돌하는
+  날짜는 등록 때와 동일하게 건너뛰고 안내합니다.
+- **삭제는 소프트 삭제**: 사내 시스템 특성상 관리자 조작으로 기록이 사라지면 안 되므로,
+  `recurring_reservation_schedules` 행을 지우지 않고 `status`를 `CANCELLED`로 바꿉니다.
+  남아 있던 예정 방문은 모두 취소 처리되고, `recurringScheduleId` 연결도 그대로 유지됩니다
+  (그래서 신청자(직원)의 "내 신청 내역"·"반복 예약" 탭에서도 계속 정확히 걸러집니다). 관리자
+  목록·감사 로그에는 취소된 시리즈도 계속 남아 있습니다.
 - **개별 날짜만 제외**하려면(연차 등으로 그날만 자리를 안 쓰는 경우) 시리즈 전체를 건드리지
   않고 그 날짜의 occurrence 한 건만 취소하면 됩니다.
 
@@ -1057,7 +1087,7 @@ Seed는 모두 `upsert`이므로 **여러 번 실행해도 안전**합니다.
 
 | 테이블                            | 용도                                                                                                                             |
 | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `admin_users`                     | 관리자 계정 (bcrypt 해시, 잠금 상태)                                                                                             |
+| `admin_users`                     | 관리자 계정 (bcrypt 해시, 잠금 상태, `role`: SYSTEM_ADMIN/PARKING_ADMIN)                                                         |
 | `users`                           | 방문객 회원 계정 (선택 로그인, 자동완성용 정보)                                                                                  |
 | `employee_users`                  | 직원 계정 (사번 기반 로그인, 비밀번호 없음, 명부 시드로만 생성, 방문객과 완전 분리)                                              |
 | `parking_areas`                   | 주차 구역 + 참고용 도면 이미지 파일                                                                                              |
@@ -1351,10 +1381,10 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 ### 계정이 잠겼을 때
 
 로그인 5회 연속 실패 시 계정이 10분간 잠깁니다.
-다른 관리자가 [사용자 관리] → [관리자 계정]에서 **활성화** 버튼을 누르면 즉시 해제됩니다
-(실패 횟수도 함께 초기화됩니다).
+다른 시스템 관리자가 [시스템 관리] → [관리자 계정]에서 **활성화** 버튼을 누르면 즉시
+해제됩니다(실패 횟수도 함께 초기화됩니다).
 
-모든 관리자가 잠겼다면 DB에서 직접 해제합니다.
+시스템 관리자가 모두 잠겼다면 DB에서 직접 해제합니다.
 
 ```sql
 UPDATE admin_users
@@ -1525,7 +1555,8 @@ npx playwright test --ui
 - **다중 인스턴스**: 인스턴스가 여러 개여도 아래 `dedupe_key` UNIQUE 제약이 중복 발송을 막습니다.
 - **빌드 단계 제외**: `NEXT_RUNTIME=nodejs`이고 프로덕션 빌드 단계가 아닐 때만 시작합니다.
 
-> 로그: 기동 시 `내장 스케줄러 시작`이 한 번 남고(`jobs: ['exit-reminders', 'entry-reminders']`),
+> 로그: 기동 시 `내장 스케줄러 시작`이 한 번 남고
+> (`jobs: ['exit-reminders', 'entry-reminders', 'auto-entry-exit']`),
 > 이후에는 각 작업이 **실제로 보냈거나 실패했을 때만** 실행 로그를 남깁니다.
 > 대상이 없는 주기는 조용히 지나갑니다.
 
@@ -1622,6 +1653,21 @@ POST /api/cron/auto-no-show?graceMinutes=30
 Authorization: Bearer <CRON_SECRET>
 ```
 
+### 반복 예약 입출차 자동 처리
+
+반복 예약(정기 주차 배정) 시리즈마다 "입출차 자동 처리" 옵션을 켤 수 있습니다. 켜져 있으면
+그 시리즈의 occurrence 는 `visit_start_at`/`visit_end_at` 예정 시각이 되었을 때 주차 관리자의
+수동 입/출차 처리 없이 자동으로 `PARKING`→`EXITED` 로 전환됩니다(입·출차 관리 시스템 설정이
+꺼져 있으면 동작하지 않습니다). 기본 내장 스케줄러에 항상 포함되어 있어 **별도 등록이
+필요 없습니다** — 시리즈 단위 옵션으로만 켜고 끕니다(반복 예약 관리 화면, 시스템 관리자 전용).
+
+외부 cron으로 대체하려면(위 출차/입차 알림과 동일하게 `INTERNAL_SCHEDULER_ENABLED=false`):
+
+```
+POST /api/cron/auto-entry-exit
+Authorization: Bearer <CRON_SECRET>
+```
+
 ---
 
 ## 18. API 개요
@@ -1708,55 +1754,62 @@ POST 를 사용하고, 일치하는 예약 목록(`reservationId`(내부 식별�
 
 ### 관리자 API
 
-| 메서드   | 경로                                             | 권한   | 설명                                                               |
-| -------- | ------------------------------------------------ | ------ | ------------------------------------------------------------------ |
-| `POST`   | `/api/admin/auth/login`                          | -      | 로그인                                                             |
-| `POST`   | `/api/admin/auth/logout`                         | 관리자 | 로그아웃                                                           |
-| `PUT`    | `/api/admin/auth/password`                       | 관리자 | 본인 비밀번호 변경 (타인 것은 변경 불가)                           |
-| `GET`    | `/api/admin/dashboard`                           | 관리자 | 대시보드 데이터                                                    |
-| `GET`    | `/api/admin/reservations`                        | 관리자 | 예약 목록 (감사 로그 기록)                                         |
-| `GET`    | `/api/admin/reservations/[id]`                   | 관리자 | 예약 상세 (감사 로그 기록)                                         |
-| `PUT`    | `/api/admin/reservations/[id]`                   | 관리자 | 예약 내용 수정                                                     |
-| `POST`   | `/api/admin/reservations/[id]/approve`           | 관리자 | 승인 + 주차면 확정                                                 |
-| `POST`   | `/api/admin/reservations/[id]/reject`            | 관리자 | 반려                                                               |
-| `POST`   | `/api/admin/reservations/bulk-reject`            | 관리자 | 승인 대기 건 일괄 반려 (같은 사유)                                 |
-| `POST`   | `/api/admin/reservations/[id]/entry`             | 관리자 | 입차 처리                                                          |
-| `POST`   | `/api/admin/reservations/[id]/exit`              | 관리자 | 출차 처리                                                          |
-| `POST`   | `/api/admin/reservations/[id]/no-show`           | 관리자 | 미방문 처리                                                        |
-| `PUT`    | `/api/admin/reservations/[id]/entry-exit-record` | 관리자 | 실제 입·출차 시각 수정·삭제 (상태 전이는 하지 않음)                |
-| `PUT`    | `/api/admin/reservations/[id]/space`             | 관리자 | 주차 위치 변경                                                     |
-| `GET`    | `/api/admin/parking-spaces`                      | 관리자 | 주차면 목록                                                        |
-| `POST`   | `/api/admin/parking-spaces`                      | 관리자 | 주차면 생성                                                        |
-| `PUT`    | `/api/admin/parking-spaces/[id]`                 | 관리자 | 주차면 수정·비활성화                                               |
-| `DELETE` | `/api/admin/parking-spaces/[id]`                 | 관리자 | 주차면 삭제 (미사용분만)                                           |
-| `GET`    | `/api/admin/parking-areas`                       | 관리자 | 주차 구역 목록                                                     |
-| `POST`   | `/api/admin/parking-areas`                       | 관리자 | 주차 구역 생성                                                     |
-| `PUT`    | `/api/admin/parking-areas/[id]`                  | 관리자 | 구역 정보 수정                                                     |
-| `GET`    | `/api/admin/parking-areas/[id]/map`              | 관리자 | 도면 내려받기                                                      |
-| `POST`   | `/api/admin/parking-areas/[id]/map`              | 관리자 | 도면 업로드·교체                                                   |
-| `DELETE` | `/api/admin/parking-areas/[id]/map`              | 관리자 | 도면 삭제                                                          |
-| `GET`    | `/api/admin/settings`                            | 관리자 | 설정 + 알림 이메일 조회                                            |
-| `PUT`    | `/api/admin/settings`                            | 관리자 | 설정 / 알림 이메일 저장                                            |
-| `DELETE` | `/api/admin/notification-emails/[id]`            | 관리자 | 알림 이메일 수신자 삭제 (등록·수정은 위 `PUT /api/admin/settings`) |
-| `GET`    | `/api/admin/admin-users`                         | 관리자 | 관리자 계정 목록                                                   |
-| `POST`   | `/api/admin/admin-users`                         | 관리자 | 관리자 계정 생성                                                   |
-| `PUT`    | `/api/admin/admin-users/[id]`                    | 관리자 | 관리자 계정 수정·비활성화                                          |
-| `GET`    | `/api/admin/employees`                           | 관리자 | 직원 계정 목록 (생성은 명부 시드 스크립트로만)                     |
-| `GET`    | `/api/admin/employees/[id]`                      | 관리자 | 직원 성명·이메일·차량번호 조회 (반복 예약 등록 폼 자동완성용)      |
-| `PUT`    | `/api/admin/employees/[id]`                      | 관리자 | 직원 계정 활성·비활성 전환                                         |
-| `POST`   | `/api/admin/employees/bulk-status`               | 관리자 | 선택한 직원 계정 일괄 활성화/비활성화                              |
-| `GET`    | `/api/admin/email-logs`                          | 관리자 | 이메일 발송 이력                                                   |
-| `POST`   | `/api/admin/email-logs/[id]/resend`              | 관리자 | 발송 실패 건 원문 그대로 재발송                                    |
-| `GET`    | `/api/admin/audit-logs`                          | 관리자 | 감사 로그 (감사 로그 기록)                                         |
+| 메서드   | 경로                                             | 권한          | 설명                                                               |
+| -------- | ------------------------------------------------ | ------------- | ------------------------------------------------------------------ |
+| `POST`   | `/api/admin/auth/login`                          | -             | 로그인                                                             |
+| `POST`   | `/api/admin/auth/logout`                         | 관리자        | 로그아웃                                                           |
+| `PUT`    | `/api/admin/auth/password`                       | 관리자        | 본인 비밀번호 변경 (타인 것은 변경 불가)                           |
+| `GET`    | `/api/admin/dashboard`                           | 관리자        | 대시보드 데이터                                                    |
+| `GET`    | `/api/admin/reservations`                        | 관리자        | 예약 목록 (감사 로그 기록)                                         |
+| `GET`    | `/api/admin/reservations/[id]`                   | 관리자        | 예약 상세 (감사 로그 기록)                                         |
+| `PUT`    | `/api/admin/reservations/[id]`                   | 관리자        | 예약 내용 수정                                                     |
+| `POST`   | `/api/admin/reservations/[id]/approve`           | 관리자        | 승인 + 주차면 확정                                                 |
+| `POST`   | `/api/admin/reservations/[id]/reject`            | 관리자        | 반려                                                               |
+| `POST`   | `/api/admin/reservations/bulk-reject`            | 관리자        | 승인 대기 건 일괄 반려 (같은 사유)                                 |
+| `POST`   | `/api/admin/reservations/[id]/entry`             | 관리자        | 입차 처리                                                          |
+| `POST`   | `/api/admin/reservations/[id]/exit`              | 관리자        | 출차 처리                                                          |
+| `POST`   | `/api/admin/reservations/[id]/no-show`           | 관리자        | 미방문 처리                                                        |
+| `PUT`    | `/api/admin/reservations/[id]/entry-exit-record` | 관리자        | 실제 입·출차 시각 수정·삭제 (상태 전이는 하지 않음)                |
+| `PUT`    | `/api/admin/reservations/[id]/space`             | 관리자        | 주차 위치 변경                                                     |
+| `GET`    | `/api/admin/parking-spaces`                      | 관리자        | 주차면 목록                                                        |
+| `POST`   | `/api/admin/parking-spaces`                      | 관리자        | 주차면 생성                                                        |
+| `PUT`    | `/api/admin/parking-spaces/[id]`                 | 관리자        | 주차면 수정·비활성화                                               |
+| `DELETE` | `/api/admin/parking-spaces/[id]`                 | 관리자        | 주차면 삭제 (미사용분만)                                           |
+| `GET`    | `/api/admin/parking-areas`                       | 관리자        | 주차 구역 목록                                                     |
+| `POST`   | `/api/admin/parking-areas`                       | 관리자        | 주차 구역 생성                                                     |
+| `PUT`    | `/api/admin/parking-areas/[id]`                  | 관리자        | 구역 정보 수정                                                     |
+| `GET`    | `/api/admin/parking-areas/[id]/map`              | 관리자        | 도면 내려받기                                                      |
+| `POST`   | `/api/admin/parking-areas/[id]/map`              | 관리자        | 도면 업로드·교체                                                   |
+| `DELETE` | `/api/admin/parking-areas/[id]/map`              | 관리자        | 도면 삭제                                                          |
+| `GET`    | `/api/admin/settings`                            | 관리자        | 설정 + 알림 이메일 조회                                            |
+| `PUT`    | `/api/admin/settings`                            | 관리자        | 설정 / 알림 이메일 저장                                            |
+| `DELETE` | `/api/admin/notification-emails/[id]`            | 관리자        | 알림 이메일 수신자 삭제 (등록·수정은 위 `PUT /api/admin/settings`) |
+| `GET`    | `/api/admin/admin-users`                         | 시스템 관리자 | 관리자 계정 목록                                                   |
+| `POST`   | `/api/admin/admin-users`                         | 시스템 관리자 | 관리자 계정 생성 (role 을 폼에서 직접 선택, 기본값 주차 관리자)    |
+| `PUT`    | `/api/admin/admin-users/[id]`                    | 시스템 관리자 | 관리자 계정 수정·비활성화                                          |
+| `GET`    | `/api/admin/employees`                           | 시스템 관리자 | 직원 계정 목록 (생성은 명부 시드 스크립트로만)                     |
+| `GET`    | `/api/admin/employees/[id]`                      | 시스템 관리자 | 직원 성명·이메일·차량번호 조회 (반복 예약 등록 폼 자동완성용)      |
+| `PUT`    | `/api/admin/employees/[id]`                      | 시스템 관리자 | 직원 계정 활성·비활성 전환                                         |
+| `POST`   | `/api/admin/employees/bulk-status`               | 시스템 관리자 | 선택한 직원 계정 일괄 활성화/비활성화                              |
+| `GET`    | `/api/admin/email-logs`                          | 시스템 관리자 | 이메일 발송 이력                                                   |
+| `POST`   | `/api/admin/email-logs/[id]/resend`              | 시스템 관리자 | 발송 실패 건 원문 그대로 재발송                                    |
+| `GET`    | `/api/admin/audit-logs`                          | 관리자        | 감사 로그 (감사 로그 기록)                                         |
+
+> 관리자 권한은 시스템 관리자/주차 관리자 두 단계입니다. 반복 예약·이메일 이력·직원
+> 등록·관리자 계정 관리처럼 방문 신청/승인 절차를 우회할 수 있는 기능은 시스템
+> 관리자만 접근할 수 있고, 위 표에 별도 표기가 없는 나머지 항목은 두 역할 모두
+> 접근할 수 있습니다.
 
 ### 반복 예약(정기 주차 배정) 관리 API
 
-| 메서드   | 경로                                          | 권한   | 설명                                                 |
-| -------- | --------------------------------------------- | ------ | ---------------------------------------------------- |
-| `POST`   | `/api/admin/recurring-reservations`           | 관리자 | 시리즈 등록 + 기간 내 occurrence 일괄 생성           |
-| `PUT`    | `/api/admin/recurring-reservations/[id]`      | 관리자 | 요일·시간·기간 수정 (미래 occurrence 정리 후 재생성) |
-| `DELETE` | `/api/admin/recurring-reservations/[id]`      | 관리자 | 시리즈 삭제 (남은 예정 방문 취소 + 시리즈 행 삭제)   |
-| `POST`   | `/api/admin/reservations/[id]/skip-recurring` | 관리자 | 시리즈 중 특정 날짜(occurrence) 하나만 제외(취소)    |
+시스템 관리자 전용입니다(관리자 화면 사이드바에도 시스템 관리자에게만 노출됩니다).
+
+| 메서드   | 경로                                          | 권한          | 설명                                                                          |
+| -------- | --------------------------------------------- | ------------- | ----------------------------------------------------------------------------- |
+| `POST`   | `/api/admin/recurring-reservations`           | 시스템 관리자 | 시리즈 등록 + 기간 내 occurrence 일괄 생성                                    |
+| `PUT`    | `/api/admin/recurring-reservations/[id]`      | 시스템 관리자 | 요일·시간·기간 수정 (미래 occurrence 정리 후 재생성)                          |
+| `DELETE` | `/api/admin/recurring-reservations/[id]`      | 시스템 관리자 | 시리즈 삭제(소프트 삭제, status=CANCELLED — 남은 예정 방문 취소, 기록은 보존) |
+| `POST`   | `/api/admin/reservations/[id]/skip-recurring` | 관리자        | 시리즈 중 특정 날짜(occurrence) 하나만 제외(취소)                             |
 
 > 목록/상세 조회는 별도 API 없이 관리자 페이지(서버 컴포넌트)에서
 > [`recurring-reservation-service.ts`](src/services/recurring-reservation-service.ts) 를 직접
@@ -1769,6 +1822,7 @@ POST 를 사용하고, 일치하는 예약 목록(`reservationId`(내부 식별�
 | `POST`/`GET` | `/api/cron/exit-reminders`    | `Bearer <CRON_SECRET>` |
 | `POST`/`GET` | `/api/cron/entry-reminders`   | `Bearer <CRON_SECRET>` |
 | `POST`       | `/api/cron/auto-no-show`      | `Bearer <CRON_SECRET>` |
+| `POST`/`GET` | `/api/cron/auto-entry-exit`   | `Bearer <CRON_SECRET>` |
 | `POST`/`GET` | `/api/cron/audit-log-cleanup` | `Bearer <CRON_SECRET>` |
 
 ### 이메일 종류

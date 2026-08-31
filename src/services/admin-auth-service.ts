@@ -1,4 +1,4 @@
-import { AccountStatus } from '@prisma/client';
+import { AccountStatus, AdminRole } from '@prisma/client';
 
 import { ForbiddenError, TooManyRequestsError, UnauthorizedError } from '@/lib/errors';
 import { DUMMY_PASSWORD_HASH, verifyPassword } from '@/lib/password';
@@ -38,6 +38,7 @@ export async function loginAdmin(params: {
       accountStatus: true,
       loginFailCount: true,
       lockedUntil: true,
+      role: true,
     },
   });
 
@@ -115,6 +116,7 @@ export async function loginAdmin(params: {
     adminUserId: admin.adminUserId,
     email: admin.email,
     adminName: admin.adminName,
+    role: admin.role,
   };
 }
 
@@ -150,6 +152,7 @@ export async function requireActiveAdmin(): Promise<AdminSession> {
       email: true,
       adminName: true,
       accountStatus: true,
+      role: true,
     },
   });
 
@@ -163,5 +166,20 @@ export async function requireActiveAdmin(): Promise<AdminSession> {
     adminUserId: admin.adminUserId,
     email: admin.email,
     adminName: admin.adminName,
+    role: admin.role,
   };
+}
+
+/**
+ * API 라우트 전용 시스템 관리자 가드. 반복 예약·이메일 이력·직원 등록·관리자 계정
+ * 관리처럼 방문 신청/승인 절차를 우회할 수 있는 기능의 API 에서 쓴다. 이 화면들은
+ * 이미 페이지 단계(requireSystemAdminPage)에서도 막혀 있지만, API 라우트를 직접
+ * 호출하는 경로까지 함께 막아 둔다(심층 방어).
+ */
+export async function requireActiveSystemAdmin(): Promise<AdminSession> {
+  const session = await requireActiveAdmin();
+  if (session.role !== AdminRole.SYSTEM_ADMIN) {
+    throw new ForbiddenError('시스템 관리자만 사용할 수 있는 기능입니다.');
+  }
+  return session;
 }

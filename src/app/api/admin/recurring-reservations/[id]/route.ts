@@ -4,7 +4,7 @@ import { parseNumericId, readJsonBody } from '@/lib/api-helpers';
 import { apiSuccess, handleApiError } from '@/lib/api-response';
 import { getRequestContext } from '@/lib/request-context';
 import { updateRecurringScheduleSchema } from '@/lib/validation/recurring-reservation-schema';
-import { requireActiveAdmin } from '@/services/admin-auth-service';
+import { requireActiveSystemAdmin } from '@/services/admin-auth-service';
 import {
   deleteRecurringSchedule,
   updateRecurringSchedule,
@@ -15,10 +15,10 @@ export const dynamic = 'force-dynamic';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-/** PUT /api/admin/recurring-reservations/[id] — 반복 일정(요일·시간·기간) 수정 */
+/** PUT /api/admin/recurring-reservations/[id] — 반복 일정(요일·시간·기간) 수정. 시스템 관리자 전용. */
 export async function PUT(request: NextRequest, context: RouteContext) {
   try {
-    const session = await requireActiveAdmin();
+    const session = await requireActiveSystemAdmin();
     const { id } = await context.params;
     const scheduleId = parseNumericId(id, '반복 예약 일정 ID');
     const payload = updateRecurringScheduleSchema.parse(await readJsonBody(request));
@@ -33,6 +33,8 @@ export async function PUT(request: NextRequest, context: RouteContext) {
         dailyEndTime: payload.dailyEndTime,
         approvalEnabled: payload.approvalEnabled,
         emailEnabled: payload.emailEnabled,
+        autoEntryExitEnabled: payload.autoEntryExitEnabled,
+        hiddenFromReservationList: payload.hiddenFromReservationList,
       },
       {
         adminUserId: session.adminUserId,
@@ -46,10 +48,10 @@ export async function PUT(request: NextRequest, context: RouteContext) {
   }
 }
 
-/** DELETE /api/admin/recurring-reservations/[id] — 반복 예약 일정 삭제 */
+/** DELETE /api/admin/recurring-reservations/[id] — 반복 예약 일정 삭제. 시스템 관리자 전용. */
 export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
-    const session = await requireActiveAdmin();
+    const session = await requireActiveSystemAdmin();
     const { id } = await context.params;
     const scheduleId = parseNumericId(id, '반복 예약 일정 ID');
 

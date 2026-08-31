@@ -220,6 +220,10 @@ export type CreateRecurringScheduleInput = {
   dailyEndTime: string;
   approvalEnabled: boolean;
   emailEnabled: boolean;
+  /** true 면 이 시리즈의 occurrence 는 예정 시각에 자동으로 입·출차 처리된다. */
+  autoEntryExitEnabled: boolean;
+  /** true(기본값) 면 이 시리즈의 occurrence 는 관리자 "전체 예약" 목록에 나타나지 않는다. */
+  hiddenFromReservationList: boolean;
 };
 
 export type CreateRecurringScheduleResult = {
@@ -272,6 +276,8 @@ export async function createRecurringSchedule(
         dailyEndTime: input.dailyEndTime,
         approvalEnabled: input.approvalEnabled,
         emailEnabled: input.emailEnabled,
+        autoEntryExitEnabled: input.autoEntryExitEnabled,
+        hiddenFromReservationList: input.hiddenFromReservationList,
         createdByAdminId: actor.adminUserId,
       },
       include: {
@@ -404,6 +410,10 @@ async function createOccurrence(params: {
         include: RECURRING_OCCURRENCE_WITH_SPACES,
       });
 
+      // 반복 예약 occurrence 임을 알아챌 수 있는 문구를 쓰지 않는다 — 일반 승인/등록
+      // 흐름과 같은 표현을 써서, 이 예약의 상세를 열어본 관리자가 "반복"이라는 단어로
+      // 그 존재를 알아채지 못하게 한다(전체 예약 목록 자체는 숨겨도, 대시보드 주차면
+      // 현황에서 클릭해 상세로 들어오는 경로까지 막지는 않기 때문).
       await tx.parkingReservationStatusLog.create({
         data: {
           reservationId: created.reservationId,
@@ -411,7 +421,9 @@ async function createOccurrence(params: {
           currentStatus: created.reservationStatus,
           changedByType: ChangedByType.ADMIN,
           changedByAdminId: params.actor.adminUserId,
-          changeReason: '반복 예약 등록',
+          changeReason: isApproved
+            ? `주차면 ${created.assignedSpace?.spaceCode ?? '-'} 배정 후 승인`
+            : '방문 예약 등록',
         },
       });
 
@@ -483,12 +495,17 @@ export type RecurringScheduleListItem = {
   dailyEndTime: string;
   approvalEnabled: boolean;
   emailEnabled: boolean;
+  autoEntryExitEnabled: boolean;
+  /** true(기본값) 면 이 시리즈의 occurrence 는 관리자 "전체 예약" 목록에 나타나지 않는다. */
+  hiddenFromReservationList: boolean;
   status: RecurringScheduleStatus;
   createdAt: Date;
 };
 
+/** 관리자용 "반복 예약 관리" 목록 — 소프트 삭제(status=CANCELLED)된 시리즈는 제외한다. */
 export async function listRecurringSchedules(): Promise<RecurringScheduleListItem[]> {
   const schedules = await prisma.recurringReservationSchedule.findMany({
+    where: { status: RecurringScheduleStatus.ACTIVE },
     orderBy: [{ scheduleId: 'desc' }],
     include: {
       employeeUser: { select: { name: true, departmentName: true } },
@@ -510,6 +527,8 @@ export async function listRecurringSchedules(): Promise<RecurringScheduleListIte
     dailyEndTime: schedule.dailyEndTime,
     approvalEnabled: schedule.approvalEnabled,
     emailEnabled: schedule.emailEnabled,
+    autoEntryExitEnabled: schedule.autoEntryExitEnabled,
+    hiddenFromReservationList: schedule.hiddenFromReservationList,
     status: schedule.status,
     createdAt: schedule.createdAt,
   }));
@@ -522,7 +541,7 @@ export async function listRecurringSchedules(): Promise<RecurringScheduleListIte
  *
  * 관리자가 삭제(소프트 삭제, status=CANCELLED)한 시리즈는 제외한다 — 신청자는
  * 애초에 그런 시리즈의 존재를 몰랐으므로 취소된 뒤에 새삼 보여줄 필요가 없다.
- * (관리자용 listRecurringSchedules 는 감사 목적상 이 필터를 적용하지 않는다.)
+ * (관리자용 listRecurringSchedules 도 동일하게 제외한다.)
  */
 export async function listRecurringSchedulesForEmployee(
   employeeUserId: number,
@@ -550,6 +569,8 @@ export async function listRecurringSchedulesForEmployee(
     dailyEndTime: schedule.dailyEndTime,
     approvalEnabled: schedule.approvalEnabled,
     emailEnabled: schedule.emailEnabled,
+    autoEntryExitEnabled: schedule.autoEntryExitEnabled,
+    hiddenFromReservationList: schedule.hiddenFromReservationList,
     status: schedule.status,
     createdAt: schedule.createdAt,
   }));
@@ -590,6 +611,8 @@ export async function getRecurringScheduleDetail(scheduleId: number): Promise<{
       dailyEndTime: schedule.dailyEndTime,
       approvalEnabled: schedule.approvalEnabled,
       emailEnabled: schedule.emailEnabled,
+      autoEntryExitEnabled: schedule.autoEntryExitEnabled,
+      hiddenFromReservationList: schedule.hiddenFromReservationList,
       status: schedule.status,
       createdAt: schedule.createdAt,
     },
@@ -705,6 +728,69 @@ async function cancelOccurrences(
   return occurrences.length;
 }
 
+/**
+ * 반복 일정 수정으로 매일 시작/종료 시간이 바뀌었을 때, 날짜는 새 패턴에도 그대로
+ * 남는 기존 occurrence 의 방문 시간만 그 자리에서 바꾼다(취소 후 재생성하지 않는다).
+ * 취소·재생성 방식은 신청자가 존재도 몰랐던 예약이 취소된 기록만 잔뜩 남기므로
+ * 피한다 — 일반 예약을 관리자가 직접 수정할 때와 같은 방식(시간만 갱신 + 이력 한 줄)이다.
+ *
+ * 새 시간대에 그 주차면이 이미 다른 예약으로 차 있으면(주차면은 그대로이므로 이론상
+ * 드물지만 가능) 옮길 수 없으므로 false 를 반환한다 — 호출부가 그 occurrence 를
+ * 취소 대상으로 넘긴다.
+ */
+async function tryUpdateOccurrenceTime(params: {
+  reservationId: number;
+  spaceId: number;
+  visitStartAt: Date;
+  visitEndAt: Date;
+  actor: AdminActionContext;
+}): Promise<boolean> {
+  try {
+    await prisma.$transaction(async (tx) => {
+      await lockSpaceRow(tx, params.spaceId);
+      const conflict = await findConflictingReservation(
+        {
+          spaceId: params.spaceId,
+          visitStartAt: params.visitStartAt,
+          visitEndAt: params.visitEndAt,
+          excludeReservationId: params.reservationId,
+        },
+        tx,
+      );
+      if (conflict) {
+        throw new ConflictError(
+          '해당 시간대에 이미 그 주차면이 사용 중입니다.',
+          'SPACE_TIME_CONFLICT',
+        );
+      }
+
+      const current = await tx.parkingReservation.findUniqueOrThrow({
+        where: { reservationId: params.reservationId },
+        select: { reservationStatus: true },
+      });
+
+      await tx.parkingReservation.update({
+        where: { reservationId: params.reservationId },
+        data: { visitStartAt: params.visitStartAt, visitEndAt: params.visitEndAt },
+      });
+      await tx.parkingReservationStatusLog.create({
+        data: {
+          reservationId: params.reservationId,
+          previousStatus: current.reservationStatus,
+          currentStatus: current.reservationStatus,
+          changedByType: ChangedByType.ADMIN,
+          changedByAdminId: params.actor.adminUserId,
+          changeReason: '관리자 예약 수정 (방문 시간 변경)',
+        },
+      });
+    });
+    return true;
+  } catch (error) {
+    if (error instanceof ConflictError) return false;
+    throw error;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // 4. 시리즈 수정 (요일·시간·기간)
 // ---------------------------------------------------------------------------
@@ -721,11 +807,16 @@ export type UpdateRecurringScheduleInput = {
   dailyEndTime: string;
   approvalEnabled: boolean;
   emailEnabled: boolean;
+  autoEntryExitEnabled: boolean;
+  /** true(기본값) 면 이 시리즈의 occurrence 는 관리자 "전체 예약" 목록에 나타나지 않는다. */
+  hiddenFromReservationList: boolean;
 };
 
 export type UpdateRecurringScheduleResult = {
-  /** 새 일정과 무관하게 미리 정리된 기존 예정 방문 건수 */
+  /** 새 패턴에서 더 이상 해당하지 않아 실제로 취소된 건수 */
   cancelledCount: number;
+  /** 날짜는 새 패턴에도 남아 있어, 취소·재생성 대신 방문 시간만 그 자리에서 바꾼 건수 */
+  updatedCount: number;
   createdCount: number;
   skippedDates: string[];
 };
@@ -734,12 +825,17 @@ export type UpdateRecurringScheduleResult = {
  * 반복 일정(요일·시간·기간) 자체를 수정한다. 대상 직원·주차면은 바꿀 수 없다
  * (바꾸려면 삭제 후 재등록). 이미 지난/진행 중인 occurrence 는 건드리지 않는다.
  *
- * 아직 방문 전인 미래 occurrence 는 **날짜 단위로 비교해서** 새 패턴에도 그대로
- * 남는 날짜는 건드리지 않고, 더 이상 해당하지 않는 날짜만 취소한 뒤, 새로 필요한
- * 날짜만 만든다 — 매일 시작/종료 시간이 바뀌면 기존 occurrence의 방문 시간 자체가
- * 달라지므로 그때만 예외적으로 전부 다시 만든다. 이렇게 하면 승인 생략/메일 생략
- * 체크박스만 바꾸는 등 일정 자체는 그대로인 수정에서 아무 occurrence 도 취소·재생성
- * 되지 않는다.
+ * 아직 방문 전인 미래 occurrence 는 **날짜 단위로 비교해서** 처리한다:
+ *  - 새 패턴에도 그대로 남는 날짜는 건드리지 않는다.
+ *  - 매일 시작/종료 시간만 바뀌어 방문 시간이 달라지는 날짜는, 취소 후 재생성하지
+ *    않고 **기존 occurrence 의 시간만 그 자리에서 갱신**한다(`tryUpdateOccurrenceTime`).
+ *    신청자가 존재도 몰랐던 예약이 "취소"라는 이력만 잔뜩 남기지 않도록 하기 위함이다.
+ *    같은 주차면의 다른 예약과 새 시간대가 겹쳐 옮길 수 없는 경우에만 예외적으로
+ *    취소하고 `skippedDates` 에 안내한다.
+ *  - 더 이상 해당하지 않는 날짜만 취소하고, 새로 필요한 날짜만 만든다.
+ *
+ * 이렇게 하면 승인 생략/메일 생략 체크박스만 바꾸는 등 일정 자체는 그대로인 수정에서
+ * 아무 occurrence 도 취소·재생성되지 않는다.
  */
 export async function updateRecurringSchedule(
   scheduleId: number,
@@ -784,8 +880,8 @@ export async function updateRecurringSchedule(
   const remainingDates = new Set(
     enumerateOccurrenceDates(regenFrom, generationEnd, input.weekdaysMask),
   );
-  // 매일 시작/종료 시간이 바뀌면 같은 날짜라도 occurrence 의 방문 시간 자체가 달라지므로
-  // 날짜가 겹쳐도 그대로 둘 수 없다 — 이 경우에만 기존 occurrence 를 전부 취소 대상으로 본다.
+  // 매일 시작/종료 시간이 바뀌면 같은 날짜라도 occurrence 의 방문 시간 자체가 달라진다 —
+  // 이 경우 날짜가 겹치는 occurrence 는 취소·재생성 대신 시간만 그 자리에서 갱신한다.
   const dailyTimeChanged =
     input.dailyStartTime !== schedule.dailyStartTime ||
     input.dailyEndTime !== schedule.dailyEndTime;
@@ -799,17 +895,54 @@ export async function updateRecurringSchedule(
     select: { reservationId: true, reservationStatus: true, visitStartAt: true },
   });
 
+  const skippedDates: string[] = [];
   const toCancel: { reservationId: number; reservationStatus: ReservationStatus }[] = [];
+  const toUpdateTime: {
+    reservationId: number;
+    reservationStatus: ReservationStatus;
+    dateStr: string;
+  }[] = [];
+
   for (const occurrence of futureOccurrences) {
     const dateStr = formatKstDate(occurrence.visitStartAt, settings.appTimeZone);
-    if (!dailyTimeChanged && remainingDates.has(dateStr)) {
-      // 새 패턴에도 그대로 남는 날짜라 손대지 않는다 — 취소도, 재생성도 하지 않는다.
+    if (remainingDates.has(dateStr)) {
+      // 날짜는 새 패턴에도 그대로 남는다.
       remainingDates.delete(dateStr);
+      if (dailyTimeChanged) {
+        toUpdateTime.push({ ...occurrence, dateStr });
+      }
+      // 시간도 안 바뀌었으면 아예 손대지 않는다(취소도, 갱신도 하지 않는다).
       continue;
     }
     toCancel.push(occurrence);
   }
-  const cancelledCount = await cancelOccurrences(toCancel, '반복 일정 수정', actor);
+
+  // 시간 이동을 먼저 시도하고, 그 주차면이 새 시간대에 이미 차 있어 옮길 수 없는
+  // occurrence 만 취소 대상으로 넘긴다 — 신청자가 존재도 몰랐던 예약을 이유 없이
+  // "취소"라는 이력으로 남기지 않기 위함이다.
+  let updatedCount = 0;
+  for (const { reservationId, reservationStatus, dateStr } of toUpdateTime) {
+    const visitStartAt = zonedInputToUtc(
+      `${dateStr}T${input.dailyStartTime}`,
+      settings.appTimeZone,
+    );
+    const visitEndAt = zonedInputToUtc(`${dateStr}T${input.dailyEndTime}`, settings.appTimeZone);
+    const moved = await tryUpdateOccurrenceTime({
+      reservationId,
+      spaceId: schedule.assignedSpaceId,
+      visitStartAt,
+      visitEndAt,
+      actor,
+    });
+    if (moved) {
+      updatedCount += 1;
+    } else {
+      toCancel.push({ reservationId, reservationStatus });
+      skippedDates.push(dateStr);
+    }
+  }
+
+  const cancelledCount = await cancelOccurrences(toCancel, '일정 변경', actor);
 
   await prisma.recurringReservationSchedule.update({
     where: { scheduleId },
@@ -821,10 +954,11 @@ export async function updateRecurringSchedule(
       dailyEndTime: input.dailyEndTime,
       approvalEnabled: input.approvalEnabled,
       emailEnabled: input.emailEnabled,
+      autoEntryExitEnabled: input.autoEntryExitEnabled,
+      hiddenFromReservationList: input.hiddenFromReservationList,
     },
   });
 
-  const skippedDates: string[] = [];
   let createdCount = 0;
 
   for (const dateStr of [...remainingDates].sort()) {
@@ -865,7 +999,7 @@ export async function updateRecurringSchedule(
     actionType: AUDIT_ACTIONS.RECURRING_SCHEDULE_UPDATE,
     targetType: AUDIT_TARGETS.RECURRING_SCHEDULE,
     targetId: scheduleId,
-    detail: { cancelledCount, createdCount, skippedCount: skippedDates.length },
+    detail: { cancelledCount, updatedCount, createdCount, skippedCount: skippedDates.length },
     context: actor.requestContext,
   });
 
@@ -883,7 +1017,7 @@ export async function updateRecurringSchedule(
     ),
   );
 
-  return { cancelledCount, createdCount, skippedDates };
+  return { cancelledCount, updatedCount, createdCount, skippedDates };
 }
 
 // ---------------------------------------------------------------------------
@@ -917,7 +1051,7 @@ export async function deleteRecurringSchedule(
     },
     select: { reservationId: true, reservationStatus: true },
   });
-  const cancelledCount = await cancelOccurrences(activeOccurrences, '반복 예약 삭제', actor);
+  const cancelledCount = await cancelOccurrences(activeOccurrences, '예약 취소', actor);
 
   await prisma.recurringReservationSchedule.update({
     where: { scheduleId },

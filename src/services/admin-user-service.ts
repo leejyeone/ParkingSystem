@@ -1,4 +1,4 @@
-import { AccountStatus, Prisma } from '@prisma/client';
+import { AccountStatus, AdminRole, Prisma } from '@prisma/client';
 
 import { ConflictError, NotFoundError, UnauthorizedError, ValidationError } from '@/lib/errors';
 import {
@@ -11,7 +11,14 @@ import { prisma } from '@/lib/prisma';
 import type { RequestContext } from '@/lib/request-context';
 import { AUDIT_ACTIONS, AUDIT_TARGETS, writeAuditLog } from '@/services/audit-service';
 
-/** 관리자 계정 관리. 관리자는 단일 권한만 존재하며 계정 간 권한 차이는 없다. */
+/**
+ * 관리자 계정 관리.
+ *
+ * 관리자는 시스템 관리자(SYSTEM_ADMIN)/주차 관리자(PARKING_ADMIN) 두 권한으로 나뉜다.
+ * 관리자 계정 생성 화면(및 이 서비스를 부르는 API 라우트) 자체가 이미 시스템 관리자만
+ * 접근할 수 있으므로, 그 화면에서 role 을 직접 선택해 넘겨도 주차 관리자가 스스로를
+ * 시스템 관리자로 승격시키는 경로는 생기지 않는다.
+ */
 
 export type AdminUserListItem = {
   adminUserId: number;
@@ -19,6 +26,7 @@ export type AdminUserListItem = {
   email: string;
   phone: string | null;
   accountStatus: AccountStatus;
+  role: AdminRole;
   lastLoginAt: Date | null;
   createdAt: Date;
 };
@@ -33,6 +41,7 @@ export async function listAdminUsers(): Promise<AdminUserListItem[]> {
       email: true,
       phone: true,
       accountStatus: true,
+      role: true,
       lastLoginAt: true,
       createdAt: true,
     },
@@ -44,6 +53,7 @@ export async function listAdminUsers(): Promise<AdminUserListItem[]> {
     email: row.email,
     phone: row.phone,
     accountStatus: row.accountStatus,
+    role: row.role,
     lastLoginAt: row.lastLoginAt,
     createdAt: row.createdAt,
   }));
@@ -54,6 +64,8 @@ export type CreateAdminUserInput = {
   adminName: string;
   email: string;
   phone?: string | null;
+  /** 기본값 PARKING_ADMIN. */
+  role?: AdminRole;
 };
 
 export async function createAdminUser(
@@ -65,6 +77,7 @@ export async function createAdminUser(
   }
 
   const email = input.email.trim().toLowerCase();
+  const role = input.role ?? AdminRole.PARKING_ADMIN;
 
   try {
     const created = await prisma.$transaction(async (tx) => {
@@ -75,6 +88,7 @@ export async function createAdminUser(
           email,
           phone: input.phone?.trim() || null,
           accountStatus: AccountStatus.ACTIVE,
+          role,
           passwordChangedAt: new Date(),
         },
         select: { adminUserId: true, email: true },
@@ -110,7 +124,7 @@ export async function createAdminUser(
       actionType: AUDIT_ACTIONS.ADMIN_USER_CREATE,
       targetType: AUDIT_TARGETS.ADMIN_USER,
       targetId: created.adminUserId,
-      detail: { email: created.email },
+      detail: { email: created.email, role },
       context: actor.requestContext,
     });
 
@@ -138,6 +152,30 @@ async function assertNotLastActiveAdmin(adminUserId: number): Promise<void> {
 }
 
 /**
+ * 마지막 남은 활성 시스템 관리자를 잃게 되는지 확인한다. 잃으면 아무도 반복 예약·
+ * 관리자 계정 관리 등 시스템 관리 화면에 못 들어가 스스로 복구할 방법이 없어진다.
+ * 대상 계정이 시스템 관리자가 아니면(=주차 관리자) 검사할 필요가 없다.
+ */
+async function assertNotLastActiveSystemAdmin(adminUserId: number, role: AdminRole): Promise<void> {
+  if (role !== AdminRole.SYSTEM_ADMIN) return;
+
+  const otherActiveSystemAdmins = await prisma.adminUser.count({
+    where: {
+      accountStatus: AccountStatus.ACTIVE,
+      deletedAt: null,
+      role: AdminRole.SYSTEM_ADMIN,
+      adminUserId: { not: adminUserId },
+    },
+  });
+  if (otherActiveSystemAdmins === 0) {
+    throw new ConflictError(
+      '활성 상태의 시스템 관리자가 최소 1명은 있어야 합니다.',
+      'LAST_ACTIVE_SYSTEM_ADMIN',
+    );
+  }
+}
+
+/**
  * 다른 관리자 계정 수정. 비밀번호는 여기서 다루지 않는다 — 관리자라도 남의 비밀번호를
  * 바꿀 수 없다. 본인 비밀번호 변경은 changeOwnAdminPassword() 를 따로 쓴다.
  */
@@ -160,7 +198,10 @@ export async function updateAdminUser(
   const losingLastActiveAdmin =
     input.accountStatus !== undefined && input.accountStatus !== AccountStatus.ACTIVE;
 
-  if (losingLastActiveAdmin) await assertNotLastActiveAdmin(adminUserId);
+  if (losingLastActiveAdmin) {
+    await assertNotLastActiveAdmin(adminUserId);
+    await assertNotLastActiveSystemAdmin(adminUserId, current.role);
+  }
 
   try {
     const updated = await prisma.adminUser.update({
@@ -271,6 +312,7 @@ export async function deleteAdminUser(
     throw new ConflictError('본인 계정은 삭제할 수 없습니다.', 'CANNOT_DELETE_SELF');
   }
   await assertNotLastActiveAdmin(adminUserId);
+  await assertNotLastActiveSystemAdmin(adminUserId, current.role);
 
   await prisma.adminUser.update({
     where: { adminUserId },

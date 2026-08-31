@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { RecurringScheduleDeleteButton } from '@/components/admin/recurring-schedule-delete-button';
 import { RecurringScheduleOccurrenceTable } from '@/components/admin/recurring-schedule-occurrence-table';
 import { parseNumericId } from '@/lib/api-helpers';
-import { requireAdminPage } from '@/lib/admin-page-guard';
+import { requireSystemAdminPage } from '@/lib/admin-page-guard';
 import { getRecurringScheduleDetail } from '@/services/recurring-reservation-service';
 
 export const dynamic = 'force-dynamic';
@@ -16,7 +16,7 @@ const STATUS_LABEL = { ACTIVE: '진행 중', CANCELLED: '취소됨' } as const;
 type PageProps = { params: Promise<{ id: string }> };
 
 export default async function RecurringReservationDetailPage({ params }: PageProps) {
-  await requireAdminPage('/admin/recurring-reservations');
+  await requireSystemAdminPage('/admin/recurring-reservations');
 
   const { id } = await params;
   const scheduleId = parseNumericId(id, '반복 예약 일정 ID');
@@ -76,6 +76,14 @@ export default async function RecurringReservationDetailPage({ params }: PagePro
             <div className="definition-row">
               <dt className="definition-term">메일 발송</dt>
               <dd className="definition-desc">{schedule.emailEnabled ? 'O' : 'X'}</dd>
+            </div>
+            <div className="definition-row">
+              <dt className="definition-term">입출차 자동 처리</dt>
+              <dd className="definition-desc">{schedule.autoEntryExitEnabled ? 'O' : 'X'}</dd>
+            </div>
+            <div className="definition-row">
+              <dt className="definition-term">전체 예약 목록 숨김</dt>
+              <dd className="definition-desc">{schedule.hiddenFromReservationList ? 'O' : 'X'}</dd>
             </div>
             <div className="definition-row">
               <dt className="definition-term">상태</dt>

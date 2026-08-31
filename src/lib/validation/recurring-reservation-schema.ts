@@ -28,6 +28,8 @@ const schedulePatternFields = {
   dailyEndTime: timeOfDaySchema,
   approvalEnabled: z.boolean().default(true),
   emailEnabled: z.boolean().default(false),
+  autoEntryExitEnabled: z.boolean().default(false),
+  hiddenFromReservationList: z.boolean().default(true),
 };
 
 export const createRecurringScheduleSchema = z

@@ -45,7 +45,7 @@ function weekdayOf(dateString: string): string {
 }
 
 export default async function AdminDashboardPage({ searchParams }: PageProps) {
-  await requireAdminPage('/admin');
+  const session = await requireAdminPage('/admin');
   const { date: dateParam, error } = await searchParams;
 
   const today = todayKstDateString();
@@ -161,7 +161,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
         />
       </section>
 
-      {dashboard.failedEmailCount > 0 && (
+      {session.role === 'SYSTEM_ADMIN' && dashboard.failedEmailCount > 0 && (
         <Alert variant="error">
           <Link href="/admin/email-logs?sendStatus=FAILED" className="font-bold hover:underline">
             ⚠ 발송 실패한 이메일이 {dashboard.failedEmailCount}건 있습니다. 눌러서 확인하세요.

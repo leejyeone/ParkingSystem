@@ -16,5 +16,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     return <div className="min-h-screen bg-slate-100">{children}</div>;
   }
 
-  return <AdminShell adminName={session.adminName}>{children}</AdminShell>;
+  return (
+    <AdminShell adminName={session.adminName} role={session.role}>
+      {children}
+    </AdminShell>
+  );
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import type { AdminRole } from '@prisma/client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -10,6 +11,7 @@ import { apiRequest } from '@/lib/client/api-client';
 
 type Props = {
   adminName: string;
+  role: AdminRole;
   children: React.ReactNode;
 };
 
@@ -20,52 +22,74 @@ type MenuItem = {
   children?: { href: string; label: string }[];
 };
 
+const ROLE_LABEL: Record<AdminRole, string> = {
+  SYSTEM_ADMIN: '시스템 관리자',
+  PARKING_ADMIN: '주차 관리자',
+};
+
 /**
  * 감사 로그는 잠시 비활성화 상태라 메뉴에서 뺐다. 페이지(/admin/audit-logs)와 데이터는
  * 그대로 남아있으니, 다시 노출하려면 이 메뉴 항목만 되살리면 된다.
+ *
+ * "시스템 관리" 그룹은 방문 신청/승인 절차를 우회할 수 있는 화면(반복 예약, 관리자
+ * 계정 생성 등)을 모아 둔 곳이라 시스템 관리자에게만 보인다 — buildMenu 참고.
  */
-const MENU: MenuItem[] = [
-  { href: '/admin', label: '대시보드' },
-  {
-    href: '/admin/reservations',
-    label: '예약',
-    children: [
-      { href: '/admin/reservations', label: '전체 예약' },
-      { href: '/admin/recurring-reservations', label: '반복 예약 관리' },
-    ],
-  },
-  {
-    href: '/admin/settings',
-    label: '시스템 설정',
-    children: [
-      { href: '/admin/settings', label: '주차장 정보' },
-      { href: '/admin/settings/areas-spaces', label: '구역·주차면' },
-      { href: '/admin/email-logs', label: '이메일 이력' },
-    ],
-  },
-  {
-    href: '/admin/users',
-    label: '사용자 관리',
-    children: [
-      { href: '/admin/users/employees', label: '등록 직원 관리' },
-      { href: '/admin/users/admins', label: '관리자 계정' },
-      { href: '/admin/users/notifications', label: '관리자 이메일' },
-    ],
-  },
-];
+function buildMenu(role: AdminRole): MenuItem[] {
+  const menu: MenuItem[] = [
+    { href: '/admin', label: '대시보드' },
+    {
+      href: '/admin/reservations',
+      label: '예약',
+      children: [{ href: '/admin/reservations', label: '전체 예약' }],
+    },
+    {
+      href: '/admin/settings',
+      label: '시스템 설정',
+      children: [
+        { href: '/admin/settings', label: '주차장 정보' },
+        { href: '/admin/settings/areas-spaces', label: '구역·주차면' },
+      ],
+    },
+    {
+      href: '/admin/users',
+      label: '사용자 관리',
+      children: [{ href: '/admin/users/notifications', label: '관리자 이메일' }],
+    },
+  ];
+
+  if (role === 'SYSTEM_ADMIN') {
+    menu.push({
+      href: '/admin/system',
+      label: '시스템 관리',
+      children: [
+        { href: '/admin/recurring-reservations', label: '반복 예약 관리' },
+        { href: '/admin/email-logs', label: '이메일 이력' },
+        { href: '/admin/users/employees', label: '등록 직원 관리' },
+        { href: '/admin/users/admins', label: '관리자 계정' },
+      ],
+    });
+  }
+
+  return menu;
+}
 
 /**
  * 이 메뉴 항목(자식 포함)이 지금 경로에 해당하는지 판정한다.
  *
- * "예약"·"시스템 설정"처럼 자식들의 URL 이 서로 다른 최상위 경로에 흩어져 있을 수 있어서
- * (예: `/admin/reservations` 그룹 안에 `/admin/recurring-reservations` 자식이 있음),
- * 항목 자신의 href 뿐 아니라 모든 자식의 href 도 함께 확인해야 한다.
+ * 하위 메뉴가 있는 항목은 자식들의 href 로만 판정한다 — 항목 자신의 href(예:
+ * `/admin/users`, `/admin/system`)는 실제 페이지가 아니라 그룹을 묶는 가상 경로일 뿐이고,
+ * "사용자 관리"(`/admin/users`)처럼 그 접두사가 다른 그룹의 자식 경로(`/admin/users/employees`
+ * — "시스템 관리" 소속)와 겹칠 수 있어서, 자신의 href 까지 startsWith 로 검사하면 엉뚱한
+ * 그룹까지 함께 활성화된다. "예약"·"시스템 설정"처럼 그룹 자신이 곧 페이지인 경우는 자식
+ * 목록에 자기 href 가 그대로 포함돼 있으므로 아래 자식 검사만으로도 커버된다.
  */
 function menuItemMatches(item: MenuItem, pathname: string): boolean {
   const matches = (href: string) =>
     href === '/admin' ? pathname === '/admin' : pathname.startsWith(href);
-  if (matches(item.href)) return true;
-  return item.children?.some((child) => matches(child.href)) ?? false;
+  if (item.children) {
+    return item.children.some((child) => matches(child.href));
+  }
+  return matches(item.href);
 }
 
 /**
@@ -79,26 +103,33 @@ function menuItemMatches(item: MenuItem, pathname: string): boolean {
  * 두 상태 모두 이 컴포넌트가 직접 들고 있는다(URL 등에 반영하지 않음) — 새로고침마다
  * "PC 펼침 / 모바일 닫힘"으로 시작하는 편이 가장 무난한 기본값이다.
  */
-export function AdminShell({ adminName, children }: Props) {
+export function AdminShell({ adminName, role, children }: Props) {
   const pathname = usePathname();
   const router = useRouter();
+  const menu = buildMenu(role);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [desktopCollapsed, setDesktopCollapsed] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [showPasswordPanel, setShowPasswordPanel] = useState(false);
   const { isDark, toggle: toggleDark } = useDarkMode();
-  // 하위 메뉴가 있는 항목("예약" / "시스템 설정" / "사용자 관리") 중 지금 펼쳐진 것의 href.
-  // 처음 진입할 때는 지금 보고 있는 페이지가 속한 항목을 미리 펼쳐 둔다.
+  // 하위 메뉴가 있는 항목("예약" / "시스템 설정" / "사용자 관리" / "시스템 관리") 중
+  // 지금 펼쳐진 것의 href. 처음 진입할 때는 지금 보고 있는 페이지가 속한 항목을 미리
+  // 펼쳐 둔다.
   const [expandedHref, setExpandedHref] = useState<string | null>(
-    () => MENU.find((item) => item.children && menuItemMatches(item, pathname))?.href ?? null,
+    () => menu.find((item) => item.children && menuItemMatches(item, pathname))?.href ?? null,
   );
 
-  // 메뉴를 눌러 페이지가 바뀌면 모바일 드로어는 자동으로 닫는다. effect 대신 렌더 중
-  // 이전 경로와 비교해 처리한다(리액트가 권장하는 "prop 변화에 맞춰 state 조정" 패턴).
+  // 메뉴를 눌러 페이지가 바뀌면 모바일 드로어는 자동으로 닫고, 펼쳐진 하위 메뉴도 새
+  // 경로가 속한 항목으로 다시 맞춘다 — 안 그러면 예전 그룹(예: 사용자 관리)을 펼친 채로
+  // 다른 그룹(시스템 관리)의 항목을 눌러도 예전 그룹이 펼쳐진 채로 남는다. effect 대신
+  // 렌더 중 이전 경로와 비교해 처리한다(리액트가 권장하는 "prop 변화에 맞춰 state 조정" 패턴).
   const [prevPathname, setPrevPathname] = useState(pathname);
   if (pathname !== prevPathname) {
     setPrevPathname(pathname);
     setDrawerOpen(false);
+    setExpandedHref(
+      menu.find((item) => item.children && menuItemMatches(item, pathname))?.href ?? null,
+    );
   }
 
   async function handleLogout() {
@@ -162,7 +193,7 @@ export function AdminShell({ adminName, children }: Props) {
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-          {MENU.map((item) => {
+          {menu.map((item) => {
             const active = menuItemMatches(item, pathname);
 
             if (!item.children) {
@@ -257,7 +288,7 @@ export function AdminShell({ adminName, children }: Props) {
                 {adminName}
               </span>
               <span className="text-ink-faint hidden text-xs whitespace-nowrap sm:block">
-                시스템 관리자
+                {ROLE_LABEL[role]}
               </span>
             </button>
             <button

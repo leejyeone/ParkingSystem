@@ -1,7 +1,7 @@
 import { isInternalSchedulerEnabled, getSchedulerIntervalSeconds } from '@/lib/env';
 import { logger } from '@/lib/logger';
 import { runEntryReminderJob } from '@/services/entry-reminder-service';
-import { runExitReminderJob } from '@/services/exit-reminder-service';
+import { runAutoEntryExitJob, runExitReminderJob } from '@/services/exit-reminder-service';
 
 /**
  * 앱 내장 스케줄러.
@@ -26,6 +26,7 @@ type GlobalWithFlag = typeof globalThis & { [STARTED_FLAG]?: boolean };
 
 let isExitReminderRunning = false;
 let isEntryReminderRunning = false;
+let isAutoEntryExitRunning = false;
 
 async function runExitReminders(): Promise<void> {
   // 앞선 실행이 아직 끝나지 않았다면 이번 주기는 건너뛴다.
@@ -60,6 +61,21 @@ async function runEntryReminders(): Promise<void> {
   }
 }
 
+async function runAutoEntryExit(): Promise<void> {
+  if (isAutoEntryExitRunning) return;
+  isAutoEntryExitRunning = true;
+
+  try {
+    await runAutoEntryExitJob();
+  } catch (error) {
+    logger.error('반복 예약 입출차 자동 처리 스케줄러 실패', {
+      message: error instanceof Error ? error.message : String(error),
+    });
+  } finally {
+    isAutoEntryExitRunning = false;
+  }
+}
+
 /** 서버 기동 시 1회 호출한다. 두 번 이상 불러도 타이머는 하나만 만들어진다. */
 export function startScheduler(): void {
   const globalWithFlag = globalThis as GlobalWithFlag;
@@ -76,6 +92,7 @@ export function startScheduler(): void {
   const timer = setInterval(() => {
     void runExitReminders();
     void runEntryReminders();
+    void runAutoEntryExit();
   }, intervalSeconds * 1_000);
 
   // 타이머 때문에 프로세스 종료가 늦어지지 않게 한다.
@@ -83,6 +100,6 @@ export function startScheduler(): void {
 
   logger.info('내장 스케줄러 시작', {
     intervalSeconds,
-    jobs: ['exit-reminders', 'entry-reminders'],
+    jobs: ['exit-reminders', 'entry-reminders', 'auto-entry-exit'],
   });
 }

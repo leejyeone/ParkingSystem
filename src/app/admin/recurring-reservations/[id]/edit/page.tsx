@@ -3,9 +3,10 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { RecurringScheduleEditForm } from '@/components/admin/recurring-schedule-edit-form';
-import { requireAdminPage } from '@/lib/admin-page-guard';
+import { requireSystemAdminPage } from '@/lib/admin-page-guard';
 import { parseNumericId } from '@/lib/api-helpers';
 import { getRecurringScheduleDetail } from '@/services/recurring-reservation-service';
+import { getSystemSettings } from '@/services/settings-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,11 +15,14 @@ export const metadata: Metadata = { title: '반복 예약 수정' };
 type PageProps = { params: Promise<{ id: string }> };
 
 export default async function RecurringReservationEditPage({ params }: PageProps) {
-  await requireAdminPage('/admin/recurring-reservations');
+  await requireSystemAdminPage('/admin/recurring-reservations');
 
   const { id } = await params;
   const scheduleId = parseNumericId(id, '반복 예약 일정 ID');
-  const { schedule } = await getRecurringScheduleDetail(scheduleId);
+  const [{ schedule }, settings] = await Promise.all([
+    getRecurringScheduleDetail(scheduleId),
+    getSystemSettings(),
+  ]);
 
   if (schedule.status !== 'ACTIVE') {
     notFound();
@@ -53,7 +57,10 @@ export default async function RecurringReservationEditPage({ params }: PageProps
           dailyEndTime: schedule.dailyEndTime,
           approvalEnabled: schedule.approvalEnabled,
           emailEnabled: schedule.emailEnabled,
+          autoEntryExitEnabled: schedule.autoEntryExitEnabled,
+          hiddenFromReservationList: schedule.hiddenFromReservationList,
         }}
+        entryExitManagementEnabled={settings.entryExitManagementEnabled}
       />
     </main>
   );
