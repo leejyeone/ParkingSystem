@@ -772,6 +772,7 @@ SynopexParking/
 │  │  ├─ email/                                   # 이메일 어댑터 계층
 │  │  │  ├─ email-provider.ts                     #   공급자 인터페이스
 │  │  │  ├─ gmail-api-email-provider.ts           #   Gmail API 구현체
+│  │  │  ├─ smtp-email-provider.ts                #   사내 SMTP 구현체 (테스트 중, nodemailer)
 │  │  │  ├─ mock-email-provider.ts                #   Mock / Log 공급자 (테스트·개발)
 │  │  │  ├─ file-email-provider.ts                #   .mail-outbox 저장 (E2E·로컬 확인)
 │  │  │  ├─ email-provider-factory.ts             #   EMAIL_PROVIDER 로 선택
@@ -872,6 +873,7 @@ npm run dev
 | `file`  | 실제 발송 없음. `.mail-outbox/*.json` 으로 저장 → **조회 링크 확인 가능** |
 | `mock`  | 실제 발송 없음. 메모리 적재 (테스트용)                                    |
 | `gmail` | Gmail API 로 실제 발송                                                    |
+| `smtp`  | 사내 SMTP 서버(JAMES)로 실제 발송 (검증 중 — 검증되면 `gmail` 대체 예정)  |
 
 Gmail 설정 없이 예약 조회 링크까지 확인하려면 `EMAIL_PROVIDER="file"` 로 두고
 `.mail-outbox` 디렉터리의 JSON 파일에서 `/r/<토큰>` 링크를 확인하세요.
@@ -1330,15 +1332,35 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 
 ### Gmail API
 
-| 변수                  | 설명                                    |
-| --------------------- | --------------------------------------- |
-| `GMAIL_CLIENT_ID`     | OAuth 2.0 클라이언트 ID                 |
-| `GMAIL_CLIENT_SECRET` | OAuth 2.0 클라이언트 보안 비밀번호      |
-| `GMAIL_REDIRECT_URI`  | 토큰 발급에 사용한 리디렉션 URI         |
-| `GMAIL_REFRESH_TOKEN` | 발송 계정의 Refresh Token               |
-| `GMAIL_SENDER_EMAIL`  | 발신 주소 (OAuth 동의한 계정)           |
-| `GMAIL_SENDER_NAME`   | 발신자 표시 이름 (기본 `본사 방문관리`) |
-| `EMAIL_PROVIDER`      | `gmail` / `file` / `log` / `mock`       |
+| 변수                  | 설명                                       |
+| --------------------- | ------------------------------------------ |
+| `GMAIL_CLIENT_ID`     | OAuth 2.0 클라이언트 ID                    |
+| `GMAIL_CLIENT_SECRET` | OAuth 2.0 클라이언트 보안 비밀번호         |
+| `GMAIL_REDIRECT_URI`  | 토큰 발급에 사용한 리디렉션 URI            |
+| `GMAIL_REFRESH_TOKEN` | 발송 계정의 Refresh Token                  |
+| `GMAIL_SENDER_EMAIL`  | 발신 주소 (OAuth 동의한 계정)              |
+| `GMAIL_SENDER_NAME`   | 발신자 표시 이름 (기본 `본사 방문관리`)    |
+| `EMAIL_PROVIDER`      | `gmail` / `smtp` / `file` / `log` / `mock` |
+
+### SMTP (사내 메일서버, 테스트 중)
+
+Gmail 을 대체하기 위해 준비 중인 경로다. `EMAIL_PROVIDER="smtp"` 로 설정하면
+`gmail-api-email-provider.ts` 대신 `smtp-email-provider.ts`(nodemailer)가 쓰인다 —
+Gmail 관련 코드/환경변수는 그대로 남아 있고 서로 독립적이므로, 검증되면
+`smtp-email-provider.ts` 와 `email-provider-factory.ts` 의 `gmail` 분기만 지우면
+Gmail 을 제거할 수 있다.
+
+| 변수                           | 기본값            | 설명                                                         |
+| ------------------------------ | ----------------- | ------------------------------------------------------------ |
+| `SMTP_HOST`                    | (필수)            | 사내 SMTP 서버 호스트/IP                                     |
+| `SMTP_PORT`                    | `25`              | 포트                                                         |
+| `SMTP_SECURE`                  | `false`           | `true`면 SMTPS로 즉시 접속(예: 465), `false`면 평문/STARTTLS |
+| `SMTP_REQUIRE_TLS`             | `false`           | `true`면 STARTTLS 강제(서버 미지원 시 발송 실패)             |
+| `SMTP_TLS_REJECT_UNAUTHORIZED` | `true`            | 자체 서명 인증서를 쓰는 사내 서버만 `false`로                |
+| `SMTP_USER` / `SMTP_PASS`      | (없음)            | 둘 다 비우면 인증 없이 연결(내부망 무인증 서버 대응)         |
+| `SMTP_FROM_EMAIL`              | (필수)            | 발신 주소                                                    |
+| `SMTP_FROM_NAME`               | `SYNOPEX PARKING` | 발신자 표시 이름                                             |
+| `SMTP_CONNECTION_TIMEOUT_MS`   | `10000`           | 연결 타임아웃(ms)                                            |
 
 ### Seed (개발 편의)
 

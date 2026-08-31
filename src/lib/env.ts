@@ -95,11 +95,19 @@ export function getSchedulerIntervalSeconds(): number {
   return Math.max(10, getNumberEnv('SCHEDULER_INTERVAL_SECONDS', 60));
 }
 
-export type EmailProviderKind = 'gmail' | 'mock' | 'log' | 'file';
+export type EmailProviderKind = 'gmail' | 'smtp' | 'mock' | 'log' | 'file';
 
 export function getEmailProviderKind(): EmailProviderKind {
   const value = (getOptionalEnv('EMAIL_PROVIDER') ?? 'log').toLowerCase();
-  if (value === 'gmail' || value === 'mock' || value === 'log' || value === 'file') return value;
+  if (
+    value === 'gmail' ||
+    value === 'smtp' ||
+    value === 'mock' ||
+    value === 'log' ||
+    value === 'file'
+  ) {
+    return value;
+  }
   return 'log';
 }
 
