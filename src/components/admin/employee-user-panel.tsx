@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 import { Alert } from '@/components/ui/alert';
+import { FormField, inputClassName } from '@/components/ui/form-field';
 import { apiRequest } from '@/lib/client/api-client';
 import { formatKstDateTime } from '@/lib/datetime';
 
@@ -63,12 +64,21 @@ function ActiveSwitch({
   );
 }
 
+const EMPTY_ADD_FORM = {
+  employeeCode: '',
+  name: '',
+  email: '',
+  departmentName: '',
+  vehicleNo: '',
+  companyOrBranchName: '',
+};
+
 /**
  * 직원 계정 목록.
  *
- * 계정 생성은 명부 시드 스크립트(scripts/import-employees.ts)로만 이루어지므로 여기서는
- * 만들지 않는다 — 평소에는 계정별 스위치로 바로 활성·비활성을 전환한다. [선택]을 누르면
- * 선택 모드로 바뀌어 여러 행을 체크박스로 골라 한 번에 활성화/비활성화할 수 있다.
+ * 평소에는 계정별 스위치로 바로 활성·비활성을 전환한다. [선택]을 누르면 선택 모드로
+ * 바뀌어 여러 행을 체크박스로 골라 한 번에 활성화/비활성화할 수 있다. [직원 추가]를
+ * 누르면 명부 시드 스크립트 없이도 관리자가 그 자리에서 바로 계정을 만들 수 있다.
  */
 export function EmployeeUserPanel({ employeeUsers }: { employeeUsers: EmployeeUser[] }) {
   const router = useRouter();
@@ -85,6 +95,12 @@ export function EmployeeUserPanel({ employeeUsers }: { employeeUsers: EmployeeUs
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [bulkResult, setBulkResult] = useState<BulkStatusResult | null>(null);
+
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addForm, setAddForm] = useState(EMPTY_ADD_FORM);
+  const [addFieldErrors, setAddFieldErrors] = useState<Record<string, string[]>>({});
+  const [addError, setAddError] = useState<string | null>(null);
+  const [addSubmitting, setAddSubmitting] = useState(false);
 
   const statusCounts = {
     ALL: employeeUsers.length,
@@ -182,6 +198,37 @@ export function EmployeeUserPanel({ employeeUsers }: { employeeUsers: EmployeeUs
     setMessage({ variant: 'error', text: response.error.message });
   }
 
+  function toggleAddForm() {
+    setShowAddForm((previous) => !previous);
+    setAddForm(EMPTY_ADD_FORM);
+    setAddFieldErrors({});
+    setAddError(null);
+  }
+
+  async function submitAddForm() {
+    if (addSubmitting) return;
+    setAddSubmitting(true);
+    setAddError(null);
+    setAddFieldErrors({});
+
+    const response = await apiRequest('/api/admin/employees', {
+      method: 'POST',
+      body: JSON.stringify(addForm),
+    });
+
+    setAddSubmitting(false);
+
+    if (!response.ok) {
+      setAddFieldErrors(response.error.fieldErrors ?? {});
+      setAddError(response.error.message);
+      return;
+    }
+
+    setShowAddForm(false);
+    setAddForm(EMPTY_ADD_FORM);
+    router.refresh();
+  }
+
   return (
     <section className="card">
       <div className="card-body">
@@ -207,8 +254,141 @@ export function EmployeeUserPanel({ employeeUsers }: { employeeUsers: EmployeeUs
                 선택
               </button>
             )}
+            <button
+              type="button"
+              className="btn btn-primary min-h-9 px-3 text-xs"
+              onClick={toggleAddForm}
+            >
+              {showAddForm ? '취소' : '+ 직원 추가'}
+            </button>
           </div>
         </div>
+
+        {showAddForm && (
+          <div className="border-line bg-surface-muted mt-3 rounded-lg border p-3">
+            {addError && (
+              <div className="mb-3">
+                <Alert variant="error">{addError}</Alert>
+              </div>
+            )}
+            <p className="text-ink-muted mb-2 text-xs font-bold">
+              사번으로 로그인 연동됩니다. 정확히 입력해 주세요.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <FormField
+                label="사번"
+                htmlFor="new-employee-code"
+                required
+                errors={addFieldErrors.employeeCode}
+              >
+                <input
+                  id="new-employee-code"
+                  className={inputClassName(Boolean(addFieldErrors.employeeCode))}
+                  value={addForm.employeeCode}
+                  onChange={(event) => setAddForm({ ...addForm, employeeCode: event.target.value })}
+                  maxLength={20}
+                />
+              </FormField>
+              <FormField
+                label="이름"
+                htmlFor="new-employee-name"
+                required
+                errors={addFieldErrors.name}
+              >
+                <input
+                  id="new-employee-name"
+                  className={inputClassName(Boolean(addFieldErrors.name))}
+                  value={addForm.name}
+                  onChange={(event) => setAddForm({ ...addForm, name: event.target.value })}
+                  maxLength={50}
+                />
+              </FormField>
+              <FormField
+                label="이메일"
+                htmlFor="new-employee-email"
+                required
+                errors={addFieldErrors.email}
+              >
+                <input
+                  id="new-employee-email"
+                  type="email"
+                  className={inputClassName(Boolean(addFieldErrors.email))}
+                  value={addForm.email}
+                  onChange={(event) => setAddForm({ ...addForm, email: event.target.value })}
+                  maxLength={255}
+                />
+              </FormField>
+              <FormField
+                label="부서명"
+                htmlFor="new-employee-department"
+                required
+                errors={addFieldErrors.departmentName}
+              >
+                <input
+                  id="new-employee-department"
+                  className={inputClassName(Boolean(addFieldErrors.departmentName))}
+                  value={addForm.departmentName}
+                  onChange={(event) =>
+                    setAddForm({ ...addForm, departmentName: event.target.value })
+                  }
+                  maxLength={100}
+                />
+              </FormField>
+              <FormField
+                label="차량번호"
+                htmlFor="new-employee-vehicle"
+                errors={addFieldErrors.vehicleNo}
+              >
+                <input
+                  id="new-employee-vehicle"
+                  className={inputClassName(Boolean(addFieldErrors.vehicleNo))}
+                  value={addForm.vehicleNo}
+                  onChange={(event) => setAddForm({ ...addForm, vehicleNo: event.target.value })}
+                  maxLength={20}
+                />
+              </FormField>
+              <FormField
+                label="소속 사업장명"
+                htmlFor="new-employee-company"
+                errors={addFieldErrors.companyOrBranchName}
+              >
+                <input
+                  id="new-employee-company"
+                  className={inputClassName(Boolean(addFieldErrors.companyOrBranchName))}
+                  value={addForm.companyOrBranchName}
+                  onChange={(event) =>
+                    setAddForm({ ...addForm, companyOrBranchName: event.target.value })
+                  }
+                  maxLength={100}
+                />
+              </FormField>
+            </div>
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                className="btn btn-primary min-h-9 px-3 text-xs"
+                disabled={
+                  addSubmitting ||
+                  !addForm.employeeCode ||
+                  !addForm.name ||
+                  !addForm.email ||
+                  !addForm.departmentName
+                }
+                onClick={submitAddForm}
+              >
+                {addSubmitting ? '추가 중…' : '직원 추가'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary min-h-9 px-3 text-xs"
+                disabled={addSubmitting}
+                onClick={toggleAddForm}
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="mt-2 flex flex-wrap gap-1.5" role="tablist" aria-label="상태 필터">
           {(

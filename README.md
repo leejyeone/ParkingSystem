@@ -308,11 +308,14 @@ flowchart TD
 > `/employee/login` 으로 리다이렉트됩니다. 직원 계정(`EmployeeUser`)은 방문객 계정
 > (`SiteUser`)과 완전히 별도의 테이블·세션이며, 비밀번호가 없습니다 — 전 직원 명부를
 > `scripts/import-employees.ts` 로 미리 심어 두고, 사번(`employeeCode`)만 맞으면
-> `GET /api/employee/enter?empId=사번` 에서 그 즉시 세션이 발급됩니다(그룹웨어가 실제로
-> 넘겨주는 `page.asp?Fsacode=사번` 방식과 동일한 모양). `/employee/login` 은 그 그룹웨어
-> 리다이렉트를 흉내 낸 개발 전용 화면인데, 사번은 기억하기 어려워 개발 중에는 이메일을
-> 입력받아(`?email=`) 내부적으로 사번을 찾아 세션을 발급하는 보조 경로를 쓴다 —
-> 운영 계약(`?empId=`)은 그대로이고, 실제 그룹웨어 연동 시에는 이 화면만 치우면 됩니다.
+> `GET /api/employee/enter?empId=사번` 에서 그 즉시 세션이 발급됩니다. 사내망의 "다른
+> 사이트 로그인 연동" 링크는 실제로는 루트 경로에 `/?fsacode=사번` 형태로 붙어서 오므로,
+> 루트 페이지(`src/app/page.tsx`)가 `fsacode` 파라미터(대소문자 무관)를 감지해
+> `GET /api/employee/enter?empId=사번` 로 그대로 리다이렉트합니다 — `/api/employee/enter`
+> 자체도 `?fsacode=` 를 `empId` 의 별칭으로 받아 직접 들어와도 인식합니다.
+> `/employee/login` 은 그 사내망 진입을 흉내 낸 개발 전용 화면인데, 사번은 기억하기
+> 어려워 개발 중에는 이메일을 입력받아(`?email=`) 내부적으로 사번을 찾아 세션을
+> 발급하는 보조 경로를 쓴다 — 운영 계약(`?empId=`/`?fsacode=`)은 그대로입니다.
 > 신청 구분(`requesterType`)은 화면에서 선택하지 않고 어느 진입점·어느 신청 화면을
 > 사용했는지에 따라 서버가 강제로 결정합니다.
 > 방문객을 대신 신청하는 경우 방문객 본인 대신 담당 직원이 "방문객 동의를 확인했음"을

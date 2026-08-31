@@ -27,7 +27,17 @@ export const employeeProfileUpdateSchema = z.object({
   companyOrBranchName: optionalText(100, '소속 사업장명'),
 });
 
-/** 관리자용 직원 계정 관리 입력 스키마. 계정 생성은 시드 스크립트로만 이루어지므로 상태 변경만 다룬다. */
+/** 관리자가 직원 계정을 직접 생성할 때의 입력. 자동 로그인(사번 대조)에 필요한 필드는 전부 필수. */
+export const employeeUserCreateSchema = z.object({
+  employeeCode: requiredText(20, '사번'),
+  email: emailSchema,
+  name: requiredText(50, '이름'),
+  departmentName: requiredText(100, '부서명'),
+  vehicleNo: optionalVehicleNoSchema,
+  companyOrBranchName: optionalText(100, '소속 사업장명'),
+});
+
+/** 관리자용 직원 계정 관리 입력 스키마. */
 
 export const employeeUserUpdateSchema = z.object({
   accountStatus: z.enum(AccountStatus).refine((value) => value !== AccountStatus.LOCKED, {
