@@ -41,7 +41,7 @@ async function signUp(page: Page) {
   await page.getByLabel('이메일').fill(MEMBER.email);
   await page.getByLabel('비밀번호').fill(MEMBER.password);
   await page.getByLabel('성명').fill(MEMBER.name);
-  await page.getByLabel('방문 상호 또는 소속 사업장명').fill(MEMBER.company);
+  await page.getByLabel('방문 상호').fill(MEMBER.company);
   await page.getByLabel('차량번호').fill(MEMBER.vehicleNo);
   await page.getByRole('button', { name: '가입하고 시작하기' }).click();
 
@@ -82,7 +82,7 @@ test('회원이 신청한 예약은 마이페이지 내 예약 목록에 나온�
   const reservationNo = (await page.getByTestId('reservation-no').textContent())?.trim();
 
   await page.goto('/mypage');
-  await expect(page.getByText('내 예약 (1건)')).toBeVisible();
+  await expect(page.getByText('내 예약 (전체 1건)')).toBeVisible();
   await expect(page.getByText(reservationNo!)).toBeVisible();
 
   const saved = await prisma.parkingReservation.findFirst();

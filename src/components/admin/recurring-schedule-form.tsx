@@ -380,9 +380,7 @@ export function RecurringScheduleForm({
               checked={skipApproval}
               onChange={(event) => setSkipApproval(event.target.checked)}
             />
-            <span className="text-ink text-sm font-semibold">
-              관리자 승인 생략
-            </span>
+            <span className="text-ink text-sm font-semibold">관리자 승인 생략</span>
           </label>
 
           <label className="border-line flex min-h-11 items-center gap-3 rounded-lg border px-3">

@@ -739,6 +739,60 @@ export async function cancelReservationByRequester(
 // 3. 관리자 처리
 // ---------------------------------------------------------------------------
 
+/**
+ * 관리자가 승인 완료된 예약을 취소한다.
+ *
+ * 신청자는 승인 이후 직접 취소할 수 없으므로(`REQUESTER_MODIFIABLE_STATUSES`), 담당자에게
+ * 연락이 오면 관리자가 대신 처리하는 경로다. `assertTransition` 이 상태 전이 자체를
+ * 검증하므로(APPROVED → CANCELLED 만 허용), 그 밖의 상태에서는 여기서 막힌다.
+ */
+export async function cancelReservationByAdmin(
+  params: { reservationId: number; cancelReason: string } & AdminActionContext,
+): Promise<ReservationWithSpaces> {
+  const cancelled = await prisma.$transaction(async (tx) => {
+    const current = await loadReservationOrThrow(params.reservationId, tx);
+    assertTransition(current.reservationStatus, ReservationStatus.CANCELLED);
+
+    const result = await tx.parkingReservation.update({
+      where: { reservationId: params.reservationId },
+      data: {
+        reservationStatus: ReservationStatus.CANCELLED,
+        cancelledAt: new Date(),
+        cancelReason: params.cancelReason,
+        assignedSpaceId: null,
+      },
+      include: RESERVATION_WITH_SPACES,
+    });
+
+    await tx.parkingReservationStatusLog.create({
+      data: {
+        reservationId: params.reservationId,
+        previousStatus: current.reservationStatus,
+        currentStatus: ReservationStatus.CANCELLED,
+        changedByType: ChangedByType.ADMIN,
+        changedByAdminId: params.adminUserId,
+        changeReason: params.cancelReason,
+      },
+    });
+
+    return result;
+  });
+
+  await writeAuditLog({
+    actorAdminId: params.adminUserId,
+    actionType: AUDIT_ACTIONS.RESERVATION_CANCEL,
+    targetType: AUDIT_TARGETS.RESERVATION,
+    targetId: cancelled.reservationId,
+    detail: { reservationNo: cancelled.reservationNo },
+    context: params.requestContext,
+  });
+
+  if (cancelled.recurringSchedule?.emailEnabled ?? true) {
+    await dispatchQuietly(sendCancelledEmails(toReservationForEmail(cancelled)));
+  }
+  return cancelled;
+}
+
 export type AdminActionContext = {
   adminUserId: number;
   requestContext?: RequestContext;

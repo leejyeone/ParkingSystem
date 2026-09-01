@@ -5,6 +5,7 @@ import { ConflictError, NotFoundError, ValidationError } from '@/lib/errors';
 import { resolveAccessToken } from '@/services/reservation-access-service';
 import {
   approveReservation,
+  cancelReservationByAdmin,
   cancelReservationByRequester,
   createReservation,
   getReservationForRequester,
@@ -211,14 +212,9 @@ describe('5~6. 토큰 기반 예약 조회', () => {
   });
 });
 
-describe('10. 승인 후 신청자 수정', () => {
-  it('수정하면 REQUESTED 로 복귀하고 배정 주차면이 해제된다', async () => {
+describe('10. 신청자 수정 (승인 대기 상태에서만 가능)', () => {
+  it('REQUESTED 상태에서는 수정할 수 있다', async () => {
     const { reservation } = await createReservation(baseReservationInput());
-    const approved = await approveReservation({
-      reservationId: reservation.reservationId,
-      adminUserId: fixtures.secondAdminId,
-    });
-    expect(approved.assignedSpaceId).toBe(fixtures.normalSpaceIds[0]);
 
     const nextRange = futureVisitRange({ daysFromToday: 2, startHour: 13, hours: 2 });
     const updated = await updateReservationByRequester(reservation.reservationId, {
@@ -232,16 +228,10 @@ describe('10. 승인 후 신청자 수정', () => {
 
     expect(updated.reservationStatus).toBe(ReservationStatus.REQUESTED);
     expect(updated.assignedSpaceId).toBeNull();
-    expect(updated.approvalAdminId).toBeNull();
-    expect(updated.approvedAt).toBeNull();
   });
 
   it('변경 이력과 변경 메일이 남는다', async () => {
     const { reservation } = await createReservation(baseReservationInput());
-    await approveReservation({
-      reservationId: reservation.reservationId,
-      adminUserId: fixtures.secondAdminId,
-    });
 
     await updateReservationByRequester(reservation.reservationId, {
       companyOrBranchName: '시노펙스',
@@ -257,7 +247,7 @@ describe('10. 승인 후 신청자 수정', () => {
       orderBy: { statusLogId: 'asc' },
     });
     expect(statusLogs.at(-1)?.currentStatus).toBe(ReservationStatus.REQUESTED);
-    expect(statusLogs.at(-1)?.previousStatus).toBe(ReservationStatus.APPROVED);
+    expect(statusLogs.at(-1)?.previousStatus).toBe(ReservationStatus.REQUESTED);
     expect(statusLogs.at(-1)?.changedByType).toBe('REQUESTER');
 
     const updatedMails = await prisma.emailSendLog.findMany({
@@ -265,6 +255,25 @@ describe('10. 승인 후 신청자 수정', () => {
     });
     // 신청자 1건 + 관리자 알림 1건
     expect(updatedMails).toHaveLength(2);
+  });
+
+  it('승인 완료 이후에는 신청자가 직접 수정할 수 없다', async () => {
+    const { reservation } = await createReservation(baseReservationInput());
+    await approveReservation({
+      reservationId: reservation.reservationId,
+      adminUserId: fixtures.secondAdminId,
+    });
+
+    await expect(
+      updateReservationByRequester(reservation.reservationId, {
+        companyOrBranchName: '시노펙스',
+        requesterName: '홍길동',
+        vehicleNo: '12가3456',
+        visitPurpose: null,
+        requestMemo: null,
+        ...futureVisitRange({ daysFromToday: 2, startHour: 13, hours: 2 }),
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
   });
 
   it('방문 시작 60분 이내에는 수정할 수 없다', async () => {
@@ -285,12 +294,8 @@ describe('10. 승인 후 신청자 수정', () => {
 });
 
 describe('11. 예약 취소', () => {
-  it('취소하면 주차면이 해제되고 사유/시각이 기록된다', async () => {
+  it('REQUESTED 상태에서는 신청자가 직접 취소할 수 있다', async () => {
     const { reservation } = await createReservation(baseReservationInput());
-    await approveReservation({
-      reservationId: reservation.reservationId,
-      adminUserId: fixtures.secondAdminId,
-    });
 
     const cancelled = await cancelReservationByRequester(
       reservation.reservationId,
@@ -298,7 +303,6 @@ describe('11. 예약 취소', () => {
     );
 
     expect(cancelled.reservationStatus).toBe(ReservationStatus.CANCELLED);
-    expect(cancelled.assignedSpaceId).toBeNull();
     expect(cancelled.cancelReason).toBe('방문 일정 취소');
     expect(cancelled.cancelledAt).not.toBeNull();
 
@@ -308,14 +312,60 @@ describe('11. 예약 취소', () => {
     expect(cancelMails.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('취소로 비워진 주차면은 다른 예약이 사용할 수 있다', async () => {
+  it('승인 완료 이후에는 신청자가 직접 취소할 수 없다', async () => {
+    const { reservation } = await createReservation(baseReservationInput());
+    await approveReservation({
+      reservationId: reservation.reservationId,
+      adminUserId: fixtures.secondAdminId,
+    });
+
+    await expect(
+      cancelReservationByRequester(reservation.reservationId, '방문 일정 취소'),
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it('관리자가 승인 완료된 예약을 취소하면 주차면이 해제되고 사유/시각이 기록된다', async () => {
+    const { reservation } = await createReservation(baseReservationInput());
+    await approveReservation({
+      reservationId: reservation.reservationId,
+      adminUserId: fixtures.secondAdminId,
+    });
+
+    const cancelled = await cancelReservationByAdmin({
+      reservationId: reservation.reservationId,
+      cancelReason: '담당자 요청으로 취소',
+      adminUserId: fixtures.secondAdminId,
+    });
+
+    expect(cancelled.reservationStatus).toBe(ReservationStatus.CANCELLED);
+    expect(cancelled.assignedSpaceId).toBeNull();
+    expect(cancelled.cancelReason).toBe('담당자 요청으로 취소');
+    expect(cancelled.cancelledAt).not.toBeNull();
+
+    const statusLogs = await prisma.parkingReservationStatusLog.findMany({
+      where: { reservationId: reservation.reservationId },
+      orderBy: { statusLogId: 'asc' },
+    });
+    expect(statusLogs.at(-1)?.changedByType).toBe('ADMIN');
+
+    const cancelMails = await prisma.emailSendLog.findMany({
+      where: { reservationId: reservation.reservationId, emailType: EmailType.CANCELLED },
+    });
+    expect(cancelMails.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('관리자 취소로 비워진 주차면은 다른 예약이 사용할 수 있다', async () => {
     const range = futureVisitRange({ startHour: 10, hours: 2 });
     const first = await createReservation(baseReservationInput(range));
     await approveReservation({
       reservationId: first.reservation.reservationId,
       adminUserId: fixtures.secondAdminId,
     });
-    await cancelReservationByRequester(first.reservation.reservationId, '취소');
+    await cancelReservationByAdmin({
+      reservationId: first.reservation.reservationId,
+      cancelReason: '취소',
+      adminUserId: fixtures.secondAdminId,
+    });
 
     const second = await createReservation(
       baseReservationInput({ ...range, vehicleNo: '34나5678', requesterEmail: 'b@example.com' }),

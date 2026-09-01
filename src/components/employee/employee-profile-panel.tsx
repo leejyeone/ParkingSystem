@@ -67,8 +67,7 @@ export function EmployeeProfilePanel({ profile }: { profile: Profile }) {
         <div>
           <h2 className="card-title">내 정보</h2>
           <p className="field-hint">
-            차량번호·소속
-            사업장명은 본인 방문 신청 시 자동으로 입력됩니다.
+            차량번호·소속 사업장명은 본인 방문 신청 시 자동으로 입력됩니다.
           </p>
         </div>
 

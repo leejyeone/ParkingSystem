@@ -33,9 +33,10 @@ type PageProps = {
     requesterName?: string;
     spaceCode?: string;
     page?: string;
-    /** 승인·반려 처리 후 목록으로 돌아올 때 붙는 예약번호. 완료 안내에만 쓴다. */
+    /** 승인·반려·취소 처리 후 목록으로 돌아올 때 붙는 예약번호. 완료 안내에만 쓴다. */
     approved?: string;
     rejected?: string;
+    cancelled?: string;
   }>;
 };
 
@@ -111,6 +112,7 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
     Boolean(value && /^PK-\d{8}-[A-Z2-9]{6}$/.test(value));
   const approvedNo = isReservationNo(params.approved) ? params.approved : null;
   const rejectedNo = isReservationNo(params.rejected) ? params.rejected : null;
+  const cancelledNo = isReservationNo(params.cancelled) ? params.cancelled : null;
 
   // 적용된 조건만 칩으로 노출한다. (모바일에서 입력 폼이 화면을 다 차지하지 않도록)
   const chips: FilterChip[] = [
@@ -155,6 +157,13 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
         <Alert variant="warning" title="반려 처리를 완료했습니다">
           예약 <span className="font-mono font-bold">{rejectedNo}</span> 이(가) 반려되었습니다.
           신청자에게 반려 사유가 메일로 발송되었습니다.
+        </Alert>
+      )}
+
+      {cancelledNo && (
+        <Alert variant="warning" title="취소 처리를 완료했습니다">
+          예약 <span className="font-mono font-bold">{cancelledNo}</span> 이(가) 취소되었습니다.
+          신청자에게 취소 안내 메일이 발송되었습니다.
         </Alert>
       )}
 

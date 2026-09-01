@@ -21,7 +21,13 @@ import {
   signUpUser,
   updateUserProfile,
 } from '@/services/user-auth-service';
-import { baseReservationInput, prisma, resetDatabase, seedFixtures } from './helpers';
+import {
+  baseReservationInput,
+  futureVisitRange,
+  prisma,
+  resetDatabase,
+  seedFixtures,
+} from './helpers';
 
 /**
  * 회원 계정(선택 로그인) + 예약번호 조회 통합 시나리오.
@@ -200,7 +206,11 @@ describe('회원 예약 연결 / 내 예약 목록', () => {
 describe('성명·차량번호로 예약 조회', () => {
   it('성명과 차량번호가 모두 일치하는 예약만 목록에 나온다', async () => {
     const { reservation } = await createReservation(baseReservationInput());
-    await createReservation(baseReservationInput({ requesterName: '다른사람' }));
+    // 같은 차량번호라도 이름이 다르면 목록에서 빠져야 한다 — 시간대가 겹치면 차량 중복
+    // 예약으로 막히므로, 겹치지 않는 시간대를 써서 이름 불일치만 검증한다.
+    await createReservation(
+      baseReservationInput({ requesterName: '다른사람', ...futureVisitRange({ startHour: 15 }) }),
+    );
     await createReservation(baseReservationInput({ vehicleNo: '99나9999' }));
 
     const results = await lookupByNameAndVehicle({

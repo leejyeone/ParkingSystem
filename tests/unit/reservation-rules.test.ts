@@ -127,7 +127,7 @@ describe('신청자 수정/취소 가능 시간 검증', () => {
   it('마감 이전이면 수정/취소가 가능하다', () => {
     expect(
       checkRequesterCanChange({
-        status: 'APPROVED',
+        status: 'REQUESTED',
         visitStartAt,
         now: kst('2026-08-20T12:59'),
         minLeadMinutes: 60,
@@ -137,7 +137,7 @@ describe('신청자 수정/취소 가능 시간 검증', () => {
 
   it('마감을 지나면 사유와 함께 차단한다', () => {
     const result = checkRequesterCanChange({
-      status: 'APPROVED',
+      status: 'REQUESTED',
       visitStartAt,
       now: kst('2026-08-20T13:30'),
       minLeadMinutes: 60,
@@ -146,8 +146,15 @@ describe('신청자 수정/취소 가능 시간 검증', () => {
     expect(result.allowed === false && result.reason).toContain('60분 전');
   });
 
-  it('이미 종료된 상태는 수정/취소할 수 없다', () => {
-    for (const status of ['CANCELLED', 'REJECTED', 'EXITED', 'NO_SHOW', 'PARKING'] as const) {
+  it('승인 완료를 포함해 이미 진행된 상태는 수정/취소할 수 없다', () => {
+    for (const status of [
+      'APPROVED',
+      'CANCELLED',
+      'REJECTED',
+      'EXITED',
+      'NO_SHOW',
+      'PARKING',
+    ] as const) {
       const result = checkRequesterCanChange({
         status,
         visitStartAt,

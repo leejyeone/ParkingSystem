@@ -140,7 +140,8 @@ test('직원의 내 신청 내역에는 본인 방문과 대리 신청이 구분
   await expect(page.getByTestId('reservation-complete')).toBeVisible();
 
   await page.goto('/employee/reservations');
-  await expect(page.getByText('내 예약 (2건)')).toBeVisible();
+  // 반복 예약이 없으면 탭 없이 일반 예약 목록만 바로 보인다.
+  await expect(page.locator('a[href^="/employee/reservations/"]')).toHaveCount(2);
   // 대리 신청 건에만 방문 상호명 태그가 붙고, 본인 방문 건에는 태그가 붙지 않는다.
   await expect(page.getByText('외부 협력업체', { exact: true })).toHaveCount(1);
 });

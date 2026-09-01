@@ -257,6 +257,49 @@ test('신청자는 승인 대기 상태에서만 수정할 수 있고, 승인 �
   );
 });
 
+/**
+ * 승인 완료 이후에는 신청자가 직접 취소할 수 없으므로(위 테스트에서 확인),
+ * 담당자 요청이 오면 관리자가 상세 화면의 [예약 취소] 액션으로 대신 처리한다.
+ */
+test('관리자가 승인 완료된 예약을 취소하면 주차면이 해제되고 다른 신청에 배정할 수 있다', async ({
+  page,
+}) => {
+  await submitReservation(page);
+  await expect(page.getByTestId('reservation-complete')).toBeVisible();
+
+  await loginAsAdmin(page);
+  await openPendingReservationDetail(page);
+  await page.getByRole('button', { name: '승인 및 위치 확정' }).click();
+  await expect(page.getByText('승인 처리를 완료했습니다')).toBeVisible();
+
+  await page.goto('/admin/reservations?status=APPROVED');
+  await page.getByTestId('reservation-row').first().click();
+
+  await expect(page.getByRole('heading', { name: '예약 취소' })).toBeVisible();
+  await page.getByLabel('취소 사유').fill('담당자 요청으로 취소');
+  await page.getByRole('button', { name: '예약 취소 확정' }).click();
+
+  await expect(page).toHaveURL(/\/admin\/reservations\?status=APPROVED&cancelled=PK-/);
+  await expect(page.getByText('취소 처리를 완료했습니다')).toBeVisible();
+
+  const cancelled = await prisma.parkingReservation.findFirst({
+    where: { requesterName: '홍길동' },
+  });
+  expect(cancelled?.reservationStatus).toBe('CANCELLED');
+  expect(cancelled?.assignedSpaceId).toBeNull();
+
+  // 취소로 비워진 A-01 자리를 다른 신청이 다시 배정받을 수 있어야 한다.
+  await submitReservation(page, {
+    requesterName: '김철수',
+    vehicleNo: '34나5678',
+    requesterEmail: 'e2e-visitor2@example.com',
+  });
+  await expect(page.getByTestId('reservation-complete')).toBeVisible();
+
+  await openPendingReservationDetail(page);
+  await expect(page.getByLabel('배정할 주차면').locator('option:checked')).toContainText('A-01');
+});
+
 test('일괄 반려 화면에서 체크박스를 직접 클릭해도 선택이 유지된다', async ({ page }) => {
   await submitReservation(page, { requesterName: '홍길동', vehicleNo: '12가3456' });
   await expect(page.getByTestId('reservation-complete')).toBeVisible();

@@ -40,8 +40,13 @@ describe('시스템 설정 변환', () => {
       parkingCloseTime: '22:00',
       exitReminderMinutes: 10,
       maxReservationHours: 12,
-      doubleParkingEnabled: true,
+      spaceAssignmentEnabled: true,
+      parkingCapacity: 55,
+      doubleParkingEnabled: false,
       appTimeZone: 'Asia/Seoul',
+      entryExitManagementEnabled: true,
+      dashboardRefreshIntervalMinutes: 5,
+      personalDataRetentionDays: 365,
     });
   });
 });

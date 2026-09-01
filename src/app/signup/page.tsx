@@ -23,9 +23,7 @@ export default async function SignUpPage() {
           ← 처음으로
         </Link>
         <h1 className="mt-2 text-2xl font-black text-slate-900">회원가입</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          정보를 저장해 두고 매번 자동으로 불러오세요.
-        </p>
+        <p className="mt-1 text-sm text-slate-600">정보를 저장해 두고 매번 자동으로 불러오세요.</p>
       </div>
 
       <UserSignUpForm />

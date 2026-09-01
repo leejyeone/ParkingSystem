@@ -50,6 +50,7 @@ export function ReservationActionPanel({
     String(assignedSpaceId ?? defaultSpaceId ?? ''),
   );
   const [rejectionReason, setRejectionReason] = useState('');
+  const [cancelReason, setCancelReason] = useState('');
   const [noShowReason, setNoShowReason] = useState('');
   // 버튼을 누른 시각이 아니라 관리자가 확인한 실제 입/출차 시각을 입력받는다. 기본값은
   // "지금"이지만 자유롭게 고쳐서 늦게 입력해도 실제 시각을 기록할 수 있게 한다.
@@ -101,6 +102,9 @@ export function ReservationActionPanel({
 
   const canApprove = reservationStatus === 'REQUESTED';
   const canReject = reservationStatus === 'REQUESTED';
+  // 승인 완료 이후에는 신청자가 직접 취소할 수 없다(REQUESTER_MODIFIABLE_STATUSES).
+  // 담당자에게 연락이 오면 관리자가 대신 취소 처리한다.
+  const canCancel = reservationStatus === 'APPROVED';
   const canChangeSpace =
     spaceAssignmentEnabled && (reservationStatus === 'APPROVED' || reservationStatus === 'PARKING');
   // 입·출차/미방문 처리는 시스템 설정에서 껐으면 영역 자체를 감춘다.
@@ -273,6 +277,52 @@ export function ReservationActionPanel({
               }
             >
               {pending === 'reject' ? '반려 중…' : '반려 처리'}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {canCancel && (
+        <section className="card">
+          <div className="card-body space-y-3">
+            <h2 className="card-title">예약 취소</h2>
+            <p className="text-sm text-slate-600">
+              승인 완료 이후에는 신청자가 직접 취소할 수 없습니다. 담당자 요청으로 대신 취소합니다.
+              취소하면 배정된 주차 위치가 해제되며 되돌릴 수 없습니다.
+            </p>
+            <FormField
+              label="취소 사유"
+              htmlFor="cancel-reason"
+              required
+              hint="입력한 사유가 신청자에게 메일로 전달됩니다."
+              errors={fieldErrors.cancelReason}
+            >
+              <textarea
+                id="cancel-reason"
+                rows={2}
+                className={inputClassName(Boolean(fieldErrors.cancelReason))}
+                value={cancelReason}
+                onChange={(event) => setCancelReason(event.target.value)}
+                maxLength={500}
+              />
+            </FormField>
+            <button
+              type="button"
+              className="btn btn-danger"
+              disabled={pending !== null || cancelReason.trim() === ''}
+              onClick={() =>
+                run(
+                  'cancel',
+                  `/api/admin/reservations/${reservationId}/cancel`,
+                  'POST',
+                  { cancelReason },
+                  {
+                    redirectTo: `/admin/reservations?status=APPROVED&cancelled=${encodeURIComponent(reservationNo)}`,
+                  },
+                )
+              }
+            >
+              {pending === 'cancel' ? '취소 처리 중…' : '예약 취소 확정'}
             </button>
           </div>
         </section>
