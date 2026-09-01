@@ -8,6 +8,7 @@ import {
   renderReservationEmail,
   type RecurringScheduleEmailData,
   type ReservationEmailData,
+  type ReservationEmailType,
   type RenderedEmail,
 } from '@/lib/email/email-template-service';
 import { logger } from '@/lib/logger';
@@ -241,6 +242,38 @@ export function requesterMailRecipients(reservation: ReservationForEmail): strin
   return recipients;
 }
 
+/**
+ * 신청자 + 당사 담당자에게 발송하되, 담당자는 신청 경로(자가신청/대리신청)와 무관하게
+ * 항상 담당자 시점 문구(`recipientRole: 'hostEmployee'`)로 별도 렌더링해서 받는다.
+ * 신청자와 담당자 이메일이 같으면(드묾) 신청자용 1통만 보낸다.
+ */
+async function sendToRequesterAndHost(
+  reservation: ReservationForEmail,
+  emailType: ReservationEmailType,
+  data: ReservationEmailData,
+): Promise<EmailDispatchResult[]> {
+  const requesterRendered = renderReservationEmail(emailType, data);
+  const hostRendered = reservation.hostEmployee
+    ? renderReservationEmail(emailType, { ...data, recipientRole: 'hostEmployee' })
+    : null;
+
+  return Promise.all(
+    requesterMailRecipients(reservation).map((to) =>
+      sendEmailWithLog({
+        reservationId: reservation.reservationId,
+        emailType,
+        to,
+        rendered:
+          hostRendered &&
+          to === reservation.hostEmployee?.email &&
+          to !== reservation.requesterEmail
+            ? hostRendered
+            : requesterRendered,
+      }),
+    ),
+  );
+}
+
 export function buildAdminDetailUrl(reservationId: number): string {
   return `${getAppBaseUrl()}/admin/reservations/${reservationId}`;
 }
@@ -266,23 +299,11 @@ export async function sendRequestReceivedEmail(
   reservation: ReservationForEmail,
   options: { accessUrl: string; changeDeadlineAt: Date },
 ): Promise<EmailDispatchResult[]> {
-  const rendered = renderReservationEmail(
-    EmailType.REQUEST_RECEIVED,
-    await toEmailData(reservation, {
-      accessUrl: options.accessUrl,
-      changeDeadlineAt: options.changeDeadlineAt,
-    }),
-  );
-  return Promise.all(
-    requesterMailRecipients(reservation).map((to) =>
-      sendEmailWithLog({
-        reservationId: reservation.reservationId,
-        emailType: EmailType.REQUEST_RECEIVED,
-        to,
-        rendered,
-      }),
-    ),
-  );
+  const data = await toEmailData(reservation, {
+    accessUrl: options.accessUrl,
+    changeDeadlineAt: options.changeDeadlineAt,
+  });
+  return sendToRequesterAndHost(reservation, EmailType.REQUEST_RECEIVED, data);
 }
 
 /** 2. 신규 신청 알림 (관리자) */
@@ -313,37 +334,16 @@ export async function sendApprovedEmail(
   reservation: ReservationForEmail,
   options: { accessUrl: string },
 ): Promise<EmailDispatchResult[]> {
-  const rendered = renderReservationEmail(
-    EmailType.APPROVED,
-    await toEmailData(reservation, { accessUrl: options.accessUrl }),
-  );
-  return Promise.all(
-    requesterMailRecipients(reservation).map((to) =>
-      sendEmailWithLog({
-        reservationId: reservation.reservationId,
-        emailType: EmailType.APPROVED,
-        to,
-        rendered,
-      }),
-    ),
-  );
+  const data = await toEmailData(reservation, { accessUrl: options.accessUrl });
+  return sendToRequesterAndHost(reservation, EmailType.APPROVED, data);
 }
 
 /** 4. 반려 (신청자 + 당사 담당자가 매핑되어 있으면 담당자도 함께) */
 export async function sendRejectedEmail(
   reservation: ReservationForEmail,
 ): Promise<EmailDispatchResult[]> {
-  const rendered = renderReservationEmail(EmailType.REJECTED, await toEmailData(reservation));
-  return Promise.all(
-    requesterMailRecipients(reservation).map((to) =>
-      sendEmailWithLog({
-        reservationId: reservation.reservationId,
-        emailType: EmailType.REJECTED,
-        to,
-        rendered,
-      }),
-    ),
-  );
+  const data = await toEmailData(reservation);
+  return sendToRequesterAndHost(reservation, EmailType.REJECTED, data);
 }
 
 /**
@@ -372,7 +372,6 @@ export async function sendUpdatedEmails(
     previousVisitEndAt: options.previousVisitEndAt,
     changedByAdmin: options.changedByAdmin ?? false,
   });
-  const requesterMail = renderReservationEmail(EmailType.UPDATED, data);
   const adminMail = renderReservationEmail(EmailType.UPDATED, {
     ...data,
     accessUrl: null,
@@ -380,64 +379,67 @@ export async function sendUpdatedEmails(
   });
 
   const admins = options.changedByAdmin ? [] : await getAdminRecipients('receiveChangeAlert');
-  return Promise.all([
-    ...requesterMailRecipients(reservation).map((to) =>
-      sendEmailWithLog({
-        reservationId: reservation.reservationId,
-        emailType: EmailType.UPDATED,
-        to,
-        rendered: requesterMail,
-      }),
-    ),
-    ...admins.map((to) =>
-      sendEmailWithLog({
-        reservationId: reservation.reservationId,
-        emailType: EmailType.UPDATED,
-        to,
-        rendered: adminMail,
-      }),
+  const [requesterAndHostResults, adminResults] = await Promise.all([
+    sendToRequesterAndHost(reservation, EmailType.UPDATED, data),
+    Promise.all(
+      admins.map((to) =>
+        sendEmailWithLog({
+          reservationId: reservation.reservationId,
+          emailType: EmailType.UPDATED,
+          to,
+          rendered: adminMail,
+        }),
+      ),
     ),
   ]);
+  return [...requesterAndHostResults, ...adminResults];
 }
 
 /** 6. 취소 (신청자 + 당사 담당자가 매핑되어 있으면 담당자도 함께 + 관리자) */
 export async function sendCancelledEmails(
   reservation: ReservationForEmail,
 ): Promise<EmailDispatchResult[]> {
-  const rendered = renderReservationEmail(EmailType.CANCELLED, await toEmailData(reservation));
+  const data = await toEmailData(reservation);
+  const adminRendered = renderReservationEmail(EmailType.CANCELLED, data);
   const admins = await getAdminRecipients('receiveChangeAlert');
-  return Promise.all([
-    ...requesterMailRecipients(reservation).map((to) =>
-      sendEmailWithLog({
-        reservationId: reservation.reservationId,
-        emailType: EmailType.CANCELLED,
-        to,
-        rendered,
-      }),
-    ),
-    ...admins.map((to) =>
-      sendEmailWithLog({
-        reservationId: reservation.reservationId,
-        emailType: EmailType.CANCELLED,
-        to,
-        rendered,
-      }),
+  const [requesterAndHostResults, adminResults] = await Promise.all([
+    sendToRequesterAndHost(reservation, EmailType.CANCELLED, data),
+    Promise.all(
+      admins.map((to) =>
+        sendEmailWithLog({
+          reservationId: reservation.reservationId,
+          emailType: EmailType.CANCELLED,
+          to,
+          rendered: adminRendered,
+        }),
+      ),
     ),
   ]);
+  return [...requesterAndHostResults, ...adminResults];
 }
 
 /** 7. 출차 예정 알림 (신청자 + 당사 담당자가 매핑되어 있으면 담당자도 함께) — 중복 발송 금지 */
 export async function sendExitReminderEmail(
   reservation: ReservationForEmail,
 ): Promise<EmailDispatchResult[]> {
-  const rendered = renderReservationEmail(EmailType.EXIT_REMINDER, await toEmailData(reservation));
+  const data = await toEmailData(reservation);
+  const requesterRendered = renderReservationEmail(EmailType.EXIT_REMINDER, data);
+  const hostRendered = reservation.hostEmployee
+    ? renderReservationEmail(EmailType.EXIT_REMINDER, { ...data, recipientRole: 'hostEmployee' })
+    : null;
+
   return Promise.all(
     requesterMailRecipients(reservation).map((to) =>
       sendEmailWithLog({
         reservationId: reservation.reservationId,
         emailType: EmailType.EXIT_REMINDER,
         to,
-        rendered,
+        rendered:
+          hostRendered &&
+          to === reservation.hostEmployee?.email &&
+          to !== reservation.requesterEmail
+            ? hostRendered
+            : requesterRendered,
         // 수신자별로 갈라야 신청자/담당자 중 한쪽만 이미 보냈어도 나머지가 정상 발송된다.
         dedupeOccurrence: `${reservation.visitEndAt.toISOString().slice(0, 16)}:${to}`,
       }),

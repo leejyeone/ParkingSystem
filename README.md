@@ -1908,13 +1908,23 @@ POST 를 사용하고, 일치하는 예약 목록(`reservationId`(내부 식별�
 > `skipEmail`이 통제하는 것은 그 시리즈로 생성된 개별 occurrence의 1~8번 메일(승인/반려/변경/
 > 취소/출차 예정 알림 등)뿐입니다 — 자세한 내용은 4-5절 참고.
 
-> **당사 담당자는 신청자가 받는 대부분의 메일을 참조로 함께 받습니다.**
+> **당사 담당자는 신청자와 다른 문구·제목으로 참조 메일을 받습니다.**
 > `VISITOR` 구분 예약(방문객 본인 신청 · 직원 대리 신청 모두)에 "당사 담당자"가 매핑되어
 > 있으면, 그 직원은 `REQUEST_RECEIVED` / `APPROVED` / `REJECTED` / `UPDATED` / `CANCELLED` /
-> `EXIT_REMINDER` 여섯 종류 모두 신청자와 **같은 내용을 참조로** 받습니다
-> ([`requesterMailRecipients()`](src/lib/email/email-service.ts)). 신청자 이메일과 담당자
-> 이메일이 우연히 같으면 중복 발송하지 않습니다. `NEW_REQUEST_TO_ADMIN`(관리자 알림)과
-> `ENTRY_REMINDER`(담당자 전용)는 이 규칙에서 제외됩니다.
+> `EXIT_REMINDER` 여섯 종류 모두 참조로 함께 받되, 본문은 신청자 본인에게 말을 거는 어투가
+> 아니라 "담당하고 계신 방문객 OOO님의 ~" 식 담당자 시점 문구로 별도 렌더링됩니다
+> (`recipientRole: 'hostEmployee'`,
+> [`renderReservationEmail()`](src/lib/email/email-template-service.ts)). 이 구분은 **신청
+> 경로(자가신청/대리신청)와 무관** — 직원이 대리 신청한 경우도 그 직원 본인이 담당자로서
+> 담당자용 문구를 받습니다. 제목에도 `방문 상호(사업장명) 성명`이 붙어
+> (예: `[시노펙스] 시노펙스 홍길동님 방문 신청이 접수되었습니다`) 담당자가 여러 건을 동시에
+> 처리할 때 메일함 목록에서 바로 구분할 수 있습니다 — 신청자 본인이 받는 제목은 그대로입니다.
+> 예약 조회 링크(보안 토큰)는 신청자용과 동일한 것을 그대로 씁니다. 실제 발송 대상 목록은
+> 여전히 [`requesterMailRecipients()`](src/lib/email/email-service.ts)가 정하며, 신청자
+> 이메일과 담당자 이메일이 우연히 같으면 중복 발송하지 않습니다(이 경우 신청자용 1통만
+> 받습니다). `NEW_REQUEST_TO_ADMIN`(관리자 알림)과 `ENTRY_REMINDER`(담당자 전용, 원래부터
+> 담당자 시점 문구)는 이 분기 대상이 아닙니다 — `ENTRY_REMINDER`도 제목에는 동일하게
+> 방문 상호·성명이 붙습니다.
 
 > **입차 예정 알림(`ENTRY_REMINDER`)은 당사 담당자에게만 갑니다.**
 > `VISITOR` 구분 예약이 `APPROVED` 상태이고 당사 담당자가 매핑되어 있으면, 방문 시작

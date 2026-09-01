@@ -7,6 +7,7 @@ import {
   approveReservation,
   cancelReservationByAdmin,
   cancelReservationByRequester,
+  createProxyReservationForVisitor,
   createReservation,
   getReservationForRequester,
   updateReservationByRequester,
@@ -16,6 +17,7 @@ import {
   futureVisitRange,
   prisma,
   resetDatabase,
+  seedEmployeeFixture,
   seedFixtures,
   type TestFixtures,
 } from './helpers';
@@ -376,5 +378,73 @@ describe('11. 예약 취소', () => {
     });
 
     expect(approved.assignedSpaceId).toBe(fixtures.normalSpaceIds[0]);
+  });
+});
+
+describe('12. 당사 담당자 전용 메일', () => {
+  it('방문객 자가신청에서 고른 담당자는 신청자와 다른 문구·제목의 메일을 받는다', async () => {
+    const host = await seedEmployeeFixture({ email: 'host@example.com', name: '박담당' });
+
+    const { reservation } = await createReservation(
+      baseReservationInput({ employeeUserId: host.employeeUserId }),
+    );
+
+    const requesterMails = fixtures.mail.findByRecipient('hong@example.com');
+    const hostMails = fixtures.mail.findByRecipient('host@example.com');
+    expect(requesterMails).toHaveLength(1);
+    expect(hostMails).toHaveLength(1);
+    expect(requesterMails[0].text).toContain('홍길동님, 방문 신청이 정상 접수되었습니다');
+    expect(hostMails[0].text).toContain(
+      '담당하고 계신 방문객 홍길동님의 방문 신청이 접수되었습니다',
+    );
+    expect(hostMails[0].subject).toBe('[시노펙스] 시노펙스 홍길동님 방문 신청이 접수되었습니다');
+    expect(requesterMails[0].subject).toBe('[시노펙스] 방문 신청이 접수되었습니다');
+
+    await approveReservation({
+      reservationId: reservation.reservationId,
+      adminUserId: fixtures.secondAdminId,
+    });
+    const hostApprovedMails = fixtures.mail.findByRecipient('host@example.com');
+    expect(hostApprovedMails.at(-1)?.text).toContain(
+      '담당하고 계신 방문객 홍길동님의 방문 신청이 승인되었습니다',
+    );
+
+    await cancelReservationByAdmin({
+      reservationId: reservation.reservationId,
+      cancelReason: '방문 취소',
+      adminUserId: fixtures.secondAdminId,
+    });
+    const hostCancelledMails = fixtures.mail.findByRecipient('host@example.com');
+    expect(hostCancelledMails.at(-1)?.text).toContain(
+      '담당하고 계신 방문객 홍길동님의 방문 예약이 취소되었습니다',
+    );
+  });
+
+  it('직원 대리 신청도 담당자(대리 신청한 직원 본인)는 신청자용이 아닌 담당자용 문구를 받는다', async () => {
+    const host = await seedEmployeeFixture({ email: 'proxy-host@example.com', name: '김대리' });
+
+    await createProxyReservationForVisitor(
+      baseReservationInput({ requesterEmail: 'visitor-guest@example.com' }),
+      host.employeeUserId,
+    );
+
+    const requesterMails = fixtures.mail.findByRecipient('visitor-guest@example.com');
+    const hostMails = fixtures.mail.findByRecipient('proxy-host@example.com');
+    expect(requesterMails).toHaveLength(1);
+    expect(hostMails).toHaveLength(1);
+    expect(requesterMails[0].text).toContain('홍길동님, 방문 신청이 정상 접수되었습니다');
+    // 대리 신청한 직원 본인도 "신청자용"이 아니라 "담당자용" 문구로 받는다(경로 무관).
+    expect(hostMails[0].text).toContain(
+      '담당하고 계신 방문객 홍길동님의 방문 신청이 접수되었습니다',
+    );
+  });
+
+  it('담당자가 없으면 담당자용 메일이 따로 나가지 않는다', async () => {
+    await createReservation(baseReservationInput());
+
+    const requesterMails = fixtures.mail.findByRecipient('hong@example.com');
+    expect(requesterMails).toHaveLength(1);
+    // 신청자(hong@example.com) + 신규 신청 관리자 알림(notify@example.com, seedFixtures) 2건뿐.
+    expect(fixtures.mail.sentMessages).toHaveLength(2);
   });
 });

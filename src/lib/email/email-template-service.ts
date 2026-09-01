@@ -48,6 +48,12 @@ export type ReservationEmailData = {
   entryReminderMinutes?: number;
   /** 당사 담당자 이름. ENTRY_REMINDER 메일 수신자(담당 직원) 호칭에 쓴다. */
   hostEmployeeName?: string;
+  /**
+   * 이 메일을 받는 사람이 신청자 본인인지 당사 담당자인지.
+   * 미지정이면 신청자로 간주한다. 당사 담당자는 신청 경로(자가신청/대리신청)와
+   * 무관하게 항상 이 값으로 렌더링한다 — 대리 신청한 직원 본인도 예외가 아니다.
+   */
+  recipientRole?: 'requester' | 'hostEmployee';
 };
 
 export type RenderedEmail = {
@@ -224,6 +230,26 @@ function spaceGuideText(data: ReservationEmailData): string {
   return data.assignedSpaceCode;
 }
 
+/** 당사 담당자용 메일인지 (신청 경로와 무관 — 대리 신청한 직원 본인도 담당자용을 받는다) */
+function isHostRecipient(data: ReservationEmailData): boolean {
+  return data.recipientRole === 'hostEmployee';
+}
+
+/**
+ * 담당자용 메일 제목 접두. 여러 건을 동시에 처리하는 담당자가 메일함 목록에서
+ * 어느 방문객 건인지 바로 구분할 수 있도록 방문 상호(사업장명)와 성명을 넣는다.
+ */
+function hostSubjectPrefix(data: ReservationEmailData): string {
+  return isHostRecipient(data) ? `${data.companyOrBranchName} ${data.requesterName}님 ` : '';
+}
+
+/** 담당자용 메일에 왜 이 메일을 받았는지 설명하는 안내 한 줄 */
+function hostNotice(data: ReservationEmailData): string[] {
+  return isHostRecipient(data)
+    ? [`이 메일은 ${data.requesterName}님이 방문 신청 시 당사 담당자로 지정하여 발송되었습니다.`]
+    : [];
+}
+
 /** 예약 1건에 대한 메일(반복 예약 시리즈 자체에 대한 메일은 별도 타입 참고). */
 export type ReservationEmailType = Exclude<
   EmailType,
@@ -258,16 +284,19 @@ export function renderReservationEmail(
           `예약 수정/취소는 ${formatKstHuman(data.changeDeadlineAt)} 까지 아래 링크에서 가능합니다.`,
         );
       }
+      notices.push(...hostNotice(data));
       const params = {
         title: '방문 신청이 접수되었습니다',
-        lead: `${data.requesterName}님, 방문 신청이 정상 접수되었습니다. 현재 상태는 "승인 대기" 입니다.`,
+        lead: isHostRecipient(data)
+          ? `담당하고 계신 방문객 ${data.requesterName}님의 방문 신청이 접수되었습니다. 현재 상태는 "승인 대기" 입니다.`
+          : `${data.requesterName}님, 방문 신청이 정상 접수되었습니다. 현재 상태는 "승인 대기" 입니다.`,
         rows: [...rows, { label: '예약 상태', value: '승인 대기' }],
         notices,
         buttonLabel: '내 예약 조회하기',
         buttonUrl: data.accessUrl,
       };
       return {
-        subject: `[시노펙스] 방문 신청이 접수되었습니다`,
+        subject: `[시노펙스] ${hostSubjectPrefix(data)}방문 신청이 접수되었습니다`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };
@@ -320,14 +349,19 @@ export function renderReservationEmail(
           '기어는 중립(N)에 두고 주차 브레이크는 해제해 주시기 바랍니다.',
         );
       }
+      notices.push(...hostNotice(data));
 
       const params = {
         title: isDoubleParking
           ? '방문 신청이 승인되었습니다 (이중주차 배정)'
           : '방문 신청이 승인되었습니다',
-        lead: isDoubleParking
-          ? `${data.requesterName}님, 신청하신 방문 예약이 승인되었습니다. 주차 공간 사정으로 이중주차 위치가 배정되었으니 아래 안내를 반드시 확인해 주세요.`
-          : `${data.requesterName}님, 신청하신 방문 예약이 승인되었습니다.`,
+        lead: isHostRecipient(data)
+          ? isDoubleParking
+            ? `담당하고 계신 방문객 ${data.requesterName}님의 방문 신청이 승인되었습니다. 주차 공간 사정으로 이중주차 위치가 배정되었으니 아래 안내를 반드시 확인해 주세요.`
+            : `담당하고 계신 방문객 ${data.requesterName}님의 방문 신청이 승인되었습니다.`
+          : isDoubleParking
+            ? `${data.requesterName}님, 신청하신 방문 예약이 승인되었습니다. 주차 공간 사정으로 이중주차 위치가 배정되었으니 아래 안내를 반드시 확인해 주세요.`
+            : `${data.requesterName}님, 신청하신 방문 예약이 승인되었습니다.`,
         rows: [...rows, ...spaceRows(data), { label: '예약 상태', value: '승인 완료' }],
         notices,
         buttonLabel: '내 예약 조회하기',
@@ -335,8 +369,8 @@ export function renderReservationEmail(
       };
       return {
         subject: isDoubleParking
-          ? `[시노펙스] 방문 신청 승인 및 이중주차 배정 안내`
-          : `[시노펙스] 방문 신청이 승인되었습니다`,
+          ? `[시노펙스] ${hostSubjectPrefix(data)}방문 신청 승인 및 이중주차 배정 안내`
+          : `[시노펙스] ${hostSubjectPrefix(data)}방문 신청이 승인되었습니다`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };
@@ -345,7 +379,9 @@ export function renderReservationEmail(
     case EmailType.REJECTED: {
       const params = {
         title: '방문 신청이 반려되었습니다',
-        lead: `${data.requesterName}님, 신청하신 방문 예약이 반려되었습니다.`,
+        lead: isHostRecipient(data)
+          ? `담당하고 계신 방문객 ${data.requesterName}님의 방문 신청이 반려되었습니다.`
+          : `${data.requesterName}님, 신청하신 방문 예약이 반려되었습니다.`,
         rows: [
           ...rows,
           { label: '반려 사유', value: data.rejectionReason ?? '사유 미기재' },
@@ -354,10 +390,11 @@ export function renderReservationEmail(
         notices: [
           '방문 일정 조정이 필요하시면 새로 방문 신청을 등록해 주세요.',
           '자세한 사항은 방문 담당자 또는 방문 관리 담당자에게 문의해 주세요.',
+          ...hostNotice(data),
         ],
       };
       return {
-        subject: `[시노펙스] 방문 신청이 반려되었습니다`,
+        subject: `[시노펙스] ${hostSubjectPrefix(data)}방문 신청이 반려되었습니다`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };
@@ -376,7 +413,9 @@ export function renderReservationEmail(
         title: '예약 내용이 변경되었습니다',
         lead: byAdmin
           ? '방문 관리 담당자가 예약 내용을 변경했습니다. 아래 내용을 확인해 주세요.'
-          : '신청자 요청으로 예약 내용이 변경되었습니다. 변경된 예약은 다시 관리자 승인을 받아야 합니다.',
+          : isHostRecipient(data)
+            ? `담당하고 계신 방문객 ${data.requesterName}님이 예약 내용을 변경했습니다. 변경된 예약은 다시 관리자 승인을 받아야 합니다.`
+            : '신청자 요청으로 예약 내용이 변경되었습니다. 변경된 예약은 다시 관리자 승인을 받아야 합니다.',
         rows: [
           ...changeRows,
           ...rows.map((row) =>
@@ -384,16 +423,19 @@ export function renderReservationEmail(
           ),
           ...(byAdmin ? [] : [{ label: '예약 상태', value: '승인 대기' }]),
         ],
-        notices: byAdmin
-          ? ['변경 내용이 맞지 않으면 방문 관리 담당자에게 문의해 주세요.']
-          : usesSpaceAssignment(data)
-            ? ['관리자 승인 후 배정 주차 위치가 안내됩니다.']
-            : ['변경된 예약은 관리자 승인 후 다시 주차 가능 상태가 됩니다.'],
+        notices: [
+          ...(byAdmin
+            ? ['변경 내용이 맞지 않으면 방문 관리 담당자에게 문의해 주세요.']
+            : usesSpaceAssignment(data)
+              ? ['관리자 승인 후 배정 주차 위치가 안내됩니다.']
+              : ['변경된 예약은 관리자 승인 후 다시 주차 가능 상태가 됩니다.']),
+          ...hostNotice(data),
+        ],
         buttonLabel: '내 예약 조회하기',
         buttonUrl: data.accessUrl,
       };
       return {
-        subject: `[시노펙스] 예약 내용이 변경되었습니다`,
+        subject: `[시노펙스] ${hostSubjectPrefix(data)}예약 내용이 변경되었습니다`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };
@@ -402,18 +444,23 @@ export function renderReservationEmail(
     case EmailType.CANCELLED: {
       const params = {
         title: '예약이 취소되었습니다',
-        lead: '요청하신 방문 예약이 취소 처리되었습니다.',
+        lead: isHostRecipient(data)
+          ? `담당하고 계신 방문객 ${data.requesterName}님의 방문 예약이 취소되었습니다.`
+          : '요청하신 방문 예약이 취소 처리되었습니다.',
         rows: [
           ...rows,
           { label: '취소 사유', value: data.cancelReason ?? '사유 미기재' },
           { label: '예약 상태', value: '취소' },
         ],
-        notices: usesSpaceAssignment(data)
-          ? ['배정되어 있던 주차 위치는 해제되었습니다.']
-          : ['예약이 취소되어 주차가 불가합니다.'],
+        notices: [
+          ...(usesSpaceAssignment(data)
+            ? ['배정되어 있던 주차 위치는 해제되었습니다.']
+            : ['예약이 취소되어 주차가 불가합니다.']),
+          ...hostNotice(data),
+        ],
       };
       return {
-        subject: `[시노펙스] 예약이 취소되었습니다`,
+        subject: `[시노펙스] ${hostSubjectPrefix(data)}예약이 취소되었습니다`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };
@@ -424,7 +471,9 @@ export function renderReservationEmail(
       const minutes = data.exitReminderMinutes ?? 10;
       const params = {
         title: `출차 예정 시간까지 ${minutes}분 남았습니다`,
-        lead: `${data.requesterName}님, 등록하신 출차 예정 시간까지 ${minutes}분 남았습니다. 시간에 맞추어 출차해 주세요.`,
+        lead: isHostRecipient(data)
+          ? `담당하고 계신 방문객 ${data.requesterName}님의 출차 예정 시간까지 ${minutes}분 남았습니다.`
+          : `${data.requesterName}님, 등록하신 출차 예정 시간까지 ${minutes}분 남았습니다. 시간에 맞추어 출차해 주세요.`,
         rows: [
           ...rows,
           { label: '출차 예정 시각', value: formatKstHuman(data.visitEndAt) },
@@ -433,10 +482,11 @@ export function renderReservationEmail(
         notices: [
           '출차가 지연될 경우 뒤이은 방문 차량의 주차가 어려울 수 있습니다.',
           '부득이하게 시간이 초과되는 경우 방문 관리 담당자에게 연락해 주세요.',
+          ...hostNotice(data),
         ],
       };
       return {
-        subject: `[시노펙스] 출차 예정 시간 ${minutes}분 전 안내`,
+        subject: `[시노펙스] ${hostSubjectPrefix(data)}출차 예정 시간 ${minutes}분 전 안내`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };
@@ -453,7 +503,7 @@ export function renderReservationEmail(
         notices: ['방문객 도착 시 안내 및 응대를 부탁드립니다.'],
       };
       return {
-        subject: `[시노펙스] 방문객 입차 예정 안내 (${minutes}분 전)`,
+        subject: `[시노펙스] ${data.companyOrBranchName} ${data.requesterName}님 입차 예정 안내 (${minutes}분 전)`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };

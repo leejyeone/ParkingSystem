@@ -201,6 +201,88 @@ describe('이메일 템플릿', () => {
   });
 });
 
+describe('당사 담당자 전용 문구 (recipientRole: hostEmployee)', () => {
+  const data = {
+    reservationNo: 'PK-20260820-ABCDEF',
+    requesterName: '홍길동',
+    requesterType: 'VISITOR' as const,
+    companyOrBranchName: '시노펙스',
+    vehicleNo: '12가3456',
+    visitStartAt: new Date('2026-08-20T00:00:00Z'),
+    visitEndAt: new Date('2026-08-20T02:00:00Z'),
+    accessUrl: 'http://localhost:3000/r/token-value',
+  };
+
+  it('신청자용과 담당자용 본문이 서로 다르다 (신청자에게 말 거는 어투가 아니다)', () => {
+    const requesterMail = renderReservationEmail(EmailType.REQUEST_RECEIVED, data);
+    const hostMail = renderReservationEmail(EmailType.REQUEST_RECEIVED, {
+      ...data,
+      recipientRole: 'hostEmployee',
+    });
+
+    expect(requesterMail.text).toContain('홍길동님, 방문 신청이 정상 접수되었습니다');
+    expect(hostMail.text).toContain('담당하고 계신 방문객 홍길동님의 방문 신청이 접수되었습니다');
+    expect(hostMail.text).not.toContain('홍길동님, 방문 신청이 정상 접수되었습니다');
+  });
+
+  it('담당자용 메일 제목에는 방문 상호와 성명이 들어가고, 신청자용 제목은 그대로다', () => {
+    const requesterMail = renderReservationEmail(EmailType.APPROVED, data);
+    const hostMail = renderReservationEmail(EmailType.APPROVED, {
+      ...data,
+      recipientRole: 'hostEmployee',
+    });
+
+    expect(requesterMail.subject).toBe('[시노펙스] 방문 신청이 승인되었습니다');
+    expect(hostMail.subject).toBe('[시노펙스] 시노펙스 홍길동님 방문 신청이 승인되었습니다');
+  });
+
+  it('반려·변경·취소·출차 예정 알림에도 담당자용 문구와 제목이 적용된다', () => {
+    const cases: [ReservationEmailType, RegExp][] = [
+      [EmailType.REJECTED, /담당하고 계신 방문객 홍길동님의 방문 신청이 반려되었습니다/],
+      [EmailType.UPDATED, /담당하고 계신 방문객 홍길동님이 예약 내용을 변경했습니다/],
+      [EmailType.CANCELLED, /담당하고 계신 방문객 홍길동님의 방문 예약이 취소되었습니다/],
+      [EmailType.EXIT_REMINDER, /담당하고 계신 방문객 홍길동님의 출차 예정 시간까지/],
+    ];
+
+    for (const [emailType, leadPattern] of cases) {
+      const hostMail = renderReservationEmail(emailType, {
+        ...data,
+        recipientRole: 'hostEmployee',
+      });
+      expect(hostMail.text).toMatch(leadPattern);
+      expect(hostMail.subject).toContain('시노펙스 홍길동님');
+    }
+  });
+
+  it('담당자용 메일에도 신청자와 동일한 예약 조회 링크(보안 토큰)가 포함된다', () => {
+    const hostMail = renderReservationEmail(EmailType.REQUEST_RECEIVED, {
+      ...data,
+      recipientRole: 'hostEmployee',
+    });
+    expect(hostMail.html).toContain('/r/token-value');
+  });
+
+  it('왜 이 메일을 받았는지 설명하는 안내 문구가 담당자용에만 붙는다', () => {
+    const requesterMail = renderReservationEmail(EmailType.CANCELLED, data);
+    const hostMail = renderReservationEmail(EmailType.CANCELLED, {
+      ...data,
+      recipientRole: 'hostEmployee',
+    });
+
+    expect(hostMail.text).toContain('당사 담당자로 지정하여 발송되었습니다');
+    expect(requesterMail.text).not.toContain('당사 담당자로 지정하여 발송되었습니다');
+  });
+
+  it('입차 예정 알림(ENTRY_REMINDER)은 원래부터 담당자 전용이며 제목에도 상호·성명이 들어간다', () => {
+    const email = renderReservationEmail(EmailType.ENTRY_REMINDER, {
+      ...data,
+      hostEmployeeName: '박담당',
+      entryReminderMinutes: 10,
+    });
+    expect(email.subject).toBe('[시노펙스] 시노펙스 홍길동님 입차 예정 안내 (10분 전)');
+  });
+});
+
 describe('반복 예약(정기 주차 배정) 시리즈 메일', () => {
   const scheduleData = {
     employeeName: '김직원',
