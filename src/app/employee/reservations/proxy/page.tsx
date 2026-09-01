@@ -45,6 +45,7 @@ export default async function EmployeeProxyReservationPage() {
           parkingCloseTime: settings.parkingCloseTime,
           maxReservationHours: settings.maxReservationHours,
           spaceAssignmentEnabled: settings.spaceAssignmentEnabled,
+          personalDataRetentionDays: settings.personalDataRetentionDays,
           minDateTimeInput: earliestSelectableInput(
             settings.reservationMinLeadMinutes,
             settings.appTimeZone,

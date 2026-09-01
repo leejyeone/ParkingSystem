@@ -160,6 +160,11 @@ export const systemSettingsSchema = z
       .int()
       .min(1, '대시보드 자동 새로고침 주기는 1분 이상이어야 합니다.')
       .max(60, '대시보드 자동 새로고침 주기는 60분 이하로 설정해 주세요.'),
+    personalDataRetentionDays: z.coerce
+      .number()
+      .int()
+      .min(1, '개인정보 보관 기간은 1일 이상이어야 합니다.')
+      .max(3650, '개인정보 보관 기간은 3650일(10년) 이하로 설정해 주세요.'),
   })
   .refine((values) => values.parkingOpenTime < values.parkingCloseTime, {
     error: '운영 종료 시간은 운영 시작 시간보다 늦어야 합니다.',

@@ -15,6 +15,7 @@ export const SETTING_KEYS = {
   APP_TIME_ZONE: 'APP_TIME_ZONE',
   ENTRY_EXIT_MANAGEMENT_ENABLED: 'ENTRY_EXIT_MANAGEMENT_ENABLED',
   DASHBOARD_REFRESH_INTERVAL_MINUTES: 'DASHBOARD_REFRESH_INTERVAL_MINUTES',
+  PERSONAL_DATA_RETENTION_DAYS: 'PERSONAL_DATA_RETENTION_DAYS',
 } as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS];
@@ -62,6 +63,14 @@ export type SystemSettingsValues = {
   entryExitManagementEnabled: boolean;
   /** 관리자 대시보드를 상시 띄워 놨을 때 자동으로 새로고침할 주기(분) */
   dashboardRefreshIntervalMinutes: number;
+  /**
+   * 방문객·직원 개인정보(성명·이메일·차량번호 등) 보관 기간(일).
+   *
+   * 방문 신청 폼의 "개인정보 수집 및 이용 동의" 카드에 그대로 노출된다. 이 값 자체가
+   * 실제 데이터를 자동 파기하지는 않는다 — 표시되는 안내 문구를 관리자가 정할 수 있게
+   * 할 뿐이다.
+   */
+  personalDataRetentionDays: number;
 };
 
 export const DEFAULT_SETTINGS: SystemSettingsValues = {
@@ -79,6 +88,8 @@ export const DEFAULT_SETTINGS: SystemSettingsValues = {
   //실제 입출차 관리 기능 사용 여부
   entryExitManagementEnabled: true,
   dashboardRefreshIntervalMinutes: 5,
+  // 아직 확정된 값이 아니다 — 관리자가 시스템 설정에서 실제 정책값으로 바꿔야 한다.
+  personalDataRetentionDays: 365,
 };
 
 export const SETTING_DESCRIPTIONS: Record<SettingKey, string> = {
@@ -97,6 +108,8 @@ export const SETTING_DESCRIPTIONS: Record<SettingKey, string> = {
   ENTRY_EXIT_MANAGEMENT_ENABLED:
     '실제 입·출차/미방문 처리 사용 여부(true/false). false 이면 관련 화면·API가 비활성화됩니다.',
   DASHBOARD_REFRESH_INTERVAL_MINUTES: '관리자 대시보드 자동 새로고침 주기(분).',
+  PERSONAL_DATA_RETENTION_DAYS:
+    '방문객·직원 개인정보 보관 기간(일). 방문 신청 폼의 개인정보 수집·이용 동의 문구에 노출됩니다.',
 };
 
 /** DB 의 key/value 목록을 타입이 있는 설정 객체로 변환 */
@@ -157,6 +170,10 @@ export function toSettingsValues(
       SETTING_KEYS.DASHBOARD_REFRESH_INTERVAL_MINUTES,
       DEFAULT_SETTINGS.dashboardRefreshIntervalMinutes,
     ),
+    personalDataRetentionDays: readNumber(
+      SETTING_KEYS.PERSONAL_DATA_RETENTION_DAYS,
+      DEFAULT_SETTINGS.personalDataRetentionDays,
+    ),
   };
 }
 
@@ -199,6 +216,10 @@ export function toSettingRows(
     {
       settingKey: SETTING_KEYS.DASHBOARD_REFRESH_INTERVAL_MINUTES,
       settingValue: String(values.dashboardRefreshIntervalMinutes),
+    },
+    {
+      settingKey: SETTING_KEYS.PERSONAL_DATA_RETENTION_DAYS,
+      settingValue: String(values.personalDataRetentionDays),
     },
   ];
 }

@@ -220,6 +220,25 @@ export function PolicySection({ initialSettings }: { initialSettings: SystemSett
               }
             />
           </FormField>
+          <FormField
+            label="개인정보 보관 기간(일)"
+            htmlFor="personalDataRetentionDays"
+            required
+            hint="방문 종료 후 개인 정보 보관 기간을 설정해주세요."
+            errors={fieldErrors.personalDataRetentionDays}
+          >
+            <input
+              id="personalDataRetentionDays"
+              type="number"
+              min={1}
+              max={3650}
+              className={inputClassName(Boolean(fieldErrors.personalDataRetentionDays))}
+              value={form.personalDataRetentionDays}
+              onChange={(event) =>
+                setForm({ ...form, personalDataRetentionDays: Number(event.target.value) })
+              }
+            />
+          </FormField>
         </div>
 
         <div className="space-y-2">

@@ -20,6 +20,8 @@ type Settings = {
   maxReservationHours: number;
   /** 주차면 배정 사용 여부. false 면 위치 안내 문구를 바꾼다. */
   spaceAssignmentEnabled: boolean;
+  /** 개인정보 수집·이용 동의 카드의 "보유 기간" 문구에 노출할 보관 기간(일). */
+  personalDataRetentionDays: number;
   /**
    * 입력 가능한 가장 이른 시각('yyyy-MM-ddTHH:mm').
    * 기기 타임존과 무관하게 Asia/Seoul 기준으로 맞추기 위해 서버에서 계산해 전달한다.
@@ -398,8 +400,8 @@ export function ReservationForm({
                 안내 메일 발송
               </p>
               <p className="mt-2">
-                <strong>보유 기간</strong> : 방문 종료 후 사내 방문 관리 규정에 따른 기간까지 보관
-                후 파기
+                <strong>보유 기간</strong> : 방문 종료 후 {settings.personalDataRetentionDays}일간
+                보관 후 파기
               </p>
               <p className="mt-2">
                 동의를 거부할 권리가 있으며, 거부 시 방문 예약 신청이 제한됩니다.
