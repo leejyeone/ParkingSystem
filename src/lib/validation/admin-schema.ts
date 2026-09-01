@@ -169,6 +169,11 @@ export const systemSettingsSchema = z
       .int()
       .min(1, '개인정보 보관 기간은 1일 이상이어야 합니다.')
       .max(3650, '개인정보 보관 기간은 3650일(10년) 이하로 설정해 주세요.'),
+    spaceBufferMinutes: z.coerce
+      .number()
+      .int()
+      .min(0, '주차면 간 완충 시간은 0분 이상이어야 합니다.')
+      .max(60, '주차면 간 완충 시간은 60분 이하로 설정해 주세요.'),
   })
   .refine((values) => values.parkingOpenTime < values.parkingCloseTime, {
     error: '운영 종료 시간은 운영 시작 시간보다 늦어야 합니다.',

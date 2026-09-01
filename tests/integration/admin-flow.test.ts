@@ -228,6 +228,155 @@ describe('9. 동일 주차면의 중복 시간대 승인 실패', () => {
   });
 });
 
+describe('9-1. 주차면 간 완충 시간(버퍼)', () => {
+  beforeEach(async () => {
+    await resetDatabase();
+    fixtures = await seedFixtures({ normalSpaces: 2 });
+  });
+
+  /** 첫 예약(10:00~12:00) 종료 시각으로부터 gapMinutes 만큼 뒤에 시작하는 두 번째 예약 범위 */
+  async function createBackToBackPair(gapMinutes: number) {
+    const first = await createReservation(
+      baseReservationInput(futureVisitRange({ startHour: 10, hours: 2 })),
+    );
+    await approveReservation({
+      reservationId: first.reservation.reservationId,
+      spaceId: fixtures.normalSpaceIds[0],
+      adminUserId: fixtures.secondAdminId,
+    });
+
+    const firstEnd = first.reservation.visitEndAt;
+    const secondStart = new Date(firstEnd.getTime() + gapMinutes * 60_000);
+    const secondEnd = new Date(secondStart.getTime() + 2 * 60 * 60_000);
+
+    const second = await createReservation(
+      baseReservationInput({
+        visitStartAt: secondStart,
+        visitEndAt: secondEnd,
+        vehicleNo: '34나5678',
+        requesterEmail: 'b@example.com',
+      }),
+    );
+
+    return { first, second };
+  }
+
+  it('버퍼가 0(기본값)이면 경계가 맞닿아도 같은 주차면을 승인할 수 있다', async () => {
+    const { second } = await createBackToBackPair(0);
+
+    const approved = await approveReservation({
+      reservationId: second.reservation.reservationId,
+      spaceId: fixtures.normalSpaceIds[0],
+      adminUserId: fixtures.secondAdminId,
+    });
+    expect(approved.assignedSpaceId).toBe(fixtures.normalSpaceIds[0]);
+  });
+
+  it('버퍼를 10분으로 설정하면 간격이 9분일 때 같은 주차면 승인이 거부된다', async () => {
+    await prisma.systemSetting.update({
+      where: { settingKey: 'SPACE_BUFFER_MINUTES' },
+      data: { settingValue: '10' },
+    });
+    const { second } = await createBackToBackPair(9);
+
+    await expect(
+      approveReservation({
+        reservationId: second.reservation.reservationId,
+        spaceId: fixtures.normalSpaceIds[0],
+        adminUserId: fixtures.secondAdminId,
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it('버퍼를 10분으로 설정하면 간격이 정확히 10분일 때는 승인된다(경계값)', async () => {
+    await prisma.systemSetting.update({
+      where: { settingKey: 'SPACE_BUFFER_MINUTES' },
+      data: { settingValue: '10' },
+    });
+    const { second } = await createBackToBackPair(10);
+
+    const approved = await approveReservation({
+      reservationId: second.reservation.reservationId,
+      spaceId: fixtures.normalSpaceIds[0],
+      adminUserId: fixtures.secondAdminId,
+    });
+    expect(approved.assignedSpaceId).toBe(fixtures.normalSpaceIds[0]);
+  });
+
+  it('버퍼를 10분으로 설정하면 간격이 11분일 때도 승인된다', async () => {
+    await prisma.systemSetting.update({
+      where: { settingKey: 'SPACE_BUFFER_MINUTES' },
+      data: { settingValue: '10' },
+    });
+    const { second } = await createBackToBackPair(11);
+
+    const approved = await approveReservation({
+      reservationId: second.reservation.reservationId,
+      spaceId: fixtures.normalSpaceIds[0],
+      adminUserId: fixtures.secondAdminId,
+    });
+    expect(approved.assignedSpaceId).toBe(fixtures.normalSpaceIds[0]);
+  });
+
+  it('자동 배정(주차면 미지정)도 버퍼를 반영해 다른 주차면으로 배정한다', async () => {
+    await prisma.systemSetting.update({
+      where: { settingKey: 'SPACE_BUFFER_MINUTES' },
+      data: { settingValue: '10' },
+    });
+    const first = await createReservation(
+      baseReservationInput(futureVisitRange({ startHour: 10, hours: 2 })),
+    );
+    await approveReservation({
+      reservationId: first.reservation.reservationId,
+      spaceId: fixtures.normalSpaceIds[0],
+      adminUserId: fixtures.secondAdminId,
+    });
+
+    const firstEnd = first.reservation.visitEndAt;
+    const secondStart = new Date(firstEnd.getTime() + 5 * 60_000);
+    const secondEnd = new Date(secondStart.getTime() + 2 * 60 * 60_000);
+    const second = await createReservation(
+      baseReservationInput({
+        visitStartAt: secondStart,
+        visitEndAt: secondEnd,
+        vehicleNo: '34나5678',
+        requesterEmail: 'b@example.com',
+      }),
+    );
+
+    // 주차면을 지정하지 않았으므로 승인 시점에 빈 자리(두 번째 일반 주차면)로 자동 배정된다.
+    const approved = await approveReservation({
+      reservationId: second.reservation.reservationId,
+      adminUserId: fixtures.secondAdminId,
+    });
+    expect(approved.assignedSpaceId).toBe(fixtures.normalSpaceIds[1]);
+  });
+
+  it('주차 위치 변경(changeAssignedSpace)도 버퍼를 반영해 충돌을 막는다', async () => {
+    await prisma.systemSetting.update({
+      where: { settingKey: 'SPACE_BUFFER_MINUTES' },
+      data: { settingValue: '10' },
+    });
+    const { second } = await createBackToBackPair(9);
+
+    // 두 번째 예약을 다른 주차면으로 먼저 승인해 둔다.
+    await approveReservation({
+      reservationId: second.reservation.reservationId,
+      spaceId: fixtures.normalSpaceIds[1],
+      adminUserId: fixtures.secondAdminId,
+    });
+
+    // 첫 번째 예약과 9분 간격인 주차면(0번)으로 옮기려 하면 버퍼 때문에 거부된다.
+    await expect(
+      changeAssignedSpace({
+        reservationId: second.reservation.reservationId,
+        spaceId: fixtures.normalSpaceIds[0],
+        adminUserId: fixtures.secondAdminId,
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+});
+
 describe('반려 / 입차 / 출차 / 미방문 처리', () => {
   beforeEach(async () => {
     await resetDatabase();

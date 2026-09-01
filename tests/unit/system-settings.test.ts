@@ -47,7 +47,17 @@ describe('시스템 설정 변환', () => {
       entryExitManagementEnabled: true,
       dashboardRefreshIntervalMinutes: 5,
       personalDataRetentionDays: 365,
+      spaceBufferMinutes: 0,
     });
+  });
+
+  it('주차면 버퍼 시간은 DB 값이 없으면 0(끔)으로 대체한다', () => {
+    expect(toSettingsValues([]).spaceBufferMinutes).toBe(0);
+  });
+
+  it('주차면 버퍼 시간 값을 타입에 맞게 변환한다', () => {
+    const values = toSettingsValues([{ settingKey: 'SPACE_BUFFER_MINUTES', settingValue: '10' }]);
+    expect(values.spaceBufferMinutes).toBe(10);
   });
 });
 

@@ -587,6 +587,7 @@ export async function updateReservationByAdmin(
             visitStartAt: input.visitStartAt,
             visitEndAt: input.visitEndAt,
             excludeReservationId: reservationId,
+            bufferMinutes: settings.spaceBufferMinutes,
           },
           tx,
         );
@@ -847,6 +848,7 @@ export async function approveReservation(
           excludeReservationId: current.reservationId,
           doubleParkingEnabled: settings.doubleParkingEnabled,
           spaceAssignmentEnabled: settings.spaceAssignmentEnabled,
+          bufferMinutes: settings.spaceBufferMinutes,
         },
         tx,
       );
@@ -869,6 +871,7 @@ export async function approveReservation(
         visitStartAt: current.visitStartAt,
         visitEndAt: current.visitEndAt,
         excludeReservationId: current.reservationId,
+        bufferMinutes: settings.spaceBufferMinutes,
       },
       tx,
     );
@@ -1123,6 +1126,7 @@ export async function changeAssignedSpace(
         visitStartAt: current.visitStartAt,
         visitEndAt: current.visitEndAt,
         excludeReservationId: current.reservationId,
+        bufferMinutes: settings.spaceBufferMinutes,
       },
       tx,
     );

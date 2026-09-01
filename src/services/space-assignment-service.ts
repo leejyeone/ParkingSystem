@@ -38,6 +38,8 @@ export async function pickAvailableSpace(
     doubleParkingEnabled: boolean;
     /** 주차면 배정 기능 사용 여부 (시스템 설정). false 면 고르지 않는다. */
     spaceAssignmentEnabled?: boolean;
+    /** 같은 주차면 예약 사이 최소 간격(분) — 시스템 설정. 생략 시 0(끔). */
+    bufferMinutes?: number;
   },
   db: Db = prisma,
 ): Promise<AssignableSpace | null> {
@@ -55,14 +57,20 @@ export async function pickAvailableSpace(
 
 /** 해당 시간대에 이미 점유(APPROVED/PARKING)된 주차면 ID 목록 */
 export async function findOccupiedSpaceIds(
-  params: { visitStartAt: Date; visitEndAt: Date; excludeReservationId?: number },
+  params: {
+    visitStartAt: Date;
+    visitEndAt: Date;
+    excludeReservationId?: number;
+    /** 같은 주차면 예약 사이 최소 간격(분). 생략 시 0(끔). */
+    bufferMinutes?: number;
+  },
   db: Db = prisma,
 ): Promise<number[]> {
   const rows = await db.parkingReservation.findMany({
     where: {
       assignedSpaceId: { not: null },
       reservationStatus: { in: [...SPACE_OCCUPYING_STATUSES] },
-      ...buildOverlapWhere(params.visitStartAt, params.visitEndAt),
+      ...buildOverlapWhere(params.visitStartAt, params.visitEndAt, params.bufferMinutes ?? 0),
       ...(params.excludeReservationId
         ? { reservationId: { not: params.excludeReservationId } }
         : {}),
@@ -104,6 +112,8 @@ export async function findConflictingReservation(
     visitStartAt: Date;
     visitEndAt: Date;
     excludeReservationId?: number;
+    /** 같은 주차면 예약 사이 최소 간격(분). 생략 시 0(끔). */
+    bufferMinutes?: number;
   },
   db: Db = prisma,
 ): Promise<{ reservationId: number; reservationNo: string } | null> {
@@ -111,7 +121,7 @@ export async function findConflictingReservation(
     where: {
       assignedSpaceId: params.spaceId,
       reservationStatus: { in: [...SPACE_OCCUPYING_STATUSES] },
-      ...buildOverlapWhere(params.visitStartAt, params.visitEndAt),
+      ...buildOverlapWhere(params.visitStartAt, params.visitEndAt, params.bufferMinutes ?? 0),
       ...(params.excludeReservationId
         ? { reservationId: { not: params.excludeReservationId } }
         : {}),
@@ -127,6 +137,8 @@ export async function listAvailableSpaces(
     visitEndAt: Date;
     excludeReservationId?: number;
     doubleParkingEnabled: boolean;
+    /** 같은 주차면 예약 사이 최소 간격(분). 생략 시 0(끔). */
+    bufferMinutes?: number;
   },
   db: Db = prisma,
 ): Promise<(AssignableSpace & { areaName: string; available: boolean })[]> {

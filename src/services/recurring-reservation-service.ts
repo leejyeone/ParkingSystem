@@ -314,6 +314,7 @@ export async function createRecurringSchedule(
       visitEndAt,
       approvalEnabled: input.approvalEnabled,
       doubleParkingEnabled: settings.doubleParkingEnabled,
+      bufferMinutes: settings.spaceBufferMinutes,
       actor,
     });
 
@@ -362,6 +363,8 @@ async function createOccurrence(params: {
   visitEndAt: Date;
   approvalEnabled: boolean;
   doubleParkingEnabled: boolean;
+  /** 같은 주차면 예약 사이 최소 간격(분). 생략 시 0(끔). */
+  bufferMinutes?: number;
   actor: AdminActionContext;
 }) {
   const now = new Date();
@@ -376,6 +379,7 @@ async function createOccurrence(params: {
           spaceId: params.spaceId,
           visitStartAt: params.visitStartAt,
           visitEndAt: params.visitEndAt,
+          bufferMinutes: params.bufferMinutes,
         },
         tx,
       );
@@ -743,6 +747,8 @@ async function tryUpdateOccurrenceTime(params: {
   spaceId: number;
   visitStartAt: Date;
   visitEndAt: Date;
+  /** 같은 주차면 예약 사이 최소 간격(분). 생략 시 0(끔). */
+  bufferMinutes?: number;
   actor: AdminActionContext;
 }): Promise<boolean> {
   try {
@@ -754,6 +760,7 @@ async function tryUpdateOccurrenceTime(params: {
           visitStartAt: params.visitStartAt,
           visitEndAt: params.visitEndAt,
           excludeReservationId: params.reservationId,
+          bufferMinutes: params.bufferMinutes,
         },
         tx,
       );
@@ -932,6 +939,7 @@ export async function updateRecurringSchedule(
       spaceId: schedule.assignedSpaceId,
       visitStartAt,
       visitEndAt,
+      bufferMinutes: settings.spaceBufferMinutes,
       actor,
     });
     if (moved) {
@@ -980,6 +988,7 @@ export async function updateRecurringSchedule(
       visitEndAt,
       approvalEnabled: input.approvalEnabled,
       doubleParkingEnabled: settings.doubleParkingEnabled,
+      bufferMinutes: settings.spaceBufferMinutes,
       actor,
     });
 

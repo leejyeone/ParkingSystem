@@ -202,6 +202,25 @@ export function PolicySection({ initialSettings }: { initialSettings: SystemSett
             />
           </FormField>
           <FormField
+            label="주차면 간 완충 시간(분)"
+            htmlFor="spaceBufferMinutes"
+            required
+            hint="같은 주차면에 배정된 예약 사이에 최소로 띄울 시간입니다."
+            errors={fieldErrors.spaceBufferMinutes}
+          >
+            <input
+              id="spaceBufferMinutes"
+              type="number"
+              min={0}
+              max={60}
+              className={inputClassName(Boolean(fieldErrors.spaceBufferMinutes))}
+              value={form.spaceBufferMinutes}
+              onChange={(event) =>
+                setForm({ ...form, spaceBufferMinutes: Number(event.target.value) })
+              }
+            />
+          </FormField>
+          <FormField
             label="대시보드 자동 새로고침 주기(분)"
             htmlFor="dashboardRefreshInterval"
             required
@@ -246,6 +265,20 @@ export function PolicySection({ initialSettings }: { initialSettings: SystemSett
             <input
               type="checkbox"
               className="accent-brand-700 size-5"
+              checked={form.entryExitManagementEnabled}
+              onChange={(event) =>
+                setForm({ ...form, entryExitManagementEnabled: event.target.checked })
+              }
+            />
+            <span className="text-ink text-sm font-semibold">실제 입·출차 관리 사용</span>
+          </label>
+        </div>
+
+        <div className="space-y-2">
+          <label className="border-line flex min-h-12 items-center gap-3 rounded-lg border px-3">
+            <input
+              type="checkbox"
+              className="accent-brand-700 size-5"
               checked={form.spaceAssignmentEnabled}
               onChange={(event) =>
                 setForm({ ...form, spaceAssignmentEnabled: event.target.checked })
@@ -254,9 +287,7 @@ export function PolicySection({ initialSettings }: { initialSettings: SystemSett
             <span className="text-ink text-sm font-semibold">주차면 배정 사용</span>
           </label>
           <p className="text-ink-faint text-xs">
-            끄면 특정 주차 위치를 배정하지 않고 <strong>주차 가능 여부만</strong> 관리합니다. 승인
-            메일, 예약 목록·상세, 대시보드에서 주차 위치 관련 항목이 함께 사라집니다. 이미 배정된
-            예약의 기록은 그대로 보존되며, 다시 켜면 복원됩니다.
+            끄면 특정 주차 위치를 배정하지 않고 <strong>주차 가능 여부만</strong> 관리합니다.
           </p>
 
           {!form.spaceAssignmentEnabled && (
@@ -300,27 +331,6 @@ export function PolicySection({ initialSettings }: { initialSettings: SystemSett
               주차면 배정을 끈 상태에서는 이중주차 설정이 적용되지 않습니다.
             </p>
           )}
-        </div>
-
-        <div className="space-y-2">
-          <label className="border-line flex min-h-12 items-center gap-3 rounded-lg border px-3">
-            <input
-              type="checkbox"
-              className="accent-brand-700 size-5"
-              checked={form.entryExitManagementEnabled}
-              onChange={(event) =>
-                setForm({ ...form, entryExitManagementEnabled: event.target.checked })
-              }
-            />
-            <span className="text-ink text-sm font-semibold">실제 입·출차 관리 사용</span>
-          </label>
-          <p className="text-ink-faint text-xs">
-            켜면 관리자 예약 상세에 [입·출차 처리] 영역이 나타나고, 실제 입차/출차 시각을
-            기록합니다. 신청자 화면의 &ldquo;사용 중&rdquo;/&ldquo;사용 완료&rdquo; 표시도 이 기록을
-            기준으로 바뀝니다. 끄면(기본값) 실제 출입을 확인할 수단이 없다는 뜻이므로, 이와 관련된
-            화면·기능이 모두 숨겨집니다. 현장에 차단기 연동이나 상주 인력 등 확인 수단이 갖춰졌을 때
-            켜세요.
-          </p>
         </div>
       </div>
     </section>

@@ -38,6 +38,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       visitEndAt: reservation.visitEndAt,
       excludeReservationId: reservationId,
       doubleParkingEnabled: settings.doubleParkingEnabled,
+      bufferMinutes: settings.spaceBufferMinutes,
     });
 
     return apiSuccess({ reservation, availableSpaces });

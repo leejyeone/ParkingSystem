@@ -16,6 +16,7 @@ export const SETTING_KEYS = {
   ENTRY_EXIT_MANAGEMENT_ENABLED: 'ENTRY_EXIT_MANAGEMENT_ENABLED',
   DASHBOARD_REFRESH_INTERVAL_MINUTES: 'DASHBOARD_REFRESH_INTERVAL_MINUTES',
   PERSONAL_DATA_RETENTION_DAYS: 'PERSONAL_DATA_RETENTION_DAYS',
+  SPACE_BUFFER_MINUTES: 'SPACE_BUFFER_MINUTES',
 } as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS];
@@ -71,6 +72,15 @@ export type SystemSettingsValues = {
    * 할 뿐이다.
    */
   personalDataRetentionDays: number;
+  /**
+   * 같은 주차면에 배정된 예약 사이에 최소로 띄울 시간(분).
+   *
+   * 차량이 예정보다 일찍 도착하거나 늦게 출차하는 상황을 감안한 여유 시간이다. 0이면
+   * 이전 예약 종료 시각과 다음 예약 시작 시각이 맞닿아도 배정을 허용한다(기존 동작과
+   * 동일). 같은 주차면 충돌 판정에만 적용되며, 차량번호 중복 확인이나 주차면 배정을
+   * 끈 상태의 정원 카운트에는 적용되지 않는다.
+   */
+  spaceBufferMinutes: number;
 };
 
 export const DEFAULT_SETTINGS: SystemSettingsValues = {
@@ -90,6 +100,8 @@ export const DEFAULT_SETTINGS: SystemSettingsValues = {
   dashboardRefreshIntervalMinutes: 5,
   // 아직 확정된 값이 아니다 — 관리자가 시스템 설정에서 실제 정책값으로 바꿔야 한다.
   personalDataRetentionDays: 365,
+  // 기본은 끔(0) — 기존 동작(경계 맞닿음 허용)과 동일하게 유지한다.
+  spaceBufferMinutes: 0,
 };
 
 export const SETTING_DESCRIPTIONS: Record<SettingKey, string> = {
@@ -110,6 +122,8 @@ export const SETTING_DESCRIPTIONS: Record<SettingKey, string> = {
   DASHBOARD_REFRESH_INTERVAL_MINUTES: '관리자 대시보드 자동 새로고침 주기(분).',
   PERSONAL_DATA_RETENTION_DAYS:
     '방문객·직원 개인정보 보관 기간(일). 방문 신청 폼의 개인정보 수집·이용 동의 문구에 노출됩니다.',
+  SPACE_BUFFER_MINUTES:
+    '같은 주차면에 배정된 예약 사이 최소 간격(분). 0이면 경계가 맞닿아도 배정을 허용합니다(기존과 동일).',
 };
 
 /** DB 의 key/value 목록을 타입이 있는 설정 객체로 변환 */
@@ -174,6 +188,10 @@ export function toSettingsValues(
       SETTING_KEYS.PERSONAL_DATA_RETENTION_DAYS,
       DEFAULT_SETTINGS.personalDataRetentionDays,
     ),
+    spaceBufferMinutes: readNumber(
+      SETTING_KEYS.SPACE_BUFFER_MINUTES,
+      DEFAULT_SETTINGS.spaceBufferMinutes,
+    ),
   };
 }
 
@@ -220,6 +238,10 @@ export function toSettingRows(
     {
       settingKey: SETTING_KEYS.PERSONAL_DATA_RETENTION_DAYS,
       settingValue: String(values.personalDataRetentionDays),
+    },
+    {
+      settingKey: SETTING_KEYS.SPACE_BUFFER_MINUTES,
+      settingValue: String(values.spaceBufferMinutes),
     },
   ];
 }

@@ -584,13 +584,14 @@ PARKING   → EXITED
 
 ```
 1. 활성 상태(is_active = true)이고 구역(area)도 활성인 NORMAL 주차면을 우선 조회
-2. 해당 예약 시간대에 APPROVED / PARKING 예약과 겹치지 않는 주차면만 후보로 사용
+2. 해당 예약 시간대(+ 시스템 설정 `SPACE_BUFFER_MINUTES` 만큼의 버퍼)에 APPROVED / PARKING
+   예약과 겹치지 않는 주차면만 후보로 사용
 3. 후보를 구역 표시 순서 → 주차면 코드(space_code) 오름차순으로 정렬해 첫 번째를 선택
 4. 일반 주차면이 없고 시스템 설정 `DOUBLE_PARKING_ENABLED` 가 켜져 있을 때만 DOUBLE 타입(이중주차) 조회
 5. 이중주차도 같은 기준(구역 순서 → 주차면 코드)으로 선택
 6. 배정할 수 있는 위치가 없으면 null (승인 시 NO_AVAILABLE_SPACE 오류)
 7. 상세 화면 드롭다운에 이 결과가 기본값으로 채워지며, 관리자가 다른 위치로 변경 가능
-8. 최종 승인 시 선택한 주차면의 시간 중복을 트랜잭션 안에서 다시 검증
+8. 최종 승인 시 선택한 주차면의 시간 중복(+ 버퍼)을 트랜잭션 안에서 다시 검증
 9. 승인 + 주차면 배정은 Prisma transaction 으로 원자 처리
 10. DOUBLE 타입 승인 시 관리자 화면에 경고 배지(⚠) 표시
 11. DOUBLE 타입 승인 시 승인 메일에 이중주차 안내(차량 이동 요청 등)를 포함해 발송
@@ -610,6 +611,22 @@ AND existing.visit_end_at > new.visit_start_at
 ```
 
 경계가 맞닿는 경우(앞 예약 종료 시각 == 뒤 예약 시작 시각)는 **중복이 아닙니다.**
+
+### 주차면 버퍼 시간
+
+차량이 예정보다 일찍 도착하거나 늦게 출차할 수 있으므로, **같은 물리적 주차면**에 배정되는
+예약끼리는 시스템 설정 `SPACE_BUFFER_MINUTES`(기본값 0, 관리자 화면 "주차면 간 완충
+시간")만큼 최소 간격을 요구할 수 있습니다. 버퍼가 있으면 위 판정식이 다음과 같이 바뀝니다.
+
+```
+existing.visit_start_at < new.visit_end_at + buffer
+AND existing.visit_end_at + buffer > new.visit_start_at
+```
+
+기본값 0이면 위 절과 완전히 동일하게 동작합니다(경계 맞닿음 허용). 이 버퍼는 **같은 주차면
+충돌 판정**([`findOccupiedSpaceIds`/`findConflictingReservation`](src/services/space-assignment-service.ts))
+에만 적용되며, 차량번호 중복 신청 확인이나 주차면 배정을 끈 상태의 정원(capacity) 계산에는
+적용되지 않습니다 — 그 둘은 특정 주차면을 두고 다투는 상황이 아니기 때문입니다.
 
 ### 동시 승인 경합 방지
 
@@ -1044,6 +1061,7 @@ npm run db:seed
 | `ENTRY_EXIT_MANAGEMENT_ENABLED`      | `true`       |
 | `DASHBOARD_REFRESH_INTERVAL_MINUTES` | `5`          |
 | `PERSONAL_DATA_RETENTION_DAYS`       | `365`        |
+| `SPACE_BUFFER_MINUTES`               | `0`          |
 
 > `PERSONAL_DATA_RETENTION_DAYS`는 아직 확정된 정책값이 아닙니다 — 관리자가 [시스템 설정]에서
 > 실제 개인정보 보유 기간으로 반드시 바꿔야 합니다. 값은 방문 신청 폼의 "개인정보 수집 및
@@ -1475,26 +1493,27 @@ npm run test:coverage    # 커버리지 리포트 (coverage/index.html)
 
 ### 16-1. 단위 테스트 커버 항목
 
-| #   | 항목                                    | 파일                                    |
-| --- | --------------------------------------- | --------------------------------------- |
-| 1   | 차량번호 정규화                         | `tests/unit/vehicle.test.ts`            |
-| 2   | 시간 중복 판정                          | `tests/unit/time-overlap.test.ts`       |
-| 3   | 예약 최소 60분 전 신청 검증             | `tests/unit/reservation-rules.test.ts`  |
-| 4   | 운영시간 검증                           | `tests/unit/reservation-rules.test.ts`  |
-| 5   | 수정·취소 가능 시간 검증                | `tests/unit/reservation-rules.test.ts`  |
-| 6   | 예약 상태 전이 검증                     | `tests/unit/reservation-status.test.ts` |
-| 7   | 일반 주차면 우선 자동 선택              | `tests/unit/space-assignment.test.ts`   |
-| 8   | 일반 만차 시 이중주차 선택              | `tests/unit/space-assignment.test.ts`   |
-| 9   | 전체 만차 시 배정 불가 처리             | `tests/unit/space-assignment.test.ts`   |
-| 10  | 예약 토큰 원문 해시 처리                | `tests/unit/tokens.test.ts`             |
-| 11  | 토큰 만료 처리                          | `tests/unit/reservation-access.test.ts` |
-| 12  | 회원/관리자 세션 토큰 교차 사용 차단    | `tests/unit/user-session.test.ts`       |
-| 13  | 이메일에 원문(성명·차량번호) 노출 확인  | `tests/unit/email-service.test.ts`      |
-| 14  | `EXIT_REMINDER` 중복 발송 차단 로직     | `tests/unit/email-service.test.ts`      |
-| 15  | Gmail Provider Mock 발송 성공/실패 처리 | `tests/unit/email-service.test.ts`      |
-| 16  | 당사 담당자 전용 문구·제목 분기         | `tests/unit/email-service.test.ts`      |
-| 17  | 타임존 변환 (KST ↔ UTC)                 | `tests/unit/datetime.test.ts`           |
-| 18  | 시스템 설정 값 변환·기본값 대체         | `tests/unit/system-settings.test.ts`    |
+| #   | 항목                                     | 파일                                    |
+| --- | ---------------------------------------- | --------------------------------------- |
+| 1   | 차량번호 정규화                          | `tests/unit/vehicle.test.ts`            |
+| 2   | 시간 중복 판정                           | `tests/unit/time-overlap.test.ts`       |
+| 3   | 예약 최소 60분 전 신청 검증              | `tests/unit/reservation-rules.test.ts`  |
+| 4   | 운영시간 검증                            | `tests/unit/reservation-rules.test.ts`  |
+| 5   | 수정·취소 가능 시간 검증                 | `tests/unit/reservation-rules.test.ts`  |
+| 6   | 예약 상태 전이 검증                      | `tests/unit/reservation-status.test.ts` |
+| 7   | 일반 주차면 우선 자동 선택               | `tests/unit/space-assignment.test.ts`   |
+| 8   | 일반 만차 시 이중주차 선택               | `tests/unit/space-assignment.test.ts`   |
+| 9   | 전체 만차 시 배정 불가 처리              | `tests/unit/space-assignment.test.ts`   |
+| 10  | 예약 토큰 원문 해시 처리                 | `tests/unit/tokens.test.ts`             |
+| 11  | 토큰 만료 처리                           | `tests/unit/reservation-access.test.ts` |
+| 12  | 회원/관리자 세션 토큰 교차 사용 차단     | `tests/unit/user-session.test.ts`       |
+| 13  | 이메일에 원문(성명·차량번호) 노출 확인   | `tests/unit/email-service.test.ts`      |
+| 14  | `EXIT_REMINDER` 중복 발송 차단 로직      | `tests/unit/email-service.test.ts`      |
+| 15  | Gmail Provider Mock 발송 성공/실패 처리  | `tests/unit/email-service.test.ts`      |
+| 16  | 당사 담당자 전용 문구·제목 분기          | `tests/unit/email-service.test.ts`      |
+| 17  | 타임존 변환 (KST ↔ UTC)                  | `tests/unit/datetime.test.ts`           |
+| 18  | 시스템 설정 값 변환·기본값 대체          | `tests/unit/system-settings.test.ts`    |
+| 19  | 주차면 버퍼 시간 겹침 판정 (경계값 포함) | `tests/unit/time-overlap.test.ts`       |
 
 ### 16-2. 통합 테스트 DB 구성
 
@@ -1530,6 +1549,7 @@ npm run test:integration
 | 7   | 승인 대기 예약을 일반 주차면으로 승인                                                   |
 | 8   | 일반 만차 시 이중주차 위치로 승인                                                       |
 | 9   | 동일 주차면의 중복 시간대 승인 실패                                                     |
+| 9-1 | 주차면 버퍼 시간(경계값·자동 배정·주차 위치 변경) 승인 거부/허용                        |
 | 10  | `REQUESTED` 상태 신청자 수정 성공 / 승인 후 신청자 수정 차단                            |
 | 11  | 신청자 취소(`REQUESTED`만) / 관리자 취소(`APPROVED`, 주차면 해제)로 다른 신청 배정 가능 |
 | 12  | 출차 예정 알림 중복 발송 방지                                                           |

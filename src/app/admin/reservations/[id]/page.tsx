@@ -60,6 +60,7 @@ export default async function AdminReservationDetailPage({ params }: PageProps) 
         visitEndAt: reservation.visitEndAt,
         excludeReservationId: reservationId,
         doubleParkingEnabled: settings.doubleParkingEnabled,
+        bufferMinutes: settings.spaceBufferMinutes,
       })
     : [];
 
@@ -75,6 +76,7 @@ export default async function AdminReservationDetailPage({ params }: PageProps) 
           excludeReservationId: reservationId,
           doubleParkingEnabled: settings.doubleParkingEnabled,
           spaceAssignmentEnabled: settings.spaceAssignmentEnabled,
+          bufferMinutes: settings.spaceBufferMinutes,
         })
       : null;
 

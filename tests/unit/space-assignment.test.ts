@@ -102,4 +102,14 @@ describe('자동 주차면 배정', () => {
     const result = await pickAvailableSpace(params, createFakeDb([], spaces));
     expect(result?.spaceCode).toBe('A-02');
   });
+
+  it('bufferMinutes 를 넘겨도(배관 확인) 동작이 바뀌지 않는다 — 실제 겹침 판정은 time-overlap 단위 테스트가 커버', async () => {
+    const result = await pickAvailableSpace({ ...params, bufferMinutes: 10 }, createFakeDb([]));
+    expect(result?.spaceCode).toBe('A-01');
+  });
+
+  it('bufferMinutes 를 생략하면 기존과 동일하게 동작한다(하위 호환)', async () => {
+    const result = await pickAvailableSpace(params, createFakeDb([1]));
+    expect(result?.spaceCode).toBe('A-02');
+  });
 });
