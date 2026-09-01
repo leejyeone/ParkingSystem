@@ -347,6 +347,10 @@ export function ScheduleCard({
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<EditableFields>(initial);
+  // 일정 저장이 먼저 성공한 뒤 입출차 기록 저장이 실패할 수 있다(2단계 저장).
+  // 그 경우에도 "취소"를 누르면 이미 서버에 반영된 일정으로 되돌아가야 하므로,
+  // 서버에 반영된 것으로 확인된 마지막 값을 별도로 추적한다.
+  const [committed, setCommitted] = useState<EditableFields>(initial);
   // null 은 "기록 삭제 예정"을 뜻한다. 실제 삭제는 저장을 눌러야 반영된다.
   const [entryDraft, setEntryDraft] = useState<string | null>(actualEntryAt);
   const [exitDraft, setExitDraft] = useState<string | null>(actualExitAt);
@@ -369,7 +373,7 @@ export function ScheduleCard({
   }
 
   function cancel() {
-    setForm(initial);
+    setForm(committed);
     setEntryDraft(actualEntryAt);
     setExitDraft(actualExitAt);
     setState(IDLE);
@@ -397,6 +401,11 @@ export function ScheduleCard({
         });
         return;
       }
+
+      // 일정 저장은 이미 서버에 반영되었다 — 뒤이은 입출차 기록 저장이 실패하더라도
+      // "취소"를 누르면 이 값으로 되돌아가야 한다(저장 전 값으로 되돌리면 안 됨).
+      setCommitted(form);
+      router.refresh();
     }
 
     const entryChanged = entryDraft !== actualEntryAt;

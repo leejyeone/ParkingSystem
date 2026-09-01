@@ -13,7 +13,7 @@
  */
 import 'dotenv/config';
 
-import { AccountStatus, PrismaClient, SpaceType } from '@prisma/client';
+import { AccountStatus, AdminRole, PrismaClient, SpaceType } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 import {
@@ -42,6 +42,7 @@ async function seedAdminUser(): Promise<number> {
       passwordHash,
       adminName,
       email,
+      role: AdminRole.SYSTEM_ADMIN,
       accountStatus: AccountStatus.ACTIVE,
       passwordChangedAt: new Date(),
     },

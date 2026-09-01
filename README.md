@@ -796,7 +796,7 @@ SynopexParking/
 │  │  │  ├─ mock-email-provider.ts                #   Mock / Log 공급자 (테스트·개발)
 │  │  │  ├─ file-email-provider.ts                #   .mail-outbox 저장 (E2E·로컬 확인)
 │  │  │  ├─ email-provider-factory.ts             #   EMAIL_PROVIDER 로 선택
-│  │  │  ├─ email-template-service.ts             #   예약 8종 + 반복 예약 시리즈 3종 메일 템플릿
+│  │  │  ├─ email-template-service.ts             #   예약 8종 + 반복 예약 시리즈 4종 메일 템플릿
 │  │  │  └─ email-service.ts                      #   발송 + email_send_logs 기록/멱등성
 │  │  ├─ validation/                              # Zod 스키마 (한국어 오류 메시지)
 │  │  │  └─ recurring-reservation-schema.ts       #   반복 예약 등록/수정 스키마
@@ -1492,6 +1492,9 @@ npm run test:coverage    # 커버리지 리포트 (coverage/index.html)
 | 13  | 이메일에 원문(성명·차량번호) 노출 확인  | `tests/unit/email-service.test.ts`      |
 | 14  | `EXIT_REMINDER` 중복 발송 차단 로직     | `tests/unit/email-service.test.ts`      |
 | 15  | Gmail Provider Mock 발송 성공/실패 처리 | `tests/unit/email-service.test.ts`      |
+| 16  | 당사 담당자 전용 문구·제목 분기         | `tests/unit/email-service.test.ts`      |
+| 17  | 타임존 변환 (KST ↔ UTC)                 | `tests/unit/datetime.test.ts`           |
+| 18  | 시스템 설정 값 변환·기본값 대체         | `tests/unit/system-settings.test.ts`    |
 
 ### 16-2. 통합 테스트 DB 구성
 
@@ -1897,12 +1900,18 @@ POST 를 사용하고, 일치하는 예약 목록(`reservationId`(내부 식별�
 
 **반복 예약(정기 주차 배정) 시리즈 전용 — `skipEmail` 설정과 무관하게 항상 발송**
 
-| #   | 종류                           | 수신자    | 주요 내용                                   |
-| --- | ------------------------------ | --------- | ------------------------------------------- |
-| 9   | `RECURRING_SCHEDULE_CREATED`   | 대상 직원 | 등록된 기간·요일·시간대, 생성/건너뛴 건수   |
-| 10  | `RECURRING_SCHEDULE_UPDATED`   | 대상 직원 | 변경된 기간·요일·시간대, 정리/재생성 건수   |
-| 11  | `RECURRING_OCCURRENCE_SKIPPED` | 대상 직원 | 제외된 날짜, 사유                           |
-| 12  | `RECURRING_SCHEDULE_CANCELLED` | 대상 직원 | 삭제 사실 안내 (남은 예정 방문도 함께 취소) |
+| #   | 종류                           | 수신자                    | 주요 내용                                   |
+| --- | ------------------------------ | ------------------------- | ------------------------------------------- |
+| 9   | `RECURRING_SCHEDULE_CREATED`   | 대상 직원 + 시스템 관리자 | 등록된 기간·요일·시간대, 생성/건너뛴 건수   |
+| 10  | `RECURRING_SCHEDULE_UPDATED`   | 대상 직원 + 시스템 관리자 | 변경된 기간·요일·시간대, 정리/재생성 건수   |
+| 11  | `RECURRING_OCCURRENCE_SKIPPED` | 대상 직원 + 시스템 관리자 | 제외된 날짜, 사유                           |
+| 12  | `RECURRING_SCHEDULE_CANCELLED` | 대상 직원 + 시스템 관리자 | 삭제 사실 안내 (남은 예정 방문도 함께 취소) |
+
+> **반복 예약 메일의 "시스템 관리자" 수신자는 관리자 알림 이메일 목록(`admin_notification_emails`)과
+> 다릅니다.** 그 목록은 일반 주차 관리자(`PARKING_ADMIN`)까지 포함해 신규 신청·취소 알림을
+> 받는 용도라, 시스템 설정 변경 권한이 없는 반복 예약(정기 주차 배정)까지 섞이면 노이즈가
+> 됩니다. 대신 활성 상태인 `SYSTEM_ADMIN` 계정에게만 별도로 보냅니다
+> ([`getRecurringScheduleEmailRecipients()`](src/lib/email/email-service.ts)).
 
 > 위 4종은 반복 예약 **시리즈 자체**에 대한 안내라 `skipEmail`이 켜져 있어도 항상 나갑니다.
 > `skipEmail`이 통제하는 것은 그 시리즈로 생성된 개별 occurrence의 1~8번 메일(승인/반려/변경/
