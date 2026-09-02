@@ -11,7 +11,13 @@
 !.yarn/versions
 
 # testing
+# 원격 배포 저장소에는 테스트를 포함하지 않기로 했다 — 소스는 로컬에는 그대로 남아있고
+# 계속 실행할 수 있지만, git(과 그걸 clone 하는 배포 서버)에는 올라가지 않는다.
 /coverage
+/tests/
+/vitest.config.mts
+/playwright.config.ts
+/.env.test.example
 
 # next.js
 # NEXT_DIST_DIR 로 분리하는 산출물(.next-e2e 등)까지 한 번에 무시한다.
@@ -32,9 +38,9 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (실제 비밀값이 들어가는 파일은 커밋 금지, 예시 템플릿만 커밋)
+# .env.test.example 은 테스트 전용 템플릿이라 위 "testing" 섹션에서 별도로 무시한다.
 .env*
 !.env.example
-!.env.test.example
 
 # vercel
 .vercel
