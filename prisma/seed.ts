@@ -62,10 +62,11 @@ async function seedAdminUser(): Promise<number> {
  * 그대로 반영한다. 주차면 규격은 2,300 x 5,000mm 이며, 블록은 기둥으로 끊긴 단위다.
  * 번호는 램프(우측)에서 가까운 블록부터 붙여, 자동 배정이 진입 동선 순서를 따르게 한다.
  *
- * 아래 세 구역은 운영 준비가 끝나기 전까지 비활성(사용 불가)으로 시작한다.
+ * 아래 구역은 비활성(사용 불가)으로 시작한다.
  *  - B1-01~07  : 임원 전용 구역
  *  - B1-28~39  : 동탄 직원 전용 구역
  *  - B1-43~59  : 자재 적치 중
+ *  - B1-60~65  : 이중주차 미사용(시스템 설정 DOUBLE_PARKING_ENABLED 꺼짐)
  * 관리자가 [시스템 설정] → [구역·주차면] 에서 언제든 다시 활성화할 수 있다.
  */
 const B1_TOTAL_SPACES = 65;
@@ -75,12 +76,14 @@ const B1_INACTIVE_RANGES: readonly [number, number][] = [
   [1, 7],
   [28, 39],
   [43, 59],
+  [60, 65],
 ];
 
 const B1_INACTIVE_MEMOS: readonly [number, number, string][] = [
   [1, 7, '임원 전용 구역'],
   [28, 39, '동탄 직원 전용 구역'],
   [43, 59, '자재 적치 중'],
+  [60, 65, '이중주차 미사용(DOUBLE_PARKING_ENABLED 꺼짐)'],
 ];
 
 function b1IsActive(order: number): boolean {

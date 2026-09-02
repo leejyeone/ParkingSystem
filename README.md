@@ -763,7 +763,8 @@ SynopexParking/
 │  └─ migrations/                    # 여러 개의 순차 마이그레이션 (12-1 참고 — 배포 후에는 절대 합치지 않음)
 ├─ prisma.config.ts                  # Prisma CLI 설정 (schema 경로, seed 명령)
 ├─ scripts/
-│  └─ import-employees.ts            # 직원 명부 엑셀/CSV 를 employee_users 로 1회성 시드
+│  ├─ import-employees.ts            # 직원 명부 엑셀/CSV 를 employee_users 로 1회성 시드
+│  └─ import-operators.ts            # 실제 관리자 계정·알림 이메일을 로컬 JSON 으로 시드(12-4 참고)
 ├─ src/
 │  ├─ instrumentation.ts             # 서버 기동 훅 (내장 스케줄러 시작, 17절 참고)
 │  ├─ proxy.ts                       # 관리자/회원/직원 화면 접근 1차 가드 (Next 16 proxy 규약)
@@ -1043,7 +1044,7 @@ npm run db:seed
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | 관리자 계정        | `SEED_ADMIN_EMAIL` (기본 `admin@example.com`)                                                                                                   |
 | 주차 구역 2개      | `MAIN`/동탄사업장 지하 1층, `GROUND`/1층 지상 주차장 (도면은 비워 둠 — 관리자가 직접 업로드)                                                    |
-| 주차면 71개        | `MAIN` 65면(`B1-01` ~ `B1-65`, 이중주차 6면 포함, 세 구간은 기본 비활성) + `GROUND` 6면(`1F-01` ~ `1F-06`, 일반 3 + 장애인 3) — 1절 "규모" 참고 |
+| 주차면 71개        | `MAIN` 65면(`B1-01` ~ `B1-65`, 이중주차 6면 포함, 네 구간은 기본 비활성) + `GROUND` 6면(`1F-01` ~ `1F-06`, 일반 3 + 장애인 3) — 1절 "규모" 참고 |
 | 시스템 설정        | 아래 표 참고                                                                                                                                    |
 | 관리자 알림 이메일 | `SEED_ADMIN_NOTIFICATION_EMAILS` (기본 `parking-admin@example.com`)                                                                             |
 
@@ -1053,13 +1054,13 @@ npm run db:seed
 | `PARKING_OPEN_TIME`                  | `07:00`      |
 | `PARKING_CLOSE_TIME`                 | `22:00`      |
 | `EXIT_REMINDER_MINUTES`              | `10`         |
-| `MAX_RESERVATION_HOURS`              | `12`         |
+| `MAX_RESERVATION_HOURS`              | `15`         |
 | `SPACE_ASSIGNMENT_ENABLED`           | `true`       |
 | `PARKING_CAPACITY`                   | `55`         |
 | `DOUBLE_PARKING_ENABLED`             | `false`      |
 | `APP_TIME_ZONE`                      | `Asia/Seoul` |
 | `ENTRY_EXIT_MANAGEMENT_ENABLED`      | `true`       |
-| `DASHBOARD_REFRESH_INTERVAL_MINUTES` | `5`          |
+| `DASHBOARD_REFRESH_INTERVAL_MINUTES` | `1`          |
 | `PERSONAL_DATA_RETENTION_DAYS`       | `365`        |
 | `SPACE_BUFFER_MINUTES`               | `0`          |
 
@@ -1071,9 +1072,10 @@ npm run db:seed
 > `PARKING_CAPACITY`(55)는 실제 주차면 총수(71)와 무관한 별개 값입니다 — 주차면 배정을
 > **끄고** 운영할 때만 쓰는 "동시 주차 최대 대수" 상한이며, 주차면 배정을 켠 기본 운영에서는
 > 적용되지 않습니다(아래 "주차면 배정 On/Off" 참고). `DOUBLE_PARKING_ENABLED`도 기본값은
-> 꺼짐이지만, 이는 이중주차 **주차면 자체가 없어서**가 아니라 운영 준비가 끝나기 전까지
-> 자동 배정 후보에서 제외해 두었을 뿐입니다 — `B1-60`~`B1-65` 6면은 이미 `DOUBLE` 유형으로
-> 활성 상태로 시드됩니다.
+> 꺼짐입니다 — 이중주차 **주차면 자체(`B1-60`~`B1-65`, `DOUBLE` 유형)는 이미 존재하지만**,
+> 이 설정을 켜기 전까지는 자동 배정 후보에서 제외되도록 시드 단계에서부터 비활성(사용
+> 불가) 상태로 심어 둡니다. 설정을 켜면서 그 6면도 [시스템 설정] → [구역·주차면]에서 함께
+> 활성화해야 실제로 배정 후보가 됩니다.
 
 **`area_code` 와 `display_order` 는 화면에 노출하지 않습니다.** DB 안에서 구역을 구분하고
 목록 순서를 잡기 위한 내부 값이며, 새로 등록할 때 서버가 자동으로 부여합니다
@@ -1082,6 +1084,48 @@ npm run db:seed
 
 Seed는 모두 `upsert`이므로 **여러 번 실행해도 안전**합니다.
 이미 존재하는 관리자 계정의 비밀번호와 이미 저장된 설정값은 덮어쓰지 않습니다.
+
+#### 필수 값 부트스트랩 (새 환경 구성 시)
+
+`npm run db:seed`는 시스템 설정·주차 구역/주차면·예시 관리자 계정 1명·예시 알림 이메일
+1건까지만 심습니다 — **실제 직원 명부, 실제 관리자 계정, 실제 알림 이메일**처럼 실명·이메일
+같은 개인정보가 포함된 값은 git에 커밋되는 `prisma/seed.ts`에 넣지 않고, 커밋되지 않는
+로컬 데이터 파일을 인자로 받는 별도 스크립트로 분리되어 있습니다.
+
+```bash
+# 1) 설정·주차 구역/주차면·예시 관리자 1명·예시 알림 이메일 1건
+npm run db:seed
+
+# 2) 실제 직원 명부 (엑셀, 로컬 파일 — 커밋하지 않음)
+npx tsx scripts/import-employees.ts <엑셀 경로>
+
+# 3) 실제 관리자 계정 + 알림 이메일 (JSON, 로컬 파일 — 커밋하지 않음)
+npx tsx scripts/import-operators.ts <JSON 경로>
+```
+
+`import-operators.ts`가 받는 JSON 형식:
+
+```json
+{
+  "admins": [
+    { "email": "a@x.com", "name": "홍길동", "role": "SYSTEM_ADMIN", "accountStatus": "ACTIVE" }
+  ],
+  "notificationEmails": [
+    {
+      "email": "a@x.com",
+      "recipientName": "홍길동",
+      "receiveNewRequest": true,
+      "receiveChangeAlert": true,
+      "isActive": true
+    }
+  ]
+}
+```
+
+`*.local.json`/`*.local.xls(x)` 패턴은 `.gitignore`에 등록돼 있어 실수로 커밋되지 않습니다.
+관리자 계정은 이메일 기준 upsert이며, `import-employees.ts`와 마찬가지로 **신규 생성 시에만**
+임시 비밀번호(`OPERATOR_IMPORT_DEFAULT_PASSWORD`, 미지정 시 안내용 기본값)를 발급하고 기존
+계정의 비밀번호 해시는 절대 덮어쓰지 않습니다.
 
 #### 주차면 배정 On/Off (`SPACE_ASSIGNMENT_ENABLED`)
 
@@ -1111,7 +1155,8 @@ Seed는 모두 `upsert`이므로 **여러 번 실행해도 안전**합니다.
 >
 > `DOUBLE_PARKING_ENABLED`을 꺼 둔 운영(이 프로젝트의 기본값)에서는 이중주차 카드가 항상
 > `0 / 0`으로 표시돼 의미가 없으므로, 대신 그날 신청된 차량 대수를 보여줍니다. 이중주차
-> 주차면(`B1-60`~`B1-65`) 자체는 이미 존재하며, 설정을 켜면 바로 자동 배정 후보에 포함됩니다.
+> 주차면(`B1-60`~`B1-65`) 자체는 이미 존재하지만 시드 단계부터 비활성으로 심어지므로,
+> 설정을 켤 때 그 6면도 함께 활성화해야 자동 배정 후보에 포함됩니다.
 
 **정원 통제 (`PARKING_CAPACITY`)**
 

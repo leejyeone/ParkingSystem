@@ -88,7 +88,7 @@ export const DEFAULT_SETTINGS: SystemSettingsValues = {
   parkingOpenTime: '07:00',
   parkingCloseTime: '22:00',
   exitReminderMinutes: 10,
-  maxReservationHours: 12,
+  maxReservationHours: 15,
   spaceAssignmentEnabled: true,
   // 실제 주차면 수(지하 1층 55면). 주차면 배정을 껐을 때의 상한으로 쓰인다.
   parkingCapacity: 55,
@@ -97,7 +97,7 @@ export const DEFAULT_SETTINGS: SystemSettingsValues = {
   appTimeZone: 'Asia/Seoul',
   //실제 입출차 관리 기능 사용 여부
   entryExitManagementEnabled: true,
-  dashboardRefreshIntervalMinutes: 5,
+  dashboardRefreshIntervalMinutes: 1,
   // 아직 확정된 값이 아니다 — 관리자가 시스템 설정에서 실제 정책값으로 바꿔야 한다.
   personalDataRetentionDays: 365,
   // 기본은 끔(0) — 기존 동작(경계 맞닿음 허용)과 동일하게 유지한다.

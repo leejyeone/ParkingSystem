@@ -52,6 +52,12 @@ next-env.d.ts
 # 개발/E2E 용 이메일 아웃박스 (FileEmailProvider)
 /.mail-outbox/
 
+# 직원 명부·관리자 계정 등 개인정보가 담긴 로컬 부트스트랩 데이터
+# (scripts/import-employees.ts, scripts/import-operators.ts 용) — 절대 커밋하지 않는다.
+*.local.json
+*.local.xls
+*.local.xlsx
+
 # 에디터 / 에이전트 로컬 설정
 /.claude/
 
