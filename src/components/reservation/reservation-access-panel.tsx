@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState, type ChangeEvent, type FormEvent } from 'react';
 
 import { Alert } from '@/components/ui/alert';
@@ -205,6 +206,7 @@ function EditForm({
   onCancel: () => void;
   onSuccess: (updated: RequesterReservationView) => void;
 }) {
+  const router = useRouter();
   const [form, setForm] = useState({
     companyOrBranchName: reservation.companyOrBranchName,
     requesterName: reservation.requesterName,
@@ -244,12 +246,20 @@ function EditForm({
       },
     );
 
-    setSubmitting(false);
-
     if (response.ok) {
+      setSubmitting(false);
       onSuccess(response.data);
       return;
     }
+
+    // 토큰이 만료·무효화됐다면 이 화면(폼)에 오류를 띄우는 대신, 페이지를 다시
+    // 렌더링해 이미 있는 만료 안내 화면(InvalidTokenView)으로 자연스럽게 넘어가게 한다.
+    if (response.error.code === 'NOT_FOUND') {
+      router.refresh();
+      return;
+    }
+
+    setSubmitting(false);
     setFieldErrors(response.error.fieldErrors ?? {});
     setFormError(response.error);
   }
@@ -390,6 +400,7 @@ function CancelForm({
   onBack: () => void;
   onSuccess: (updated: RequesterReservationView) => void;
 }) {
+  const router = useRouter();
   const [cancelReason, setCancelReason] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [formError, setFormError] = useState<ApiErrorPayload | null>(null);
@@ -406,12 +417,20 @@ function CancelForm({
       { method: 'POST', body: JSON.stringify({ cancelReason }) },
     );
 
-    setSubmitting(false);
-
     if (response.ok) {
+      setSubmitting(false);
       onSuccess(response.data);
       return;
     }
+
+    // 토큰이 만료·무효화됐다면 이 화면(폼)에 오류를 띄우는 대신, 페이지를 다시
+    // 렌더링해 이미 있는 만료 안내 화면(InvalidTokenView)으로 자연스럽게 넘어가게 한다.
+    if (response.error.code === 'NOT_FOUND') {
+      router.refresh();
+      return;
+    }
+
+    setSubmitting(false);
     setFieldErrors(response.error.fieldErrors ?? {});
     setFormError(response.error);
   }

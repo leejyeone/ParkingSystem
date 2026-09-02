@@ -34,7 +34,7 @@ export default async function ReservationAccessPage({ params }: PageProps) {
     const resolved = await resolveAccessToken(token);
     resolvedReservationId = resolved.reservationId;
   } catch {
-    return <InvalidTokenView />;
+    return <InvalidTokenView homeHref={homeHref} />;
   }
 
   const [reservation, settings] = await Promise.all([
@@ -47,10 +47,10 @@ export default async function ReservationAccessPage({ params }: PageProps) {
   return (
     <main className="app-container">
       <div className="mb-4">
-        <h1 className="text-xl font-black text-slate-900 sm:text-2xl">내 예약</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          본인 예약 1건만 조회·수정·취소할 수 있는 보안 링크입니다. 링크를 타인과 공유하지 마세요.
-        </p>
+        <Link href={homeHref} className="text-brand-700 text-sm font-semibold">
+          ← 처음으로
+        </Link>
+        <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">내 예약</h1>
       </div>
 
       <ReservationAccessPanel
@@ -86,19 +86,24 @@ export default async function ReservationAccessPage({ params }: PageProps) {
   );
 }
 
-function InvalidTokenView() {
+function InvalidTokenView({ homeHref }: { homeHref: string }) {
   return (
     <main className="app-container">
-      <h1 className="mb-4 text-xl font-black text-slate-900 sm:text-2xl">
-        예약을 확인할 수 없습니다
-      </h1>
+      <div className="mb-4">
+        <Link href={homeHref} className="text-brand-700 text-sm font-semibold">
+          ← 처음으로
+        </Link>
+        <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">
+          예약을 확인할 수 없습니다
+        </h1>
+      </div>
       <div className="space-y-4">
         <Alert variant="error" title="유효하지 않거나 만료된 링크입니다">
           <p>이메일로 받으신 가장 최근 링크를 사용해 주세요.</p>
           <p className="mt-1">링크는 방문 종료일로부터 일정 기간이 지나면 자동으로 만료됩니다.</p>
         </Alert>
         <Link href="/reservations/lookup" className="btn btn-secondary w-full">
-          예약 조회 방법 안내
+          예약 조회
         </Link>
         <Link href="/reservations/new" className="btn btn-primary w-full">
           새로 방문 신청하기
