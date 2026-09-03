@@ -73,7 +73,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
         <div>
           <h1 className="text-ink text-xl font-black sm:text-2xl">대시보드</h1>
           <p className="text-ink-muted mt-1 text-sm">
-            기준일: {date} ({weekdayOf(date)}){' '}
+             {date} ({weekdayOf(date)}){' '}
             <DashboardAutoRefresher intervalMinutes={dashboard.dashboardRefreshIntervalMinutes} />
           </p>
         </div>
