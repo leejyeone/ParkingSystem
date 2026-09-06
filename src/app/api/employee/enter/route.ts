@@ -1,6 +1,9 @@
+import { timingSafeEqual } from 'node:crypto';
+
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { safeEmployeeRedirect } from '@/lib/employee-page-guard';
+import { getEmployeeEntryKey } from '@/lib/env';
 import { setEmployeeSessionCookie } from '@/lib/employee-session';
 import { getRequestContext } from '@/lib/request-context';
 import { consumeRateLimit } from '@/lib/rate-limit';
@@ -37,6 +40,8 @@ export async function GET(request: NextRequest) {
       message: '시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.',
     });
 
+    assertEntryKey(request);
+
     const redirectTo = safeEmployeeRedirect(
       request.nextUrl.searchParams.get('redirect') ?? undefined,
     );
@@ -55,5 +60,33 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL(redirectTo, request.url));
   } catch {
     return NextResponse.redirect(new URL('/employee/login?error=not_found', request.url));
+  }
+}
+
+/**
+ * 그룹웨어 메뉴에만 넣어 둔 공유 비밀값(`k`)을 확인한다.
+ *
+ * EMPLOYEE_ENTRY_KEY 를 설정하지 않으면 검사하지 않는다 — 그룹웨어가 없는 개발/테스트 환경과
+ * 기존 동작을 유지하기 위해서다. 운영에서는 반드시 설정한다.
+ *
+ * 값 비교에 timingSafeEqual 을 쓴다. 일반 문자열 비교는 앞에서부터 틀린 위치까지만 확인하고
+ * 끝나서, 응답 시간 차이로 한 글자씩 값을 알아낼 여지가 생긴다.
+ *
+ * 실패해도 이유를 알려 주지 않고 사번/메일이 틀렸을 때와 똑같은 화면으로 보낸다.
+ * "키는 맞는데 계정이 없다" 는 정보 자체가 단서가 되기 때문이다.
+ */
+function assertEntryKey(request: NextRequest): void {
+  const expected = getEmployeeEntryKey();
+  if (!expected) return;
+
+  const provided = request.nextUrl.searchParams.get('k') ?? '';
+  const expectedBuf = Buffer.from(expected);
+  const providedBuf = Buffer.from(provided);
+
+  if (
+    expectedBuf.length !== providedBuf.length ||
+    !timingSafeEqual(expectedBuf, providedBuf)
+  ) {
+    throw new Error('entry key mismatch');
   }
 }

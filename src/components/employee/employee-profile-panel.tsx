@@ -9,7 +9,8 @@ import { apiRequest } from '@/lib/client/api-client';
 import { normalizeVehicleNo } from '@/lib/vehicle';
 
 type Profile = {
-  employeeCode: string;
+  /** 사번이 확정되지 않은 직원이 있어 비어 있을 수 있다. */
+  employeeCode: string | null;
   email: string;
   name: string;
   departmentName: string;

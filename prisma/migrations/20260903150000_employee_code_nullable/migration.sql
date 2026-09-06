@@ -1,0 +1,19 @@
+-- 직원 사번(employee_code)을 선택값으로 바꾼다.
+--
+-- 이유:
+--   그룹웨어(유니포탈)에서 사번은 사람을 식별하는 값으로 쓸 수 없다는 것이 확인됐다.
+--   2026-09-03 실측 기준 재직자 815명 중
+--     - 16명은 사번이 아예 비어 있고
+--     - 한 사번을 두 사람이 공유하는 경우가 있었다 (예: VT000007)
+--   반면 SYSMAIL(메일)은 815명 전원이 유일했고 주차 시스템 796명과 정확히 일치했다.
+--   그래서 직원 식별 기준을 email 로 옮기고, 사번은 `?fsacode=` 진입 경로를 위한
+--   참조값으로만 남긴다.
+--
+-- 영향:
+--   기존 데이터는 변경되지 않는다. 값이 들어 있는 행은 그대로 유지된다.
+--   MySQL 의 UNIQUE 인덱스는 NULL 을 여러 개 허용하므로 중복 방지도 그대로 살아 있다.
+--
+-- 되돌리려면:
+--   employee_code 가 NULL 인 행을 채우거나 지운 뒤
+--   ALTER TABLE `employee_users` MODIFY `employee_code` VARCHAR(20) NOT NULL;
+ALTER TABLE `employee_users` MODIFY `employee_code` VARCHAR(20) NULL;

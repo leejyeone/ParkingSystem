@@ -114,3 +114,20 @@ export function getEmailProviderKind(): EmailProviderKind {
 export function isProduction(): boolean {
   return process.env.NODE_ENV === 'production';
 }
+
+/**
+ * 그룹웨어 진입(`/api/employee/enter`)에 요구할 공유 비밀값.
+ *
+ * 직원 진입에는 비밀번호가 없다. 사번이든 메일이든 남의 것을 알면 그 사람으로 들어갈 수 있고,
+ * 이 사이트는 방문객 신청 때문에 인터넷에 열려 있다. 그래서 그룹웨어 메뉴 설정에만 넣어 두는
+ * 고정 비밀값을 하나 더 요구해서, 주소만 안다고 들어오지는 못하게 한다.
+ *
+ * 완전한 방어는 아니다 — 한 번 눌러 본 직원은 주소창에서 값을 볼 수 있다. 다만 아무 확인도
+ * 없는 것보다는 낫고, 그룹웨어 쪽은 파라미터 하나를 더 넣으면 끝이라 도입 비용이 거의 없다.
+ * 제대로 하려면 그룹웨어가 매번 다른 서명값을 만들어 보내야 하는데, 그건 그룹웨어 개발이 필요하다.
+ *
+ * 값을 설정하지 않으면 검사하지 않는다(기존 동작 유지). 운영에서는 반드시 설정할 것.
+ */
+export function getEmployeeEntryKey(): string | undefined {
+  return getOptionalEnv('EMPLOYEE_ENTRY_KEY');
+}

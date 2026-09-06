@@ -11,16 +11,33 @@ type PageProps = { searchParams: Promise<Record<string, string | string[] | unde
 
 /** 메인 화면. 모바일에서 버튼을 크고 명확하게 노출한다. */
 export default async function HomePage({ searchParams }: PageProps) {
-  // 사내망 "다른 사이트 로그인 연동"이 `/?fsacode=사번` 형태로 루트에 착지한다(대소문자
-  // 표기가 시스템마다 다를 수 있어 대소문자 구분 없이 찾는다). 발견하면 실제 세션 발급
-  // 로직(`GET /api/employee/enter`)으로 그대로 넘긴다 — 로직을 여기서 중복하지 않는다.
+  // 사내망 "다른 사이트 로그인 연동"이 루트에 착지한다(대소문자 표기가 시스템마다 다를 수
+  // 있어 대소문자 구분 없이 찾는다). 발견하면 실제 세션 발급 로직(`GET /api/employee/enter`)
+  // 으로 그대로 넘긴다 — 로직을 여기서 중복하지 않는다.
+  //
+  //   `/?email=메일`     그룹웨어 SYSMAIL 로 진입 (권장 — 그룹웨어에서 유일한 값이다)
+  //   `/?fsacode=사번`   사번으로 진입 (기존 방식. 사번이 없거나 중복인 직원은 못 쓴다)
+  //
+  // `k` 는 그룹웨어 메뉴에만 넣어 둔 공유 비밀값이다. 있으면 그대로 넘겨준다.
   // redirect 를 따로 지정하지 않으면 `safeEmployeeRedirect` 기본값인 `/employee` 로 간다.
   const params = await searchParams;
-  const fsacodeKey = Object.keys(params).find((key) => key.toLowerCase() === 'fsacode');
-  const fsacode = fsacodeKey ? params[fsacodeKey] : undefined;
-  const fsacodeValue = Array.isArray(fsacode) ? fsacode[0] : fsacode;
-  if (fsacodeValue?.trim()) {
-    redirect(`/api/employee/enter?empId=${encodeURIComponent(fsacodeValue.trim())}`);
+  const pick = (name: string): string | undefined => {
+    const key = Object.keys(params).find((k) => k.toLowerCase() === name);
+    const raw = key ? params[key] : undefined;
+    const value = Array.isArray(raw) ? raw[0] : raw;
+    return value?.trim() || undefined;
+  };
+
+  const entryKey = pick('k');
+  const keyParam = entryKey ? `&k=${encodeURIComponent(entryKey)}` : '';
+  const email = pick('email');
+  const fsacode = pick('fsacode');
+
+  if (email) {
+    redirect(`/api/employee/enter?email=${encodeURIComponent(email)}${keyParam}`);
+  }
+  if (fsacode) {
+    redirect(`/api/employee/enter?empId=${encodeURIComponent(fsacode)}${keyParam}`);
   }
 
   const [settings, session] = await Promise.all([

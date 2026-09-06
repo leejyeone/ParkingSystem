@@ -187,8 +187,14 @@ model SiteUser {
 
 model EmployeeUser {
   employeeUserId      Int     @id @default(autoincrement()) @map("employee_user_id")
-  /// 그룹웨어 세션의 사번(Fsacode/CCode). 로그인·그룹웨어 매핑의 유일한 키 — 비밀번호는 없다.
-  employeeCode        String  @unique(map: "uq_employee_users_employee_code") @map("employee_code") @db.VarChar(20)
+  /// 그룹웨어 세션의 사번(Fsacode/CCode). `?fsacode=` 진입 경로에서만 쓰는 참조값이다.
+  ///
+  /// 필수가 아니다. 그룹웨어에서 사번이 비어 있는 재직자가 실제로 존재하고(2026-09-03 기준
+  /// 815명 중 16명), 한 사번을 두 사람이 공유하는 경우도 있었다. 그래서 사번은 사람을
+  /// 식별하는 키로 쓸 수 없다. 식별은 email 로 한다 — 그룹웨어 SYSMAIL 과 1:1 로 맞는다.
+  /// 사번이 확정되지 않은 사람은 이 값을 비워 두고, `?email=` 경로로 진입한다.
+  employeeCode        String? @unique(map: "uq_employee_users_employee_code") @map("employee_code") @db.VarChar(20)
+  /// 그룹웨어 SYSMAIL. 직원을 식별하는 기준값이다.
   email               String  @unique(map: "uq_employee_users_email") @db.VarChar(255)
   name                String  @db.VarChar(50)
   /// 그룹웨어 조회 결과의 부서명(buseo).

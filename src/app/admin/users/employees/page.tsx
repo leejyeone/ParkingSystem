@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 
 import { EmployeeUserPanel } from '@/components/admin/employee-user-panel';
+import { UniportalSyncPanel } from '@/components/admin/uniportal-sync-panel';
 import { requireSystemAdminPage } from '@/lib/admin-page-guard';
+import { isUniportalConfigured } from '@/lib/uniportal-db';
 import { listEmployeeUsers } from '@/services/employee-user-service';
 
 export const dynamic = 'force-dynamic';
@@ -19,10 +21,12 @@ export default async function AdminUsersEmployeesPage() {
       <div>
         <h1 className="text-ink text-xl font-black sm:text-2xl">등록 직원 관리</h1>
         <p className="text-ink-muted mt-1 text-sm">
-          직원 계정은 명부 시드 스크립트로 일괄 등록되거나 [직원 추가]로 개별 등록됩니다. 퇴사자는
-          삭제 대신 비활성화해 주세요.
+          직원 계정은 [그룹웨어 명부 갱신]으로 일괄 반영하거나 [직원 추가]로 개별 등록합니다.
+          퇴사자는 삭제 대신 비활성화해 주세요.
         </p>
       </div>
+
+      <UniportalSyncPanel configured={isUniportalConfigured()} />
 
       <EmployeeUserPanel
         employeeUsers={employeeUsers.map((user) => ({

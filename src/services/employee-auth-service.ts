@@ -19,7 +19,8 @@ import { normalizeVehicleNo } from '@/lib/vehicle';
 
 export type EmployeeProfile = {
   employeeUserId: number;
-  employeeCode: string;
+  /** 사번이 확정되지 않은 직원이 있어 비어 있을 수 있다. 화면에서는 '-' 로 표시한다. */
+  employeeCode: string | null;
   email: string;
   name: string;
   departmentName: string;
@@ -27,11 +28,22 @@ export type EmployeeProfile = {
   companyOrBranchName: string | null;
 };
 
-/** 사번으로 진입. 그룹웨어가 넘겨준 사번(또는 개발용 진입 폼에 직접 입력한 사번)을 그대로 받는다. */
+/**
+ * 사번으로 진입. 그룹웨어가 넘겨준 사번(또는 개발용 진입 폼에 직접 입력한 사번)을 그대로 받는다.
+ *
+ * 사번은 그룹웨어에서 유일하지 않아(비어 있거나 두 사람이 공유하는 경우가 있다) 확정할 수 없는
+ * 사번은 명부에 아예 넣지 않는다. 그런 직원은 이 경로로 못 들어오고 `?email=` 경로를 쓴다.
+ * 빈 값이 NULL 행과 엮이지 않도록 여기서 한 번 더 막는다.
+ */
 export async function enterByEmployeeCode(employeeCode: string): Promise<EmployeeSession> {
+  const trimmed = employeeCode.trim();
+  if (!trimmed) {
+    throw new NotFoundError('등록되지 않은 사번입니다. 관리자에게 문의해 주세요.');
+  }
+
   const employee = await prisma.employeeUser.findFirst({
     where: {
-      employeeCode: employeeCode.trim(),
+      employeeCode: trimmed,
       deletedAt: null,
       accountStatus: AccountStatus.ACTIVE,
     },
@@ -49,7 +61,7 @@ export async function enterByEmployeeCode(employeeCode: string): Promise<Employe
 
   return {
     employeeUserId: employee.employeeUserId,
-    employeeCode: employee.employeeCode,
+    employeeCode: employee.employeeCode ?? '',
     email: employee.email,
     name: employee.name,
   };
@@ -82,7 +94,7 @@ export async function enterByEmail(email: string): Promise<EmployeeSession> {
 
   return {
     employeeUserId: employee.employeeUserId,
-    employeeCode: employee.employeeCode,
+    employeeCode: employee.employeeCode ?? '',
     email: employee.email,
     name: employee.name,
   };
@@ -117,7 +129,7 @@ export async function requireActiveEmployee(): Promise<EmployeeSession> {
 
   return {
     employeeUserId: employee.employeeUserId,
-    employeeCode: employee.employeeCode,
+    employeeCode: employee.employeeCode ?? '',
     email: employee.email,
     name: employee.name,
   };
