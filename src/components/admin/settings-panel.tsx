@@ -1556,6 +1556,7 @@ type AdminUserDraft = {
   email: string;
   phone: string;
   accountStatus: 'ACTIVE' | 'INACTIVE' | 'LOCKED';
+  role: 'SYSTEM_ADMIN' | 'PARKING_ADMIN';
 };
 
 function toAdminUserDraft(user: AdminUser): AdminUserDraft {
@@ -1564,6 +1565,7 @@ function toAdminUserDraft(user: AdminUser): AdminUserDraft {
     email: user.email,
     phone: user.phone ?? '',
     accountStatus: user.accountStatus,
+    role: user.role,
   };
 }
 
@@ -1576,6 +1578,7 @@ function toAdminUserDraftById(users: AdminUser[], id: number): AdminUserDraft {
         email: '',
         phone: '',
         accountStatus: 'ACTIVE',
+        role: 'PARKING_ADMIN',
       };
 }
 
@@ -1584,7 +1587,8 @@ function isSameAdminUser(a: AdminUserDraft, b: AdminUserDraft): boolean {
     a.adminName === b.adminName &&
     a.email === b.email &&
     a.phone === b.phone &&
-    a.accountStatus === b.accountStatus
+    a.accountStatus === b.accountStatus &&
+    a.role === b.role
   );
 }
 
@@ -1659,6 +1663,7 @@ function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
           email: draft.email,
           phone: draft.phone || null,
           accountStatus: draft.accountStatus,
+          role: draft.role,
         }),
       });
       if (response.ok) done += 1;
@@ -1827,17 +1832,20 @@ function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
                       />
                     </td>
                     <td>
-                      {/* 권한은 여기서 바꿀 수 없다 — 시스템 관리자 계정은 별도 "시스템 관리자
-                          추가" 화면으로만 만든다. */}
-                      <span
-                        className={`badge ${
-                          user.role === 'SYSTEM_ADMIN'
-                            ? 'bg-brand-100 text-brand-700'
-                            : 'bg-surface-active text-ink-muted'
-                        }`}
+                      <select
+                        className="input"
+                        value={draft.role}
+                        disabled={isRemoved}
+                        onChange={(event) =>
+                          updateDraft(user.adminUserId, {
+                            role: event.target.value as AdminUserDraft['role'],
+                          })
+                        }
+                        aria-label={`${user.email} 권한`}
                       >
-                        {ADMIN_ROLE_LABEL[user.role]}
-                      </span>
+                        <option value="SYSTEM_ADMIN">{ADMIN_ROLE_LABEL.SYSTEM_ADMIN}</option>
+                        <option value="PARKING_ADMIN">{ADMIN_ROLE_LABEL.PARKING_ADMIN}</option>
+                      </select>
                     </td>
                     <td>
                       <select

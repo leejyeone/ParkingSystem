@@ -4,6 +4,7 @@ import Link from 'next/link';
 
 import { DEFAULT_SETTINGS } from '@/domain/system-settings';
 import { requireEmployeePage } from '@/lib/employee-page-guard';
+import { findMatchingAdminAccount } from '@/services/admin-auth-service';
 import { getEmployeeProfile } from '@/services/employee-auth-service';
 import { getSystemSettings } from '@/services/settings-service';
 
@@ -13,9 +14,10 @@ export const metadata: Metadata = { title: '직원 홈' };
 
 export default async function EmployeeHomePage() {
   const session = await requireEmployeePage('/employee');
-  const [profile, settings] = await Promise.all([
+  const [profile, settings, matchingAdmin] = await Promise.all([
     getEmployeeProfile(session.employeeUserId),
     getSystemSettings().catch(() => DEFAULT_SETTINGS),
+    findMatchingAdminAccount(session.email),
   ]);
 
   return (
@@ -41,6 +43,11 @@ export default async function EmployeeHomePage() {
         <Link href="/employee/reservations" className="btn btn-secondary btn-lg w-full">
           마이페이지
         </Link>
+        {matchingAdmin && (
+          <Link href="/api/employee/enter-admin" className="btn btn-secondary btn-lg w-full">
+            관리자 화면으로 이동
+          </Link>
+        )}
       </nav>
 
       <section className="card mt-6">

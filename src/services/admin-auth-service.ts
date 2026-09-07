@@ -120,6 +120,60 @@ export async function loginAdmin(params: {
   };
 }
 
+/** 직원 이메일과 일치하는 활성 관리자 계정이 있는지 (홈 화면 버튼 노출 여부 판단용) */
+export async function findMatchingAdminAccount(
+  employeeEmail: string,
+): Promise<{ adminUserId: number } | null> {
+  const email = employeeEmail.trim().toLowerCase();
+  return prisma.adminUser.findFirst({
+    where: { email, deletedAt: null, accountStatus: AccountStatus.ACTIVE },
+    select: { adminUserId: true },
+  });
+}
+
+/**
+ * 직원 세션 이메일로 관리자 세션을 발급한다(비밀번호 확인 없음).
+ * 직원 SSO(EMPLOYEE_ENTRY_KEY로 보호)를 신뢰 근거로 삼는 의도적 예외 경로라, 잠긴/비활성
+ * 계정은 절대 되살리지 않고(정상 로그인으로만 해제 가능), 반드시 감사 로그를 구분해 남긴다.
+ */
+export async function loginAdminViaEmployeeSso(
+  employeeEmail: string,
+  context?: RequestContext,
+): Promise<AdminSession> {
+  const email = employeeEmail.trim().toLowerCase();
+
+  const admin = await prisma.adminUser.findFirst({
+    where: { email, deletedAt: null, accountStatus: AccountStatus.ACTIVE },
+    select: { adminUserId: true, email: true, adminName: true, role: true },
+  });
+  if (!admin) {
+    await recordLoginAttempt(email, false, context);
+    throw new ForbiddenError('일치하는 관리자 계정이 없습니다.');
+  }
+
+  await prisma.adminUser.update({
+    where: { adminUserId: admin.adminUserId },
+    data: { lastLoginAt: new Date() },
+  });
+  await recordLoginAttempt(email, true, context);
+
+  await writeAuditLog({
+    actorAdminId: admin.adminUserId,
+    actionType: AUDIT_ACTIONS.ADMIN_LOGIN_VIA_EMPLOYEE_SSO,
+    targetType: AUDIT_TARGETS.ADMIN_USER,
+    targetId: admin.adminUserId,
+    detail: { via: 'employee-sso', employeeEmail: email },
+    context,
+  });
+
+  return {
+    adminUserId: admin.adminUserId,
+    email: admin.email,
+    adminName: admin.adminName,
+    role: admin.role,
+  };
+}
+
 async function recordLoginAttempt(
   email: string,
   succeeded: boolean,

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 
 import { Alert } from '@/components/ui/alert';
 import { safeEmployeeRedirect } from '@/lib/employee-page-guard';
+import { getEmployeeEntryKey } from '@/lib/env';
 import { getEmployeeSession } from '@/lib/employee-session';
 
 export const dynamic = 'force-dynamic';
@@ -60,6 +61,13 @@ export default async function EmployeeLoginPage({ searchParams }: PageProps) {
             />
           </div>
           <input type="hidden" name="redirect" value={redirectTo} />
+          {/*
+            /api/employee/enter 는 EMPLOYEE_ENTRY_KEY 가 설정되면 k 파라미터를 요구한다.
+            이 화면은 서버가 이미 아는 그 값을 그대로 실어 보낸다 — 그룹웨어 메뉴 링크에
+            k 가 박혀 있는 것과 같은 수준이라 새로운 노출이 아니다. 키가 비어 있으면
+            assertEntryKey 가 검사를 건너뛰므로 빈 문자열이어도 무해하다.
+          */}
+          <input type="hidden" name="k" value={getEmployeeEntryKey() ?? ''} />
           <button type="submit" className="btn btn-primary w-full">
             진입하기
           </button>

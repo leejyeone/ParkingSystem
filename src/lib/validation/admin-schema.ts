@@ -197,6 +197,7 @@ export const adminUserUpdateSchema = z.object({
   adminName: requiredText(50, '관리자 이름').optional(),
   phone: optionalText(20, '연락처'),
   accountStatus: z.enum(AccountStatus).optional(),
+  role: z.enum(AdminRole).optional(),
 });
 
 export const adminChangePasswordSchema = z.object({

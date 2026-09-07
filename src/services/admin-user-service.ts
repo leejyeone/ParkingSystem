@@ -184,6 +184,7 @@ export type UpdateAdminUserInput = {
   email?: string;
   phone?: string | null;
   accountStatus?: AccountStatus;
+  role?: AdminRole;
 };
 
 export async function updateAdminUser(
@@ -197,9 +198,16 @@ export async function updateAdminUser(
   // 마지막 남은 활성 관리자를 스스로 비활성화하지 못하게 막는다.
   const losingLastActiveAdmin =
     input.accountStatus !== undefined && input.accountStatus !== AccountStatus.ACTIVE;
+  // 마지막 남은 시스템 관리자를 주차 관리자로 강등시키지 못하게 막는다.
+  const losingSystemAdminRole =
+    input.role !== undefined &&
+    input.role !== AdminRole.SYSTEM_ADMIN &&
+    current.role === AdminRole.SYSTEM_ADMIN;
 
   if (losingLastActiveAdmin) {
     await assertNotLastActiveAdmin(adminUserId);
+  }
+  if (losingLastActiveAdmin || losingSystemAdminRole) {
     await assertNotLastActiveSystemAdmin(adminUserId, current.role);
   }
 
@@ -210,6 +218,7 @@ export async function updateAdminUser(
         ...(input.adminName !== undefined ? { adminName: input.adminName.trim() } : {}),
         ...(input.email !== undefined ? { email: input.email.trim().toLowerCase() } : {}),
         ...(input.phone !== undefined ? { phone: input.phone?.trim() || null } : {}),
+        ...(input.role !== undefined ? { role: input.role } : {}),
         ...(input.accountStatus !== undefined
           ? {
               accountStatus: input.accountStatus,
@@ -219,7 +228,7 @@ export async function updateAdminUser(
             }
           : {}),
       },
-      select: { adminUserId: true, email: true, accountStatus: true },
+      select: { adminUserId: true, email: true, accountStatus: true, role: true },
     });
 
     const deactivated =
@@ -235,8 +244,8 @@ export async function updateAdminUser(
       targetId: adminUserId,
       detail: {
         email: updated.email,
-        before: { accountStatus: current.accountStatus },
-        after: { accountStatus: updated.accountStatus },
+        before: { accountStatus: current.accountStatus, role: current.role },
+        after: { accountStatus: updated.accountStatus, role: updated.role },
       },
       context: actor.requestContext,
     });
