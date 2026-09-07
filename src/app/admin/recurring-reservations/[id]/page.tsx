@@ -5,6 +5,7 @@ import { RecurringScheduleDeleteButton } from '@/components/admin/recurring-sche
 import { RecurringScheduleOccurrenceTable } from '@/components/admin/recurring-schedule-occurrence-table';
 import { parseNumericId } from '@/lib/api-helpers';
 import { requireSystemAdminPage } from '@/lib/admin-page-guard';
+import { listParkingSpaces } from '@/services/parking-space-service';
 import { getRecurringScheduleDetail } from '@/services/recurring-reservation-service';
 
 export const dynamic = 'force-dynamic';
@@ -20,7 +21,10 @@ export default async function RecurringReservationDetailPage({ params }: PagePro
 
   const { id } = await params;
   const scheduleId = parseNumericId(id, '반복 예약 일정 ID');
-  const { schedule, occurrences } = await getRecurringScheduleDetail(scheduleId);
+  const [{ schedule, occurrences }, spaces] = await Promise.all([
+    getRecurringScheduleDetail(scheduleId),
+    listParkingSpaces(),
+  ]);
 
   return (
     <main className="app-container-wide space-y-4">
@@ -97,6 +101,15 @@ export default async function RecurringReservationDetailPage({ params }: PagePro
           visitEndAt: occurrence.visitEndAt.toISOString(),
           displayStatus: occurrence.displayStatus,
           reservationStatus: occurrence.reservationStatus,
+          assignedSpaceCode: occurrence.assignedSpaceCode,
+          companyOrBranchName: occurrence.companyOrBranchName,
+          requesterName: occurrence.requesterName,
+          vehicleNo: occurrence.vehicleNo,
+        }))}
+        spaceOptions={spaces.map((space) => ({
+          spaceId: space.spaceId,
+          spaceCode: space.spaceCode,
+          areaName: space.area.areaName,
         }))}
       />
     </main>

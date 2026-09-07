@@ -65,9 +65,11 @@ export default async function RecurringReservationsPage() {
                       href={`/admin/recurring-reservations/${schedule.scheduleId}`}
                     >
                       <td>
+                        {/* 링크처럼 보이지 않게 스타일은 제거하되, 키보드 접근성을 위해
+                            실제 <a>는 유지한다 — 행 전체가 ClickableTableRow 로 클릭 가능하다. */}
                         <Link
                           href={`/admin/recurring-reservations/${schedule.scheduleId}`}
-                          className="text-brand-700 font-bold hover:underline"
+                          className="text-ink font-bold"
                         >
                           {schedule.employeeName} ({schedule.departmentName})
                         </Link>
