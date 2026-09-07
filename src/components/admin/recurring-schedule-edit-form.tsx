@@ -13,6 +13,13 @@ function maskToWeekdays(mask: number): boolean[] {
   return Array.from({ length: 7 }, (_, index) => ((mask >> index) & 1) === 1);
 }
 
+function addDays(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
 type UpdateResult = {
   cancelledCount: number;
   updatedCount: number;
@@ -33,7 +40,6 @@ export function RecurringScheduleEditForm({
     dailyStartTime: string;
     dailyEndTime: string;
     approvalEnabled: boolean;
-    emailEnabled: boolean;
     autoEntryExitEnabled: boolean;
     hiddenFromReservationList: boolean;
   };
@@ -47,7 +53,6 @@ export function RecurringScheduleEditForm({
   const [dailyEndTime, setDailyEndTime] = useState(initial.dailyEndTime);
   // "관리자 승인 생략" 체크박스 — 실제 저장 필드(approvalEnabled)의 반대 의미다.
   const [skipApproval, setSkipApproval] = useState(!initial.approvalEnabled);
-  const [emailEnabled, setEmailEnabled] = useState(initial.emailEnabled);
   const [autoEntryExitEnabled, setAutoEntryExitEnabled] = useState(initial.autoEntryExitEnabled);
   const [hiddenFromReservationList, setHiddenFromReservationList] = useState(
     initial.hiddenFromReservationList,
@@ -76,12 +81,11 @@ export function RecurringScheduleEditForm({
         method: 'PUT',
         body: JSON.stringify({
           startDate,
-          endDate: endDate || null,
+          endDate,
           weekdays,
           dailyStartTime,
           dailyEndTime,
           approvalEnabled: !skipApproval,
-          emailEnabled,
           autoEntryExitEnabled: entryExitManagementEnabled ? autoEntryExitEnabled : false,
           hiddenFromReservationList,
         }),
@@ -130,7 +134,7 @@ export function RecurringScheduleEditForm({
   }
 
   const isFormValid = Boolean(
-    startDate && weekdays.some(Boolean) && dailyStartTime && dailyEndTime,
+    startDate && endDate && weekdays.some(Boolean) && dailyStartTime && dailyEndTime,
   );
 
   return (
@@ -169,7 +173,8 @@ export function RecurringScheduleEditForm({
             <FormField
               label="종료일"
               htmlFor="recurring-end"
-              hint="비워두면 종료일 없이 무기한으로 등록되며, 예약은 6개월씩 생성됩니다."
+              required
+              hint="시작일로부터 최대 1개월(31일) 이내로 입력해 주세요."
               errors={fieldErrors.endDate}
             >
               <input
@@ -177,6 +182,8 @@ export function RecurringScheduleEditForm({
                 type="date"
                 className={inputClassName(Boolean(fieldErrors.endDate))}
                 value={endDate}
+                min={startDate || undefined}
+                max={startDate ? addDays(startDate, 30) : undefined}
                 onChange={(event) => setEndDate(event.target.value)}
               />
             </FormField>
@@ -240,7 +247,10 @@ export function RecurringScheduleEditForm({
 
       <section className="card">
         <div className="card-body space-y-3">
-          <h2 className="card-title">승인 · 메일 옵션</h2>
+          <h2 className="card-title">승인 옵션</h2>
+          <p className="text-ink-faint text-xs">
+            반복 예약은 등록/승인/변경/취소 등 어떤 경우에도 메일이 발송되지 않습니다.
+          </p>
 
           <label className="border-line flex min-h-11 items-center gap-3 rounded-lg border px-3">
             <input
@@ -250,18 +260,6 @@ export function RecurringScheduleEditForm({
               onChange={(event) => setSkipApproval(event.target.checked)}
             />
             <span className="text-ink text-sm font-semibold">관리자 승인 생략</span>
-          </label>
-
-          <label className="border-line flex min-h-11 items-center gap-3 rounded-lg border px-3">
-            <input
-              type="checkbox"
-              className="accent-brand-700 size-5"
-              checked={emailEnabled}
-              onChange={(event) => setEmailEnabled(event.target.checked)}
-            />
-            <span className="text-ink text-sm font-semibold">
-              신청 직원에게 개별 예약 알림 메일 발송
-            </span>
           </label>
 
           <label

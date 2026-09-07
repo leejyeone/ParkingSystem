@@ -43,7 +43,7 @@ export default async function RecurringReservationEditPage({ params }: PageProps
         <p className="text-ink-muted mt-1 text-sm">
           {schedule.spaceCode} 주차면 배정의 요일·시간·기간을 변경합니다. 새 일정에 그대로 남는
           날짜는 손대지 않고, 더 이상 해당하지 않는 날짜만 정리한 뒤 필요한 날짜만 새로 생성합니다.
-          종료일을 비우면 무기한으로 저장되며, 예약은 그래도 6개월치만 생성됩니다.
+          종료일은 시작일로부터 최대 1개월(31일) 이내로 입력해야 합니다.
         </p>
       </div>
 
@@ -56,7 +56,6 @@ export default async function RecurringReservationEditPage({ params }: PageProps
           dailyStartTime: schedule.dailyStartTime,
           dailyEndTime: schedule.dailyEndTime,
           approvalEnabled: schedule.approvalEnabled,
-          emailEnabled: schedule.emailEnabled,
           autoEntryExitEnabled: schedule.autoEntryExitEnabled,
           hiddenFromReservationList: schedule.hiddenFromReservationList,
         }}

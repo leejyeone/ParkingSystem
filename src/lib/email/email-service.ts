@@ -5,9 +5,7 @@ import { getEmailProvider } from '@/lib/email/email-provider-factory';
 import { EmailSendError } from '@/lib/email/email-provider';
 import { serializeAttachments } from '@/lib/email/email-attachments';
 import {
-  renderRecurringScheduleEmail,
   renderReservationEmail,
-  type RecurringScheduleEmailData,
   type ReservationEmailData,
   type ReservationEmailType,
   type RenderedEmail,
@@ -476,105 +474,6 @@ export async function sendEntryReminderEmail(
     rendered,
     dedupeOccurrence: reservation.visitStartAt.toISOString().slice(0, 16),
   });
-}
-
-// ---------------------------------------------------------------------------
-// 반복 예약(정기 주차 배정) 시리즈 자체에 대한 메일
-//
-// emailEnabled 설정과 무관하게 항상 발송한다 — emailEnabled 는 "매일 반복되는 개별 occurrence
-// 알림"의 노이즈만 줄이는 설정이고, 시리즈 생성/수정/개별 날짜 제외/삭제는 직원이 자신의
-// 반복 주차 배정 자체를 알 수 있는 유일한 통로라 항상 보낸다.
-// ---------------------------------------------------------------------------
-
-export type RecurringScheduleForEmail = Omit<
-  RecurringScheduleEmailData,
-  'createdCount' | 'skippedDates' | 'cancelledCount' | 'skipDate' | 'skipReason'
-> & {
-  requesterEmail: string;
-};
-
-/**
- * 반복 예약 알림 메일 수신자 — 시스템 관리자(활성 계정) + 해당 직원 본인.
- *
- * 반복 예약은 방문 신청/승인 절차 없이 바로 주차면을 배정하는 기능이라, 일반 예약
- * 알림처럼 관리자 알림 이메일 목록(AdminNotificationEmail)을 거치지 않는다 — 그
- * 목록에는 주차 관리자 이메일도 섞여 있어서, 주차 관리자에게 반복 예약 생성/변경/
- * 취소가 그대로 노출돼 버린다. 대신 로그인 계정 자체(AdminUser.role=SYSTEM_ADMIN)의
- * 이메일로 직접 보낸다.
- */
-async function getRecurringScheduleEmailRecipients(schedule: RecurringScheduleForEmail) {
-  const systemAdmins = await prisma.adminUser.findMany({
-    where: { role: 'SYSTEM_ADMIN', accountStatus: 'ACTIVE', deletedAt: null },
-    select: { email: true },
-  });
-  return [schedule.requesterEmail, ...systemAdmins.map((admin) => admin.email)];
-}
-
-async function sendRecurringScheduleEmailToAll(
-  schedule: RecurringScheduleForEmail,
-  emailType: EmailType,
-  rendered: RenderedEmail,
-): Promise<EmailDispatchResult[]> {
-  const recipients = await getRecurringScheduleEmailRecipients(schedule);
-  return Promise.all(
-    recipients.map((to) => sendEmailWithLog({ reservationId: null, emailType, to, rendered })),
-  );
-}
-
-/** 반복 예약 시리즈 생성 안내 */
-export async function sendRecurringScheduleCreatedEmail(
-  schedule: RecurringScheduleForEmail,
-  info: { createdCount: number; skippedDates: string[] },
-): Promise<EmailDispatchResult[]> {
-  const rendered = renderRecurringScheduleEmail(EmailType.RECURRING_SCHEDULE_CREATED, {
-    ...schedule,
-    createdCount: info.createdCount,
-    skippedDates: info.skippedDates,
-  });
-  return sendRecurringScheduleEmailToAll(schedule, EmailType.RECURRING_SCHEDULE_CREATED, rendered);
-}
-
-/** 반복 예약 시리즈 일정(요일/시간/기간) 변경 안내 */
-export async function sendRecurringScheduleUpdatedEmail(
-  schedule: RecurringScheduleForEmail,
-  info: { cancelledCount: number; createdCount: number; skippedDates: string[] },
-): Promise<EmailDispatchResult[]> {
-  const rendered = renderRecurringScheduleEmail(EmailType.RECURRING_SCHEDULE_UPDATED, {
-    ...schedule,
-    cancelledCount: info.cancelledCount,
-    createdCount: info.createdCount,
-    skippedDates: info.skippedDates,
-  });
-  return sendRecurringScheduleEmailToAll(schedule, EmailType.RECURRING_SCHEDULE_UPDATED, rendered);
-}
-
-/** 반복 예약 시리즈 중 특정 날짜 제외(연차 등) 안내 */
-export async function sendRecurringOccurrenceSkippedEmail(
-  schedule: RecurringScheduleForEmail,
-  info: { skipDate: string; reason: string },
-): Promise<EmailDispatchResult[]> {
-  const rendered = renderRecurringScheduleEmail(EmailType.RECURRING_OCCURRENCE_SKIPPED, {
-    ...schedule,
-    skipDate: info.skipDate,
-    skipReason: info.reason,
-  });
-  return sendRecurringScheduleEmailToAll(
-    schedule,
-    EmailType.RECURRING_OCCURRENCE_SKIPPED,
-    rendered,
-  );
-}
-
-/** 반복 예약 시리즈 전체 취소 안내 */
-export async function sendRecurringScheduleCancelledEmail(
-  schedule: RecurringScheduleForEmail,
-): Promise<EmailDispatchResult[]> {
-  const rendered = renderRecurringScheduleEmail(EmailType.RECURRING_SCHEDULE_CANCELLED, schedule);
-  return sendRecurringScheduleEmailToAll(
-    schedule,
-    EmailType.RECURRING_SCHEDULE_CANCELLED,
-    rendered,
-  );
 }
 
 /**

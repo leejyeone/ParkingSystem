@@ -44,8 +44,8 @@ export async function findExitReminderTargets(
     where: {
       reservationStatus: { in: [ReservationStatus.APPROVED, ReservationStatus.PARKING] },
       visitEndAt: { gte: windowStart, lte: windowEnd },
-      // 반복 예약 시리즈에서 메일 발송을 껐으면(emailEnabled=false) 출차 임박 알림도 나가지 않는다.
-      OR: [{ recurringScheduleId: null }, { recurringSchedule: { emailEnabled: true } }],
+      // 반복 예약 occurrence 에는 어떤 메일도 보내지 않는다(출차 임박 알림 포함).
+      recurringScheduleId: null,
     },
     include: {
       assignedSpace: { select: { spaceCode: true, spaceType: true } },

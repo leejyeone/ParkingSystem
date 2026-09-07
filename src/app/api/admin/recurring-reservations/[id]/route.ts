@@ -32,7 +32,6 @@ export async function PUT(request: NextRequest, context: RouteContext) {
         dailyStartTime: payload.dailyStartTime,
         dailyEndTime: payload.dailyEndTime,
         approvalEnabled: payload.approvalEnabled,
-        emailEnabled: payload.emailEnabled,
         autoEntryExitEnabled: payload.autoEntryExitEnabled,
         hiddenFromReservationList: payload.hiddenFromReservationList,
       },

@@ -74,10 +74,6 @@ export default async function RecurringReservationDetailPage({ params }: PagePro
               <dd className="definition-desc">{schedule.approvalEnabled ? 'O' : 'X'}</dd>
             </div>
             <div className="definition-row">
-              <dt className="definition-term">메일 발송</dt>
-              <dd className="definition-desc">{schedule.emailEnabled ? 'O' : 'X'}</dd>
-            </div>
-            <div className="definition-row">
               <dt className="definition-term">입출차 자동 처리</dt>
               <dd className="definition-desc">{schedule.autoEntryExitEnabled ? 'O' : 'X'}</dd>
             </div>

@@ -21,13 +21,12 @@ const weekdaysSchema = z
 /** 반복 패턴(기간·요일·매일 시간대) 공통 필드. 등록/수정 양쪽에서 재사용한다. */
 const schedulePatternFields = {
   startDate: dateStringSchema,
-  /** 비우면 시작일 기준 최대 허용 기간(6개월)으로 서비스 계층에서 자동 채운다. */
-  endDate: dateStringSchema.optional().nullable(),
+  /** 시작일로부터 최대 1개월(31일) 이내여야 한다 — 서비스 계층에서 재검증한다. */
+  endDate: dateStringSchema,
   weekdays: weekdaysSchema,
   dailyStartTime: timeOfDaySchema,
   dailyEndTime: timeOfDaySchema,
   approvalEnabled: z.boolean().default(true),
-  emailEnabled: z.boolean().default(false),
   autoEntryExitEnabled: z.boolean().default(false),
   hiddenFromReservationList: z.boolean().default(true),
 };

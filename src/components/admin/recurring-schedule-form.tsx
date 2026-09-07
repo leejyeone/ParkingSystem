@@ -26,6 +26,16 @@ const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 /** 평일(월~금)만 기본으로 켜 둔다 — 가장 흔한 사용 패턴이다. */
 const DEFAULT_WEEKDAYS = [false, true, true, true, true, true, false];
 
+/** 반복 예약 최대 기한(1개월 = 31일). 종료일 입력의 `max` 속성을 계산하는 데 쓴다. */
+const MAX_SCHEDULE_DAYS = 31;
+
+function addDays(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
 type CreateResult = {
   scheduleId: number;
   createdCount: number;
@@ -54,8 +64,7 @@ export function RecurringScheduleForm({
   // 관리자가 이미 확인하고 등록하는 흐름이라 기본은 "승인 생략"(자동 승인) — 체크를
   // 해제해야 일반 방문 신청처럼 승인 대기 상태로 만들어진다.
   const [skipApproval, setSkipApproval] = useState(true);
-  const [emailEnabled, setEmailEnabled] = useState(false);
-  const [autoEntryExitEnabled, setAutoEntryExitEnabled] = useState(false);
+  const [autoEntryExitEnabled, setAutoEntryExitEnabled] = useState(true);
   const [hiddenFromReservationList, setHiddenFromReservationList] = useState(true);
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
@@ -124,12 +133,11 @@ export function RecurringScheduleForm({
         companyOrBranchName: null,
         vehicleNo,
         startDate,
-        endDate: endDate || null,
+        endDate,
         weekdays,
         dailyStartTime,
         dailyEndTime,
         approvalEnabled: !skipApproval,
-        emailEnabled,
         autoEntryExitEnabled: entryExitManagementEnabled ? autoEntryExitEnabled : false,
         hiddenFromReservationList,
       }),
@@ -181,6 +189,7 @@ export function RecurringScheduleForm({
     vehicleNo.trim() &&
     spaceId &&
     startDate &&
+    endDate &&
     weekdays.some(Boolean) &&
     dailyStartTime &&
     dailyEndTime,
@@ -300,7 +309,8 @@ export function RecurringScheduleForm({
             <FormField
               label="종료일"
               htmlFor="recurring-end"
-              hint="비워두면 종료일 없이 무기한으로 등록되며, 예약은 6개월씩 생성됩니다."
+              required
+              hint="시작일로부터 최대 1개월(31일) 이내로 입력해 주세요."
               errors={fieldErrors.endDate}
             >
               <input
@@ -308,6 +318,8 @@ export function RecurringScheduleForm({
                 type="date"
                 className={inputClassName(Boolean(fieldErrors.endDate))}
                 value={endDate}
+                min={startDate || undefined}
+                max={startDate ? addDays(startDate, MAX_SCHEDULE_DAYS - 1) : undefined}
                 onChange={(event) => setEndDate(event.target.value)}
               />
             </FormField>
@@ -371,7 +383,10 @@ export function RecurringScheduleForm({
 
       <section className="card">
         <div className="card-body space-y-3">
-          <h2 className="card-title">승인 · 메일 옵션</h2>
+          <h2 className="card-title">승인 옵션</h2>
+          <p className="text-ink-faint text-xs">
+            반복 예약은 등록/승인/변경/취소 등 어떤 경우에도 메일이 발송되지 않습니다.
+          </p>
 
           <label className="border-line flex min-h-11 items-center gap-3 rounded-lg border px-3">
             <input
@@ -381,18 +396,6 @@ export function RecurringScheduleForm({
               onChange={(event) => setSkipApproval(event.target.checked)}
             />
             <span className="text-ink text-sm font-semibold">관리자 승인 생략</span>
-          </label>
-
-          <label className="border-line flex min-h-11 items-center gap-3 rounded-lg border px-3">
-            <input
-              type="checkbox"
-              className="accent-brand-700 size-5"
-              checked={emailEnabled}
-              onChange={(event) => setEmailEnabled(event.target.checked)}
-            />
-            <span className="text-ink text-sm font-semibold">
-              신청 직원에게 개별 예약 알림 메일 발송
-            </span>
           </label>
 
           <label

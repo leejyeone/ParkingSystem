@@ -73,8 +73,7 @@ const ACTIVE_STATUSES: ReservationStatus[] = [
 const RESERVATION_WITH_SPACES = {
   assignedSpace: { select: { spaceId: true, spaceCode: true, spaceType: true } },
   employeeUser: { select: { name: true, email: true } },
-  /** emailEnabled 가 false 인 반복 예약 시리즈 소속이면 모든 개별 알림 메일을 억제한다. */
-  recurringSchedule: { select: { scheduleId: true, emailEnabled: true } },
+  recurringSchedule: { select: { scheduleId: true } },
 } satisfies Prisma.ParkingReservationInclude;
 
 export type ReservationWithSpaces = Prisma.ParkingReservationGetPayload<{
@@ -499,7 +498,7 @@ export async function updateReservationByRequester(
   });
 
   const accessUrl = await issueAccessUrl(updated.reservationId, updated.visitEndAt);
-  if (updated.recurringSchedule?.emailEnabled ?? true) {
+  if (!updated.recurringScheduleId) {
     await dispatchQuietly(
       sendUpdatedEmails(toReservationForEmail(updated), {
         accessUrl,
@@ -670,7 +669,7 @@ export async function updateReservationByAdmin(
   });
 
   const accessUrl = await issueAccessUrl(updated.reservationId, updated.visitEndAt);
-  if (updated.recurringSchedule?.emailEnabled ?? true) {
+  if (!updated.recurringScheduleId) {
     await dispatchQuietly(
       sendUpdatedEmails(toReservationForEmail(updated), {
         accessUrl,
@@ -730,7 +729,7 @@ export async function cancelReservationByRequester(
     return result;
   });
 
-  if (cancelled.recurringSchedule?.emailEnabled ?? true) {
+  if (!cancelled.recurringScheduleId) {
     await dispatchQuietly(sendCancelledEmails(toReservationForEmail(cancelled)));
   }
   return cancelled;
@@ -788,7 +787,7 @@ export async function cancelReservationByAdmin(
     context: params.requestContext,
   });
 
-  if (cancelled.recurringSchedule?.emailEnabled ?? true) {
+  if (!cancelled.recurringScheduleId) {
     await dispatchQuietly(sendCancelledEmails(toReservationForEmail(cancelled)));
   }
   return cancelled;
@@ -925,7 +924,7 @@ export async function approveReservation(
   const accessUrl = await issueAccessUrl(approved.reservationId, approved.visitEndAt);
   const forEmail = toReservationForEmail(approved);
 
-  if (approved.recurringSchedule?.emailEnabled ?? true) {
+  if (!approved.recurringScheduleId) {
     await dispatchQuietly(
       (async () => {
         // 이중주차 배정 안내는 승인 메일 본문에 포함된다. (별도 발송하지 않음)
@@ -1047,7 +1046,7 @@ export async function rejectReservation(
     context: params.requestContext,
   });
 
-  if (rejected.recurringSchedule?.emailEnabled ?? true) {
+  if (!rejected.recurringScheduleId) {
     await dispatchQuietly(sendRejectedEmail(toReservationForEmail(rejected)));
   }
   return rejected;
@@ -1174,7 +1173,7 @@ export async function changeAssignedSpace(
 
   const accessUrl = await issueAccessUrl(updated.reservationId, updated.visitEndAt);
   const forEmail = toReservationForEmail(updated);
-  if (updated.recurringSchedule?.emailEnabled ?? true) {
+  if (!updated.recurringScheduleId) {
     await dispatchQuietly(
       (async () => {
         await sendApprovedEmail(forEmail, { accessUrl });

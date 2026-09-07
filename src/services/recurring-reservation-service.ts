@@ -10,25 +10,11 @@ import {
 import { checkOperatingHours, checkVisitRange } from '@/domain/reservation-rules';
 import { assertTransition } from '@/domain/reservation-status';
 import { formatKstDate, zonedInputToUtc } from '@/lib/datetime';
-import {
-  buildAccessUrl,
-  dispatchQuietly,
-  sendApprovedEmail,
-  sendNewRequestToAdminEmails,
-  sendRecurringOccurrenceSkippedEmail,
-  sendRecurringScheduleCancelledEmail,
-  sendRecurringScheduleCreatedEmail,
-  sendRecurringScheduleUpdatedEmail,
-  sendRequestReceivedEmail,
-  type RecurringScheduleForEmail,
-} from '@/lib/email/email-service';
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/errors';
 import { prisma } from '@/lib/prisma';
 import { generateReservationNo } from '@/lib/tokens';
 import { normalizeVehicleNo } from '@/lib/vehicle';
 import { AUDIT_ACTIONS, AUDIT_TARGETS, writeAuditLog } from '@/services/audit-service';
-import { getRequesterChangeDeadline } from '@/domain/reservation-rules';
-import { issueAccessToken } from '@/services/reservation-access-service';
 import {
   assertSpaceAssignable,
   lockSpaceRow,
@@ -49,18 +35,14 @@ import { findConflictingReservation } from '@/services/space-assignment-service'
  * 생성/조회/개별 날짜 제외/전체 취소만 다룬다.
  */
 
-/** 한 시리즈가 커버할 수 있는 최대 기간(일). 무한정 쌓이는 것을 막는다. */
-const MAX_SCHEDULE_DAYS = 180;
+/** 한 시리즈가 커버할 수 있는 최대 기간(일) = 1개월. 종료일은 항상 이 안에 들어야 한다. */
+const MAX_SCHEDULE_DAYS = 31;
 
 const RECURRING_OCCURRENCE_WITH_SPACES = {
   assignedSpace: { select: { spaceId: true, spaceCode: true, spaceType: true } },
   employeeUser: { select: { name: true, email: true } },
-  recurringSchedule: { select: { scheduleId: true, emailEnabled: true } },
+  recurringSchedule: { select: { scheduleId: true } },
 } satisfies Prisma.ParkingReservationInclude;
-
-type RecurringOccurrence = Prisma.ParkingReservationGetPayload<{
-  include: typeof RECURRING_OCCURRENCE_WITH_SPACES;
-}>;
 
 function parseDateOnly(input: string, fieldName: string): Date {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.trim())) {
@@ -95,34 +77,9 @@ function enumerateOccurrenceDates(start: Date, end: Date, weekdaysMask: number):
   return dates;
 }
 
-type ScheduleWithEmployeeAndSpace = {
-  requesterEmail: string;
-  startDate: Date;
-  endDate: Date | null;
-  weekdaysMask: number;
-  dailyStartTime: string;
-  dailyEndTime: string;
-  employeeUser: { name: string; departmentName: string };
-  assignedSpace: { spaceCode: string };
-};
-
-function toScheduleForEmail(schedule: ScheduleWithEmployeeAndSpace): RecurringScheduleForEmail {
-  return {
-    requesterEmail: schedule.requesterEmail,
-    employeeName: schedule.employeeUser.name,
-    departmentName: schedule.employeeUser.departmentName,
-    spaceCode: schedule.assignedSpace.spaceCode,
-    startDate: formatDateOnly(schedule.startDate),
-    endDate: schedule.endDate ? formatDateOnly(schedule.endDate) : '무기한',
-    weekdaysLabel: toWeekdaysLabel(schedule.weekdaysMask),
-    dailyStartTime: schedule.dailyStartTime,
-    dailyEndTime: schedule.dailyEndTime,
-  };
-}
-
 type SchedulePatternInput = {
   startDate: string;
-  endDate?: string | null;
+  endDate: string;
   weekdaysMask: number;
   dailyStartTime: string;
   dailyEndTime: string;
@@ -133,28 +90,24 @@ type SchedulePatternInput = {
  * 매일 반복되는 시간대 자체가 운영시간·최대 이용시간 규칙을 지키는지는 대표로 한 번만
  * 검증한다(모든 occurrence 가 같은 시간대를 쓰므로 개별 검증은 불필요하다).
  *
- * 종료일을 비우면 시리즈 자체는 **무기한**으로 저장한다(endDate = null). 다만 한 번에
- * 만드는 occurrence 는 여전히 {@link MAX_SCHEDULE_DAYS}일치로 제한한다 — 그 범위는
- * 호출부(`occurrenceGenerationEnd`)에서 계산한다.
+ * 종료일은 항상 입력해야 하며, 시작일로부터 {@link MAX_SCHEDULE_DAYS}일(1개월) 이내여야 한다.
  */
 async function validateSchedulePattern(
   input: SchedulePatternInput,
-): Promise<{ startDate: Date; endDate: Date | null }> {
+): Promise<{ startDate: Date; endDate: Date }> {
   const startDate = parseDateOnly(input.startDate, 'startDate');
-  const endDate = input.endDate ? parseDateOnly(input.endDate, 'endDate') : null;
+  const endDate = parseDateOnly(input.endDate, 'endDate');
 
-  if (endDate) {
-    if (endDate.getTime() < startDate.getTime()) {
-      throw new ValidationError('종료일은 시작일 이후여야 합니다.', {
-        endDate: ['종료일은 시작일 이후여야 합니다.'],
-      });
-    }
-    const totalDays = Math.round((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1;
-    if (totalDays > MAX_SCHEDULE_DAYS) {
-      throw new ValidationError(`반복 기간은 최대 ${MAX_SCHEDULE_DAYS}일까지 등록할 수 있습니다.`, {
-        endDate: [`반복 기간은 최대 ${MAX_SCHEDULE_DAYS}일까지 등록할 수 있습니다.`],
-      });
-    }
+  if (endDate.getTime() < startDate.getTime()) {
+    throw new ValidationError('종료일은 시작일 이후여야 합니다.', {
+      endDate: ['종료일은 시작일 이후여야 합니다.'],
+    });
+  }
+  const totalDays = Math.round((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1;
+  if (totalDays > MAX_SCHEDULE_DAYS) {
+    throw new ValidationError(`반복 기간은 최대 ${MAX_SCHEDULE_DAYS}일(1개월)까지 등록할 수 있습니다.`, {
+      endDate: [`반복 기간은 최대 ${MAX_SCHEDULE_DAYS}일(1개월)까지 등록할 수 있습니다.`],
+    });
   }
   if (input.weekdaysMask <= 0 || input.weekdaysMask > 0b1111111) {
     throw new ValidationError('반복할 요일을 하나 이상 선택해 주세요.', {
@@ -185,15 +138,6 @@ async function validateSchedulePattern(
   return { startDate, endDate };
 }
 
-/**
- * occurrence 를 실제로 만들 마지막 날짜. 종료일이 있으면 그 날짜 그대로, 없으면
- * `from` 기준 {@link MAX_SCHEDULE_DAYS}일 뒤까지만 — 시리즈는 무기한이어도 한 번에
- * 쌓는 occurrence 는 6개월 단위로 제한한다(다음 6개월은 나중에 일정을 다시 저장할 때 만들어진다).
- */
-function occurrenceGenerationEnd(from: Date, endDate: Date | null): Date {
-  return endDate ?? new Date(from.getTime() + (MAX_SCHEDULE_DAYS - 1) * 86_400_000);
-}
-
 // ---------------------------------------------------------------------------
 // 1. 시리즈 생성
 // ---------------------------------------------------------------------------
@@ -208,18 +152,15 @@ export type CreateRecurringScheduleInput = {
   /** 'yyyy-MM-dd' */
   startDate: string;
   /**
-   * 비우면 종료일 없는 **무기한** 시리즈로 저장한다. 다만 한 번에 만드는 occurrence는
-   * 항상 {@link MAX_SCHEDULE_DAYS}일(6개월)치만 생성되며, 그 이후 구간은 나중에 이
-   * 일정을 다시 저장(수정)할 때 이어서 생성된다.
+   * 시작일로부터 최대 {@link MAX_SCHEDULE_DAYS}일(1개월) 이내여야 한다.
    */
-  endDate?: string | null;
+  endDate: string;
   /** bit0=일 ... bit6=토 */
   weekdaysMask: number;
   /** 'HH:mm' */
   dailyStartTime: string;
   dailyEndTime: string;
   approvalEnabled: boolean;
-  emailEnabled: boolean;
   /** true 면 이 시리즈의 occurrence 는 예정 시각에 자동으로 입·출차 처리된다. */
   autoEntryExitEnabled: boolean;
   /** true(기본값) 면 이 시리즈의 occurrence 는 관리자 "전체 예약" 목록에 나타나지 않는다. */
@@ -275,7 +216,6 @@ export async function createRecurringSchedule(
         dailyStartTime: input.dailyStartTime,
         dailyEndTime: input.dailyEndTime,
         approvalEnabled: input.approvalEnabled,
-        emailEnabled: input.emailEnabled,
         autoEntryExitEnabled: input.autoEntryExitEnabled,
         hiddenFromReservationList: input.hiddenFromReservationList,
         createdByAdminId: actor.adminUserId,
@@ -287,11 +227,7 @@ export async function createRecurringSchedule(
     });
   });
 
-  const occurrenceDates = enumerateOccurrenceDates(
-    startDate,
-    occurrenceGenerationEnd(startDate, endDate),
-    input.weekdaysMask,
-  );
+  const occurrenceDates = enumerateOccurrenceDates(startDate, endDate, input.weekdaysMask);
   const skippedDates: string[] = [];
   let createdCount = 0;
 
@@ -323,10 +259,6 @@ export async function createRecurringSchedule(
       continue;
     }
     createdCount += 1;
-
-    if (input.emailEnabled) {
-      await dispatchOccurrenceCreatedEmail(created, settings.reservationMinLeadMinutes);
-    }
   }
 
   await writeAuditLog({
@@ -342,10 +274,6 @@ export async function createRecurringSchedule(
     },
     context: actor.requestContext,
   });
-
-  await dispatchQuietly(
-    sendRecurringScheduleCreatedEmail(toScheduleForEmail(schedule), { createdCount, skippedDates }),
-  );
 
   return { scheduleId: schedule.scheduleId, createdCount, skippedDates };
 }
@@ -439,46 +367,6 @@ async function createOccurrence(params: {
   }
 }
 
-async function dispatchOccurrenceCreatedEmail(
-  occurrence: RecurringOccurrence,
-  reservationMinLeadMinutes: number,
-): Promise<void> {
-  const forEmail = {
-    reservationId: occurrence.reservationId,
-    reservationNo: occurrence.reservationNo,
-    requesterType: occurrence.requesterType,
-    requesterName: occurrence.requesterName,
-    requesterEmail: occurrence.requesterEmail,
-    companyOrBranchName: occurrence.companyOrBranchName,
-    vehicleNo: occurrence.vehicleNo,
-    visitStartAt: occurrence.visitStartAt,
-    visitEndAt: occurrence.visitEndAt,
-    assignedSpace: occurrence.assignedSpace,
-    hostEmployee: occurrence.employeeUser,
-  };
-
-  const { rawToken } = await issueAccessToken({
-    reservationId: occurrence.reservationId,
-    visitEndAt: occurrence.visitEndAt,
-  });
-  const accessUrl = buildAccessUrl(rawToken);
-
-  await dispatchQuietly(
-    occurrence.reservationStatus === ReservationStatus.APPROVED
-      ? sendApprovedEmail(forEmail, { accessUrl })
-      : Promise.all([
-          sendRequestReceivedEmail(forEmail, {
-            accessUrl,
-            changeDeadlineAt: getRequesterChangeDeadline(
-              occurrence.visitStartAt,
-              reservationMinLeadMinutes,
-            ),
-          }),
-          sendNewRequestToAdminEmails(forEmail),
-        ]),
-  );
-}
-
 // ---------------------------------------------------------------------------
 // 2. 조회
 // ---------------------------------------------------------------------------
@@ -490,7 +378,7 @@ export type RecurringScheduleListItem = {
   departmentName: string;
   spaceCode: string;
   startDate: string;
-  /** null 이면 종료일 없는 무기한 반복이다. */
+  /** null 이면 이 규칙 변경 이전에 만들어진 무기한 반복이다(새 시리즈는 항상 값이 있다). */
   endDate: string | null;
   /** bit0=일 ... bit6=토. 수정 폼에서 요일 체크박스를 미리 채우는 데 쓴다. */
   weekdaysMask: number;
@@ -498,7 +386,6 @@ export type RecurringScheduleListItem = {
   dailyStartTime: string;
   dailyEndTime: string;
   approvalEnabled: boolean;
-  emailEnabled: boolean;
   autoEntryExitEnabled: boolean;
   /** true(기본값) 면 이 시리즈의 occurrence 는 관리자 "전체 예약" 목록에 나타나지 않는다. */
   hiddenFromReservationList: boolean;
@@ -530,7 +417,6 @@ export async function listRecurringSchedules(): Promise<RecurringScheduleListIte
     dailyStartTime: schedule.dailyStartTime,
     dailyEndTime: schedule.dailyEndTime,
     approvalEnabled: schedule.approvalEnabled,
-    emailEnabled: schedule.emailEnabled,
     autoEntryExitEnabled: schedule.autoEntryExitEnabled,
     hiddenFromReservationList: schedule.hiddenFromReservationList,
     status: schedule.status,
@@ -572,7 +458,6 @@ export async function listRecurringSchedulesForEmployee(
     dailyStartTime: schedule.dailyStartTime,
     dailyEndTime: schedule.dailyEndTime,
     approvalEnabled: schedule.approvalEnabled,
-    emailEnabled: schedule.emailEnabled,
     autoEntryExitEnabled: schedule.autoEntryExitEnabled,
     hiddenFromReservationList: schedule.hiddenFromReservationList,
     status: schedule.status,
@@ -614,8 +499,7 @@ export async function getRecurringScheduleDetail(scheduleId: number): Promise<{
       dailyStartTime: schedule.dailyStartTime,
       dailyEndTime: schedule.dailyEndTime,
       approvalEnabled: schedule.approvalEnabled,
-      emailEnabled: schedule.emailEnabled,
-      autoEntryExitEnabled: schedule.autoEntryExitEnabled,
+        autoEntryExitEnabled: schedule.autoEntryExitEnabled,
       hiddenFromReservationList: schedule.hiddenFromReservationList,
       status: schedule.status,
       createdAt: schedule.createdAt,
@@ -643,12 +527,7 @@ export async function skipRecurringOccurrence(
   const reservation = await prisma.parkingReservation.findUnique({
     where: { reservationId },
     include: {
-      recurringSchedule: {
-        include: {
-          employeeUser: { select: { name: true, departmentName: true } },
-          assignedSpace: { select: { spaceCode: true } },
-        },
-      },
+      recurringSchedule: { select: { scheduleId: true } },
     },
   });
   if (!reservation || !reservation.recurringSchedule) {
@@ -689,13 +568,6 @@ export async function skipRecurringOccurrence(
     detail: { reservationId, skipDate, reason },
     context: actor.requestContext,
   });
-
-  await dispatchQuietly(
-    sendRecurringOccurrenceSkippedEmail(toScheduleForEmail(reservation.recurringSchedule), {
-      skipDate,
-      reason,
-    }),
-  );
 }
 
 /** 예약 여러 건을 한꺼번에 취소 처리한다(반복 일정 수정/삭제 시 재사용). */
@@ -805,15 +677,14 @@ async function tryUpdateOccurrenceTime(params: {
 export type UpdateRecurringScheduleInput = {
   /** 'yyyy-MM-dd' */
   startDate: string;
-  /** 비우면 종료일 없는 무기한으로 저장한다(생성되는 occurrence는 여전히 6개월치뿐). */
-  endDate?: string | null;
+  /** 시작일로부터 최대 {@link MAX_SCHEDULE_DAYS}일(1개월) 이내여야 한다. */
+  endDate: string;
   /** bit0=일 ... bit6=토 */
   weekdaysMask: number;
   /** 'HH:mm' */
   dailyStartTime: string;
   dailyEndTime: string;
   approvalEnabled: boolean;
-  emailEnabled: boolean;
   autoEntryExitEnabled: boolean;
   /** true(기본값) 면 이 시리즈의 occurrence 는 관리자 "전체 예약" 목록에 나타나지 않는다. */
   hiddenFromReservationList: boolean;
@@ -882,10 +753,9 @@ export async function updateRecurringSchedule(
   // 오늘 이전 날짜는 다시 만들지 않는다 — 이미 지난 구간은 새 패턴으로 되돌릴 수 없다.
   const today = parseDateOnly(formatKstDate(now, settings.appTimeZone), 'startDate');
   const regenFrom = today.getTime() > startDate.getTime() ? today : startDate;
-  const generationEnd = occurrenceGenerationEnd(regenFrom, endDate);
 
   const remainingDates = new Set(
-    enumerateOccurrenceDates(regenFrom, generationEnd, input.weekdaysMask),
+    enumerateOccurrenceDates(regenFrom, endDate, input.weekdaysMask),
   );
   // 매일 시작/종료 시간이 바뀌면 같은 날짜라도 occurrence 의 방문 시간 자체가 달라진다 —
   // 이 경우 날짜가 겹치는 occurrence 는 취소·재생성 대신 시간만 그 자리에서 갱신한다.
@@ -961,7 +831,6 @@ export async function updateRecurringSchedule(
       dailyStartTime: input.dailyStartTime,
       dailyEndTime: input.dailyEndTime,
       approvalEnabled: input.approvalEnabled,
-      emailEnabled: input.emailEnabled,
       autoEntryExitEnabled: input.autoEntryExitEnabled,
       hiddenFromReservationList: input.hiddenFromReservationList,
     },
@@ -997,10 +866,6 @@ export async function updateRecurringSchedule(
       continue;
     }
     createdCount += 1;
-
-    if (input.emailEnabled) {
-      await dispatchOccurrenceCreatedEmail(created, settings.reservationMinLeadMinutes);
-    }
   }
 
   await writeAuditLog({
@@ -1011,20 +876,6 @@ export async function updateRecurringSchedule(
     detail: { cancelledCount, updatedCount, createdCount, skippedCount: skippedDates.length },
     context: actor.requestContext,
   });
-
-  await dispatchQuietly(
-    sendRecurringScheduleUpdatedEmail(
-      toScheduleForEmail({
-        ...schedule,
-        startDate,
-        endDate,
-        weekdaysMask: input.weekdaysMask,
-        dailyStartTime: input.dailyStartTime,
-        dailyEndTime: input.dailyEndTime,
-      }),
-      { cancelledCount, createdCount, skippedDates },
-    ),
-  );
 
   return { cancelledCount, updatedCount, createdCount, skippedDates };
 }
@@ -1046,10 +897,7 @@ export async function deleteRecurringSchedule(
 ): Promise<{ cancelledCount: number }> {
   const schedule = await prisma.recurringReservationSchedule.findUnique({
     where: { scheduleId },
-    include: {
-      employeeUser: { select: { name: true, departmentName: true } },
-      assignedSpace: { select: { spaceCode: true } },
-    },
+    select: { scheduleId: true },
   });
   if (!schedule) throw new NotFoundError('반복 예약 일정을 찾을 수 없습니다.');
 
@@ -1075,8 +923,6 @@ export async function deleteRecurringSchedule(
     detail: { cancelledCount },
     context: actor.requestContext,
   });
-
-  await dispatchQuietly(sendRecurringScheduleCancelledEmail(toScheduleForEmail(schedule)));
 
   return { cancelledCount };
 }

@@ -46,7 +46,6 @@ export default async function RecurringReservationsPage() {
                   <th>요일</th>
                   <th>시간대</th>
                   <th>관리자 승인</th>
-                  <th>메일 발송</th>
                   <th>입출차 자동</th>
                   <th>목록 숨김</th>
                   <th>상태</th>
@@ -55,7 +54,7 @@ export default async function RecurringReservationsPage() {
               <tbody>
                 {schedules.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="text-ink-faint text-center text-sm">
+                    <td colSpan={9} className="text-ink-faint text-center text-sm">
                       등록된 반복 예약이 없습니다.
                     </td>
                   </tr>
@@ -82,7 +81,6 @@ export default async function RecurringReservationsPage() {
                         {schedule.dailyStartTime} ~ {schedule.dailyEndTime}
                       </td>
                       <td>{schedule.approvalEnabled ? 'O' : 'X'}</td>
-                      <td>{schedule.emailEnabled ? 'O' : 'X'}</td>
                       <td>{schedule.autoEntryExitEnabled ? 'O' : 'X'}</td>
                       <td>{schedule.hiddenFromReservationList ? 'O' : 'X'}</td>
                       <td>
