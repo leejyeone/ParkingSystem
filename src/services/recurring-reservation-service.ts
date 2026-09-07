@@ -890,11 +890,17 @@ export async function updateRecurringSchedule(
  * 영구 보존되고, 관리자 목록/감사 로그에는 계속 남는다). 아직 방문 전인 occurrence
  * 는 전부 취소하고, 이미 지난 occurrence(실제 방문 기록)는 그대로 남는다 — 시리즈
  * 행이 삭제되지 않으므로 recurringScheduleId 연결도 계속 유지된다.
+ *
+ * 이미 입차 처리(PARKING)된 occurrence는 상태 전이 규칙상(`PARKING -> EXITED`만
+ * 허용) 여기서 취소할 수 없다 — 실제로 차가 그 자리에 있을 수 있기 때문이다. 조용히
+ * 건너뛰면 관리자는 "취소했다"고 믿지만 그 주차면은 대시보드에 계속 "사용 중"으로
+ * 남아 혼란스러우므로, 건너뛴 건수를 `stillParkedCount`로 명시해 알려준다 — 호출부가
+ * "출차 처리 후 다시 확인해 주세요" 같은 안내를 보여줄 수 있게 하기 위함이다.
  */
 export async function deleteRecurringSchedule(
   scheduleId: number,
   actor: AdminActionContext,
-): Promise<{ cancelledCount: number }> {
+): Promise<{ cancelledCount: number; stillParkedCount: number }> {
   const schedule = await prisma.recurringReservationSchedule.findUnique({
     where: { scheduleId },
     select: { scheduleId: true },
@@ -910,6 +916,10 @@ export async function deleteRecurringSchedule(
   });
   const cancelledCount = await cancelOccurrences(activeOccurrences, '예약 취소', actor);
 
+  const stillParkedCount = await prisma.parkingReservation.count({
+    where: { recurringScheduleId: scheduleId, reservationStatus: ReservationStatus.PARKING },
+  });
+
   await prisma.recurringReservationSchedule.update({
     where: { scheduleId },
     data: { status: RecurringScheduleStatus.CANCELLED },
@@ -920,9 +930,9 @@ export async function deleteRecurringSchedule(
     actionType: AUDIT_ACTIONS.RECURRING_SCHEDULE_DELETE,
     targetType: AUDIT_TARGETS.RECURRING_SCHEDULE,
     targetId: scheduleId,
-    detail: { cancelledCount },
+    detail: { cancelledCount, stillParkedCount },
     context: actor.requestContext,
   });
 
-  return { cancelledCount };
+  return { cancelledCount, stillParkedCount };
 }
