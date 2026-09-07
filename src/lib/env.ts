@@ -116,6 +116,18 @@ export function isProduction(): boolean {
 }
 
 /**
+ * 직원 이메일 진입 폼(`/employee/login`)을 프로덕션에서도 보여줄지.
+ *
+ * 이 폼은 비밀번호 없이 이메일만으로 로그인되므로 운영에서는 절대 노출하면 안 된다
+ * (관리자 이메일과 겹치면 관리자 화면까지 그대로 넘어간다). 다만 E2E 는 프로덕션
+ * 빌드로 돌아가면서도(`playwright.config.ts`) 이 폼으로 로그인해야 하므로,
+ * FileEmailProvider(`ALLOW_FILE_EMAIL_PROVIDER`)와 동일한 방식으로 명시적 opt-in을 둔다.
+ */
+export function isEmployeeDevLoginAllowed(): boolean {
+  return !isProduction() || getOptionalEnv('ALLOW_EMPLOYEE_DEV_LOGIN') === 'true';
+}
+
+/**
  * 그룹웨어 진입(`/api/employee/enter`)에 요구할 공유 비밀값.
  *
  * 직원 진입에는 비밀번호가 없다. 사번이든 메일이든 남의 것을 알면 그 사람으로 들어갈 수 있고,

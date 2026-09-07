@@ -24,7 +24,9 @@ export function PasswordInput({
         tabIndex={-1}
         onClick={() => setVisible((previous) => !previous)}
         className="text-ink-faint hover:text-ink-muted absolute inset-y-0 right-0 flex items-center px-3"
-        aria-label={visible ? '비밀번호 숨기기' : '비밀번호 표시'}
+        // "비밀번호"라는 단어를 그대로 쓰면 Playwright getByLabel('비밀번호')(부분일치)가
+        // 이 버튼까지 같이 집어서 "요소 2개" 오류가 난다 — 일부러 다른 단어를 쓴다.
+        aria-label={visible ? '입력 내용 가리기' : '입력 내용 보이기'}
       >
         {visible ? (
           <svg

@@ -456,9 +456,11 @@ function NotificationTable({ emails }: { emails: NotificationEmail[] }) {
     router.refresh();
 
     if (failures.length === 0) {
-      setMessage({ variant: 'success', text: `${done}건을 저장했습니다.` });
+      // reset() 이 내부적으로 setMessage(null) 을 호출하므로, 반드시 먼저 비운 뒤에
+      // 성공 메시지를 설정해야 화면에 남는다(순서를 바꾸면 방금 띄운 메시지가 곧바로 지워진다).
       reset();
       setEditing(false);
+      setMessage({ variant: 'success', text: `${done}건을 저장했습니다.` });
       return;
     }
     setMessage({
@@ -940,9 +942,11 @@ export function SpaceSection({
     router.refresh();
 
     if (failures.length === 0) {
-      setMessage({ variant: 'success', text: `${done}건을 저장했습니다.` });
+      // reset() 이 내부적으로 setMessage(null) 을 호출하므로, 반드시 먼저 비운 뒤에
+      // 성공 메시지를 설정해야 화면에 남는다(순서를 바꾸면 방금 띄운 메시지가 곧바로 지워진다).
       reset();
       setEditing(false);
+      setMessage({ variant: 'success', text: `${done}건을 저장했습니다.` });
       return;
     }
     setMessage({
@@ -1674,9 +1678,11 @@ function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
     router.refresh();
 
     if (failures.length === 0) {
-      setMessage({ variant: 'success', text: `${done}건을 저장했습니다.` });
+      // reset() 이 내부적으로 setMessage(null) 을 호출하므로, 반드시 먼저 비운 뒤에
+      // 성공 메시지를 설정해야 화면에 남는다(순서를 바꾸면 방금 띄운 메시지가 곧바로 지워진다).
       reset();
       setEditing(false);
+      setMessage({ variant: 'success', text: `${done}건을 저장했습니다.` });
       return;
     }
     setMessage({
