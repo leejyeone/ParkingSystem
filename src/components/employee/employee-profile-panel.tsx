@@ -119,6 +119,7 @@ export function EmployeeProfilePanel({ profile }: { profile: Profile }) {
             className={inputClassName(Boolean(fieldErrors.companyOrBranchName))}
             value={companyOrBranchName}
             onChange={(event) => setCompanyOrBranchName(event.target.value)}
+            placeholder="동탄"
             maxLength={100}
           />
         </FormField>
