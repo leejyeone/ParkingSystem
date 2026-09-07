@@ -19,6 +19,14 @@ const nextConfig: NextConfig = {
    * 개발 전용 설정이라 운영 빌드에는 영향이 없다.
    */
   allowedDevOrigins: ['*.trycloudflare.com'],
+
+  /**
+   * 승인 메일의 주차 평면도 이미지를 만드는 데 쓰는 @resvg/resvg-js 는 네이티브
+   * 바인딩(napi)을 로드하는 패키지라 번들러(Turbopack)가 정적으로 분석할 수 없다
+   * ("non-ecmascript placeable asset" 빌드 에러). 서버 번들에서 제외하고 런타임에
+   * Node 의 require 로 그대로 불러오도록 한다.
+   */
+  serverExternalPackages: ['@resvg/resvg-js'],
 };
 
 export default nextConfig;

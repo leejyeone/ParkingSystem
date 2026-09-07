@@ -5,6 +5,7 @@ import { google } from 'googleapis';
 import { getRequiredEnv } from '@/lib/env';
 import {
   EmailSendError,
+  type EmailAttachment,
   type EmailMessage,
   type EmailProvider,
   type EmailSendResult,
@@ -34,6 +35,11 @@ function sanitizeHeaderValue(value: string): string {
   return value.replace(/[\r\n]+/g, ' ').trim();
 }
 
+/** base64 본문은 RFC 2045 상 76자마다 줄바꿈해야 한다(안 하면 일부 서버가 거부한다). */
+function chunkBase64(base64: string): string {
+  return base64.replace(/(.{76})/g, '$1\r\n');
+}
+
 export function buildMimeMessage(params: {
   from: string;
   fromName: string;
@@ -41,35 +47,80 @@ export function buildMimeMessage(params: {
   subject: string;
   html: string;
   text: string;
+  attachments?: EmailAttachment[];
+  /** multipart/alternative(text+html) 경계값. 첨부가 있으면 안쪽 파트로 쓰인다. */
   boundary?: string;
+  /** multipart/related 경계값(첨부가 있을 때만 바깥 파트로 쓰인다). */
+  relatedBoundary?: string;
 }): string {
-  const boundary = params.boundary ?? `----=_Part_${randomBytes(12).toString('hex')}`;
+  const boundary = params.boundary ?? `----=_Part_Alt_${randomBytes(12).toString('hex')}`;
   const from = `${encodeHeaderWord(sanitizeHeaderValue(params.fromName))} <${sanitizeHeaderValue(params.from)}>`;
+  const attachments = params.attachments ?? [];
 
-  const lines = [
+  const headerLines = [
     `From: ${from}`,
     `To: ${sanitizeHeaderValue(params.to)}`,
     `Subject: ${encodeHeaderWord(sanitizeHeaderValue(params.subject))}`,
     'MIME-Version: 1.0',
-    `Content-Type: multipart/alternative; boundary="${boundary}"`,
-    '',
+  ];
+
+  const alternativePart = [
     `--${boundary}`,
     'Content-Type: text/plain; charset="UTF-8"',
     'Content-Transfer-Encoding: base64',
     '',
-    Buffer.from(params.text, 'utf8').toString('base64'),
+    chunkBase64(Buffer.from(params.text, 'utf8').toString('base64')),
     '',
     `--${boundary}`,
     'Content-Type: text/html; charset="UTF-8"',
     'Content-Transfer-Encoding: base64',
     '',
-    Buffer.from(params.html, 'utf8').toString('base64'),
+    chunkBase64(Buffer.from(params.html, 'utf8').toString('base64')),
     '',
     `--${boundary}--`,
-    '',
-  ];
+  ].join('\r\n');
 
-  return lines.join('\r\n');
+  if (attachments.length === 0) {
+    return [
+      ...headerLines,
+      `Content-Type: multipart/alternative; boundary="${boundary}"`,
+      '',
+      alternativePart,
+      '',
+    ].join('\r\n');
+  }
+
+  /*
+   * 첨부(인라인 이미지 등)가 있으면 multipart/related 로 감싸고, 그 안에 기존
+   * multipart/alternative(text+html) 와 첨부 파트를 나란히 둔다. HTML 본문은
+   * cid:<attachment.cid> 로 이미지를 참조한다.
+   */
+  const relatedBoundary = params.relatedBoundary ?? `----=_Part_Rel_${randomBytes(12).toString('hex')}`;
+  const attachmentParts = attachments.map((attachment) =>
+    [
+      `--${relatedBoundary}`,
+      `Content-Type: ${attachment.contentType}`,
+      'Content-Transfer-Encoding: base64',
+      `Content-ID: <${attachment.cid}>`,
+      `Content-Disposition: inline; filename="${sanitizeHeaderValue(attachment.filename)}"`,
+      '',
+      chunkBase64(attachment.content.toString('base64')),
+    ].join('\r\n'),
+  );
+
+  return [
+    ...headerLines,
+    `Content-Type: multipart/related; boundary="${relatedBoundary}"`,
+    '',
+    `--${relatedBoundary}`,
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    '',
+    alternativePart,
+    '',
+    ...attachmentParts,
+    `--${relatedBoundary}--`,
+    '',
+  ].join('\r\n');
 }
 
 export function toGmailRaw(mime: string): string {
@@ -99,6 +150,7 @@ export class GmailApiEmailProvider implements EmailProvider {
       subject: message.subject,
       html: message.html,
       text: message.text,
+      attachments: message.attachments,
     });
 
     try {

@@ -6,6 +6,14 @@
  * 향후 다른 공급자(SES, SendGrid 등)로 교체할 때 이 인터페이스 구현체만 추가하면 된다.
  */
 
+export type EmailAttachment = {
+  filename: string;
+  contentType: string;
+  /** HTML 본문에서 <img src="cid:이 값"> 으로 참조한다. */
+  cid: string;
+  content: Buffer;
+};
+
 export type EmailMessage = {
   /** 수신자 이메일 주소 (1건) */
   to: string;
@@ -14,6 +22,8 @@ export type EmailMessage = {
   html: string;
   /** 텍스트 본문 (HTML 을 지원하지 않는 클라이언트용) */
   text: string;
+  /** 본문에 인라인(cid)으로 삽입하는 첨부파일. 예: 배정 주차 위치 평면도 이미지. */
+  attachments?: EmailAttachment[];
 };
 
 export type EmailSendResult = {

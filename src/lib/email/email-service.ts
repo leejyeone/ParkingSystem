@@ -3,6 +3,7 @@ import { EmailSendStatus, EmailType, Prisma, RequesterType, SpaceType } from '@p
 import { getAppBaseUrl } from '@/lib/env';
 import { getEmailProvider } from '@/lib/email/email-provider-factory';
 import { EmailSendError } from '@/lib/email/email-provider';
+import { serializeAttachments } from '@/lib/email/email-attachments';
 import {
   renderRecurringScheduleEmail,
   renderReservationEmail,
@@ -121,6 +122,7 @@ export async function sendEmailWithLog(params: {
         subject: rendered.subject.slice(0, 300),
         bodyHtml: rendered.html,
         bodyText: rendered.text,
+        attachmentsJson: serializeAttachments(rendered.attachments) ?? undefined,
         sendStatus: EmailSendStatus.PENDING,
         dedupeKey,
       },
@@ -142,6 +144,7 @@ export async function sendEmailWithLog(params: {
       subject: rendered.subject,
       html: rendered.html,
       text: rendered.text,
+      attachments: rendered.attachments,
     });
 
     await prisma.emailSendLog.update({

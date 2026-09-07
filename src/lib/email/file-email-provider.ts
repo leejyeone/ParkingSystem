@@ -50,9 +50,26 @@ export class FileEmailProvider implements EmailProvider {
     const id = `${Date.now()}-${String(this.sequence).padStart(4, '0')}`;
     const filePath = path.join(directory, `${id}.json`);
 
+    // 첨부 바이트(예: 평면도 PNG)를 그대로 쓰면 아웃박스 JSON이 커지고 읽기도 어려워지므로
+    // 메타데이터(파일명/크기)만 남긴다. E2E/개발에서는 링크·텍스트 확인이 목적이라 무해하다.
+    const { attachments, ...rest } = message;
     await writeFile(
       filePath,
-      JSON.stringify({ id, savedAt: new Date().toISOString(), ...message }, null, 2),
+      JSON.stringify(
+        {
+          id,
+          savedAt: new Date().toISOString(),
+          ...rest,
+          attachments: attachments?.map((attachment) => ({
+            filename: attachment.filename,
+            contentType: attachment.contentType,
+            cid: attachment.cid,
+            size: attachment.content.length,
+          })),
+        },
+        null,
+        2,
+      ),
       'utf8',
     );
 

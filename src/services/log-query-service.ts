@@ -1,6 +1,7 @@
 import { EmailSendStatus, EmailType, Prisma } from '@prisma/client';
 
 import { ConflictError, NotFoundError } from '@/lib/errors';
+import { deserializeAttachments } from '@/lib/email/email-attachments';
 import { EmailSendError } from '@/lib/email/email-provider';
 import { getEmailProvider } from '@/lib/email/email-provider-factory';
 import { logger } from '@/lib/logger';
@@ -139,6 +140,10 @@ export async function resendFailedEmail(
     );
   }
 
+  // 첨부(배정 주차 위치 평면도 이미지 등)도 발송 당시 그대로 다시 실어 보낸다 —
+  // 본문의 cid: 참조가 첨부 없이 나가면 이미지가 깨진 채로 도착한다.
+  const attachments = deserializeAttachments(log.attachmentsJson);
+
   const attempt = await prisma.emailSendLog.create({
     data: {
       reservationId: log.reservationId,
@@ -147,6 +152,7 @@ export async function resendFailedEmail(
       subject: log.subject,
       bodyHtml: log.bodyHtml,
       bodyText: log.bodyText,
+      attachmentsJson: log.attachmentsJson ?? undefined,
       sendStatus: EmailSendStatus.PENDING,
       resendOfLogId: rootId,
     },
@@ -159,6 +165,7 @@ export async function resendFailedEmail(
       subject: log.subject,
       html: log.bodyHtml,
       text: log.bodyText,
+      attachments,
     });
 
     const updated = await prisma.emailSendLog.update({

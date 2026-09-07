@@ -2,6 +2,8 @@ import { EmailType, RequesterType, SpaceType } from '@prisma/client';
 
 import { formatKstHuman, formatKstRange } from '@/lib/datetime';
 import { REQUESTER_TYPE_LABEL } from '@/domain/reservation-status';
+import type { EmailAttachment } from '@/lib/email/email-provider';
+import { PARKING_MAP_CID, renderParkingMapAttachment } from '@/lib/email/parking-map-image';
 
 /**
  * 이메일 제목 / HTML / Text 템플릿.
@@ -60,6 +62,7 @@ export type RenderedEmail = {
   subject: string;
   html: string;
   text: string;
+  attachments?: EmailAttachment[];
 };
 
 export function escapeHtml(value: string): string {
@@ -91,6 +94,8 @@ function renderHtmlLayout(params: {
   title: string;
   lead: string;
   rows: Row[];
+  /** rows 표 바로 아래, 유의사항 위에 끼워 넣을 추가 HTML (예: 배정 주차 위치 평면도 이미지) */
+  imageHtml?: string;
   notices?: string[];
   buttonLabel?: string;
   buttonUrl?: string | null;
@@ -158,6 +163,7 @@ function renderHtmlLayout(params: {
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;border-collapse:separate;overflow:hidden;">
                   ${rowsHtml}
                 </table>
+                ${params.imageHtml ?? ''}
                 ${noticesHtml}
                 ${buttonHtml}
               </td>
@@ -329,6 +335,18 @@ export function renderReservationEmail(
        */
       const isDoubleParking = data.assignedSpaceType === SpaceType.DOUBLE;
 
+      /*
+       * 코드만으로는 현장에서 찾기 어려우므로, 사이트에서 보는 것과 같은 평면도 이미지를
+       * 메일 본문에 직접 첨부한다(cid 인라인) — 방문객이 위치를 보려고 다시 사이트에
+       * 들어갈 필요가 없게 하기 위함이다. 도면에 없는 코드 등으로 이미지를 못 만들면
+       * (renderParkingMapAttachment 가 null) 이미지 없이 텍스트 안내만 남긴다 — 메일
+       * 발송 자체가 막히면 안 된다.
+       */
+      const mapAttachment =
+        usesSpaceAssignment(data) && data.assignedSpaceCode
+          ? renderParkingMapAttachment(data.assignedSpaceCode)
+          : null;
+
       const notices = [
         '입차 시 차량번호와 예약 정보가 일치해야 합니다.',
         '승인 완료된 예약은 신청자가 직접 수정·취소할 수 없습니다. 변경이 필요하면 방문 관리 담당자에게 문의해 주세요.',
@@ -336,9 +354,10 @@ export function renderReservationEmail(
       if (!usesSpaceAssignment(data)) {
         notices.push('주차 위치는 지정되지 않습니다. 방문 시 현장 안내에 따라 주차해 주세요.');
       } else if (data.assignedSpaceCode) {
-        // 코드만으로는 현장에서 찾기 어려우므로 도면이 있는 조회 화면으로 안내한다.
         notices.push(
-          `배정된 주차 위치는 ${data.assignedSpaceCode} 입니다. 아래 [내 예약 조회하기] 에서 평면도로 위치를 확인하실 수 있습니다.`,
+          mapAttachment
+            ? `배정된 주차 위치는 ${data.assignedSpaceCode} 입니다. 위 평면도에서 초록색으로 표시된 칸입니다.`
+            : `배정된 주차 위치는 ${data.assignedSpaceCode} 입니다. 아래 [내 예약 조회하기] 에서 평면도로 위치를 확인하실 수 있습니다.`,
         );
       }
       if (isDoubleParking) {
@@ -363,6 +382,11 @@ export function renderReservationEmail(
             ? `${data.requesterName}님, 신청하신 방문 예약이 승인되었습니다. 주차 공간 사정으로 이중주차 위치가 배정되었으니 아래 안내를 반드시 확인해 주세요.`
             : `${data.requesterName}님, 신청하신 방문 예약이 승인되었습니다.`,
         rows: [...rows, ...spaceRows(data), { label: '예약 상태', value: '승인 완료' }],
+        imageHtml: mapAttachment
+          ? `<div style="margin-top:16px;text-align:center;">
+               <img src="cid:${PARKING_MAP_CID}" alt="배정 주차 위치 평면도" style="max-width:100%;border-radius:8px;border:1px solid #e2e8f0;" />
+             </div>`
+          : undefined,
         notices,
         buttonLabel: '내 예약 조회하기',
         buttonUrl: data.accessUrl,
@@ -373,6 +397,7 @@ export function renderReservationEmail(
           : `[시노펙스] ${hostSubjectPrefix(data)}방문 신청이 승인되었습니다`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
+        attachments: mapAttachment ? [mapAttachment] : undefined,
       };
     }
 

@@ -494,6 +494,10 @@ model EmailSendLog {
   bodyHtml          String?         @map("body_html") @db.LongText
   /// 실제 발송한 텍스트 본문.
   bodyText          String?         @map("body_text") @db.LongText
+  /// 발송 당시 첨부파일(배정 주차 위치 평면도 이미지 등). 재발송 시 그대로 다시 실어
+  /// 보내기 위해 저장한다. [{ filename, contentType, cid, contentBase64 }] 형태.
+  /// 첨부가 없으면 NULL.
+  attachmentsJson   Json?           @map("attachments_json")
   sendStatus        EmailSendStatus @default(PENDING) @map("send_status")
   providerMessageId String?         @map("provider_message_id") @db.VarChar(255)
   failReason        String?         @map("fail_reason") @db.Text

@@ -55,6 +55,13 @@ const ROOM_FILL = '#e8ebef';
 const ROOM_LINE = '#b8c0cc';
 const STALL_RADIUS = 4;
 
+/**
+ * 승인 메일에 삽입되는 평면도 이미지(`src/lib/email/parking-map-image.ts`)와 같은 폰트로
+ * 보이도록 명시한다 — 지정하지 않으면 `globals.css`의 `--font-sans`(Pretendard 등 미설치
+ * 폰트 우선)를 상속하지만 실제로는 Windows 기본 폰트인 맑은 고딕으로 대체되어 그려진다.
+ */
+const MAP_FONT_FAMILY = "'Malgun Gothic','Apple SD Gothic Neo',Arial,sans-serif";
+
 type StallStyle = { fill: string; stroke: string; text: string };
 
 const AVAILABLE: StallStyle = { fill: '#fef9c3', stroke: '#a16207', text: '#713f12' };
@@ -245,6 +252,7 @@ export function ParkingMap({ spaces, layout: explicitLayout, highlightCode }: Pr
       <svg
         viewBox={`-8 -8 ${viewBoxW} ${viewBoxH}`}
         className="mx-auto h-auto w-full max-w-3xl"
+        style={{ fontFamily: MAP_FONT_FAMILY }}
         role="img"
         aria-label={
           requesterView
@@ -344,7 +352,15 @@ export function ParkingMap({ spaces, layout: explicitLayout, highlightCode }: Pr
           strokeWidth={4}
         />
 
-        {layout.stalls.map((stall) => {
+        {/*
+          주차면끼리 간격 없이 붙어 있어서(0 유닛), 강조 테두리(strokeWidth 3)가 이웃 칸
+          쪽으로 두껍게 삐져나온다. 배열 순서 그대로 그리면 강조 칸 다음에 그려지는 이웃이
+          그 삐져나온 테두리를 덮어버려 일부만 보인다 — 강조 칸을 맨 마지막에 그려서
+          항상 위에 오도록 정렬한다.
+        */}
+        {[...layout.stalls]
+          .sort((a, b) => Number(a.code === highlightCode) - Number(b.code === highlightCode))
+          .map((stall) => {
           const space = byCode.get(stall.code);
           const mine = requesterView && stall.code === highlightCode;
           const style = requesterView ? (mine ? MINE : NEUTRAL) : styleFor(space);
