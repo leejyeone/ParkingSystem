@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -25,6 +26,7 @@ type UpdateResult = {
   updatedCount: number;
   createdCount: number;
   skippedDates: string[];
+  stillParkedCount: number;
 };
 
 export function RecurringScheduleEditForm({
@@ -104,7 +106,9 @@ export function RecurringScheduleEditForm({
   }
 
   useEffect(() => {
-    if (!result) return;
+    // 이미 입차 중이라 그대로 남은 예약이 있으면, 안내 문구를 놓치지 않도록 자동
+    // 이동을 하지 않고 관리자가 직접 "상세로 이동"을 누르게 한다.
+    if (!result || result.stillParkedCount > 0) return;
     const timer = setTimeout(() => {
       router.push(`/admin/recurring-reservations/${scheduleId}`);
     }, 1500);
@@ -126,8 +130,24 @@ export function RecurringScheduleEditForm({
                 건너뛰었습니다: {result.skippedDates.join(', ')}
               </p>
             )}
-            <p className="mt-1">잠시 후 상세 화면으로 이동합니다…</p>
+            {result.stillParkedCount > 0 ? (
+              <p className="mt-1 font-bold text-amber-700">
+                이미 입차 중인 예약 {result.stillParkedCount}건은 새 일정과 맞지 않지만 자동으로
+                취소·이동되지 않고 그대로 유지됩니다. 출차 처리 후 반복 예약 상세에서 직접
+                확인해 주세요.
+              </p>
+            ) : (
+              <p className="mt-1">잠시 후 상세 화면으로 이동합니다…</p>
+            )}
           </Alert>
+          {result.stillParkedCount > 0 && (
+            <Link
+              href={`/admin/recurring-reservations/${scheduleId}`}
+              className="btn btn-secondary w-full"
+            >
+              상세 화면으로 이동
+            </Link>
+          )}
         </div>
       </div>
     );

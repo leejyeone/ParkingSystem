@@ -697,6 +697,12 @@ export type UpdateRecurringScheduleResult = {
   updatedCount: number;
   createdCount: number;
   skippedDates: string[];
+  /**
+   * 이미 입차 처리(PARKING)된 occurrence 중, 새 패턴에서 그 날짜가 완전히 빠지는 것의
+   * 개수. 상태 전이 규칙상(`PARKING -> EXITED`만 허용) 여기서 취소할 수 없어 그대로
+   * 남는다 — `deleteRecurringSchedule`의 `stillParkedCount`와 같은 이유로 명시한다.
+   */
+  stillParkedCount: number;
 };
 
 /**
@@ -754,9 +760,8 @@ export async function updateRecurringSchedule(
   const today = parseDateOnly(formatKstDate(now, settings.appTimeZone), 'startDate');
   const regenFrom = today.getTime() > startDate.getTime() ? today : startDate;
 
-  const remainingDates = new Set(
-    enumerateOccurrenceDates(regenFrom, endDate, input.weekdaysMask),
-  );
+  const newPatternDates = new Set(enumerateOccurrenceDates(regenFrom, endDate, input.weekdaysMask));
+  const remainingDates = new Set(newPatternDates);
   // 매일 시작/종료 시간이 바뀌면 같은 날짜라도 occurrence 의 방문 시간 자체가 달라진다 —
   // 이 경우 날짜가 겹치는 occurrence 는 취소·재생성 대신 시간만 그 자리에서 갱신한다.
   const dailyTimeChanged =
@@ -771,6 +776,20 @@ export async function updateRecurringSchedule(
     },
     select: { reservationId: true, reservationStatus: true, visitStartAt: true },
   });
+
+  // REQUESTED/APPROVED 만 취소 대상이라 PARKING(입차 완료) occurrence 는 위 조회에
+  // 아예 안 잡힌다 — 새 패턴에서 그 날짜가 빠졌는데도 조용히 방치되지 않도록 별도로 센다
+  // (`deleteRecurringSchedule`의 `stillParkedCount`와 같은 이유).
+  const parkedOccurrences = await prisma.parkingReservation.findMany({
+    where: {
+      recurringScheduleId: scheduleId,
+      reservationStatus: ReservationStatus.PARKING,
+    },
+    select: { visitStartAt: true },
+  });
+  const stillParkedCount = parkedOccurrences.filter(
+    (occurrence) => !newPatternDates.has(formatKstDate(occurrence.visitStartAt, settings.appTimeZone)),
+  ).length;
 
   const skippedDates: string[] = [];
   const toCancel: { reservationId: number; reservationStatus: ReservationStatus }[] = [];
@@ -873,11 +892,17 @@ export async function updateRecurringSchedule(
     actionType: AUDIT_ACTIONS.RECURRING_SCHEDULE_UPDATE,
     targetType: AUDIT_TARGETS.RECURRING_SCHEDULE,
     targetId: scheduleId,
-    detail: { cancelledCount, updatedCount, createdCount, skippedCount: skippedDates.length },
+    detail: {
+      cancelledCount,
+      updatedCount,
+      createdCount,
+      skippedCount: skippedDates.length,
+      stillParkedCount,
+    },
     context: actor.requestContext,
   });
 
-  return { cancelledCount, updatedCount, createdCount, skippedDates };
+  return { cancelledCount, updatedCount, createdCount, skippedDates, stillParkedCount };
 }
 
 // ---------------------------------------------------------------------------
