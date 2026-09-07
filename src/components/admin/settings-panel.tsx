@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { MapImageUploader, type PendingMapImage } from '@/components/admin/map-image-uploader';
 import { Alert } from '@/components/ui/alert';
 import { FormField, inputClassName } from '@/components/ui/form-field';
+import { PasswordInput } from '@/components/ui/password-input';
 import { SpaceTypeBadge } from '@/components/ui/status-badge';
 import { SPACE_TYPE_LABEL } from '@/domain/reservation-status';
 import type { SystemSettingsValues } from '@/domain/system-settings';
@@ -1949,9 +1950,8 @@ function AdminUserCreateForm() {
             hint="10자 이상, 영문 대/소문자·숫자·특수문자 중 3종류 이상"
             errors={fieldErrors.password}
           >
-            <input
+            <PasswordInput
               id="admin-password"
-              type="password"
               className={inputClassName(Boolean(fieldErrors.password))}
               value={form.password}
               onChange={(event) => setForm({ ...form, password: event.target.value })}

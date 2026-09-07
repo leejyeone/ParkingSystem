@@ -3,8 +3,14 @@ import type { NextRequest } from 'next/server';
 import { readJsonBody } from '@/lib/api-helpers';
 import { apiSuccess, handleApiError } from '@/lib/api-response';
 import { NotFoundError } from '@/lib/errors';
-import { userProfileUpdateSchema } from '@/lib/validation/user-schema';
-import { getUserProfile, requireActiveUser, updateUserProfile } from '@/services/user-auth-service';
+import { clearUserSessionCookie } from '@/lib/user-session';
+import { deleteAccountSchema, userProfileUpdateSchema } from '@/lib/validation/user-schema';
+import {
+  deleteSelfUser,
+  getUserProfile,
+  requireActiveUser,
+  updateUserProfile,
+} from '@/services/user-auth-service';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -30,6 +36,21 @@ export async function PUT(request: NextRequest) {
 
     const profile = await updateUserProfile(session.userId, payload);
     return apiSuccess(profile);
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+
+/** DELETE /api/my/profile — 회원 탈퇴 (비밀번호 확인 필요, 진행 중 예약 있으면 차단) */
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await requireActiveUser();
+    const { password } = deleteAccountSchema.parse(await readJsonBody(request));
+
+    await deleteSelfUser(session.userId, password);
+    await clearUserSessionCookie();
+
+    return apiSuccess({ deleted: true });
   } catch (error) {
     return handleApiError(error);
   }

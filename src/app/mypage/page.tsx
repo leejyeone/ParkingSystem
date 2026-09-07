@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
+import { UserDeleteAccountPanel } from '@/components/user/user-delete-account-panel';
 import { UserLogoutButton } from '@/components/user/user-logout-button';
 import { UserProfilePanel } from '@/components/user/user-profile-panel';
 import { Alert } from '@/components/ui/alert';
@@ -186,6 +187,8 @@ export default async function MyPage({ searchParams }: PageProps) {
           vehicleNo: profile.vehicleNo,
         }}
       />
+
+      <UserDeleteAccountPanel />
     </main>
   );
 }

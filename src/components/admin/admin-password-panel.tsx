@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { FormField, inputClassName } from '@/components/ui/form-field';
+import { PasswordInput } from '@/components/ui/password-input';
 import { apiRequest } from '@/lib/client/api-client';
 
 /**
@@ -92,9 +93,8 @@ export function AdminPasswordPanel({ onClose }: { onClose: () => void }) {
                   required
                   errors={fieldErrors.currentPassword}
                 >
-                  <input
+                  <PasswordInput
                     id="current-password"
-                    type="password"
                     className={inputClassName(Boolean(fieldErrors.currentPassword))}
                     value={currentPassword}
                     onChange={(event) => setCurrentPassword(event.target.value)}
@@ -110,9 +110,8 @@ export function AdminPasswordPanel({ onClose }: { onClose: () => void }) {
                   hint="10자 이상, 영문 대/소문자·숫자·특수문자 중 3종류 이상"
                   errors={fieldErrors.newPassword}
                 >
-                  <input
+                  <PasswordInput
                     id="new-password"
-                    type="password"
                     className={inputClassName(Boolean(fieldErrors.newPassword))}
                     value={newPassword}
                     onChange={(event) => setNewPassword(event.target.value)}
@@ -127,9 +126,8 @@ export function AdminPasswordPanel({ onClose }: { onClose: () => void }) {
                   required
                   errors={fieldErrors.newPasswordConfirm}
                 >
-                  <input
+                  <PasswordInput
                     id="new-password-confirm"
-                    type="password"
                     className={inputClassName(Boolean(fieldErrors.newPasswordConfirm))}
                     value={newPasswordConfirm}
                     onChange={(event) => setNewPasswordConfirm(event.target.value)}

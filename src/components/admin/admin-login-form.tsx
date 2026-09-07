@@ -5,6 +5,7 @@ import { useState, type FormEvent } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { FormField, inputClassName } from '@/components/ui/form-field';
+import { PasswordInput } from '@/components/ui/password-input';
 import { apiRequest } from '@/lib/client/api-client';
 
 export function AdminLoginForm({ redirectTo }: { redirectTo: string }) {
@@ -60,10 +61,9 @@ export function AdminLoginForm({ redirectTo }: { redirectTo: string }) {
         </FormField>
 
         <FormField label="비밀번호" htmlFor="password" required errors={fieldErrors.password}>
-          <input
+          <PasswordInput
             id="password"
             name="password"
-            type="password"
             className={inputClassName(Boolean(fieldErrors.password))}
             value={password}
             onChange={(event) => setPassword(event.target.value)}

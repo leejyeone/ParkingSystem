@@ -5,6 +5,7 @@ import { useState, type ChangeEvent, type FormEvent } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { FormField, inputClassName } from '@/components/ui/form-field';
+import { PasswordInput } from '@/components/ui/password-input';
 import { apiRequest } from '@/lib/client/api-client';
 import { normalizeVehicleNo } from '@/lib/vehicle';
 
@@ -137,9 +138,8 @@ export function UserProfilePanel({ profile }: { profile: Profile }) {
           hint="변경할 때만 입력하세요. 8자 이상"
           errors={fieldErrors.password}
         >
-          <input
+          <PasswordInput
             id="profile-password"
-            type="password"
             className={inputClassName(Boolean(fieldErrors.password))}
             value={form.password}
             onChange={(event) => update('password', event.target.value)}

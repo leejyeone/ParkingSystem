@@ -42,6 +42,10 @@ export const userProfileUpdateSchema = z.object({
     .optional(),
 });
 
+export const deleteAccountSchema = z.object({
+  password: z.string({ error: '비밀번호를 입력해 주세요.' }).min(1, '비밀번호를 입력해 주세요.'),
+});
+
 export const reservationLookupSchema = z.object({
   requesterName: requiredText(50, '성명'),
   vehicleNo: vehicleNoSchema,

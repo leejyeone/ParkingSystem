@@ -1,8 +1,9 @@
-import { AccountStatus, Prisma } from '@prisma/client';
+import { AccountStatus, Prisma, ReservationStatus } from '@prisma/client';
 
 import {
   ConflictError,
   ForbiddenError,
+  NotFoundError,
   TooManyRequestsError,
   UnauthorizedError,
   ValidationError,
@@ -286,4 +287,42 @@ export async function updateUserProfile(
       vehicleNo: true,
     },
   });
+}
+
+/** 탈퇴를 막는 진행 중 예약 상태 (승인 대기/승인됨/입차 중) */
+const ACTIVE_RESERVATION_STATUSES: ReservationStatus[] = [
+  ReservationStatus.REQUESTED,
+  ReservationStatus.APPROVED,
+  ReservationStatus.PARKING,
+];
+
+/**
+ * 회원 탈퇴(본인). 진짜로 계정 행을 삭제하는 하드 삭제다 — 예약 이력은 신청 당시
+ * requesterName/requesterEmail 등을 자체 컬럼에 스냅샷으로 저장하고, visitorUser
+ * 관계도 onDelete: SetNull 이라 계정이 지워져도 예약 기록은 그대로 유지된다.
+ * (소프트 삭제로 하면 email UNIQUE 제약 때문에 같은 이메일로 재가입도 영영 막힌다.)
+ */
+export async function deleteSelfUser(userId: number, password: string): Promise<void> {
+  const current = await prisma.siteUser.findUnique({
+    where: { userId },
+    select: { userId: true, passwordHash: true },
+  });
+  if (!current) throw new NotFoundError('회원 정보를 찾을 수 없습니다.');
+
+  const passwordMatched = await verifyPassword(password, current.passwordHash);
+  if (!passwordMatched) {
+    throw new UnauthorizedError('비밀번호가 올바르지 않습니다.');
+  }
+
+  const activeReservationCount = await prisma.parkingReservation.count({
+    where: { visitorUserId: userId, reservationStatus: { in: ACTIVE_RESERVATION_STATUSES } },
+  });
+  if (activeReservationCount > 0) {
+    throw new ConflictError(
+      '진행 중인 방문 예약이 있어 탈퇴할 수 없습니다. 예약이 종료되거나 취소된 후 다시 시도해 주세요.',
+      'ACTIVE_RESERVATION_EXISTS',
+    );
+  }
+
+  await prisma.siteUser.delete({ where: { userId } });
 }
