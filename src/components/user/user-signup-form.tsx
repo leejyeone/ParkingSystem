@@ -140,6 +140,19 @@ export function UserSignUpForm() {
           />
         </FormField>
 
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
+          <p className="font-semibold text-slate-700">개인정보 수집 및 이용 안내</p>
+          <p className="mt-1">
+            <strong>수집 항목</strong> : 이메일, 비밀번호, 성명, 방문 상호, 차량번호(선택)
+          </p>
+          <p className="mt-1">
+            <strong>수집 목적</strong> : 회원 계정 생성, 방문 신청 시 정보 자동 입력
+          </p>
+          <p className="mt-1">
+            <strong>보유 기간</strong> : 회원 탈퇴 시까지 보관 후 파기
+          </p>
+        </div>
+
         <button type="submit" className="btn btn-primary btn-lg w-full" disabled={submitting}>
           {submitting ? '가입 중…' : '가입하고 시작하기'}
         </button>

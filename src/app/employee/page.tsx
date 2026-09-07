@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Image from 'next/image';
 import Link from 'next/link';
 
 import { DEFAULT_SETTINGS } from '@/domain/system-settings';
@@ -19,9 +20,11 @@ export default async function EmployeeHomePage() {
 
   return (
     <main className="app-container">
-      <header className="mb-6 text-center">
-        <p className="text-brand-700 text-xs font-bold tracking-widest">SYNOPEX VISIT</p>
-        <h1 className="mt-2 text-2xl font-black text-slate-900 sm:text-3xl">시노펙스 방문 예약</h1>
+      <header className="mb-6 mt-6 text-center">
+        <div className="mt-3 flex justify-center">
+          <Image src="/synopex-logo.png" alt="Synopex" width={175} height={50} priority />
+        </div>
+        <h1 className="mt-3 text-2xl font-black text-slate-900 sm:text-3xl">시노펙스 방문 예약</h1>
         <p className="mt-2 text-sm leading-relaxed text-slate-600">
           {[profile?.departmentName, profile?.name ?? session.name].filter(Boolean).join(' ')}
           님, 안녕하세요.

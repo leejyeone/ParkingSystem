@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-import { inputClassName } from '@/components/ui/form-field';
 import { apiRequest } from '@/lib/client/api-client';
 
 export type SelectedEmployee = {
@@ -60,8 +59,9 @@ export function EmployeeSearchSelect({
   useEffect(() => {
     if (!open) return;
     const trimmed = query.trim();
-    // 검색어가 비었을 때 옵션을 비우는 것은 handleQueryChange 에서 즉시 처리한다.
-    if (!trimmed) return;
+    // 2자 미만일 때 옵션을 비우는 것은 handleQueryChange 에서 즉시 처리한다.
+    // 성 한 글자만으로 직원 목록이 노출되는 것을 막기 위해 최소 2자부터 검색한다.
+    if (trimmed.length < 2) return;
 
     const timer = setTimeout(async () => {
       setLoading(true);
@@ -80,7 +80,7 @@ export function EmployeeSearchSelect({
     setQuery(next);
     setOpen(true);
     if (value) onChange(null);
-    if (!next.trim()) setOptions([]);
+    if (next.trim().length < 2) setOptions([]);
   }
 
   function handleSelect(entry: EmployeeDirectoryEntry) {
@@ -94,16 +94,18 @@ export function EmployeeSearchSelect({
     <div className="relative" ref={containerRef}>
       <input
         id={id}
-        className={inputClassName(Boolean(hasError))}
+        className={`input ${hasError ? 'input-error' : value ? 'input-selected' : ''}`}
         value={query}
         onChange={(event) => handleQueryChange(event.target.value)}
         onFocus={() => setOpen(true)}
-        placeholder="이름으로 검색"
+        placeholder="이름 또는 부서명으로 검색 (2자 이상)"
         autoComplete="off"
       />
       {open && query.trim() !== '' && (
         <div className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
-          {loading ? (
+          {query.trim().length < 2 ? (
+            <p className="p-3 text-sm text-slate-500">2자 이상 입력해 주세요.</p>
+          ) : loading ? (
             <p className="p-3 text-sm text-slate-500">검색 중…</p>
           ) : options.length === 0 ? (
             <p className="p-3 text-sm text-slate-500">일치하는 직원이 없습니다.</p>

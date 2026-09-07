@@ -17,7 +17,7 @@ export default async function SignUpPage() {
   }
 
   return (
-    <main className="app-container max-w-md">
+    <main className="app-container">
       <div className="mb-6 text-center">
         <Link href={homeHref} className="text-brand-700 text-xs font-semibold">
           ← 처음으로

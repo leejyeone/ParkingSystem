@@ -61,6 +61,19 @@ const ENDPOINT_BY_MODE: Record<ReservationFormMode, string> = {
   'employee-proxy': '/api/reservations/employee/proxy',
 };
 
+/** 미입력 필수 필드를 안내 배너에 나열할 때 쓰는 항목명. FormField 라벨과 맞춘다. */
+const REQUIRED_FIELD_LABELS: Record<string, string> = {
+  companyOrBranchName: '방문상호',
+  requesterName: '성명',
+  requesterEmail: '이메일',
+  vehicleNo: '차량번호',
+  hostEmployeeUserId: '당사 담당자',
+  visitStartAt: '입차 예정 시간',
+  visitEndAt: '출차 예정 시간',
+  privacyConsent: '개인정보 수집 및 이용 동의',
+  visitorConsentConfirmed: '방문객 개인정보 수집·이용 동의 확인',
+};
+
 type FormState = {
   companyOrBranchName: string;
   requesterName: string;
@@ -123,9 +136,63 @@ export function ReservationForm({
     update('vehicleNo', normalizeVehicleNo(event.target.value));
   }
 
+  /**
+   * 버튼을 비활성화하는 대신, 제출 시점에 빈 필수 필드를 찾아 서버와 동일한 문구로
+   * fieldErrors 를 채운다. 어떤 필드가 비었는지 빨간 테두리 + 안내 문구로 바로 보여주기 위함.
+   */
+  function findRequiredFieldErrors(): Record<string, string[]> {
+    const errors: Record<string, string[]> = {};
+
+    if (mode !== 'employee-self' && form.companyOrBranchName.trim() === '') {
+      errors.companyOrBranchName = ['방문상호를 입력해 주세요.'];
+    }
+    if (form.requesterName.trim() === '') {
+      errors.requesterName = ['성명을 입력해 주세요.'];
+    }
+    if (form.requesterEmail.trim() === '') {
+      errors.requesterEmail = ['이메일을 입력해 주세요.'];
+    }
+    if (form.vehicleNo.trim() === '') {
+      errors.vehicleNo = ['차량번호를 입력해 주세요.'];
+    }
+    if (mode !== 'employee-self' && hostEmployee === null) {
+      errors.hostEmployeeUserId = ['당사 담당자를 선택해 주세요.'];
+    }
+    if (form.visitStartAt === '') {
+      errors.visitStartAt = ['날짜와 시간을 입력해 주세요.'];
+    }
+    if (form.visitEndAt === '') {
+      errors.visitEndAt = ['날짜와 시간을 입력해 주세요.'];
+    }
+    if (mode !== 'employee-self' && !form.privacyConsent) {
+      const consentKey = mode === 'employee-proxy' ? 'visitorConsentConfirmed' : 'privacyConsent';
+      errors[consentKey] = [
+        mode === 'employee-proxy'
+          ? '방문객 개인정보 수집·이용 동의 확인이 필요합니다.'
+          : '개인정보 수집 및 이용에 동의해 주세요.',
+      ];
+    }
+
+    return errors;
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submitting) return;
+
+    const clientErrors = findRequiredFieldErrors();
+    if (Object.keys(clientErrors).length > 0) {
+      setFieldErrors(clientErrors);
+      const missingLabels = Object.keys(clientErrors).map(
+        (key) => REQUIRED_FIELD_LABELS[key] ?? key,
+      );
+      setFormError({
+        code: 'VALIDATION_ERROR',
+        message: `다음 항목을 입력해 주세요: ${missingLabels.join(', ')}`,
+      });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
 
     setSubmitting(true);
     setFormError(null);
@@ -184,20 +251,6 @@ export function ReservationForm({
       />
     );
   }
-
-  // 방문 목적/요청 메모는 선택 입력이라 뺀다. 서버가 최종 검증하며, 이건 버튼 활성화용 힌트일 뿐이다.
-  const isFormValid =
-    // 직원 본인 신청은 소속 사업장명이 명부에 없는 값이라 선택 입력이다.
-    (mode === 'employee-self' || form.companyOrBranchName.trim() !== '') &&
-    form.requesterName.trim() !== '' &&
-    form.requesterEmail.trim() !== '' &&
-    form.vehicleNo.trim() !== '' &&
-    form.visitStartAt !== '' &&
-    form.visitEndAt !== '' &&
-    // 직원 본인 신청은 개인정보 수집·이용 동의 카드를 보여주지 않으므로 체크 여부를 요구하지 않는다.
-    (mode === 'employee-self' || form.privacyConsent) &&
-    // 직원 본인 신청은 본인이 곧 담당자이므로 당사 담당자 선택이 필요 없다.
-    (mode === 'employee-self' || hostEmployee !== null);
 
   // 서버 검증 오류 필드명이 모드별로 다르다(privacyConsent vs visitorConsentConfirmed).
   const consentFieldErrors =
@@ -441,7 +494,7 @@ export function ReservationForm({
         <button
           type="submit"
           className="btn btn-primary btn-lg w-full"
-          disabled={submitting || !isFormValid}
+          disabled={submitting}
         >
           {submitting ? '신청 중…' : '방문 신청하기'}
         </button>
