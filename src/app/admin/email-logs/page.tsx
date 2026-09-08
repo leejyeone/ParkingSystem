@@ -4,7 +4,7 @@ import Link from 'next/link';
 
 import { EmailLogResendButton } from '@/components/admin/email-log-resend-button';
 import { FilterBar, type FilterChip } from '@/components/admin/filter-bar';
-import { requireSystemAdminPage } from '@/lib/admin-page-guard';
+import { requireAdminPage } from '@/lib/admin-page-guard';
 import { formatKstDateTime } from '@/lib/datetime';
 import { listEmailLogs } from '@/services/log-query-service';
 
@@ -56,7 +56,7 @@ type PageProps = {
 };
 
 export default async function AdminEmailLogsPage({ searchParams }: PageProps) {
-  await requireSystemAdminPage('/admin/email-logs');
+  await requireAdminPage('/admin/email-logs');
   const params = await searchParams;
 
   const emailType =

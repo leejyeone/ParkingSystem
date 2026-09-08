@@ -18,10 +18,10 @@ export async function requireAdminPage(redirectTo: string): Promise<AdminSession
 }
 
 /**
- * 시스템 관리자 전용 화면 접근 가드. 반복 예약·이메일 이력·직원 등록·관리자 계정
- * 관리처럼 방문 신청/승인 절차를 우회할 수 있는 화면에 쓴다. 로그인은 했지만
- * 시스템 관리자가 아니면(주차 관리자) 대시보드로 돌려보낸다 — 그 메뉴 자체가
- * 사이드바에 보이지 않으므로 URL 을 직접 입력해 들어온 경우다.
+ * 시스템 관리자 전용 화면 접근 가드. 반복 예약·직원 등록·관리자 계정 관리처럼 방문
+ * 신청/승인 절차를 우회할 수 있는 화면에 쓴다. 로그인은 했지만 시스템 관리자가
+ * 아니면(주차 관리자) 대시보드로 돌려보낸다 — 그 메뉴 자체가 사이드바에 보이지
+ * 않으므로 URL 을 직접 입력해 들어온 경우다.
  */
 export async function requireSystemAdminPage(redirectTo: string): Promise<AdminSession> {
   const session = await requireAdminPage(redirectTo);
