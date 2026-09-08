@@ -37,11 +37,7 @@ const ROLE_LABEL: Record<AdminRole, string> = {
 function buildMenu(role: AdminRole): MenuItem[] {
   const menu: MenuItem[] = [
     { href: '/admin', label: '대시보드' },
-    {
-      href: '/admin/reservations',
-      label: '예약',
-      children: [{ href: '/admin/reservations', label: '전체 예약' }],
-    },
+    { href: '/admin/reservations', label: '예약' },
     {
       href: '/admin/settings',
       label: '시스템 설정',
@@ -80,7 +76,7 @@ function buildMenu(role: AdminRole): MenuItem[] {
  * `/admin/users`, `/admin/system`)는 실제 페이지가 아니라 그룹을 묶는 가상 경로일 뿐이고,
  * "사용자 관리"(`/admin/users`)처럼 그 접두사가 다른 그룹의 자식 경로(`/admin/users/employees`
  * — "시스템 관리" 소속)와 겹칠 수 있어서, 자신의 href 까지 startsWith 로 검사하면 엉뚱한
- * 그룹까지 함께 활성화된다. "예약"·"시스템 설정"처럼 그룹 자신이 곧 페이지인 경우는 자식
+ * 그룹까지 함께 활성화된다. "시스템 설정"처럼 그룹 자신이 곧 페이지인 경우는 자식
  * 목록에 자기 href 가 그대로 포함돼 있으므로 아래 자식 검사만으로도 커버된다.
  */
 function menuItemMatches(item: MenuItem, pathname: string): boolean {
@@ -112,7 +108,7 @@ export function AdminShell({ adminName, role, children }: Props) {
   const [loggingOut, setLoggingOut] = useState(false);
   const [showPasswordPanel, setShowPasswordPanel] = useState(false);
   const { isDark, toggle: toggleDark } = useDarkMode();
-  // 하위 메뉴가 있는 항목("예약" / "시스템 설정" / "사용자 관리" / "시스템 관리") 중
+  // 하위 메뉴가 있는 항목("시스템 설정" / "사용자 관리" / "시스템 관리") 중
   // 지금 펼쳐진 것의 href. 처음 진입할 때는 지금 보고 있는 페이지가 속한 항목을 미리
   // 펼쳐 둔다.
   const [expandedHref, setExpandedHref] = useState<string | null>(

@@ -115,9 +115,54 @@ export function RecurringScheduleForm({
     setWeekdays((previous) => previous.map((checked, i) => (i === index ? !checked : checked)));
   }
 
+  /**
+   * 버튼을 비활성화하는 대신, 제출 시점에 빈 필수 필드를 찾아 fieldErrors 를 채운다.
+   * 특히 "대상 직원"은 검색창에 이름만 입력하고 목록에서 선택하지 않으면 값이 null로
+   * 남는데, 이걸 놓치면 저장이 조용히 막히기만 하고 아무 안내도 없었다 — 빨간 테두리 +
+   * 안내 문구로 바로 보여주기 위함.
+   */
+  function findRequiredFieldErrors(): Record<string, string[]> {
+    const errors: Record<string, string[]> = {};
+
+    if (!employee) {
+      errors.employeeUserId = ['대상 직원을 선택해 주세요.'];
+    }
+    if (employee && !vehicleNo.trim()) {
+      errors.vehicleNo = ['차량번호를 입력해 주세요.'];
+    }
+    if (!spaceId) {
+      errors.spaceId = ['주차면을 선택해 주세요.'];
+    }
+    if (!startDate) {
+      errors.startDate = ['시작일을 입력해 주세요.'];
+    }
+    if (!endDate) {
+      errors.endDate = ['종료일을 입력해 주세요.'];
+    }
+    if (!weekdays.some(Boolean)) {
+      errors.weekdays = ['반복 요일을 하나 이상 선택해 주세요.'];
+    }
+    if (!dailyStartTime) {
+      errors.dailyStartTime = ['매일 시작 시간을 입력해 주세요.'];
+    }
+    if (!dailyEndTime) {
+      errors.dailyEndTime = ['매일 종료 시간을 입력해 주세요.'];
+    }
+
+    return errors;
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (submitting || !isFormValid) return;
+    if (submitting) return;
+
+    const clientErrors = findRequiredFieldErrors();
+    if (Object.keys(clientErrors).length > 0) {
+      setFieldErrors(clientErrors);
+      setFormError('입력하지 않은 항목이 있습니다. 빨간색으로 표시된 항목을 확인해 주세요.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
 
     setSubmitting(true);
     setFormError(null);
@@ -182,18 +227,10 @@ export function RecurringScheduleForm({
   }
 
   const vehicleNoKnown = Boolean(profile?.vehicleNo);
-  const isFormValid = Boolean(
-    employee &&
-    profile &&
-    !profileLoading &&
-    vehicleNo.trim() &&
-    spaceId &&
-    startDate &&
-    endDate &&
-    weekdays.some(Boolean) &&
-    dailyStartTime &&
-    dailyEndTime,
-  );
+  // 직원을 선택했는데 아직 프로필을 불러오는 중(또는 실패)이면, requesterName/email 이
+  // 비어 있는 채로 제출될 수 있으니 그 사이에만 버튼을 막는다. 그 외 필수 항목 미입력은
+  // 버튼을 막지 않고 제출 시 findRequiredFieldErrors 가 빨간 테두리로 안내한다.
+  const profileNotReady = Boolean(employee) && (profileLoading || !profile);
 
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-4">
@@ -432,7 +469,7 @@ export function RecurringScheduleForm({
         <button
           type="submit"
           className="btn btn-primary btn-lg w-full"
-          disabled={submitting || !isFormValid}
+          disabled={submitting || profileNotReady}
         >
           {submitting ? '등록 중…' : '반복 예약 등록'}
         </button>
