@@ -10,7 +10,7 @@ import { normalizeVehicleNo } from '@/lib/vehicle';
  *
  * 비밀번호가 없다 — 사번(employeeCode)만으로 진입한다. 전 직원 명부는
  * scripts/import-employees.ts 로 미리 employee_users 에 심어 두고, 그룹웨어가
- * 실제로 넘겨주는 사번(또는 개발용 진입 폼에 직접 입력한 사번)을 그대로 대조한다.
+ * 실제로 넘겨주는 사번을 그대로 대조한다.
  *
  * 방문객 회원(SiteUser) 인증과 완전히 별도의 테이블·로직이다. `/employee` 는
  * 로그인이 필수라 비로그인 직원 신청 자체가 존재하지 않으므로, 회원 인증에 있는
@@ -32,7 +32,7 @@ export type EmployeeProfile = {
  * 사번으로 진입. 그룹웨어가 넘겨준 사번(또는 개발용 진입 폼에 직접 입력한 사번)을 그대로 받는다.
  *
  * 사번은 그룹웨어에서 유일하지 않아(비어 있거나 두 사람이 공유하는 경우가 있다) 확정할 수 없는
- * 사번은 명부에 아예 넣지 않는다. 그런 직원은 이 경로로 못 들어오고 `?email=` 경로를 쓴다.
+ * 사번은 명부에 아예 넣지 않는다. 그런 직원은 사번이 확정될 때까지 이 시스템에 로그인할 수 없다.
  * 빈 값이 NULL 행과 엮이지 않도록 여기서 한 번 더 막는다.
  */
 export async function enterByEmployeeCode(employeeCode: string): Promise<EmployeeSession> {
@@ -52,39 +52,6 @@ export async function enterByEmployeeCode(employeeCode: string): Promise<Employe
 
   if (!employee) {
     throw new NotFoundError('등록되지 않은 사번입니다. 관리자에게 문의해 주세요.');
-  }
-
-  await prisma.employeeUser.update({
-    where: { employeeUserId: employee.employeeUserId },
-    data: { lastLoginAt: new Date() },
-  });
-
-  return {
-    employeeUserId: employee.employeeUserId,
-    employeeCode: employee.employeeCode ?? '',
-    email: employee.email,
-    name: employee.name,
-  };
-}
-
-/**
- * 개발 편의용: 이메일로 진입(사번 대신). 그룹웨어 연동 전, 로컬 개발 중에는 사번보다
- * 이메일이 기억하기 쉬워서 `/employee/login` 개발용 진입 화면에서만 이 경로를 쓴다.
- * 운영 계약(`GET /api/employee/enter?empId=사번`)과는 별개의 보조 경로이며, 실제
- * 그룹웨어 연동 시에도 이 함수를 되돌릴 필요는 없다(그냥 안 쓰게 될 뿐).
- */
-export async function enterByEmail(email: string): Promise<EmployeeSession> {
-  const employee = await prisma.employeeUser.findFirst({
-    where: {
-      email: email.trim().toLowerCase(),
-      deletedAt: null,
-      accountStatus: AccountStatus.ACTIVE,
-    },
-    select: { employeeUserId: true, employeeCode: true, email: true, name: true },
-  });
-
-  if (!employee) {
-    throw new NotFoundError('등록되지 않은 이메일입니다. 관리자에게 문의해 주세요.');
   }
 
   await prisma.employeeUser.update({

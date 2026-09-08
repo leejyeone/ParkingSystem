@@ -13,11 +13,6 @@ export const employeeCodeEntrySchema = z.object({
   employeeCode: requiredText(20, '사번'),
 });
 
-/** 개발 편의용: 이메일로 진입. `/employee/login` 개발용 진입 폼만 이 경로를 쓴다. */
-export const employeeEmailEntrySchema = z.object({
-  email: emailSchema,
-});
-
 /**
  * 직원 자기 정보 수정. 이름/이메일/부서는 명부로만 갱신되므로 차량번호·소속 사업장명만
  * 받는다 — 둘 다 명부에 없는 값이라 직원이 직접 채워야 신청 폼 자동완성에 쓸 수 있다.

@@ -7,11 +7,8 @@ import { getEmployeeEntryKey } from '@/lib/env';
 import { setEmployeeSessionCookie } from '@/lib/employee-session';
 import { getRequestContext } from '@/lib/request-context';
 import { consumeRateLimit } from '@/lib/rate-limit';
-import {
-  employeeCodeEntrySchema,
-  employeeEmailEntrySchema,
-} from '@/lib/validation/employee-schema';
-import { enterByEmail, enterByEmployeeCode } from '@/services/employee-auth-service';
+import { employeeCodeEntrySchema } from '@/lib/validation/employee-schema';
+import { enterByEmployeeCode } from '@/services/employee-auth-service';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -25,9 +22,6 @@ export const dynamic = 'force-dynamic';
  * `?fsacode=` 로 직접 들어와도 인식하도록 이 라우트 자체도 `empId` 의 별칭으로 받는다.
  * 비밀번호가 없으므로 계정별 잠금이 불가능해, 사번 무작위 대입을 늦추기 위한 유일한
  * 방어선으로 IP 기준 레이트리밋을 건다.
- *
- * `?email=` 파라미터가 오면 개발 편의용 이메일 진입으로 처리한다(`/employee/login` 개발용
- * 진입 폼 전용) — 사번은 기억하기 어려우니 그룹웨어 연동 전까지만 쓰는 보조 경로다.
  */
 export async function GET(request: NextRequest) {
   const { ipAddress } = getRequestContext(request.headers);
@@ -46,14 +40,11 @@ export async function GET(request: NextRequest) {
       request.nextUrl.searchParams.get('redirect') ?? undefined,
     );
 
-    const emailParam = request.nextUrl.searchParams.get('email');
     const empIdParam =
       request.nextUrl.searchParams.get('empId') ?? request.nextUrl.searchParams.get('fsacode');
-    const session = emailParam
-      ? await enterByEmail(employeeEmailEntrySchema.parse({ email: emailParam }).email)
-      : await enterByEmployeeCode(
-          employeeCodeEntrySchema.parse({ employeeCode: empIdParam ?? '' }).employeeCode,
-        );
+    const session = await enterByEmployeeCode(
+      employeeCodeEntrySchema.parse({ employeeCode: empIdParam ?? '' }).employeeCode,
+    );
 
     await setEmployeeSessionCookie(session);
 
@@ -66,18 +57,22 @@ export async function GET(request: NextRequest) {
 /**
  * 그룹웨어 메뉴에만 넣어 둔 공유 비밀값(`k`)을 확인한다.
  *
- * EMPLOYEE_ENTRY_KEY 를 설정하지 않으면 검사하지 않는다 — 그룹웨어가 없는 개발/테스트 환경과
- * 기존 동작을 유지하기 위해서다. 운영에서는 반드시 설정한다.
+ * EMPLOYEE_ENTRY_KEY 를 설정하지 않으면 무조건 실패한다 — "운영에서는 반드시 설정할 것"이라는
+ * 주석 하나에만 기대면 설정을 깜빡했을 때 이 라우트가 통째로 무방비 상태가 되므로, 키
+ * 자체를 필수로 만들어 설정 실수를 안전한 쪽(막힘)으로 처리한다. 로컬 개발/E2E는 `.env` /
+ * `playwright.config.ts` 가 이미 값을 채워 두므로 영향 없다.
  *
  * 값 비교에 timingSafeEqual 을 쓴다. 일반 문자열 비교는 앞에서부터 틀린 위치까지만 확인하고
  * 끝나서, 응답 시간 차이로 한 글자씩 값을 알아낼 여지가 생긴다.
  *
- * 실패해도 이유를 알려 주지 않고 사번/메일이 틀렸을 때와 똑같은 화면으로 보낸다.
+ * 실패해도 이유를 알려 주지 않고 사번이 틀렸을 때와 똑같은 화면으로 보낸다.
  * "키는 맞는데 계정이 없다" 는 정보 자체가 단서가 되기 때문이다.
  */
 function assertEntryKey(request: NextRequest): void {
   const expected = getEmployeeEntryKey();
-  if (!expected) return;
+  if (!expected) {
+    throw new Error('entry key not configured');
+  }
 
   const provided = request.nextUrl.searchParams.get('k') ?? '';
   const expectedBuf = Buffer.from(expected);
