@@ -7,8 +7,11 @@ import { getEmployeeEntryKey } from '@/lib/env';
 import { setEmployeeSessionCookie } from '@/lib/employee-session';
 import { getRequestContext } from '@/lib/request-context';
 import { consumeRateLimit } from '@/lib/rate-limit';
-import { employeeCodeEntrySchema } from '@/lib/validation/employee-schema';
-import { enterByEmployeeCode } from '@/services/employee-auth-service';
+import {
+  employeeCodeEntrySchema,
+  employeeEmailEntrySchema,
+} from '@/lib/validation/employee-schema';
+import { enterByEmail, enterByEmployeeCode } from '@/services/employee-auth-service';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,6 +25,10 @@ export const dynamic = 'force-dynamic';
  * `?fsacode=` 로 직접 들어와도 인식하도록 이 라우트 자체도 `empId` 의 별칭으로 받는다.
  * 비밀번호가 없으므로 계정별 잠금이 불가능해, 사번 무작위 대입을 늦추기 위한 유일한
  * 방어선으로 IP 기준 레이트리밋을 건다.
+ *
+ * `?email=` 파라미터가 오면 이메일(그룹웨어 SYSMAIL)로 진입한다 — 개발 편의용이 아니라,
+ * 사번이 그룹웨어에서 유일하지 않아 명부에 사번을 아예 못 넣은 직원의 유일한 로그인
+ * 경로다(`page.tsx`가 `/?email=SYSMAIL`를 그대로 넘겨준다).
  */
 export async function GET(request: NextRequest) {
   const { ipAddress } = getRequestContext(request.headers);
@@ -40,11 +47,14 @@ export async function GET(request: NextRequest) {
       request.nextUrl.searchParams.get('redirect') ?? undefined,
     );
 
+    const emailParam = request.nextUrl.searchParams.get('email');
     const empIdParam =
       request.nextUrl.searchParams.get('empId') ?? request.nextUrl.searchParams.get('fsacode');
-    const session = await enterByEmployeeCode(
-      employeeCodeEntrySchema.parse({ employeeCode: empIdParam ?? '' }).employeeCode,
-    );
+    const session = emailParam
+      ? await enterByEmail(employeeEmailEntrySchema.parse({ email: emailParam }).email)
+      : await enterByEmployeeCode(
+          employeeCodeEntrySchema.parse({ employeeCode: empIdParam ?? '' }).employeeCode,
+        );
 
     await setEmployeeSessionCookie(session);
 
@@ -65,7 +75,7 @@ export async function GET(request: NextRequest) {
  * 값 비교에 timingSafeEqual 을 쓴다. 일반 문자열 비교는 앞에서부터 틀린 위치까지만 확인하고
  * 끝나서, 응답 시간 차이로 한 글자씩 값을 알아낼 여지가 생긴다.
  *
- * 실패해도 이유를 알려 주지 않고 사번이 틀렸을 때와 똑같은 화면으로 보낸다.
+ * 실패해도 이유를 알려 주지 않고 사번/메일이 틀렸을 때와 똑같은 화면으로 보낸다.
  * "키는 맞는데 계정이 없다" 는 정보 자체가 단서가 되기 때문이다.
  */
 function assertEntryKey(request: NextRequest): void {

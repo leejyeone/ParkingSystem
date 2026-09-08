@@ -14,6 +14,14 @@ export const employeeCodeEntrySchema = z.object({
 });
 
 /**
+ * 이메일(그룹웨어 SYSMAIL)로 진입. 사번을 확정할 수 없는 직원의 유일한 진입 경로라
+ * `employeeCodeEntrySchema`와 대등한 정식 운영 계약이다(개발 편의용이 아니다).
+ */
+export const employeeEmailEntrySchema = z.object({
+  email: emailSchema,
+});
+
+/**
  * 직원 자기 정보 수정. 이름/이메일/부서는 명부로만 갱신되므로 차량번호·소속 사업장명만
  * 받는다 — 둘 다 명부에 없는 값이라 직원이 직접 채워야 신청 폼 자동완성에 쓸 수 있다.
  */

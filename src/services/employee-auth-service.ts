@@ -32,7 +32,7 @@ export type EmployeeProfile = {
  * 사번으로 진입. 그룹웨어가 넘겨준 사번(또는 개발용 진입 폼에 직접 입력한 사번)을 그대로 받는다.
  *
  * 사번은 그룹웨어에서 유일하지 않아(비어 있거나 두 사람이 공유하는 경우가 있다) 확정할 수 없는
- * 사번은 명부에 아예 넣지 않는다. 그런 직원은 사번이 확정될 때까지 이 시스템에 로그인할 수 없다.
+ * 사번은 명부에 아예 넣지 않는다. 그런 직원은 이 경로로 못 들어오고 `?email=` 경로를 쓴다.
  * 빈 값이 NULL 행과 엮이지 않도록 여기서 한 번 더 막는다.
  */
 export async function enterByEmployeeCode(employeeCode: string): Promise<EmployeeSession> {
@@ -52,6 +52,38 @@ export async function enterByEmployeeCode(employeeCode: string): Promise<Employe
 
   if (!employee) {
     throw new NotFoundError('등록되지 않은 사번입니다. 관리자에게 문의해 주세요.');
+  }
+
+  await prisma.employeeUser.update({
+    where: { employeeUserId: employee.employeeUserId },
+    data: { lastLoginAt: new Date() },
+  });
+
+  return {
+    employeeUserId: employee.employeeUserId,
+    employeeCode: employee.employeeCode ?? '',
+    email: employee.email,
+    name: employee.name,
+  };
+}
+
+/**
+ * 이메일(그룹웨어 SYSMAIL)로 진입. 사번이 그룹웨어에서 유일하지 않아 명부에 사번을 아예
+ * 넣지 못한 직원의 유일한 로그인 경로다(그룹웨어 메뉴가 `/?email=SYSMAIL`로 착지시킨다) —
+ * `enterByEmployeeCode`의 개발 편의용 대체재가 아니라, 별도 계층의 정식 진입 계약이다.
+ */
+export async function enterByEmail(email: string): Promise<EmployeeSession> {
+  const employee = await prisma.employeeUser.findFirst({
+    where: {
+      email: email.trim().toLowerCase(),
+      deletedAt: null,
+      accountStatus: AccountStatus.ACTIVE,
+    },
+    select: { employeeUserId: true, employeeCode: true, email: true, name: true },
+  });
+
+  if (!employee) {
+    throw new NotFoundError('등록되지 않은 이메일입니다. 관리자에게 문의해 주세요.');
   }
 
   await prisma.employeeUser.update({
