@@ -34,10 +34,11 @@ export type CreateReservationPayload = z.infer<typeof createReservationSchema>;
 
 /**
  * 직원 본인 방문 신청 (로그인 필수). requesterType=EMPLOYEE 고정, 동의 카드 없음.
- * 소속 사업장명은 직원 명부에 없는 값이라 선택 입력이다(방문객/대리 신청과 달리 필수가 아니다).
+ * 소속 사업장명은 직원 명부에 없는 값이라 마이페이지에서 자동완성되지 않으면 직접 입력해야
+ * 하며, 입력한 값은 예약 생성 시 마이페이지에도 반영되어 다음 신청부터 자동완성된다.
  */
 export const createEmployeeReservationSchema = z.object({
-  companyOrBranchName: optionalText(100, '소속 사업장명'),
+  companyOrBranchName: requiredText(100, '소속 사업장명'),
   requesterName: requiredText(50, '성명'),
   requesterEmail: emailSchema,
   vehicleNo: vehicleNoSchema,

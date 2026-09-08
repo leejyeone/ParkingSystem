@@ -131,6 +131,19 @@ export function ReservationForm({
     });
   }
 
+  /** 담당자를 선택하면, 이전에 "선택해 주세요" 에러로 떴던 빨간 테두리를 바로 지운다. */
+  function handleHostEmployeeChange(next: SelectedEmployee | null) {
+    setHostEmployee(next);
+    if (next) {
+      setFieldErrors((previous) => {
+        if (!previous.hostEmployeeUserId) return previous;
+        const rest = { ...previous };
+        delete rest.hostEmployeeUserId;
+        return rest;
+      });
+    }
+  }
+
   /** 차량번호는 입력 중 공백과 하이픈을 자동으로 정리한다. */
   function handleVehicleNoChange(event: ChangeEvent<HTMLInputElement>) {
     update('vehicleNo', normalizeVehicleNo(event.target.value));
@@ -143,8 +156,10 @@ export function ReservationForm({
   function findRequiredFieldErrors(): Record<string, string[]> {
     const errors: Record<string, string[]> = {};
 
-    if (mode !== 'employee-self' && form.companyOrBranchName.trim() === '') {
-      errors.companyOrBranchName = ['방문상호를 입력해 주세요.'];
+    if (form.companyOrBranchName.trim() === '') {
+      errors.companyOrBranchName = [
+        mode === 'employee-self' ? '소속 사업장명을 입력해 주세요.' : '방문상호를 입력해 주세요.',
+      ];
     }
     if (form.requesterName.trim() === '') {
       errors.requesterName = ['성명을 입력해 주세요.'];
@@ -279,8 +294,7 @@ export function ReservationForm({
           <FormField
             label={mode === 'employee-self' ? '소속 사업장명' : '방문상호'}
             htmlFor="companyOrBranchName"
-            required={mode !== 'employee-self'}
-            hint={mode === 'employee-self' ? '선택 입력입니다.' : undefined}
+            required
             errors={fieldErrors.companyOrBranchName}
           >
             <input
@@ -291,6 +305,7 @@ export function ReservationForm({
               onChange={(event) => update('companyOrBranchName', event.target.value)}
               maxLength={100}
               autoComplete="organization"
+              placeholder={mode === 'employee-self' ? '동탄' : undefined}
             />
           </FormField>
 
@@ -359,7 +374,7 @@ export function ReservationForm({
               <EmployeeSearchSelect
                 id="hostEmployeeUserId"
                 value={hostEmployee}
-                onChange={setHostEmployee}
+                onChange={handleHostEmployeeChange}
                 hasError={Boolean(fieldErrors.hostEmployeeUserId)}
               />
             </FormField>

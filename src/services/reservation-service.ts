@@ -346,7 +346,7 @@ export async function createEmployeeReservation(
   >,
   employeeUserId: number,
 ) {
-  return createReservation({
+  const reservation = await createReservation({
     ...input,
     requesterType: RequesterType.EMPLOYEE,
     visitorUserId: null,
@@ -354,6 +354,16 @@ export async function createEmployeeReservation(
     // EMPLOYEE 는 동의 카드를 노출하지 않는 기존 정책을 그대로 유지한다.
     privacyConsent: true,
   });
+
+  // 이번에 입력한 소속 사업장명을 다음 신청부터 자동완성되도록 마이페이지에도 반영한다.
+  // updateEmployeeProfile 은 vehicleNo 까지 같이 덮어써서(안 넘기면 null화) 여기서 쓰면
+  // 차량번호가 지워지는 부작용이 생기므로, 이 필드만 직접 갱신한다.
+  await prisma.employeeUser.update({
+    where: { employeeUserId },
+    data: { companyOrBranchName: input.companyOrBranchName },
+  });
+
+  return reservation;
 }
 
 /**

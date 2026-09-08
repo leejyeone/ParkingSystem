@@ -104,7 +104,14 @@ export function RecurringScheduleForm({
 
   function handleEmployeeChange(next: SelectedEmployee | null) {
     setEmployee(next);
-    if (!next) {
+    if (next) {
+      setFieldErrors((previous) => {
+        if (!previous.employeeUserId) return previous;
+        const rest = { ...previous };
+        delete rest.employeeUserId;
+        return rest;
+      });
+    } else {
       setProfile(null);
       setProfileError(null);
       setVehicleNo('');
