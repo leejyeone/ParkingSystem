@@ -127,6 +127,15 @@ export function toGmailRaw(mime: string): string {
   return Buffer.from(mime, 'utf8').toString('base64url');
 }
 
+/**
+ * OAuth2 클라이언트를 모듈 스코프에 캐싱해 재사용한다. 매 발송마다 새로 만들면
+ * access token 캐시가 없어 매번 refresh_token 교환(구글 서버 왕복)이 발생하는데,
+ * 같은 인스턴스를 재사용하면 googleapis 라이브러리가 알아서 만료 전까지 access
+ * token을 재사용하고 만료됐을 때만 갱신한다. 설정값이 바뀌면 새로 만든다.
+ */
+let cachedOAuth2Client: InstanceType<typeof google.auth.OAuth2> | null = null;
+let cachedConfigKey: string | null = null;
+
 export class GmailApiEmailProvider implements EmailProvider {
   readonly name = 'gmail-api';
 
@@ -138,8 +147,13 @@ export class GmailApiEmailProvider implements EmailProvider {
     const senderName = process.env.GMAIL_SENDER_NAME?.trim() || '본사 방문관리';
     const redirectUri = process.env.GMAIL_REDIRECT_URI?.trim() || undefined;
 
-    const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
-    oauth2Client.setCredentials({ refresh_token: refreshToken, scope: GMAIL_SEND_SCOPE });
+    const configKey = JSON.stringify({ clientId, clientSecret, refreshToken, redirectUri });
+    if (!cachedOAuth2Client || cachedConfigKey !== configKey) {
+      cachedOAuth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+      cachedOAuth2Client.setCredentials({ refresh_token: refreshToken, scope: GMAIL_SEND_SCOPE });
+      cachedConfigKey = configKey;
+    }
+    const oauth2Client = cachedOAuth2Client;
 
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 

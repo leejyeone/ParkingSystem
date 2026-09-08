@@ -1,4 +1,6 @@
 import { Resvg } from '@resvg/resvg-js';
+import fs from 'node:fs';
+import path from 'node:path';
 
 import {
   findLayoutForStallCode,
@@ -163,12 +165,55 @@ function buildParkingMapSvg(highlightCode: string): string | null {
 }
 
 /**
+ * spaceCode 별 렌더링 결과 캐시.
+ *
+ * resvg 렌더링은 spaceCode(+정적 도면 데이터)만으로 결과가 완전히 결정되는 순수 함수인데,
+ * 동기(sync) 네이티브 호출이라 실행되는 동안 Node 이벤트 루프 전체가 막힌다(실측 2.3~2.5초).
+ * 같은 주차 위치가 승인 때마다 반복해서 배정되므로, 한 번 그린 결과를 프로세스 메모리에
+ * 담아 두면 같은 spaceCode 의 다음 승인부터는 렌더링 없이 즉시 반환된다. 담긴 Buffer 는
+ * 발송 시 읽히기만 하고 변형되지 않으므로 여러 메일이 같은 인스턴스를 공유해도 안전하다.
+ */
+const attachmentCache = new Map<string, EmailAttachment | null>();
+
+/**
+ * `npm run build`가 `prebuild`(`scripts/generate-parking-map-assets.ts`)로 전체 자리 코드를
+ * 미리 렌더링해 두는 위치. 여기 파일이 있으면 렌더링 없이 읽기만 하므로 런타임에 이벤트
+ * 루프가 막히지 않는다 — 파일이 없으면(로컬 `next dev` 등 prebuild 를 안 거친 환경, 혹은
+ * 아직 재생성 전인 신규 자리 코드) 기존처럼 그 자리에서 렌더링하는 폴백으로 넘어간다.
+ */
+const GENERATED_DIR = path.join(process.cwd(), 'generated', 'parking-maps');
+
+export function generatedAssetPath(spaceCode: string): string {
+  return path.join(GENERATED_DIR, `${spaceCode}.png`);
+}
+
+/**
  * `spaceCode`가 어느 도면에도 없으면(구코드 등) null을 반환한다 — 호출부는 이미지 없이
  * 텍스트 안내만 남기면 된다. 메일 발송 자체를 막으면 안 되므로 예외를 던지지 않는다.
  */
 export function renderParkingMapAttachment(spaceCode: string): EmailAttachment | null {
+  const cached = attachmentCache.get(spaceCode);
+  if (cached !== undefined) return cached;
+
+  try {
+    const content = fs.readFileSync(generatedAssetPath(spaceCode));
+    const attachment: EmailAttachment = {
+      filename: 'parking-map.png',
+      contentType: 'image/png',
+      cid: PARKING_MAP_CID,
+      content,
+    };
+    attachmentCache.set(spaceCode, attachment);
+    return attachment;
+  } catch {
+    // 파일이 없으면 아래 렌더링 폴백으로 넘어간다.
+  }
+
   const svg = buildParkingMapSvg(spaceCode);
-  if (!svg) return null;
+  if (!svg) {
+    attachmentCache.set(spaceCode, null);
+    return null;
+  }
 
   const png = new Resvg(svg, {
     background: 'white',
@@ -177,10 +222,12 @@ export function renderParkingMapAttachment(spaceCode: string): EmailAttachment |
     .render()
     .asPng();
 
-  return {
+  const attachment: EmailAttachment = {
     filename: 'parking-map.png',
     contentType: 'image/png',
     cid: PARKING_MAP_CID,
     content: Buffer.from(png),
   };
+  attachmentCache.set(spaceCode, attachment);
+  return attachment;
 }

@@ -85,8 +85,10 @@ export function ReservationActionPanel({
     if (response.ok) {
       // 처리를 끝내고 다음 건으로 넘어가는 흐름이면 목록으로 돌려보낸다.
       if (options.redirectTo) {
+        // 이 프로젝트의 관리자 페이지는 전부 force-dynamic이라 push만으로도 최신 데이터를
+        // 다시 가져온다 — router.refresh()까지 같이 부르면 같은 RSC 요청이 중복으로 나가서
+        // 서로 DB 커넥션을 기다리며 화면 전환이 오히려 느려진다.
         router.push(options.redirectTo);
-        router.refresh();
         return; // 화면이 곧 바뀌므로 pending 을 풀지 않아 버튼 재클릭을 막는다.
       }
       setPending(null);

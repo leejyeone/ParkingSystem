@@ -43,8 +43,8 @@ export function RecurringScheduleDeleteButton({ scheduleId }: { scheduleId: numb
       );
     }
 
+    // force-dynamic 페이지라 push만으로 최신 목록을 다시 가져온다 — refresh는 중복 요청이다.
     router.push('/admin/recurring-reservations');
-    router.refresh();
   }
 
   return (

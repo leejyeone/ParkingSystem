@@ -477,15 +477,25 @@ export async function sendEntryReminderEmail(
 }
 
 /**
- * 이메일 발송 실패가 본 처리 흐름을 중단시키지 않도록 감싸는 헬퍼.
- * (예약은 이미 커밋된 상태이므로 메일 실패는 로그로만 남긴다)
+ * 이메일 발송을 API 응답 뒤로 미루는 헬퍼. 예약은 이미 커밋된 상태라 메일 발송
+ * 성공 여부가 응답에 영향을 주면 안 되고(실패는 로그로만 남긴다), 무엇보다 SMTP
+ * 커넥션 핸드셰이크나 첨부 이미지 렌더링처럼 느릴 수 있는 작업 때문에 방문객/관리자가
+ * 응답을 기다리게 해서도 안 된다.
+ *
+ * Promise 가 아니라 함수(thunk)를 받는다 — 이미 만들어진 Promise를 넘기면 그걸
+ * 만드는 시점에 내부의 동기 코드(예: PNG 렌더링)가 이미 실행돼 버리므로, 호출 자체를
+ * 다음 이벤트 루프 틱으로 미뤄야 응답 전 블로킹을 막을 수 있다.
+ *
+ * Next.js `after()` 대신 `setImmediate`를 쓴다 — 통합테스트가 이 함수를 호출하는
+ * 서비스 함수를 요청 컨텍스트 없이 직접 호출하므로, 요청 스코프를 요구하는 `after()`는
+ * 테스트 환경에서 에러가 난다.
  */
-export async function dispatchQuietly(task: Promise<unknown>): Promise<void> {
-  try {
-    await task;
-  } catch (error) {
-    logger.error('이메일 발송 처리 중 예외', {
-      message: error instanceof Error ? error.message : String(error),
+export function dispatchQuietly(task: () => Promise<unknown>): void {
+  setImmediate(() => {
+    task().catch((error) => {
+      logger.error('이메일 발송 처리 중 예외', {
+        message: error instanceof Error ? error.message : String(error),
+      });
     });
-  }
+  });
 }

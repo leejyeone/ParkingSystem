@@ -5,6 +5,7 @@
   "description": "본사 방문 예약 관리 시스템 (Next.js App Router + MySQL + Prisma + Gmail API)",
   "scripts": {
     "dev": "next dev",
+    "prebuild": "tsx scripts/generate-parking-map-assets.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

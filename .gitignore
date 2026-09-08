@@ -70,3 +70,7 @@ next-env.d.ts
 # next dev 가 자동 생성하는 에이전트 안내 파일 (삭제해도 dev 실행 시 다시 생성됨)
 /AGENTS.md
 /CLAUDE.md
+
+# npm run build 의 prebuild 훅(scripts/generate-parking-map-assets.ts)이 매번 새로 만드는
+# 주차 위치 안내 PNG. 빌드 산출물이라 커밋하지 않는다.
+/generated/

@@ -206,3 +206,10 @@ export function findLayoutForStallCode(code: string): MapLayout | null {
   }
   return null;
 }
+
+/** 모든 도면에 등장하는 주차면 코드 전체 목록. 빌드 타임에 안내 이미지를 전부 미리 그릴 때 쓴다. */
+export function allStallCodes(): string[] {
+  return Object.values(LAYOUTS_BY_AREA_CODE).flatMap((layout) =>
+    layout.stalls.map((stall) => stall.code),
+  );
+}

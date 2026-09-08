@@ -24,8 +24,8 @@ export function EmailLogResendButton({ emailLogId }: { emailLogId: number }) {
     if (response.ok && response.data.sendStatus === 'SUCCESS') {
       // 필터가 걸려 있으면(예: 실패 건만 보기) 방금 성공한 건이 목록에서 바로 사라져
       // 결과를 확인할 수 없다. 성공했을 때만 전체 이력으로 보내 새 행을 볼 수 있게 한다.
+      // force-dynamic 페이지라 push만으로 최신 목록을 다시 가져온다 — refresh는 중복 요청이다.
       router.push('/admin/email-logs');
-      router.refresh();
       return;
     }
 

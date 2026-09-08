@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+import nodemailer, { type Transporter } from 'nodemailer';
 
 import {
   EmailSendError,
@@ -20,6 +20,18 @@ import { getNumberEnv, getOptionalEnv, getRequiredEnv } from '@/lib/env';
  * 비워두면 인증 없이 연결한다. 연결마다 필요한 값은 Gmail 구현체와 동일하게
  * `send()` 호출 시점에 그때그때 읽는다(지연 평가, `src/lib/env.ts` 관례).
  */
+
+/**
+ * transporter 를 모듈 스코프에 캐싱해 재사용한다. 원래는 발송마다 새로
+ * `createTransport`해서 TCP connect + TLS 핸드셰이크 + AUTH를 매번 반복했는데,
+ * `pool: true`로 커넥션을 유지하는 transporter 자체를 재사용하면 두 번째 발송부터는
+ * 이 과정을 건너뛴다. 설정값(호스트/포트/계정)이 바뀌면 새로 만든다 — 런타임에
+ * SMTP_* 환경변수가 바뀌는 일은 거의 없지만, 테스트 등에서 값을 바꿔 가며 여러 번
+ * 만드는 경우까지 대비한 것이다.
+ */
+let cachedTransporter: Transporter | null = null;
+let cachedConfigKey: string | null = null;
+
 export class SmtpEmailProvider implements EmailProvider {
   readonly name = 'smtp';
 
@@ -30,19 +42,40 @@ export class SmtpEmailProvider implements EmailProvider {
     const pass = getOptionalEnv('SMTP_PASS');
     const senderEmail = getRequiredEnv('SMTP_FROM_EMAIL');
     const senderName = getOptionalEnv('SMTP_FROM_NAME') ?? '본사 방문관리';
+    const secure = (getOptionalEnv('SMTP_SECURE') ?? 'false').toLowerCase() === 'true';
+    const requireTLS = (getOptionalEnv('SMTP_REQUIRE_TLS') ?? 'false').toLowerCase() === 'true';
+    const rejectUnauthorized =
+      (getOptionalEnv('SMTP_TLS_REJECT_UNAUTHORIZED') ?? 'true').toLowerCase() !== 'false';
+    const connectionTimeout = getNumberEnv('SMTP_CONNECTION_TIMEOUT_MS', 10000);
 
-    const transporter = nodemailer.createTransport({
+    const configKey = JSON.stringify({
       host,
       port,
-      secure: (getOptionalEnv('SMTP_SECURE') ?? 'false').toLowerCase() === 'true',
-      requireTLS: (getOptionalEnv('SMTP_REQUIRE_TLS') ?? 'false').toLowerCase() === 'true',
-      auth: user && pass ? { user, pass } : undefined,
-      connectionTimeout: getNumberEnv('SMTP_CONNECTION_TIMEOUT_MS', 10000),
-      tls: {
-        rejectUnauthorized:
-          (getOptionalEnv('SMTP_TLS_REJECT_UNAUTHORIZED') ?? 'true').toLowerCase() !== 'false',
-      },
+      user,
+      pass,
+      secure,
+      requireTLS,
+      rejectUnauthorized,
+      connectionTimeout,
     });
+
+    if (!cachedTransporter || cachedConfigKey !== configKey) {
+      cachedTransporter?.close();
+      cachedTransporter = nodemailer.createTransport({
+        host,
+        port,
+        secure,
+        requireTLS,
+        auth: user && pass ? { user, pass } : undefined,
+        connectionTimeout,
+        pool: true,
+        maxConnections: 5,
+        maxMessages: 100,
+        tls: { rejectUnauthorized },
+      });
+      cachedConfigKey = configKey;
+    }
+    const transporter = cachedTransporter;
 
     try {
       const info = await transporter.sendMail({

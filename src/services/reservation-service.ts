@@ -309,7 +309,7 @@ export async function createReservation(input: CreateReservationInput): Promise<
   const accessUrl = await issueAccessUrl(reservation.reservationId, reservation.visitEndAt);
 
   const forEmail = toReservationForEmail(reservation);
-  await dispatchQuietly(
+  dispatchQuietly(() =>
     Promise.all([
       sendRequestReceivedEmail(forEmail, {
         accessUrl,
@@ -530,7 +530,7 @@ export async function updateReservationByRequester(
 
   const accessUrl = await issueAccessUrl(updated.reservationId, updated.visitEndAt);
   if (!updated.recurringScheduleId) {
-    await dispatchQuietly(
+    dispatchQuietly(() =>
       sendUpdatedEmails(toReservationForEmail(updated), {
         accessUrl,
         previousVisitStartAt,
@@ -701,7 +701,7 @@ export async function updateReservationByAdmin(
 
   const accessUrl = await issueAccessUrl(updated.reservationId, updated.visitEndAt);
   if (!updated.recurringScheduleId) {
-    await dispatchQuietly(
+    dispatchQuietly(() =>
       sendUpdatedEmails(toReservationForEmail(updated), {
         accessUrl,
         previousVisitStartAt,
@@ -761,7 +761,7 @@ export async function cancelReservationByRequester(
   });
 
   if (!cancelled.recurringScheduleId) {
-    await dispatchQuietly(sendCancelledEmails(toReservationForEmail(cancelled)));
+    dispatchQuietly(() => sendCancelledEmails(toReservationForEmail(cancelled)));
   }
   return cancelled;
 }
@@ -819,7 +819,7 @@ export async function cancelReservationByAdmin(
   });
 
   if (!cancelled.recurringScheduleId) {
-    await dispatchQuietly(sendCancelledEmails(toReservationForEmail(cancelled)));
+    dispatchQuietly(() => sendCancelledEmails(toReservationForEmail(cancelled)));
   }
   return cancelled;
 }
@@ -956,12 +956,10 @@ export async function approveReservation(
   const forEmail = toReservationForEmail(approved);
 
   if (!approved.recurringScheduleId) {
-    await dispatchQuietly(
-      (async () => {
-        // 이중주차 배정 안내는 승인 메일 본문에 포함된다. (별도 발송하지 않음)
-        await sendApprovedEmail(forEmail, { accessUrl });
-      })(),
-    );
+    dispatchQuietly(async () => {
+      // 이중주차 배정 안내는 승인 메일 본문에 포함된다. (별도 발송하지 않음)
+      await sendApprovedEmail(forEmail, { accessUrl });
+    });
   }
 
   return approved;
@@ -1078,7 +1076,7 @@ export async function rejectReservation(
   });
 
   if (!rejected.recurringScheduleId) {
-    await dispatchQuietly(sendRejectedEmail(toReservationForEmail(rejected)));
+    dispatchQuietly(() => sendRejectedEmail(toReservationForEmail(rejected)));
   }
   return rejected;
 }
@@ -1205,11 +1203,9 @@ export async function changeAssignedSpace(
   const accessUrl = await issueAccessUrl(updated.reservationId, updated.visitEndAt);
   const forEmail = toReservationForEmail(updated);
   if (!updated.recurringScheduleId) {
-    await dispatchQuietly(
-      (async () => {
-        await sendApprovedEmail(forEmail, { accessUrl });
-      })(),
-    );
+    dispatchQuietly(async () => {
+      await sendApprovedEmail(forEmail, { accessUrl });
+    });
   }
 
   return updated;
