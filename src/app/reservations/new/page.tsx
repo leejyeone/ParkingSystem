@@ -69,7 +69,6 @@ export default async function NewReservationPage() {
 
       <ReservationForm
         mode="visitor"
-        autofilled={Boolean(profile)}
         initialValues={initialValues}
         settings={{
           reservationMinLeadMinutes: settings.reservationMinLeadMinutes,

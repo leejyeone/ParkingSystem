@@ -104,13 +104,10 @@ export function ReservationForm({
   mode,
   settings,
   initialValues,
-  autofilled = false,
 }: {
   mode: ReservationFormMode;
   settings: Settings;
   initialValues?: ReservationFormInitialValues;
-  /** 로그인 회원 정보로 자동완성된 상태인지 */
-  autofilled?: boolean;
 }) {
   const [form, setForm] = useState<FormState>(() => buildInitialState(initialValues));
   const [hostEmployee, setHostEmployee] = useState<SelectedEmployee | null>(
@@ -281,14 +278,6 @@ export function ReservationForm({
         </div>
       )}
 
-      {autofilled && (
-        <div className="mb-4">
-          <Alert variant="success" title="회원 정보로 자동 입력했습니다">
-            내용이 다르면 아래에서 바로 수정할 수 있습니다. 수정해도 회원 정보는 바뀌지 않습니다.
-          </Alert>
-        </div>
-      )}
-
       <div className="card">
         <div className="card-body space-y-5">
           <FormField
@@ -323,6 +312,8 @@ export function ReservationForm({
               onChange={(event) => update('requesterName', event.target.value)}
               maxLength={50}
               autoComplete="name"
+              disabled={mode === 'employee-self'}
+              readOnly={mode === 'employee-self'}
             />
           </FormField>
 
@@ -330,7 +321,7 @@ export function ReservationForm({
             label="이메일"
             htmlFor="requesterEmail"
             required
-            hint="신청 결과와 예약 조회 링크를 보내드립니다."
+            hint={mode === 'employee-self' ? undefined : '신청 결과와 예약 조회 링크를 보내드립니다.'}
             errors={fieldErrors.requesterEmail}
           >
             <input
@@ -344,6 +335,8 @@ export function ReservationForm({
               placeholder="hong@example.com"
               maxLength={255}
               autoComplete="email"
+              disabled={mode === 'employee-self'}
+              readOnly={mode === 'employee-self'}
             />
           </FormField>
 

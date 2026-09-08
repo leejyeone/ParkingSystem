@@ -41,7 +41,6 @@ export default async function EmployeeNewReservationPage() {
 
       <ReservationForm
         mode="employee-self"
-        autofilled={Boolean(profile)}
         initialValues={initialValues}
         settings={{
           reservationMinLeadMinutes: settings.reservationMinLeadMinutes,

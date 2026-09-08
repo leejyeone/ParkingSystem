@@ -27,7 +27,12 @@ export async function POST(request: NextRequest) {
 
     const payload = createEmployeeReservationSchema.parse(await request.json());
 
-    const { reservation } = await createEmployeeReservation(payload, session.employeeUserId);
+    // 성명/이메일은 그룹웨어 명부값이라 신청 폼에서 수정할 수 없다 — 화면에서 막아도 API를
+    // 직접 두드리면 우회할 수 있으므로, 클라이언트가 보낸 값은 무시하고 세션의 실제 값으로 덮어쓴다.
+    const { reservation } = await createEmployeeReservation(
+      { ...payload, requesterName: session.name, requesterEmail: session.email },
+      session.employeeUserId,
+    );
 
     return apiSuccess(
       {

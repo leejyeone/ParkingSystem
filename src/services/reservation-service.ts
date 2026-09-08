@@ -332,10 +332,28 @@ export async function createReservation(input: CreateReservationInput): Promise<
 export async function createVisitorReservation(
   input: Omit<CreateReservationInput, 'requesterType'>,
 ) {
-  return createReservation({
+  const result = await createReservation({
     ...input,
     requesterType: RequesterType.VISITOR,
   });
+
+  // 로그인한 회원이 신청서에서 고친 이름·방문상호·차량번호를 다음 신청부터 자동완성되도록
+  // 회원 정보에도 반영한다. 이메일은 계정 이메일(로그인 식별자)과 무관한 신청서상의 값이라
+  // (계정 이메일 변경 기능 자체가 없다) 건드리지 않는다.
+  if (input.visitorUserId != null) {
+    await prisma.siteUser.update({
+      where: { userId: input.visitorUserId },
+      data: {
+        name: input.requesterName,
+        // 방문객 본인 신청 스키마(createReservationSchema)는 companyOrBranchName 을 필수로
+        // 요구하므로 이 경로에서 null 일 수 없다 — SiteUser 필드가 non-null이라 타입만 맞춘다.
+        companyOrBranchName: input.companyOrBranchName ?? '',
+        vehicleNo: result.reservation.vehicleNo,
+      },
+    });
+  }
+
+  return result;
 }
 
 /** 직원 본인 방문 신청 (로그인 필수). requesterType=EMPLOYEE 고정, 동의 불필요. */
@@ -355,12 +373,15 @@ export async function createEmployeeReservation(
     privacyConsent: true,
   });
 
-  // 이번에 입력한 소속 사업장명을 다음 신청부터 자동완성되도록 마이페이지에도 반영한다.
-  // updateEmployeeProfile 은 vehicleNo 까지 같이 덮어써서(안 넘기면 null화) 여기서 쓰면
-  // 차량번호가 지워지는 부작용이 생기므로, 이 필드만 직접 갱신한다.
+  // 이번에 입력한 소속 사업장명·차량번호를 다음 신청부터 자동완성되도록 마이페이지에도
+  // 반영한다. 차량번호는 정규화 전 원본(input.vehicleNo)이 아니라 createReservation 이
+  // 반환한 정규화된 값을 써서 저장 형식을 일치시킨다.
   await prisma.employeeUser.update({
     where: { employeeUserId },
-    data: { companyOrBranchName: input.companyOrBranchName },
+    data: {
+      companyOrBranchName: input.companyOrBranchName,
+      vehicleNo: reservation.reservation.vehicleNo,
+    },
   });
 
   return reservation;
