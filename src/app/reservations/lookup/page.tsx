@@ -38,10 +38,13 @@ export default async function ReservationLookupPage() {
 
         {session ? (
           <Alert variant="info" title="로그인 중입니다">
-            <p>마이페이지에서 내가 신청한 예약을 한 번에 볼 수 있습니다.</p>
+            <p>예약 내역에서 내가 신청한 예약을 한 번에 볼 수 있습니다.</p>
             <p className="mt-2">
-              <Link href="/mypage" className="btn btn-secondary min-h-9 px-3 py-1.5 text-xs">
-                마이페이지로 이동
+              <Link
+                href="/mypage/reservations"
+                className="btn btn-secondary min-h-9 px-3 py-1.5 text-xs"
+              >
+                예약 내역으로 이동
               </Link>
             </p>
           </Alert>

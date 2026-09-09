@@ -20,10 +20,8 @@ export async function requireUserPage(redirectTo: string): Promise<UserSession> 
  * 열린 리다이렉트를 막기 위해 내부 회원 경로만 허용한다.
  */
 export function safeUserRedirect(redirectParam: string | undefined): string {
-  if (!redirectParam) return '/mypage';
-  if (!redirectParam.startsWith('/') || redirectParam.startsWith('//')) return '/mypage';
+  if (!redirectParam) return '/';
+  if (!redirectParam.startsWith('/') || redirectParam.startsWith('//')) return '/';
   const allowedPrefixes = ['/mypage', '/reservations/new'];
-  return allowedPrefixes.some((prefix) => redirectParam.startsWith(prefix))
-    ? redirectParam
-    : '/mypage';
+  return allowedPrefixes.some((prefix) => redirectParam.startsWith(prefix)) ? redirectParam : '/';
 }

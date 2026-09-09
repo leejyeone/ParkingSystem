@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: '회원가입' };
 export default async function SignUpPage() {
   const [session, homeHref] = await Promise.all([getUserSession(), resolveHomeHref()]);
   if (session) {
-    redirect('/mypage');
+    redirect(homeHref);
   }
 
   return (

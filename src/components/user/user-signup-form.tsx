@@ -46,9 +46,9 @@ export function UserSignUpForm() {
     );
 
     if (response.ok) {
-      // 가입 전 신청했던 예약이 연결됐다면 마이페이지에서 안내한다.
+      // 가입 전 신청했던 예약이 연결됐다면 예약 내역에서 안내한다.
       const linked = response.data.linkedReservationCount;
-      router.replace(linked > 0 ? `/mypage?linked=${linked}` : '/mypage');
+      router.replace(linked > 0 ? `/mypage/reservations?linked=${linked}` : '/mypage/reservations');
       router.refresh();
       return;
     }

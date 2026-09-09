@@ -48,6 +48,12 @@ export default async function EmployeeHomePage() {
             </span>
           )}
         </div>
+        <Link
+          href="/employee/profile"
+          className="rounded-full bg-sky-50 px-4 py-2 text-xs font-bold whitespace-nowrap text-sky-600 transition hover:bg-sky-100"
+        >
+          MY
+        </Link>
         <EmployeeLogoutButton confirmMessage="로그아웃하면 다시 그룹웨어를 통해 접속해야 합니다. 로그아웃하시겠습니까?" />
       </div>
 
@@ -71,9 +77,6 @@ export default async function EmployeeHomePage() {
             방문객 대리 신청
           </Link>
         </div>
-        <Link href="/employee/reservations" className="btn btn-secondary btn-lg w-full">
-          마이페이지
-        </Link>
         {matchingAdmin && (
           <Link href="/api/employee/enter-admin" className="btn btn-secondary btn-lg w-full">
             관리자 대시보드
@@ -102,13 +105,17 @@ export default async function EmployeeHomePage() {
                   >
                     <div>
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-ink text-sm font-bold">
-                          {reservation.companyOrBranchName}
-                        </span>
-                        <span className="text-ink-muted text-sm">{reservation.requesterName}</span>
                         <span className="badge bg-surface-active text-ink-muted">
-                          {REQUESTER_TYPE_LABEL[reservation.requesterType]}
+                          {reservation.requesterType === 'EMPLOYEE'
+                            ? '본인'
+                            : REQUESTER_TYPE_LABEL[reservation.requesterType]}
                         </span>
+                        {reservation.requesterType !== 'EMPLOYEE' && (
+                          <span className="text-ink text-sm font-bold">
+                            {reservation.companyOrBranchName}
+                          </span>
+                        )}
+                        <span className="text-ink-muted text-sm">{reservation.requesterName}</span>
                       </div>
                       <p className="text-ink-faint mt-1 text-xs">
                         {formatKstRange(reservation.visitStartAt, reservation.visitEndAt)}

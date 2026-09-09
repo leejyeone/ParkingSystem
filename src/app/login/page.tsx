@@ -16,7 +16,7 @@ type PageProps = { searchParams: Promise<{ redirect?: string }> };
 export default async function UserLoginPage({ searchParams }: PageProps) {
   const [session, homeHref] = await Promise.all([getUserSession(), resolveHomeHref()]);
   const { redirect: redirectParam } = await searchParams;
-  const redirectTo = safeUserRedirect(redirectParam);
+  const redirectTo = redirectParam ? safeUserRedirect(redirectParam) : homeHref;
 
   if (session) {
     redirect(redirectTo);

@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { EmployeeLogoutButton } from '@/components/employee/employee-logout-button';
-import { EmployeeProfilePanel } from '@/components/employee/employee-profile-panel';
 import { EmployeeReservationTabs } from '@/components/employee/employee-reservation-tabs';
 import { requireEmployeePage } from '@/lib/employee-page-guard';
 import { getEmployeeProfile } from '@/services/employee-auth-service';
@@ -12,12 +11,9 @@ import { getSystemSettings } from '@/services/settings-service';
 
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = { title: '마이페이지' };
+export const metadata: Metadata = { title: '예약 내역' };
 
-/**
- * 직원의 "내 신청 내역" — 방문객 마이페이지와 같은 역할이다.
- * 신청한 예약을 조회하고(카드를 누르면 상세로 이동), 내 정보를 수정할 수 있다.
- */
+/** 직원의 "내 신청 내역" — 신청한 예약을 조회한다(카드를 누르면 상세로 이동). */
 type PageProps = { searchParams: Promise<{ page?: string }> };
 
 export default async function EmployeeReservationsPage({ searchParams }: PageProps) {
@@ -46,7 +42,7 @@ export default async function EmployeeReservationsPage({ searchParams }: PagePro
           <Link href="/employee" className="text-brand-700 text-sm font-semibold">
             ← 직원 홈
           </Link>
-          <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">마이페이지</h1>
+          <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">예약 내역</h1>
           {profile && (
             <p className="mt-1 text-sm text-slate-600">
               {profile.departmentName} {profile.name}님, 안녕하세요.
@@ -76,8 +72,6 @@ export default async function EmployeeReservationsPage({ searchParams }: PagePro
           />
         </div>
       </section>
-
-      {profile && <EmployeeProfilePanel profile={profile} />}
     </main>
   );
 }

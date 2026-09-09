@@ -81,6 +81,12 @@ export default async function HomePage({ searchParams }: PageProps) {
               </span>
             )}
           </div>
+          <Link
+            href="/mypage"
+            className="rounded-full bg-sky-50 px-4 py-2 text-xs font-bold whitespace-nowrap text-sky-600 transition hover:bg-sky-100"
+          >
+            MY
+          </Link>
           <UserLogoutButton />
         </div>
       )}
@@ -100,12 +106,8 @@ export default async function HomePage({ searchParams }: PageProps) {
         <Link href="/reservations/new" className="btn btn-primary btn-lg w-full">
           방문 신청하기
         </Link>
-        {/* 로그인하면 마이페이지에서 내 예약을 바로 볼 수 있으므로 예약번호 조회는 감춘다. */}
-        {session ? (
-          <Link href="/mypage" className="btn btn-secondary btn-lg w-full">
-            마이페이지 ({session.name}님)
-          </Link>
-        ) : (
+        {/* 로그인하면 우상단 MY 버튼에서 내 예약을 바로 볼 수 있으므로 예약번호 조회는 감춘다. */}
+        {!session && (
           <>
             <Link href="/reservations/lookup" className="btn btn-secondary btn-lg w-full">
               내 예약 조회하기
@@ -127,7 +129,7 @@ export default async function HomePage({ searchParams }: PageProps) {
           <div className="card-body">
             <div className="flex items-center justify-between gap-2">
               <h2 className="card-title">최근 예약 현황</h2>
-              <Link href="/mypage" className="text-brand-700 text-xs font-bold">
+              <Link href="/mypage/reservations" className="text-brand-700 text-xs font-bold">
                 전체보기
               </Link>
             </div>
