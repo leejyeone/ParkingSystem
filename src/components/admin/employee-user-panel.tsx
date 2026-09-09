@@ -23,6 +23,19 @@ type BulkStatusResult = {
   failed: { employeeUserId: number; message: string }[];
 };
 
+/**
+ * 서버 스키마(`EMPLOYEE_BULK_STATUS_MAX`, src/lib/validation/employee-schema.ts)의
+ * 한 요청당 최대 처리 건수와 같은 값. "전체 선택" 시 이 단위로 나눠 순차 전송한다 —
+ * 직원 수(현재 796명)가 이 값보다 많아도 항상 동작하게 하기 위함이다.
+ */
+const BULK_STATUS_CHUNK_SIZE = 200;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
+  return chunks;
+}
+
 const ACCOUNT_STATUS_LABEL = { ACTIVE: '활성', INACTIVE: '비활성', LOCKED: '잠금' } as const;
 
 const ACCOUNT_STATUS_CLASS = {
@@ -154,19 +167,33 @@ export function EmployeeUserPanel({ employeeUsers }: { employeeUsers: EmployeeUs
     setBulkSubmitting(true);
     setBulkError(null);
 
-    const response = await apiRequest<BulkStatusResult>('/api/admin/employees/bulk-status', {
-      method: 'POST',
-      body: JSON.stringify({ employeeUserIds: [...selected], accountStatus }),
-    });
+    // 서버가 한 요청당 최대 처리 건수를 제한하므로("전체 선택" 시 직원 수만큼 몰아 보내면
+    // 검증에서 거부된다), 그 단위로 나눠 순차적으로 보내고 결과를 합산한다.
+    const chunks = chunk([...selected], BULK_STATUS_CHUNK_SIZE);
+    const combined: BulkStatusResult = { succeeded: [], failed: [] };
 
-    setBulkSubmitting(false);
+    for (const employeeUserIds of chunks) {
+      const response = await apiRequest<BulkStatusResult>('/api/admin/employees/bulk-status', {
+        method: 'POST',
+        body: JSON.stringify({ employeeUserIds, accountStatus }),
+      });
 
-    if (!response.ok) {
-      setBulkError(response.error.message);
-      return;
+      if (!response.ok) {
+        setBulkSubmitting(false);
+        setBulkError(response.error.message);
+        // 이미 처리된 청크 결과는 남겨서 화면에 보여준다 — 중단됐어도 그만큼은 반영됐다.
+        if (combined.succeeded.length > 0 || combined.failed.length > 0) {
+          setBulkResult(combined);
+        }
+        return;
+      }
+
+      combined.succeeded.push(...response.data.succeeded);
+      combined.failed.push(...response.data.failed);
     }
 
-    setBulkResult(response.data);
+    setBulkSubmitting(false);
+    setBulkResult(combined);
     setBulkMode(false);
     setSelected(new Set());
     router.refresh();

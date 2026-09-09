@@ -7,14 +7,13 @@ import { ReservationBulkRejectTable } from '@/components/admin/reservation-bulk-
 import { Alert } from '@/components/ui/alert';
 import { FilterBar, type FilterChip } from '@/components/admin/filter-bar';
 import {
-  formatAdminCompanyOrBranchName,
   REQUESTER_TYPE_LABEL,
   reservationStatusFilterOptions,
   RESERVATION_STATUS_LABEL,
 } from '@/domain/reservation-status';
 import { requireAdminPage } from '@/lib/admin-page-guard';
 import { getSystemSettings } from '@/services/settings-service';
-import { formatKstDateTime, kstDayRangeUtc } from '@/lib/datetime';
+import { formatKstDateTime, formatKstRange, kstDayRangeUtc } from '@/lib/datetime';
 import { getRequestContext } from '@/lib/request-context';
 import { listReservationsForAdmin } from '@/services/reservation-service';
 
@@ -265,15 +264,11 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
               reservationNo: reservation.reservationNo,
               reservationStatus: reservation.reservationStatus,
               requesterType: reservation.requesterType,
-              companyOrBranchName: formatAdminCompanyOrBranchName(
-                reservation.requesterType,
-                reservation.companyOrBranchName,
-              ),
+              companyOrBranchName: reservation.companyOrBranchName,
               requesterName: reservation.requesterName,
               requesterEmail: reservation.requesterEmail,
               vehicleNo: reservation.vehicleNo,
-              visitStartText: formatKstDateTime(reservation.visitStartAt),
-              visitEndText: formatKstDateTime(reservation.visitEndAt),
+              visitRangeText: formatKstRange(reservation.visitStartAt, reservation.visitEndAt),
               createdAtText: formatKstDateTime(reservation.createdAt),
             }))}
           />

@@ -48,12 +48,15 @@ export const employeeUserUpdateSchema = z.object({
   }),
 });
 
+/** 일괄 활성화/비활성화 한 요청에 담을 수 있는 최대 건수. 클라이언트도 이 값 단위로 나눠 보낸다. */
+export const EMPLOYEE_BULK_STATUS_MAX = 200;
+
 /** 관리자가 여러 직원 계정을 한 번에 활성화/비활성화한다. */
 export const employeeUserBulkStatusSchema = z.object({
   employeeUserIds: z
     .array(z.coerce.number().int().positive())
     .min(1, '계정을 하나 이상 선택해 주세요.')
-    .max(200, '한 번에 최대 200건까지 처리할 수 있습니다.'),
+    .max(EMPLOYEE_BULK_STATUS_MAX, `한 번에 최대 ${EMPLOYEE_BULK_STATUS_MAX}건까지 처리할 수 있습니다.`),
   accountStatus: z
     .enum(AccountStatus)
     .refine((value) => value !== AccountStatus.LOCKED, '활성 또는 비활성만 선택할 수 있습니다.'),

@@ -20,9 +20,8 @@ export type BulkRejectableItem = {
   requesterName: string;
   requesterEmail: string;
   vehicleNo: string;
-  /** 서버에서 KST 로 미리 포맷한 문자열 */
-  visitStartText: string;
-  visitEndText: string;
+  /** 서버에서 KST 로 미리 포맷한 문자열. 같은 날이면 종료는 시간만 표기된다. */
+  visitRangeText: string;
   createdAtText: string;
 };
 
@@ -217,15 +216,15 @@ export function ReservationBulkRejectTable({
                     />
                   </th>
                 )}
+                {/* 그룹웨어로 들어오면 창이 최대화되지 않아 화면이 좁으므로, 꼭 필요한
+                    컬럼만 남긴다(이메일·신청일시 제외). 화면 너비와 무관하게 항상 이 구성이다. */}
                 <th>상태</th>
+                <th>구분</th>
                 <th>방문 상호/사업장</th>
                 <th>성명</th>
                 <th>차량번호</th>
                 <th>방문 시간</th>
-                <th>구분</th>
-                <th>이메일</th>
                 <th>예약번호</th>
-                <th>신청일시</th>
               </tr>
             </thead>
             <tbody>
@@ -249,6 +248,7 @@ export function ReservationBulkRejectTable({
                     <td>
                       <StatusBadge status={item.reservationStatus} />
                     </td>
+                    <td>{REQUESTER_TYPE_LABEL[item.requesterType]}</td>
                     <td>
                       {bulkMode ? (
                         item.companyOrBranchName
@@ -263,16 +263,8 @@ export function ReservationBulkRejectTable({
                     </td>
                     <td>{item.requesterName}</td>
                     <td className="font-mono text-xs">{item.vehicleNo}</td>
-                    <td className="text-xs whitespace-nowrap">
-                      {item.visitStartText}
-                      <br />~ {item.visitEndText}
-                    </td>
-                    <td>{REQUESTER_TYPE_LABEL[item.requesterType]}</td>
-                    <td className="text-xs">{item.requesterEmail}</td>
-                    <td className="font-mono text-xs">{item.reservationNo}</td>
-                    <td className="text-ink-faint text-xs whitespace-nowrap">
-                      {item.createdAtText}
-                    </td>
+                    <td className="text-xs whitespace-nowrap">{item.visitRangeText}</td>
+                    <td className="font-mono text-xs">{item.reservationNo.slice(-6)}</td>
                   </>
                 );
 

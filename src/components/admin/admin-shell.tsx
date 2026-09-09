@@ -163,9 +163,9 @@ export function AdminShell({ adminName, role, children }: Props) {
       )}
 
       <aside
-        className={`border-line bg-surface fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r transition-transform duration-200 ease-out lg:sticky lg:inset-auto lg:top-0 lg:h-screen lg:translate-x-0 lg:transition-[width] ${
+        className={`border-line bg-surface fixed inset-y-0 left-0 z-40 flex w-56 shrink-0 flex-col border-r transition-transform duration-200 ease-out lg:sticky lg:inset-auto lg:top-0 lg:h-screen lg:translate-x-0 lg:transition-[width] ${
           drawerOpen ? 'translate-x-0' : '-translate-x-full'
-        } ${desktopCollapsed ? 'lg:w-0 lg:overflow-hidden lg:border-r-0' : 'lg:w-64'}`}
+        } ${desktopCollapsed ? 'lg:w-0 lg:overflow-hidden lg:border-r-0' : 'lg:w-56'}`}
       >
         <div className="border-line flex h-16 items-center justify-between gap-2 border-b px-4">
           <Link href="/admin" className="text-ink text-lg font-black whitespace-nowrap">

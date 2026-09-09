@@ -215,11 +215,7 @@ export function ReservationActionPanel({
                       )
                     }
                   >
-                    {pending === 'approve'
-                      ? '승인 중…'
-                      : spaceAssignmentEnabled
-                        ? '승인 및 위치 확정'
-                        : '승인'}
+                    {pending === 'approve' ? '승인 중…' : '승인'}
                   </button>
                 )}
                 {canChangeSpace && (

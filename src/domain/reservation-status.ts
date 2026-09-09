@@ -139,28 +139,8 @@ export function resolveDisplayStatus(
 
 export const REQUESTER_TYPE_LABEL = {
   VISITOR: '방문객',
-  EMPLOYEE: '시노펙스 직원',
+  EMPLOYEE: '직원',
 } as const;
-
-/**
- * 관리자 화면에서 "방문 상호/사업장" 표시 형식을 통일한다.
- *
- * 직원 본인 방문(EMPLOYEE)은 마이페이지에 사업장 이름만 입력해 두므로(예: "동탄"),
- * 관리자 화면에는 "시노펙스 동탄사업장"처럼 회사명·접미사를 붙여 보여준다. 방문객(VISITOR)
- * 신청의 방문 상호는 원문 그대로 보여준다 — 형식을 맞출 대상이 아니다.
- */
-export function formatAdminCompanyOrBranchName(
-  requesterType: RequesterType | 'VISITOR' | 'EMPLOYEE',
-  companyOrBranchName: string,
-): string {
-  if (requesterType !== RequesterType.EMPLOYEE) return companyOrBranchName;
-
-  const trimmed = companyOrBranchName.trim();
-  if (!trimmed || trimmed.includes('시노펙스')) return companyOrBranchName;
-
-  const siteName = trimmed.endsWith('사업장') ? trimmed.slice(0, -'사업장'.length) : trimmed;
-  return `시노펙스 ${siteName}사업장`;
-}
 
 export const SPACE_TYPE_LABEL = {
   NORMAL: '일반',
