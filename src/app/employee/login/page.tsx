@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 
 import { Alert } from '@/components/ui/alert';
 import { safeEmployeeRedirect } from '@/lib/employee-page-guard';
-import { getEmployeeSession } from '@/lib/employee-session';
+import { requireActiveEmployee } from '@/services/employee-auth-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +26,10 @@ type PageProps = { searchParams: Promise<{ redirect?: string; error?: string }> 
  * 운영 배포 시 숨김 처리가 누락되면서 실제로 뚫린 적이 있어 코드에서 완전히 제거했다.)
  */
 export default async function EmployeeLoginPage({ searchParams }: PageProps) {
-  const session = await getEmployeeSession();
+  // 쿠키 서명만 유효하고 계정이 비활성/삭제된 경우까지 "로그인됨"으로 보면, 이 화면과
+  // 보호 화면(requireEmployeePage) 사이에서 서로 되돌려보내는 리다이렉트 루프가 생긴다.
+  // 계정 상태까지 확인하는 requireActiveEmployee()로 판단해야 한다.
+  const session = await requireActiveEmployee().catch(() => null);
   const { redirect: redirectParam, error } = await searchParams;
   const redirectTo = safeEmployeeRedirect(redirectParam);
 

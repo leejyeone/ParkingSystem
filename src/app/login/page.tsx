@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { UserLoginForm } from '@/components/user/user-login-form';
 import { resolveHomeHref } from '@/lib/home-link';
 import { safeUserRedirect } from '@/lib/user-page-guard';
-import { getUserSession } from '@/lib/user-session';
+import { requireActiveUser } from '@/services/user-auth-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +14,13 @@ export const metadata: Metadata = { title: '로그인' };
 type PageProps = { searchParams: Promise<{ redirect?: string }> };
 
 export default async function UserLoginPage({ searchParams }: PageProps) {
-  const [session, homeHref] = await Promise.all([getUserSession(), resolveHomeHref()]);
+  // 쿠키 서명만 유효하고 계정이 비활성/삭제된 경우까지 "로그인됨"으로 보면, 이 화면과
+  // 보호 화면(requireUserPage) 사이에서 서로 되돌려보내는 리다이렉트 루프가 생긴다.
+  // 계정 상태까지 확인하는 requireActiveUser()로 판단해야 한다.
+  const [session, homeHref] = await Promise.all([
+    requireActiveUser().catch(() => null),
+    resolveHomeHref(),
+  ]);
   const { redirect: redirectParam } = await searchParams;
   const redirectTo = redirectParam ? safeUserRedirect(redirectParam) : homeHref;
 

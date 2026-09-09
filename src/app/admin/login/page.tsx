@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 
 import { AdminLoginForm } from '@/components/admin/admin-login-form';
 import { resolveHomeHref } from '@/lib/home-link';
-import { getAdminSession } from '@/lib/session';
+import { requireActiveAdmin } from '@/services/admin-auth-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +13,13 @@ export const metadata: Metadata = { title: '관리자 로그인' };
 type PageProps = { searchParams: Promise<{ redirect?: string }> };
 
 export default async function AdminLoginPage({ searchParams }: PageProps) {
-  const [session, homeHref] = await Promise.all([getAdminSession(), resolveHomeHref()]);
+  // 쿠키 서명만 유효하고 계정이 비활성/삭제된 경우까지 "로그인됨"으로 보면, 이 화면과
+  // 보호 화면(requireAdminPage) 사이에서 서로 되돌려보내는 리다이렉트 루프가 생긴다.
+  // 계정 상태까지 확인하는 requireActiveAdmin()으로 판단해야 한다.
+  const [session, homeHref] = await Promise.all([
+    requireActiveAdmin().catch(() => null),
+    resolveHomeHref(),
+  ]);
   const { redirect: redirectParam } = await searchParams;
 
   // 열린 리다이렉트를 막기 위해 내부 경로만 허용한다.
