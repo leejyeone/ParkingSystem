@@ -91,6 +91,15 @@ export const updateReservationSchema = z.object({
 
 export type UpdateReservationPayload = z.infer<typeof updateReservationSchema>;
 
+/**
+ * 관리자 전용 수정 스키마. 신청자 본인 수정에는 없는 "당사 담당자" 재지정을 추가로 허용한다.
+ * VISITOR 예약에만 의미가 있다 — EMPLOYEE 예약은 본인=담당자라 서비스 레이어에서 무시한다.
+ * null 이면 담당자 없음으로 지운다. 필드 자체를 안 보내면(undefined) 기존 값을 그대로 둔다.
+ */
+export const adminUpdateReservationSchema = updateReservationSchema.extend({
+  employeeUserId: z.coerce.number().int().positive().nullable().optional(),
+});
+
 export const cancelReservationSchema = z.object({
   cancelReason: requiredText(500, '취소 사유'),
 });

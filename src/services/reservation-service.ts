@@ -72,7 +72,7 @@ const ACTIVE_STATUSES: ReservationStatus[] = [
 
 const RESERVATION_WITH_SPACES = {
   assignedSpace: { select: { spaceId: true, spaceCode: true, spaceType: true } },
-  employeeUser: { select: { name: true, email: true } },
+  employeeUser: { select: { name: true, email: true, departmentName: true } },
   recurringSchedule: { select: { scheduleId: true } },
 } satisfies Prisma.ParkingReservationInclude;
 
@@ -442,6 +442,8 @@ export type UpdateReservationInput = {
   requestMemo?: string | null;
   visitStartAt: Date;
   visitEndAt: Date;
+  /** 관리자 수정 전용(당사 담당자 재지정). 신청자 본인 수정 경로는 이 값을 채우지 않는다. */
+  employeeUserId?: number | null;
 };
 
 /**
@@ -561,6 +563,15 @@ export async function updateReservationByAdmin(
 ): Promise<ReservationWithSpaces> {
   const settings = await getSystemSettings();
   const current = await loadReservationOrThrow(reservationId);
+  // 당사 담당자 재지정은 VISITOR 예약에서만 의미가 있다 — EMPLOYEE 는 본인=담당자라
+  // 마이페이지 접근 권한의 기준 그 자체이므로 재지정 대상이 아니다(그 값이 와도 무시한다).
+  const hostEmployeeChanged =
+    input.employeeUserId !== undefined &&
+    current.requesterType === RequesterType.VISITOR &&
+    input.employeeUserId !== current.employeeUserId;
+  if (hostEmployeeChanged && input.employeeUserId !== null && input.employeeUserId !== undefined) {
+    await assertActiveEmployeeExists(input.employeeUserId);
+  }
 
   if (isTerminalStatus(current.reservationStatus)) {
     throw new ConflictError(
@@ -657,6 +668,7 @@ export async function updateReservationByAdmin(
         requestMemo: input.requestMemo ?? null,
         visitStartAt: input.visitStartAt,
         visitEndAt: input.visitEndAt,
+        ...(hostEmployeeChanged ? { employeeUserId: input.employeeUserId } : {}),
       },
       include: RESERVATION_WITH_SPACES,
     });
@@ -695,6 +707,7 @@ export async function updateReservationByAdmin(
       vehicleNoChanged: current.vehicleNo !== vehicleNo,
       requesterNameChanged: current.requesterName !== input.requesterName,
       companyChanged: current.companyOrBranchName !== input.companyOrBranchName,
+      hostEmployeeChanged,
     },
     context: actor.requestContext,
   });
@@ -1825,7 +1838,7 @@ export async function getReservationDetailForAdmin(
     where: { reservationId },
     include: {
       ...RESERVATION_WITH_SPACES,
-      employeeUser: { select: { employeeUserId: true, name: true, email: true } },
+      employeeUser: { select: { employeeUserId: true, name: true, email: true, departmentName: true } },
       statusLogs: {
         orderBy: { createdAt: 'asc' },
         include: { changedByAdmin: { select: { adminName: true } } },

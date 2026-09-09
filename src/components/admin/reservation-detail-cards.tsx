@@ -5,6 +5,10 @@ import { useState, type ReactNode } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { FormField, inputClassName } from '@/components/ui/form-field';
+import {
+  EmployeeSearchSelect,
+  type SelectedEmployee,
+} from '@/components/reservation/employee-search-select';
 import { apiRequest } from '@/lib/client/api-client';
 
 /**
@@ -26,6 +30,8 @@ export type EditableFields = {
   /** 'yyyy-MM-ddTHH:mm' (Asia/Seoul 기준, 서버에서 변환해 전달) */
   visitStartAt: string;
   visitEndAt: string;
+  /** 당사 담당자(VISITOR 예약만 의미 있음). RequesterInfoCard 에서만 바꿀 수 있다. */
+  employeeUserId: number | null;
 };
 
 type SaveState = {
@@ -44,7 +50,7 @@ function useReservationEdit(reservationId: number, initial: EditableFields) {
   /** 방금 저장에 성공했는지. [수정하기]를 다시 누르면 지운다. */
   const [saved, setSaved] = useState(false);
 
-  function update(key: keyof EditableFields, value: string) {
+  function update<K extends keyof EditableFields>(key: K, value: EditableFields[K]) {
     setForm((previous) => ({ ...previous, [key]: value }));
   }
 
@@ -194,12 +200,20 @@ export function RequesterInfoCard({
     createdAtText: string;
     /** 직원이 대신 신청한 건이면 당사 담당 직원 이름/이메일. 그 외에는 null. */
     employeeUserText: string | null;
+    /** 당사 담당자 검색·선택 필드의 초기값(VISITOR 예약만). 그 외에는 null. */
+    hostEmployee: SelectedEmployee | null;
   };
 }) {
   const { editing, setEditing, form, update, state, saved, save, cancel } = useReservationEdit(
     reservationId,
     initial,
   );
+  const [hostEmployee, setHostEmployee] = useState<SelectedEmployee | null>(readOnly.hostEmployee);
+
+  function cancelEditing() {
+    setHostEmployee(readOnly.hostEmployee);
+    cancel();
+  }
 
   return (
     <CardShell
@@ -210,11 +224,28 @@ export function RequesterInfoCard({
       error={state.error}
       saved={saved}
       onEdit={setEditing}
-      onCancel={cancel}
+      onCancel={cancelEditing}
       onSave={save}
     >
       {editing ? (
         <div className="mt-3 space-y-3">
+          {readOnly.requesterType === 'VISITOR' && (
+            <FormField
+              label="당사 담당자"
+              htmlFor="edit-host-employee"
+              errors={state.fieldErrors.hostEmployeeUserId}
+            >
+              <EmployeeSearchSelect
+                id="edit-host-employee"
+                value={hostEmployee}
+                hasError={Boolean(state.fieldErrors.hostEmployeeUserId)}
+                onChange={(selected) => {
+                  setHostEmployee(selected);
+                  update('employeeUserId', selected?.employeeUserId ?? null);
+                }}
+              />
+            </FormField>
+          )}
           <div className="grid gap-3 sm:grid-cols-2">
             <FormField
               label={readOnly.requesterType === 'EMPLOYEE' ? '사업장' : '방문 상호'}
