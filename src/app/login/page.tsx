@@ -49,6 +49,7 @@ export default async function UserLoginPage({ searchParams }: PageProps) {
             회원가입
           </Link>
         </p>
+        <p className="text-slate-500">비밀번호를 잊으셨다면 관리자에게 문의해 주세요.</p>
         <p className="text-slate-500">
           로그인 없이도{' '}
           <Link href="/reservations/new" className="text-brand-700 font-semibold">

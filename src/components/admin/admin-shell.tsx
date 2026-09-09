@@ -63,6 +63,7 @@ function buildMenu(role: AdminRole): MenuItem[] {
       children: [
         { href: '/admin/recurring-reservations', label: '반복 예약 관리' },
         { href: '/admin/users/employees', label: '등록 직원 관리' },
+        { href: '/admin/users/members', label: '회원 계정 관리' },
         { href: '/admin/users/admins', label: '관리자 계정' },
       ],
     });

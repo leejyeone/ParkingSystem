@@ -1,3 +1,4 @@
+import { AccountStatus } from '@prisma/client';
 import { z } from 'zod';
 
 import {
@@ -44,6 +45,29 @@ export const userProfileUpdateSchema = z.object({
 
 export const deleteAccountSchema = z.object({
   password: z.string({ error: '비밀번호를 입력해 주세요.' }).min(1, '비밀번호를 입력해 주세요.'),
+});
+
+/** 관리자용 회원 계정 관리 입력 스키마. */
+export const siteUserUpdateStatusSchema = z.object({
+  accountStatus: z.enum(AccountStatus).refine((value) => value !== AccountStatus.LOCKED, {
+    error: '활성 또는 비활성만 선택할 수 있습니다.',
+  }),
+});
+
+/** 일괄 활성화/비활성화 한 요청에 담을 수 있는 최대 건수. 클라이언트도 이 값 단위로 나눠 보낸다. */
+export const SITE_USER_BULK_STATUS_MAX = 200;
+
+export const siteUserBulkStatusSchema = z.object({
+  userIds: z
+    .array(z.coerce.number().int().positive())
+    .min(1, '계정을 하나 이상 선택해 주세요.')
+    .max(
+      SITE_USER_BULK_STATUS_MAX,
+      `한 번에 최대 ${SITE_USER_BULK_STATUS_MAX}건까지 처리할 수 있습니다.`,
+    ),
+  accountStatus: z
+    .enum(AccountStatus)
+    .refine((value) => value !== AccountStatus.LOCKED, '활성 또는 비활성만 선택할 수 있습니다.'),
 });
 
 export const reservationLookupSchema = z.object({
