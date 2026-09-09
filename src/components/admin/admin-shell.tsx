@@ -50,6 +50,7 @@ function buildMenu(role: AdminRole): MenuItem[] {
       href: '/admin/users',
       label: '사용자 관리',
       children: [
+        { href: '/admin/users/members', label: '회원 계정 관리' },
         { href: '/admin/users/notifications', label: '관리자 이메일' },
         { href: '/admin/email-logs', label: '이메일 이력' },
       ],
@@ -63,7 +64,6 @@ function buildMenu(role: AdminRole): MenuItem[] {
       children: [
         { href: '/admin/recurring-reservations', label: '반복 예약 관리' },
         { href: '/admin/users/employees', label: '등록 직원 관리' },
-        { href: '/admin/users/members', label: '회원 계정 관리' },
         { href: '/admin/users/admins', label: '관리자 계정' },
       ],
     });

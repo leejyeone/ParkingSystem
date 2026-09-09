@@ -7,6 +7,7 @@ import { Alert } from '@/components/ui/alert';
 import { FormField, inputClassName } from '@/components/ui/form-field';
 import { apiRequest } from '@/lib/client/api-client';
 import { utcToZonedInput } from '@/lib/datetime';
+import { useDismissOnInteraction } from '@/lib/hooks/use-dismiss-on-interaction';
 import { SPACE_TYPE_LABEL } from '@/domain/reservation-status';
 
 type SpaceOption = {
@@ -61,6 +62,8 @@ export function ReservationActionPanel({
     null,
   );
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+
+  useDismissOnInteraction(Boolean(message), () => setMessage(null));
 
   const hasAvailableSpace = availableSpaces.some((space) => space.available);
   const selectedSpace = availableSpaces.find((space) => String(space.spaceId) === selectedSpaceId);

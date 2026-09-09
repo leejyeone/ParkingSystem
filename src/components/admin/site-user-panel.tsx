@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { Alert } from '@/components/ui/alert';
 import { apiRequest } from '@/lib/client/api-client';
 import { formatKstDateTime } from '@/lib/datetime';
+import { useDismissOnInteraction } from '@/lib/hooks/use-dismiss-on-interaction';
 import { SITE_USER_RESET_PASSWORD } from '@/domain/site-user';
 
 type SiteUser = {
@@ -96,6 +97,12 @@ export function SiteUserPanel({ siteUsers }: { siteUsers: SiteUser[] }) {
   const [bulkResult, setBulkResult] = useState<BulkStatusResult | null>(null);
 
   const [resetPendingId, setResetPendingId] = useState<number | null>(null);
+
+  useDismissOnInteraction(Boolean(message || bulkResult || bulkError), () => {
+    setMessage(null);
+    setBulkResult(null);
+    setBulkError(null);
+  });
 
   const statusCounts = {
     ALL: siteUsers.length,

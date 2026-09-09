@@ -10,6 +10,7 @@ import { FormField, inputClassName } from '@/components/ui/form-field';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { apiRequest } from '@/lib/client/api-client';
 import { formatKstDate, formatKstRange } from '@/lib/datetime';
+import { useDismissOnInteraction } from '@/lib/hooks/use-dismiss-on-interaction';
 import type { DisplayReservationStatus } from '@/domain/reservation-status';
 
 type Occurrence = {
@@ -65,6 +66,8 @@ export function RecurringScheduleOccurrenceTable({
   const [bulkEditError, setBulkEditError] = useState<string | null>(null);
   const [bulkEditSubmitting, setBulkEditSubmitting] = useState(false);
   const [bulkEditResult, setBulkEditResult] = useState<BulkResultRow[] | null>(null);
+
+  useDismissOnInteraction(Boolean(message), () => setMessage(null));
 
   const selectedOccurrences = occurrences.filter((occurrence) =>
     selected.has(occurrence.reservationId),

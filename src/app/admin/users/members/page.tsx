@@ -1,17 +1,17 @@
 import type { Metadata } from 'next';
 
 import { SiteUserPanel } from '@/components/admin/site-user-panel';
-import { requireSystemAdminPage } from '@/lib/admin-page-guard';
+import { requireAdminPage } from '@/lib/admin-page-guard';
 import { listSiteUsers } from '@/services/site-user-service';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = { title: '회원 계정 관리' };
 
-// 로그인 검증은 상위 레이아웃(layout.tsx)에서 이미 처리한다. 이 화면은 그중에서도
-// 시스템 관리자만 볼 수 있다.
+// 로그인 검증은 상위 레이아웃(layout.tsx)에서 이미 처리한다. 이 화면은 "사용자 관리"
+// 그룹 소속이라 시스템 관리자·주차 관리자 모두 볼 수 있다.
 export default async function AdminUsersMembersPage() {
-  await requireSystemAdminPage('/admin/users/members');
+  await requireAdminPage('/admin/users/members');
   const siteUsers = await listSiteUsers();
 
   return (

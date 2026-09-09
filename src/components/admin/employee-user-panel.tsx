@@ -7,6 +7,7 @@ import { Alert } from '@/components/ui/alert';
 import { FormField, inputClassName } from '@/components/ui/form-field';
 import { apiRequest } from '@/lib/client/api-client';
 import { formatKstDateTime } from '@/lib/datetime';
+import { useDismissOnInteraction } from '@/lib/hooks/use-dismiss-on-interaction';
 
 type EmployeeUser = {
   employeeUserId: number;
@@ -114,6 +115,12 @@ export function EmployeeUserPanel({ employeeUsers }: { employeeUsers: EmployeeUs
   const [addFieldErrors, setAddFieldErrors] = useState<Record<string, string[]>>({});
   const [addError, setAddError] = useState<string | null>(null);
   const [addSubmitting, setAddSubmitting] = useState(false);
+
+  useDismissOnInteraction(Boolean(message || bulkResult || bulkError), () => {
+    setMessage(null);
+    setBulkResult(null);
+    setBulkError(null);
+  });
 
   const statusCounts = {
     ALL: employeeUsers.length,

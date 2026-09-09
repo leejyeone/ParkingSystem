@@ -11,6 +11,7 @@ import { SpaceTypeBadge } from '@/components/ui/status-badge';
 import { SPACE_TYPE_LABEL } from '@/domain/reservation-status';
 import type { SystemSettingsValues } from '@/domain/system-settings';
 import { apiRequest } from '@/lib/client/api-client';
+import { useDismissOnInteraction } from '@/lib/hooks/use-dismiss-on-interaction';
 import { buildMapImageUrl } from '@/lib/map-image';
 
 type NotificationEmail = {
@@ -62,6 +63,7 @@ function useMutation() {
     null,
   );
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+  useDismissOnInteraction(Boolean(message), () => setMessage(null));
 
   async function mutate(
     url: string,
@@ -384,6 +386,7 @@ function NotificationTable({ emails }: { emails: NotificationEmail[] }) {
   const [message, setMessage] = useState<{ variant: 'success' | 'error'; text: string } | null>(
     null,
   );
+  useDismissOnInteraction(Boolean(message), () => setMessage(null));
   /** 편집 중인 값. 상단 [저장]을 누를 때 한꺼번에 반영한다. */
   const [drafts, setDrafts] = useState<Record<number, NotificationDraft>>({});
   /** 삭제 표시된 수신자. 저장 시 함께 처리한다. */
@@ -771,6 +774,7 @@ export function SpaceSection({
   const [message, setMessage] = useState<{ variant: 'success' | 'error'; text: string } | null>(
     null,
   );
+  useDismissOnInteraction(Boolean(message), () => setMessage(null));
   /** 편집 중인 구역 값 */
   const [areaDrafts, setAreaDrafts] = useState<Record<number, AreaDraft>>({});
   /** 선택했지만 아직 저장하지 않은 도면 파일 (구역별) */
@@ -1612,6 +1616,7 @@ function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
   const [message, setMessage] = useState<{ variant: 'success' | 'error'; text: string } | null>(
     null,
   );
+  useDismissOnInteraction(Boolean(message), () => setMessage(null));
   const [drafts, setDrafts] = useState<Record<number, AdminUserDraft>>({});
   const [removed, setRemoved] = useState<number[]>([]);
 
