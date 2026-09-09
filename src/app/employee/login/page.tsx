@@ -39,7 +39,7 @@ export default async function EmployeeLoginPage({ searchParams }: PageProps) {
 
   return (
     <main className="app-container max-w-md">
-      <div className="mb-6 text-center">
+      <div className="mb-6">
         <h1 className="mt-2 text-2xl font-black text-slate-900">직원 로그인</h1>
         <p className="mt-2 text-sm text-slate-600">세션이 만료되었거나 로그인되어 있지 않습니다.</p>
       </div>

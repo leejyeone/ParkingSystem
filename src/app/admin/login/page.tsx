@@ -34,7 +34,7 @@ export default async function AdminLoginPage({ searchParams }: PageProps) {
 
   return (
     <main className="app-container max-w-md">
-      <div className="mb-6 text-center">
+      <div className="mb-6">
         <Link href={homeHref} className="text-brand-700 text-xs font-semibold">
           ← 예약 화면으로
         </Link>

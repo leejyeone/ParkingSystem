@@ -159,9 +159,6 @@ export default async function EmployeeHomePage() {
         </div>
       </section>
 
-      <footer className="mt-8 text-center text-xs text-slate-400">
-        <p>본 시스템은 사내 업무용으로만 사용됩니다.</p>
-      </footer>
     </main>
   );
 }
