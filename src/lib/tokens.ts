@@ -37,9 +37,8 @@ export function buildReservationAccessUrl(baseUrl: string, rawToken: string): st
 /**
  * 예약번호 생성: PK-YYYYMMDD-XXXXXX
  *
- * 예약번호는 조회 수단이기도 하다(POST /api/reservations/lookup).
  * 혼동 문자를 제외한 32자 알파벳 6자리이므로 조합 수가 무한하지 않다.
- * 따라서 조회 API 에는 반드시 레이트 리밋을 걸어 대입 시도를 막는다.
+ * 예약 관련 API 에는 반드시 레이트 리밋을 걸어 대입 시도를 막는다.
  */
 const RESERVATION_NO_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 혼동 문자(I,O,0,1) 제외
 

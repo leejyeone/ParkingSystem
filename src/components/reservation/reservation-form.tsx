@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useState, type ChangeEvent, type FormEvent } from 'react';
 
 import {
@@ -28,6 +27,11 @@ type Settings = {
    * 입력 편의용 힌트이며 실제 판정은 서버가 다시 수행한다.
    */
   minDateTimeInput: string;
+  /**
+   * 입차 예정 시간 입력의 기본 선택값('yyyy-MM-ddTHH:mm'). 너무 이른 시각을 실수로
+   * 선택하는 것을 줄이기 위해, 서버가 현재시각 기준으로 계산해 미리 채워 준다.
+   */
+  defaultDateTimeInput: string;
 };
 
 /** 로그인 회원이면 서버가 프로필로 채워 보내는 초기값 */
@@ -63,7 +67,7 @@ const ENDPOINT_BY_MODE: Record<ReservationFormMode, string> = {
 
 /** 미입력 필수 필드를 안내 배너에 나열할 때 쓰는 항목명. FormField 라벨과 맞춘다. */
 const REQUIRED_FIELD_LABELS: Record<string, string> = {
-  companyOrBranchName: '방문상호',
+  companyOrBranchName: '회사명',
   requesterName: '성명',
   requesterEmail: '이메일',
   vehicleNo: '차량번호',
@@ -86,7 +90,10 @@ type FormState = {
   privacyConsent: boolean;
 };
 
-function buildInitialState(initialValues?: ReservationFormInitialValues): FormState {
+function buildInitialState(
+  initialValues: ReservationFormInitialValues | undefined,
+  defaultDateTimeInput: string,
+): FormState {
   return {
     companyOrBranchName: initialValues?.companyOrBranchName ?? '',
     requesterName: initialValues?.requesterName ?? '',
@@ -94,7 +101,7 @@ function buildInitialState(initialValues?: ReservationFormInitialValues): FormSt
     vehicleNo: initialValues?.vehicleNo ?? '',
     visitPurpose: '',
     requestMemo: '',
-    visitStartAt: '',
+    visitStartAt: defaultDateTimeInput,
     visitEndAt: '',
     privacyConsent: false,
   };
@@ -109,7 +116,9 @@ export function ReservationForm({
   settings: Settings;
   initialValues?: ReservationFormInitialValues;
 }) {
-  const [form, setForm] = useState<FormState>(() => buildInitialState(initialValues));
+  const [form, setForm] = useState<FormState>(() =>
+    buildInitialState(initialValues, settings.defaultDateTimeInput),
+  );
   const [hostEmployee, setHostEmployee] = useState<SelectedEmployee | null>(
     initialValues?.hostEmployee ?? null,
   );
@@ -155,7 +164,7 @@ export function ReservationForm({
 
     if (form.companyOrBranchName.trim() === '') {
       errors.companyOrBranchName = [
-        mode === 'employee-self' ? '소속 사업장명을 입력해 주세요.' : '방문상호를 입력해 주세요.',
+        mode === 'employee-self' ? '소속 사업장명을 입력해 주세요.' : '회사명을 입력해 주세요.',
       ];
     }
     if (form.requesterName.trim() === '') {
@@ -255,12 +264,7 @@ export function ReservationForm({
 
   if (result) {
     return (
-      <CompletionView
-        mode={mode}
-        result={result}
-        requesterName={form.requesterName}
-        vehicleNo={form.vehicleNo}
-      />
+      <CompletionView mode={mode} result={result} />
     );
   }
 
@@ -281,7 +285,7 @@ export function ReservationForm({
       <div className="card">
         <div className="card-body space-y-5">
           <FormField
-            label={mode === 'employee-self' ? '소속 사업장명' : '방문상호'}
+            label={mode === 'employee-self' ? '소속 사업장명' : '회사명'}
             htmlFor="companyOrBranchName"
             required
             errors={fieldErrors.companyOrBranchName}
@@ -454,7 +458,7 @@ export function ReservationForm({
             <h2 className="card-title">개인정보 수집 및 이용 동의</h2>
             <div className="mt-3 max-h-40 overflow-y-auto rounded-lg bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
               <p>
-                <strong>수집 항목</strong> : 성명, 이메일, 차량번호, 소속(상호/사업장), 방문 목적
+                <strong>수집 항목</strong> : 성명, 이메일, 차량번호, 소속(회사명/사업장), 방문 목적
               </p>
               <p className="mt-2">
                 <strong>수집 목적</strong> : 방문 차량 방문 예약 접수·승인, 주차면 배정, 방문 관련
@@ -514,46 +518,11 @@ export function ReservationForm({
 function CompletionView({
   mode,
   result,
-  requesterName,
-  vehicleNo,
 }: {
   mode: ReservationFormMode;
   result: CreateResponse;
-  /** 방금 제출한 신청자 성명/차량번호. 방문객 조회 화면으로 자동 진입하는 데 쓴다. */
-  requesterName: string;
-  vehicleNo: string;
 }) {
-  const router = useRouter();
   const isEmployee = mode !== 'visitor';
-  const [lookingUp, setLookingUp] = useState(false);
-  const [lookupError, setLookupError] = useState<string | null>(null);
-
-  /**
-   * 방문객은 이 예약을 성명·차량번호로 다시 검증해 접근 토큰을 발급받아 곧바로
-   * 조회 화면으로 이동한다. 방금 신청한 값을 그대로 쓰므로 다시 입력할 필요가 없다.
-   */
-  async function handleLookupNow() {
-    if (lookingUp) return;
-    setLookingUp(true);
-    setLookupError(null);
-
-    const response = await apiRequest<{ accessPath: string }>('/api/reservations/lookup/access', {
-      method: 'POST',
-      body: JSON.stringify({
-        reservationId: result.reservationId,
-        requesterName,
-        vehicleNo,
-      }),
-    });
-
-    if (response.ok) {
-      router.push(response.data.accessPath);
-      return;
-    }
-
-    setLookingUp(false);
-    setLookupError(response.error.message);
-  }
 
   return (
     <div className="card" data-testid="reservation-complete">
@@ -592,12 +561,10 @@ function CompletionView({
         <div className="mt-5 space-y-3">
           <Alert variant="info" title="이메일이 발송되었습니다">
             <p>
-              {result.emailNoticeSentTo} 주소로 접수 확인 메일을 보냈습니다. 메일의 링크나 성명·차량
-              번호로 예약을 조회할 수 있습니다.
+              {result.emailNoticeSentTo} 주소로 접수 확인 메일을 보냈습니다.
             </p>
             <p className="mt-1">메일이 도착하지 않으면 스팸함을 확인해 주세요.</p>
           </Alert>
-          {lookupError && <Alert variant="error">{lookupError}</Alert>}
         </div>
 
         <div className="mt-5 grid gap-2 sm:grid-cols-2">
@@ -606,14 +573,9 @@ function CompletionView({
               마이페이지
             </Link>
           ) : (
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={handleLookupNow}
-              disabled={lookingUp}
-            >
-              {lookingUp ? '조회 중…' : '방금 신청한 예약 조회하기'}
-            </button>
+            <Link href={`/mypage/reservations/${result.reservationId}`} className="btn btn-primary">
+              방금 신청한 예약 보기
+            </Link>
           )}
           <Link href={isEmployee ? '/employee' : '/'} className="btn btn-secondary">
             {isEmployee ? '직원 홈으로' : '처음으로'}

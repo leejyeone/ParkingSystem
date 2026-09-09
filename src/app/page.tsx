@@ -102,24 +102,20 @@ export default async function HomePage({ searchParams }: PageProps) {
         </p>
       </header>
 
+      {/* 방문 신청은 로그인이 필수라, 비로그인 사용자에게는 로그인/회원가입만 보여준다. */}
       <nav className="grid gap-3">
-        <Link href="/reservations/new" className="btn btn-primary btn-lg w-full">
-          방문 신청하기
-        </Link>
-        {/* 로그인하면 우상단 MY 버튼에서 내 예약을 바로 볼 수 있으므로 예약번호 조회는 감춘다. */}
-        {!session && (
+        {session ? (
+          <Link href="/reservations/new" className="btn btn-primary btn-lg w-full">
+            방문 신청하기
+          </Link>
+        ) : (
           <>
-            <Link href="/reservations/lookup" className="btn btn-secondary btn-lg w-full">
-              내 예약 조회하기
+            <Link href="/login" className="btn btn-primary btn-lg w-full">
+              로그인
             </Link>
-            <div className="grid grid-cols-2 gap-2">
-              <Link href="/login" className="btn btn-secondary w-full">
-                로그인
-              </Link>
-              <Link href="/signup" className="btn btn-secondary w-full">
-                회원가입
-              </Link>
-            </div>
+            <Link href="/signup" className="btn btn-primary btn-lg w-full">
+              회원가입
+            </Link>
           </>
         )}
       </nav>
@@ -187,9 +183,8 @@ export default async function HomePage({ searchParams }: PageProps) {
                 ? '• 주차 위치는 관리자가 배정합니다. 직접 선택할 수 없습니다.'
                 : '• 주차 위치는 지정되지 않습니다. 승인 후 현장 안내에 따라 주차해 주세요.'}
             </li>
-            <li>• 신청 결과와 예약 조회 링크는 입력하신 이메일로 발송됩니다.</li>
-            <li>• 예약 조회는 성명·차량번호로 하거나, 안내 메일의 링크를 이용하면 됩니다.</li>
-            <li>• 로그인하면 신청 시 내 정보가 자동으로 입력됩니다. (선택 사항)</li>
+            <li>• 신청 결과는 입력하신 이메일로도 발송됩니다.</li>
+            <li>• 방문 신청은 회원가입 후 로그인해야 이용할 수 있습니다.</li>
             <li>
               • 출차 예정 <strong>{settings.exitReminderMinutes}분 전</strong>에 안내 메일이
               발송됩니다.

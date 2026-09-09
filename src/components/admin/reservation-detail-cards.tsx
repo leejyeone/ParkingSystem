@@ -248,7 +248,7 @@ export function RequesterInfoCard({
           )}
           <div className="grid gap-3 sm:grid-cols-2">
             <FormField
-              label={readOnly.requesterType === 'EMPLOYEE' ? '사업장' : '방문 상호'}
+              label={readOnly.requesterType === 'EMPLOYEE' ? '사업장' : '회사명'}
               htmlFor="edit-company"
               required
               errors={state.fieldErrors.companyOrBranchName}
@@ -325,7 +325,7 @@ export function RequesterInfoCard({
           <Row term="신청 구분" desc={readOnly.requesterTypeLabel} />
           {readOnly.employeeUserText && <Row term="당사 담당자" desc={readOnly.employeeUserText} />}
           <Row
-            term={readOnly.requesterType === 'EMPLOYEE' ? '사업장' : '방문 상호'}
+            term={readOnly.requesterType === 'EMPLOYEE' ? '사업장' : '회사명'}
             desc={initial.companyOrBranchName}
           />
           <Row term="성명" desc={initial.requesterName} />

@@ -109,7 +109,7 @@ export function UserSignUpForm() {
         </FormField>
 
         <FormField
-          label="방문 상호"
+          label="회사명"
           htmlFor="signup-company"
           required
           errors={fieldErrors.companyOrBranchName}
@@ -143,7 +143,7 @@ export function UserSignUpForm() {
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
           <p className="font-semibold text-slate-700">개인정보 수집 및 이용 안내</p>
           <p className="mt-1">
-            <strong>수집 항목</strong> : 이메일, 비밀번호, 성명, 방문 상호, 차량번호(선택)
+            <strong>수집 항목</strong> : 이메일, 비밀번호, 성명, 회사명, 차량번호(선택)
           </p>
           <p className="mt-1">
             <strong>수집 목적</strong> : 회원 계정 생성, 방문 신청 시 정보 자동 입력

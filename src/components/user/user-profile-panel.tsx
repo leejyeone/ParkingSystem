@@ -102,7 +102,7 @@ export function UserProfilePanel({ profile }: { profile: Profile }) {
         </FormField>
 
         <FormField
-          label="방문 상호 또는 소속 사업장명"
+          label="회사명"
           htmlFor="profile-company"
           required
           errors={fieldErrors.companyOrBranchName}

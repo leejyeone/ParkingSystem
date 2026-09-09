@@ -8,14 +8,14 @@ import {
   zonedDateTimeSchema,
 } from '@/lib/validation/common';
 
-/** 예약 API 입력 스키마 (로그인 여부와 무관하게 동일하다) */
+/** 예약 API 입력 스키마 (모두 로그인 필수) */
 
 /** 당사 담당자(직원) 매핑. 검색해서 선택한 직원 계정 ID여야 한다. */
 const hostEmployeeUserIdSchema = z.coerce.number().int().positive('당사 담당자를 선택해 주세요.');
 
-/** 방문객 본인 신청 (공개, 로그인 선택). requesterType 은 항상 서버가 VISITOR 로 강제한다. */
+/** 방문객 본인 신청 (로그인 필수). requesterType 은 항상 서버가 VISITOR 로 강제한다. */
 export const createReservationSchema = z.object({
-  companyOrBranchName: requiredText(100, '방문 상호 또는 소속 사업장명'),
+  companyOrBranchName: requiredText(100, '회사명'),
   requesterName: requiredText(50, '성명'),
   requesterEmail: emailSchema,
   vehicleNo: vehicleNoSchema,
@@ -52,7 +52,7 @@ export type CreateEmployeeReservationPayload = z.infer<typeof createEmployeeRese
 
 /** 직원의 방문객 대리 신청 (로그인 필수). requesterType=VISITOR 고정, employeeUserId=담당 직원. */
 export const createEmployeeProxyReservationSchema = z.object({
-  companyOrBranchName: requiredText(100, '방문상호'),
+  companyOrBranchName: requiredText(100, '회사명'),
   requesterName: requiredText(50, '성명'),
   requesterEmail: emailSchema,
   vehicleNo: vehicleNoSchema,
@@ -80,7 +80,7 @@ export type CreateEmployeeProxyReservationPayload = z.infer<
  * (변경이 필요하면 취소 후 재신청하도록 안내한다)
  */
 export const updateReservationSchema = z.object({
-  companyOrBranchName: requiredText(100, '방문 상호 또는 소속 사업장명'),
+  companyOrBranchName: requiredText(100, '회사명'),
   requesterName: requiredText(50, '성명'),
   vehicleNo: vehicleNoSchema,
   visitPurpose: optionalText(200, '방문 목적'),

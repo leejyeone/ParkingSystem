@@ -53,6 +53,10 @@ export default async function EmployeeNewReservationPage() {
             settings.reservationMinLeadMinutes,
             settings.appTimeZone,
           ),
+          defaultDateTimeInput: earliestSelectableInput(
+            settings.reservationMinLeadMinutes + 1,
+            settings.appTimeZone,
+          ),
         }}
       />
     </main>

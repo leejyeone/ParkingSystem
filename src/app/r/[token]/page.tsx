@@ -102,8 +102,8 @@ function InvalidTokenView({ homeHref }: { homeHref: string }) {
           <p>이메일로 받으신 가장 최근 링크를 사용해 주세요.</p>
           <p className="mt-1">링크는 방문 종료일로부터 일정 기간이 지나면 자동으로 만료됩니다.</p>
         </Alert>
-        <Link href="/reservations/lookup" className="btn btn-secondary w-full">
-          예약 조회
+        <Link href="/mypage/reservations" className="btn btn-secondary w-full">
+          내 예약 내역
         </Link>
         <Link href="/reservations/new" className="btn btn-primary w-full">
           새로 방문 신청하기

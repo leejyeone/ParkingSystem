@@ -156,13 +156,6 @@ export default async function MyReservationsPage({ searchParams }: PageProps) {
             </nav>
           )}
 
-          <p className="field-hint mt-4">
-            위 목록에 없는 예약은{' '}
-            <Link href="/reservations/lookup" className="text-brand-700 font-semibold">
-              예약 조회
-            </Link>{' '}
-            화면에서 성명·차량번호로 확인할 수 있습니다.
-          </p>
         </div>
       </section>
     </main>

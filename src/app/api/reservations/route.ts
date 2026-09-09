@@ -4,16 +4,19 @@ import { apiSuccess, handleApiError } from '@/lib/api-response';
 import { formatKstRange } from '@/lib/datetime';
 import { consumeRateLimit } from '@/lib/rate-limit';
 import { getRequestContext } from '@/lib/request-context';
-import { getUserSession } from '@/lib/user-session';
 import { createReservationSchema } from '@/lib/validation/reservation-schema';
 import { createVisitorReservation } from '@/services/reservation-service';
+import { requireActiveUser } from '@/services/user-auth-service';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/reservations
- * 방문 예약 신청. 로그인 없이도 신청할 수 있고, 로그인 상태면 예약이 계정에 연결된다.
+ * 방문 예약 신청. 회원가입·로그인이 필수다(비로그인 신청은 막는다) — 로그인 회원 계정에
+ * 예약을 연결해야 마이페이지 예약 내역/자동완성이 의미가 있고, 신원 확인 없는 신청을
+ * 막기 위함이다. 화면(`/reservations/new`)에서도 미리 로그인 화면으로 리다이렉트하지만,
+ * API를 직접 호출하는 우회 경로를 막기 위해 여기서도 다시 확인한다.
  *
  * 응답에는 예약번호와 일정만 포함하고, 접근 토큰 링크는 이메일로만 전달한다.
  */
@@ -27,14 +30,13 @@ export async function POST(request: NextRequest) {
       message: '방문 신청 요청이 너무 많습니다. 10분 후 다시 시도해 주세요.',
     });
 
+    const session = await requireActiveUser();
+
     const body = await request.json();
     const payload = createReservationSchema.parse(body);
 
-    // 로그인 회원이면 예약을 계정에 연결한다. 비로그인 신청도 그대로 허용한다.
-    const session = await getUserSession();
-
     const { reservation } = await createVisitorReservation({
-      visitorUserId: session?.userId ?? null,
+      visitorUserId: session.userId,
       employeeUserId: payload.hostEmployeeUserId,
       companyOrBranchName: payload.companyOrBranchName,
       requesterName: payload.requesterName,

@@ -58,6 +58,10 @@ export default async function EmployeeProxyReservationPage() {
             settings.reservationMinLeadMinutes,
             settings.appTimeZone,
           ),
+          defaultDateTimeInput: earliestSelectableInput(
+            settings.reservationMinLeadMinutes + 1,
+            settings.appTimeZone,
+          ),
         }}
       />
     </main>

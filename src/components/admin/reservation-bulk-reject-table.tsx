@@ -220,7 +220,7 @@ export function ReservationBulkRejectTable({
                     컬럼만 남긴다(이메일·신청일시 제외). 화면 너비와 무관하게 항상 이 구성이다. */}
                 <th>상태</th>
                 <th>구분</th>
-                <th>방문 상호/사업장</th>
+                <th>회사명/사업장</th>
                 <th>성명</th>
                 <th>차량번호</th>
                 <th>방문 시간</th>

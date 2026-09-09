@@ -330,29 +330,33 @@ export async function createReservation(input: CreateReservationInput): Promise<
  * 방문객 본인 신청 (공개, 로그인 선택). requesterType=VISITOR 고정.
  * employeeUserId 는 화면에서 검색해 고른 당사 담당자이며 필수다(createReservation 에서 검증).
  */
+/**
+ * 방문객 본인 신청. 회원가입·로그인이 필수라 `visitorUserId`는 항상 있어야 한다
+ * (API 라우트에서 `requireActiveUser()`로 이미 확인한 값을 그대로 넘겨받는다).
+ */
 export async function createVisitorReservation(
-  input: Omit<CreateReservationInput, 'requesterType'>,
+  input: Omit<CreateReservationInput, 'requesterType' | 'visitorUserId'> & {
+    visitorUserId: number;
+  },
 ) {
   const result = await createReservation({
     ...input,
     requesterType: RequesterType.VISITOR,
   });
 
-  // 로그인한 회원이 신청서에서 고친 이름·방문상호·차량번호를 다음 신청부터 자동완성되도록
+  // 로그인한 회원이 신청서에서 고친 이름·회사명·차량번호를 다음 신청부터 자동완성되도록
   // 회원 정보에도 반영한다. 이메일은 계정 이메일(로그인 식별자)과 무관한 신청서상의 값이라
   // (계정 이메일 변경 기능 자체가 없다) 건드리지 않는다.
-  if (input.visitorUserId != null) {
-    await prisma.siteUser.update({
-      where: { userId: input.visitorUserId },
-      data: {
-        name: input.requesterName,
-        // 방문객 본인 신청 스키마(createReservationSchema)는 companyOrBranchName 을 필수로
-        // 요구하므로 이 경로에서 null 일 수 없다 — SiteUser 필드가 non-null이라 타입만 맞춘다.
-        companyOrBranchName: input.companyOrBranchName ?? '',
-        vehicleNo: result.reservation.vehicleNo,
-      },
-    });
-  }
+  await prisma.siteUser.update({
+    where: { userId: input.visitorUserId },
+    data: {
+      name: input.requesterName,
+      // 방문객 본인 신청 스키마(createReservationSchema)는 companyOrBranchName 을 필수로
+      // 요구하므로 이 경로에서 null 일 수 없다 — SiteUser 필드가 non-null이라 타입만 맞춘다.
+      companyOrBranchName: input.companyOrBranchName ?? '',
+      vehicleNo: result.reservation.vehicleNo,
+    },
+  });
 
   return result;
 }
