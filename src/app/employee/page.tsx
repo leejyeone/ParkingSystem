@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 
+import { EmployeeLogoutButton } from '@/components/employee/employee-logout-button';
 import { DEFAULT_SETTINGS } from '@/domain/system-settings';
 import { requireEmployeePage } from '@/lib/employee-page-guard';
 import { findMatchingAdminAccount } from '@/services/admin-auth-service';
@@ -22,8 +23,22 @@ export default async function EmployeeHomePage() {
 
   return (
     <main className="app-container">
-      <header className="mb-6 mt-6 text-center">
-        <div className="mt-3 flex justify-center">
+      <div className="flex items-center justify-end gap-3">
+        <div className="text-right">
+          <span className="block text-sm font-bold whitespace-nowrap text-slate-900">
+            {profile?.name ?? session.name}
+          </span>
+          {profile?.departmentName && (
+            <span className="block text-xs whitespace-nowrap text-slate-500">
+              {profile.departmentName}
+            </span>
+          )}
+        </div>
+        <EmployeeLogoutButton confirmMessage="로그아웃하면 다시 그룹웨어를 통해 접속해야 합니다. 로그아웃하시겠습니까?" />
+      </div>
+
+      <header className="mb-6 mt-3 text-center">
+        <div className="flex justify-center">
           <Image src="/synopex-logo.png" alt="Synopex" width={175} height={50} priority />
         </div>
         <h1 className="mt-3 text-2xl font-black text-slate-900 sm:text-3xl">시노펙스 방문 예약</h1>
@@ -45,7 +60,7 @@ export default async function EmployeeHomePage() {
         </Link>
         {matchingAdmin && (
           <Link href="/api/employee/enter-admin" className="btn btn-secondary btn-lg w-full">
-            관리자 화면으로 이동
+            관리자 대시보드
           </Link>
         )}
       </nav>

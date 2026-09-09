@@ -276,6 +276,12 @@ export function AdminShell({ adminName, role, children }: Props) {
           <div className="hidden lg:block" />
 
           <div className="flex items-center gap-3">
+            <Link
+              href="/employee"
+              className="border-line text-ink-muted hover:bg-surface-hover rounded-full border px-3 py-1.5 text-xs font-bold whitespace-nowrap transition"
+            >
+              직원 홈
+            </Link>
             <ThemeToggleButton isDark={isDark} onToggle={toggleDark} />
             <button
               type="button"
