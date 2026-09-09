@@ -87,6 +87,11 @@ export const updateReservationSchema = z.object({
   requestMemo: optionalText(1000, '요청 메모'),
   visitStartAt: zonedDateTimeSchema,
   visitEndAt: zonedDateTimeSchema,
+  /**
+   * 당사 담당자(직원 DB 검색·선택). VISITOR 예약에만 의미가 있으며, 신청 시 항상 필수였던
+   * 값이라 자기수정으로 지울 수는 없다(null 불허) — 필드 자체를 안 보내면 기존 값 유지.
+   */
+  hostEmployeeUserId: hostEmployeeUserIdSchema.optional(),
 });
 
 export type UpdateReservationPayload = z.infer<typeof updateReservationSchema>;

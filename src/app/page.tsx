@@ -2,9 +2,16 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
+import { UserLogoutButton } from '@/components/user/user-logout-button';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { DEFAULT_SETTINGS } from '@/domain/system-settings';
+import { formatKstDate, formatKstRange, kstDayRangeUtc } from '@/lib/datetime';
 import { getUserSession } from '@/lib/user-session';
+import { listReservationsForUser } from '@/services/reservation-service';
 import { getSystemSettings } from '@/services/settings-service';
+import { getUserProfile } from '@/services/user-auth-service';
+
+const RECENT_RESERVATIONS_LIMIT = 3;
 
 export const dynamic = 'force-dynamic';
 
@@ -46,10 +53,40 @@ export default async function HomePage({ searchParams }: PageProps) {
     getUserSession(),
   ]);
 
+  const [profile, recentReservations] = session
+    ? await Promise.all([
+        getUserProfile(session.userId),
+        listReservationsForUser(session.userId, {
+          page: 1,
+          pageSize: RECENT_RESERVATIONS_LIMIT,
+          entryExitManagementEnabled: settings.entryExitManagementEnabled,
+          // 오늘(KST 00:00) 이후 예약만 — 지난 방문 이력은 마이페이지에서 본다.
+          fromDate: kstDayRangeUtc(formatKstDate(new Date())).start,
+          order: 'asc',
+        }),
+      ])
+    : [null, null];
+
   return (
     <main className="app-container">
-      <header className="mb-6 mt-6 text-center">
-        
+      {session && (
+        <div className="flex items-center justify-end gap-3">
+          <div className="text-right">
+            <span className="block text-sm font-bold whitespace-nowrap text-slate-900">
+              {profile?.name ?? session.name}
+            </span>
+            {profile?.companyOrBranchName && (
+              <span className="block text-xs whitespace-nowrap text-slate-500">
+                {profile.companyOrBranchName}
+              </span>
+            )}
+          </div>
+          <UserLogoutButton />
+        </div>
+      )}
+
+      <header className={`mb-6 text-center ${session ? 'mt-3' : 'mt-6'}`}>
+
         <div className="mt-3 flex justify-center">
           <Image src="/synopex-logo.png" alt="Synopex" width={175} height={50} priority />
         </div>
@@ -84,6 +121,52 @@ export default async function HomePage({ searchParams }: PageProps) {
           </>
         )}
       </nav>
+
+      {session && recentReservations && (
+        <section className="card mt-6">
+          <div className="card-body">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="card-title">최근 예약 현황</h2>
+              <Link href="/mypage" className="text-brand-700 text-xs font-bold">
+                전체보기
+              </Link>
+            </div>
+
+            {recentReservations.items.length === 0 ? (
+              <p className="text-ink-faint mt-3 text-sm">신청 내역이 없습니다.</p>
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {recentReservations.items.map((reservation) => (
+                  <li key={reservation.reservationId}>
+                    <Link
+                      href={`/mypage/reservations/${reservation.reservationId}`}
+                      className="hover:border-brand-500 border-line hover:bg-surface-hover flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 transition"
+                    >
+                      <div>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-ink text-sm font-bold">
+                            {reservation.companyOrBranchName}
+                          </span>
+                          <span className="text-ink-muted text-sm">
+                            {reservation.requesterName}
+                          </span>
+                        </div>
+                        <p className="text-ink-faint mt-1 text-xs">
+                          {formatKstRange(reservation.visitStartAt, reservation.visitEndAt)}
+                          {reservation.employeeUserName && (
+                            <> · 시노펙스 담당자: {reservation.employeeUserName}</>
+                          )}
+                        </p>
+                      </div>
+                      <StatusBadge status={reservation.displayStatus} />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </section>
+      )}
 
       <section className="card mt-6">
         <div className="card-body">

@@ -35,6 +35,7 @@ import {
   dispatchQuietly,
   sendApprovedEmail,
   sendCancelledEmails,
+  sendHostEmployeeChangedEmails,
   sendNewRequestToAdminEmails,
   sendRejectedEmail,
   sendRequestReceivedEmail,
@@ -442,7 +443,7 @@ export type UpdateReservationInput = {
   requestMemo?: string | null;
   visitStartAt: Date;
   visitEndAt: Date;
-  /** 관리자 수정 전용(당사 담당자 재지정). 신청자 본인 수정 경로는 이 값을 채우지 않는다. */
+  /** VISITOR 예약의 당사 담당자 재지정(관리자·신청자 본인 수정 공용). */
   employeeUserId?: number | null;
 };
 
@@ -461,6 +462,15 @@ export async function updateReservationByRequester(
   const now = new Date();
 
   const current = await loadReservationOrThrow(reservationId);
+
+  // 당사 담당자 재지정은 VISITOR 예약에서만 의미가 있다(EMPLOYEE 는 본인=담당자).
+  const hostEmployeeChanged =
+    input.employeeUserId !== undefined &&
+    current.requesterType === RequesterType.VISITOR &&
+    input.employeeUserId !== current.employeeUserId;
+  if (hostEmployeeChanged && input.employeeUserId !== null && input.employeeUserId !== undefined) {
+    await assertActiveEmployeeExists(input.employeeUserId);
+  }
 
   const changeCheck = checkRequesterCanChange({
     status: current.reservationStatus,
@@ -501,6 +511,7 @@ export async function updateReservationByRequester(
         requestMemo: input.requestMemo ?? null,
         visitStartAt: input.visitStartAt,
         visitEndAt: input.visitEndAt,
+        ...(hostEmployeeChanged ? { employeeUserId: input.employeeUserId } : {}),
         // 승인 상태였다면 배정 해제 후 다시 승인 대기로 되돌린다.
         assignedSpaceId: null,
         reservationStatus: ReservationStatus.REQUESTED,
@@ -539,6 +550,11 @@ export async function updateReservationByRequester(
         previousVisitEndAt,
       }),
     );
+    if (hostEmployeeChanged) {
+      dispatchQuietly(() =>
+        sendHostEmployeeChangedEmails(toReservationForEmail(updated), current.employeeUser, accessUrl),
+      );
+    }
   }
 
   return updated;
@@ -722,6 +738,11 @@ export async function updateReservationByAdmin(
         changedByAdmin: true,
       }),
     );
+    if (hostEmployeeChanged) {
+      dispatchQuietly(() =>
+        sendHostEmployeeChangedEmails(toReservationForEmail(updated), current.employeeUser, accessUrl),
+      );
+    }
   }
 
   return updated;
@@ -1538,6 +1559,8 @@ export type ReservationListItem = {
   requesterType: RequesterType;
   /** 직원이 관여한 예약이면 그 직원 계정 ID. requesterType=VISITOR 와 함께면 대리 신청. */
   employeeUserId: number | null;
+  /** employeeUserId 로 연결된 직원의 이름(당사 담당자). 없으면 null. */
+  employeeUserName: string | null;
   reservationStatus: ReservationStatus;
   /** 화면 표시용 상태. 승인 완료 건은 방문 시간에 따라 사용 중/사용 완료로 갈린다. */
   displayStatus: DisplayReservationStatus;
@@ -1694,6 +1717,7 @@ export function toReservationListItem(
     reservationNo: reservation.reservationNo,
     requesterType: reservation.requesterType,
     employeeUserId: reservation.employeeUserId,
+    employeeUserName: reservation.employeeUser?.name ?? null,
     reservationStatus: reservation.reservationStatus,
     displayStatus: resolveDisplayStatus(reservation, entryExitManagementEnabled),
     companyOrBranchName: reservation.companyOrBranchName,
@@ -1747,12 +1771,22 @@ const EXCLUDE_ORPHANED_RECURRING_CANCELLATIONS = {
  */
 export async function listReservationsForUser(
   userId: number,
-  options: { page?: number; pageSize?: number; entryExitManagementEnabled: boolean },
+  options: {
+    page?: number;
+    pageSize?: number;
+    entryExitManagementEnabled: boolean;
+    /** 주어지면 이 시각 이후 시작하는 예약만 조회한다(홈 화면 위젯용). 기본은 전체 이력. */
+    fromDate?: Date;
+    /** 기본 'desc'(마이페이지 이력 조회 순서). 홈 위젯은 가까운 예약이 먼저 오도록 'asc'로 쓴다. */
+    order?: 'asc' | 'desc';
+  },
 ): Promise<PagedReservationList> {
   const page = Math.max(1, options.page ?? 1);
   const pageSize = Math.min(100, Math.max(1, options.pageSize ?? 20));
+  const order = options.order ?? 'desc';
   const where: Prisma.ParkingReservationWhereInput = {
     visitorUserId: userId,
+    ...(options.fromDate ? { visitStartAt: { gte: options.fromDate } } : {}),
     ...EXCLUDE_ORPHANED_RECURRING_CANCELLATIONS,
   };
 
@@ -1761,7 +1795,7 @@ export async function listReservationsForUser(
     prisma.parkingReservation.findMany({
       where,
       include: RESERVATION_WITH_SPACES,
-      orderBy: [{ visitStartAt: 'desc' }, { reservationId: 'desc' }],
+      orderBy: [{ visitStartAt: order }, { reservationId: order }],
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
@@ -1782,15 +1816,25 @@ export async function listReservationsForUser(
  */
 export async function listReservationsForEmployee(
   employeeUserId: number,
-  options: { page?: number; pageSize?: number; entryExitManagementEnabled: boolean },
+  options: {
+    page?: number;
+    pageSize?: number;
+    entryExitManagementEnabled: boolean;
+    /** 주어지면 이 시각 이후 시작하는 예약만 조회한다(홈 화면 위젯용). 기본은 전체 이력. */
+    fromDate?: Date;
+    /** 기본 'desc'(마이페이지 이력 조회 순서). 홈 위젯은 가까운 예약이 먼저 오도록 'asc'로 쓴다. */
+    order?: 'asc' | 'desc';
+  },
 ): Promise<PagedReservationList> {
   const page = Math.max(1, options.page ?? 1);
   const pageSize = Math.min(100, Math.max(1, options.pageSize ?? 20));
+  const order = options.order ?? 'desc';
   // 반복 예약 occurrence 는 화면에서 시리즈 단위 요약(반복 예약 탭)으로 따로 보여주므로
   // 여기서는 제외한다 — 안 그러면 페이지네이션 개수가 반복 occurrence 로 밀린다.
   const where: Prisma.ParkingReservationWhereInput = {
     employeeUserId,
     recurringScheduleId: null,
+    ...(options.fromDate ? { visitStartAt: { gte: options.fromDate } } : {}),
     ...EXCLUDE_ORPHANED_RECURRING_CANCELLATIONS,
   };
 
@@ -1799,7 +1843,7 @@ export async function listReservationsForEmployee(
     prisma.parkingReservation.findMany({
       where,
       include: RESERVATION_WITH_SPACES,
-      orderBy: [{ visitStartAt: 'desc' }, { reservationId: 'desc' }],
+      orderBy: [{ visitStartAt: order }, { reservationId: order }],
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),

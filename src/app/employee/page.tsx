@@ -3,11 +3,17 @@ import Image from 'next/image';
 import Link from 'next/link';
 
 import { EmployeeLogoutButton } from '@/components/employee/employee-logout-button';
+import { StatusBadge } from '@/components/ui/status-badge';
+import { REQUESTER_TYPE_LABEL } from '@/domain/reservation-status';
 import { DEFAULT_SETTINGS } from '@/domain/system-settings';
 import { requireEmployeePage } from '@/lib/employee-page-guard';
+import { formatKstDate, formatKstRange, kstDayRangeUtc } from '@/lib/datetime';
 import { findMatchingAdminAccount } from '@/services/admin-auth-service';
 import { getEmployeeProfile } from '@/services/employee-auth-service';
+import { listReservationsForEmployee } from '@/services/reservation-service';
 import { getSystemSettings } from '@/services/settings-service';
+
+const RECENT_RESERVATIONS_LIMIT = 5;
 
 export const dynamic = 'force-dynamic';
 
@@ -15,10 +21,18 @@ export const metadata: Metadata = { title: '직원 홈' };
 
 export default async function EmployeeHomePage() {
   const session = await requireEmployeePage('/employee');
-  const [profile, settings, matchingAdmin] = await Promise.all([
+  const settings = await getSystemSettings().catch(() => DEFAULT_SETTINGS);
+  const [profile, matchingAdmin, recentReservations] = await Promise.all([
     getEmployeeProfile(session.employeeUserId),
-    getSystemSettings().catch(() => DEFAULT_SETTINGS),
     findMatchingAdminAccount(session.email),
+    listReservationsForEmployee(session.employeeUserId, {
+      page: 1,
+      pageSize: RECENT_RESERVATIONS_LIMIT,
+      entryExitManagementEnabled: settings.entryExitManagementEnabled,
+      // 오늘(KST 00:00) 이후 예약만 — 지난 방문 이력은 마이페이지에서 본다.
+      fromDate: kstDayRangeUtc(formatKstDate(new Date())).start,
+      order: 'asc',
+    }),
   ]);
 
   return (
@@ -49,12 +63,14 @@ export default async function EmployeeHomePage() {
       </header>
 
       <nav className="grid gap-3">
-        <Link href="/employee/reservations/new" className="btn btn-primary btn-lg w-full">
-          내 방문 신청
-        </Link>
-        <Link href="/employee/reservations/proxy" className="btn btn-primary btn-lg w-full">
-          방문객 대리 신청
-        </Link>
+        <div className="grid grid-cols-2 gap-3">
+          <Link href="/employee/reservations/new" className="btn btn-primary btn-lg w-full">
+            내 방문 신청
+          </Link>
+          <Link href="/employee/reservations/proxy" className="btn btn-primary btn-lg w-full">
+            방문객 대리 신청
+          </Link>
+        </div>
         <Link href="/employee/reservations" className="btn btn-secondary btn-lg w-full">
           마이페이지
         </Link>
@@ -64,6 +80,48 @@ export default async function EmployeeHomePage() {
           </Link>
         )}
       </nav>
+
+      <section className="card mt-6">
+        <div className="card-body">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="card-title">최근 예약 현황</h2>
+            <Link href="/employee/reservations" className="text-brand-700 text-xs font-bold">
+              전체보기
+            </Link>
+          </div>
+
+          {recentReservations.items.length === 0 ? (
+            <p className="text-ink-faint mt-3 text-sm">신청 내역이 없습니다.</p>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {recentReservations.items.map((reservation) => (
+                <li key={reservation.reservationId}>
+                  <Link
+                    href={`/employee/reservations/${reservation.reservationId}`}
+                    className="hover:border-brand-500 border-line hover:bg-surface-hover flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 transition"
+                  >
+                    <div>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-ink text-sm font-bold">
+                          {reservation.companyOrBranchName}
+                        </span>
+                        <span className="text-ink-muted text-sm">{reservation.requesterName}</span>
+                        <span className="badge bg-surface-active text-ink-muted">
+                          {REQUESTER_TYPE_LABEL[reservation.requesterType]}
+                        </span>
+                      </div>
+                      <p className="text-ink-faint mt-1 text-xs">
+                        {formatKstRange(reservation.visitStartAt, reservation.visitEndAt)}
+                      </p>
+                    </div>
+                    <StatusBadge status={reservation.displayStatus} />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
 
       <section className="card mt-6">
         <div className="card-body">

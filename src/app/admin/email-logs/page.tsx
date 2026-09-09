@@ -27,6 +27,7 @@ const EMAIL_TYPE_LABEL: Record<EmailType, string> = {
   RECURRING_SCHEDULE_UPDATED: '반복 예약 수정',
   RECURRING_OCCURRENCE_SKIPPED: '반복 예약 날짜 제외',
   RECURRING_SCHEDULE_CANCELLED: '반복 예약 삭제',
+  HOST_EMPLOYEE_CHANGED: '담당자 변경',
 };
 
 const STATUS_LABEL: Record<EmailSendStatus, string> = {
