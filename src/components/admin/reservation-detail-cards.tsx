@@ -191,6 +191,8 @@ export function RequesterInfoCard({
     requesterTypeLabel: string;
     requesterEmail: string;
     privacyConsentText: string;
+    /** 직원 본인 방문(EMPLOYEE)은 서약 대상이 아니라 null. */
+    securityPledgeConsentText: string | null;
     createdAtText: string;
     /** 직원이 대신 신청한 건이면 당사 담당 직원 이름/이메일. 그 외에는 null. */
     employeeUserText: string | null;
@@ -303,6 +305,9 @@ export function RequesterInfoCard({
           <Row term="방문 목적" desc={initial.visitPurpose || '-'} />
           <Row term="요청 메모" desc={initial.requestMemo || '-'} />
           <Row term="개인정보 동의" desc={readOnly.privacyConsentText} />
+          {readOnly.securityPledgeConsentText && (
+            <Row term="보안서약서 동의" desc={readOnly.securityPledgeConsentText} />
+          )}
           <Row term="신청 일시" desc={readOnly.createdAtText} />
         </dl>
       )}

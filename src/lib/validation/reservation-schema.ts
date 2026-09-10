@@ -23,6 +23,9 @@ export const createReservationSchema = z.object({
   privacyConsent: z
     .boolean({ error: '개인정보 수집 및 이용에 동의해 주세요.' })
     .refine((value) => value === true, '개인정보 수집 및 이용에 동의해 주세요.'),
+  securityPledgeConsent: z
+    .boolean({ error: '보안서약서에 동의해 주세요.' })
+    .refine((value) => value === true, '보안서약서에 동의해 주세요.'),
 });
 
 export type CreateReservationPayload = z.infer<typeof createReservationSchema>;
@@ -62,6 +65,9 @@ export const createEmployeeProxyReservationSchema = z.object({
   visitorConsentConfirmed: z
     .boolean({ error: '방문객 개인정보 수집·이용 동의 확인이 필요합니다.' })
     .refine((value) => value === true, '방문객 개인정보 수집·이용 동의 확인이 필요합니다.'),
+  visitorSecurityPledgeConfirmed: z
+    .boolean({ error: '방문객 보안서약서 동의 확인이 필요합니다.' })
+    .refine((value) => value === true, '방문객 보안서약서 동의 확인이 필요합니다.'),
 });
 
 export type CreateEmployeeProxyReservationPayload = z.infer<

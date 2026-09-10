@@ -331,6 +331,8 @@ model ParkingReservation {
   cancelReason    String?   @map("cancel_reason") @db.VarChar(500)
 
   privacyConsentAt DateTime @map("privacy_consent_at")
+  /** 직원 본인 방문(EMPLOYEE)은 서약 대상이 아니라 null. */
+  securityPledgeConsentAt DateTime? @map("security_pledge_consent_at")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

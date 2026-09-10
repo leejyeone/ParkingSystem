@@ -139,6 +139,9 @@ export default async function AdminReservationDetailPage({ params }: PageProps) 
               requesterTypeLabel: REQUESTER_TYPE_LABEL[reservation.requesterType],
               requesterEmail: reservation.requesterEmail,
               privacyConsentText: `${formatKstDateTime(reservation.privacyConsentAt)} 동의`,
+              securityPledgeConsentText: reservation.securityPledgeConsentAt
+                ? `${formatKstDateTime(reservation.securityPledgeConsentAt)} 동의`
+                : null,
               createdAtText: formatKstDateTime(reservation.createdAt),
               employeeUserText:
                 reservation.employeeUser && reservation.requesterType === 'VISITOR'

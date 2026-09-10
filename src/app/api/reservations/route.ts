@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
       visitStartAt: payload.visitStartAt,
       visitEndAt: payload.visitEndAt,
       privacyConsent: payload.privacyConsent,
+      securityPledgeConsent: payload.securityPledgeConsent,
     });
 
     return apiSuccess(

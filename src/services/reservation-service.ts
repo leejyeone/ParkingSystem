@@ -234,6 +234,8 @@ export type CreateReservationInput = {
   visitStartAt: Date;
   visitEndAt: Date;
   privacyConsent: boolean;
+  /** 직원 본인 방문(EMPLOYEE)은 서약 대상이 아니므로 검증하지 않는다. */
+  securityPledgeConsent: boolean;
 };
 
 export async function createReservation(input: CreateReservationInput): Promise<{
@@ -243,6 +245,14 @@ export async function createReservation(input: CreateReservationInput): Promise<
   if (!input.privacyConsent) {
     throw new ValidationError('개인정보 수집 및 이용에 동의해야 신청할 수 있습니다.', {
       privacyConsent: ['개인정보 수집 및 이용에 동의해 주세요.'],
+    });
+  }
+
+  // 직원 본인 방문(EMPLOYEE)은 서약 대상이 아니다 — VISITOR(방문객 본인 신청 + 직원 대리
+  // 신청)일 때만 검증한다.
+  if (input.requesterType === RequesterType.VISITOR && !input.securityPledgeConsent) {
+    throw new ValidationError('보안서약서에 동의해야 신청할 수 있습니다.', {
+      securityPledgeConsent: ['보안서약서에 동의해 주세요.'],
     });
   }
 
@@ -287,6 +297,7 @@ export async function createReservation(input: CreateReservationInput): Promise<
           visitEndAt: input.visitEndAt,
           reservationStatus: ReservationStatus.REQUESTED,
           privacyConsentAt: now,
+          securityPledgeConsentAt: input.requesterType === RequesterType.VISITOR ? now : null,
         },
         include: RESERVATION_WITH_SPACES,
       });
@@ -364,7 +375,11 @@ export async function createVisitorReservation(
 export async function createEmployeeReservation(
   input: Omit<
     CreateReservationInput,
-    'requesterType' | 'employeeUserId' | 'visitorUserId' | 'privacyConsent'
+    | 'requesterType'
+    | 'employeeUserId'
+    | 'visitorUserId'
+    | 'privacyConsent'
+    | 'securityPledgeConsent'
   >,
   employeeUserId: number,
 ) {
@@ -375,6 +390,7 @@ export async function createEmployeeReservation(
     employeeUserId,
     // EMPLOYEE 는 동의 카드를 노출하지 않는 기존 정책을 그대로 유지한다.
     privacyConsent: true,
+    securityPledgeConsent: true,
   });
 
   // 이번에 입력한 소속 사업장명·차량번호를 다음 신청부터 자동완성되도록 마이페이지에도

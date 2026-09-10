@@ -75,7 +75,17 @@ const REQUIRED_FIELD_LABELS: Record<string, string> = {
   visitEndAt: '출차 예정 시간',
   privacyConsent: '개인정보 수집 및 이용 동의',
   visitorConsentConfirmed: '방문객 개인정보 수집·이용 동의 확인',
+  securityPledgeConsent: '보안서약서 동의',
+  visitorSecurityPledgeConfirmed: '방문객 보안서약서 동의 확인',
 };
+
+/** 보안서약서 본문(직원 본인 방문 제외 전부에 동일하게 노출). */
+const SECURITY_PLEDGE_ITEMS = [
+  '회사로부터 사전에 허가받지 않은 구역, 시스템 및 정보에 접근하거나 열람하지 않겠습니다.',
+  '방문 중 알게 된 회사의 생산·기술·경영 정보를 방문 목적 외의 용도로 사용하지 않으며, 제3자에게 누설 또는 공유하지 않겠습니다. 방문 목적이 종료되면 제공받은 자료를 지체 없이 삭제 또는 파기하겠습니다.',
+  '회사의 사전 허가 없이 생산라인·설비 등 회사 시설을 촬영하거나, 비인가 촬영 장비를 반입하지 않겠습니다.',
+  '담당자의 안내 및 현장 안전수칙을 준수하며, 지정된 구역과 동선을 벗어나지 않겠습니다.',
+];
 
 type FormState = {
   companyOrBranchName: string;
@@ -87,6 +97,7 @@ type FormState = {
   visitStartAt: string;
   visitEndAt: string;
   privacyConsent: boolean;
+  securityPledgeConsent: boolean;
 };
 
 function buildInitialState(
@@ -103,6 +114,7 @@ function buildInitialState(
     visitStartAt: defaultDateTimeInput,
     visitEndAt: '',
     privacyConsent: false,
+    securityPledgeConsent: false,
   };
 }
 
@@ -179,6 +191,15 @@ export function ReservationForm({
           : '개인정보 수집 및 이용에 동의해 주세요.',
       ];
     }
+    if (mode !== 'employee-self' && !form.securityPledgeConsent) {
+      const pledgeKey =
+        mode === 'employee-proxy' ? 'visitorSecurityPledgeConfirmed' : 'securityPledgeConsent';
+      errors[pledgeKey] = [
+        mode === 'employee-proxy'
+          ? '방문객 보안서약서 동의 확인이 필요합니다.'
+          : '보안서약서에 동의해 주세요.',
+      ];
+    }
 
     return errors;
   }
@@ -224,9 +245,17 @@ export function ReservationForm({
     };
     const payload =
       mode === 'visitor'
-        ? { ...scheduleAndMemo, privacyConsent: form.privacyConsent }
+        ? {
+            ...scheduleAndMemo,
+            privacyConsent: form.privacyConsent,
+            securityPledgeConsent: form.securityPledgeConsent,
+          }
         : mode === 'employee-proxy'
-          ? { ...basePayload, visitorConsentConfirmed: form.privacyConsent }
+          ? {
+              ...basePayload,
+              visitorConsentConfirmed: form.privacyConsent,
+              visitorSecurityPledgeConfirmed: form.securityPledgeConsent,
+            }
           : basePayload;
 
     const response = await apiRequest<CreateResponse>(ENDPOINT_BY_MODE[mode], {
@@ -256,6 +285,10 @@ export function ReservationForm({
   // 서버 검증 오류 필드명이 모드별로 다르다(privacyConsent vs visitorConsentConfirmed).
   const consentFieldErrors =
     mode === 'employee-proxy' ? fieldErrors.visitorConsentConfirmed : fieldErrors.privacyConsent;
+  const pledgeFieldErrors =
+    mode === 'employee-proxy'
+      ? fieldErrors.visitorSecurityPledgeConfirmed
+      : fieldErrors.securityPledgeConsent;
 
   return (
     <form onSubmit={handleSubmit} noValidate>
@@ -454,6 +487,51 @@ export function ReservationForm({
           </Alert>
         </div>
       </div>
+
+      {mode !== 'employee-self' && (
+        <div className="card mt-4">
+          <div className="card-body">
+            <h2 className="card-title">보안서약서 동의</h2>
+            <div className="mt-3 max-h-40 overflow-y-auto rounded-lg bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
+              <p>
+                시노펙스(이하 &quot;회사&quot;라 합니다)를 방문하는 방문자 본인은 다음의 보안 및
+                안전에 관한 내용에 동의하며, 성실히 준수할 것을 서약합니다.
+              </p>
+              <ol className="mt-2 list-decimal space-y-1.5 pl-4">
+                {SECURITY_PLEDGE_ITEMS.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ol>
+            </div>
+
+            <label
+              htmlFor="securityPledgeConsent"
+              className={`mt-3 flex min-h-12 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 ${
+                pledgeFieldErrors ? 'border-red-400 bg-red-50' : 'border-slate-300 bg-white'
+              }`}
+            >
+              <input
+                id="securityPledgeConsent"
+                name="securityPledgeConsent"
+                type="checkbox"
+                className="accent-brand-700 size-5 shrink-0"
+                checked={form.securityPledgeConsent}
+                onChange={(event) => update('securityPledgeConsent', event.target.checked)}
+              />
+              <span className="text-sm font-semibold text-slate-800">
+                {mode === 'employee-proxy'
+                  ? '방문객에게 위 보안서약 내용을 안내하였고, 방문객으로부터 보안서약서 동의를 확인하였습니다.'
+                  : '상기 내용을 확인하였으며, 보안서약서에 동의합니다.'}
+              </span>
+            </label>
+            {pledgeFieldErrors && (
+              <p className="field-error" role="alert">
+                {pledgeFieldErrors[0]}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {mode !== 'employee-self' && (
         <div className="card mt-4">

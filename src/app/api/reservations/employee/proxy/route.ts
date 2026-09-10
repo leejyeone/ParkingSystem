@@ -13,7 +13,8 @@ export const dynamic = 'force-dynamic';
 /**
  * POST /api/reservations/employee/proxy
  * 직원이 담당 방문객을 대신 신청한다. 로그인이 필수이며, 방문객의 개인정보 수집·이용
- * 동의는 방문객 본인이 아니라 직원이 "확인했음"을 대신 체크하는 방식으로 처리한다.
+ * 동의·보안서약서 동의는 방문객 본인이 아니라 직원이 "확인했음"을 대신 체크하는 방식으로
+ * 처리한다.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -27,11 +28,15 @@ export async function POST(request: NextRequest) {
     });
 
     const payload = createEmployeeProxyReservationSchema.parse(await request.json());
-    const { visitorConsentConfirmed, ...rest } = payload;
+    const { visitorConsentConfirmed, visitorSecurityPledgeConfirmed, ...rest } = payload;
 
     // 당사 담당자는 항상 대리 신청 중인 로그인 직원 본인으로 고정한다(화면에서도 수정 불가).
     const { reservation } = await createProxyReservationForVisitor(
-      { ...rest, privacyConsent: visitorConsentConfirmed },
+      {
+        ...rest,
+        privacyConsent: visitorConsentConfirmed,
+        securityPledgeConsent: visitorSecurityPledgeConfirmed,
+      },
       session.employeeUserId,
     );
 
