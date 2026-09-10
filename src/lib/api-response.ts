@@ -24,7 +24,6 @@ export type ApiFailure = {
   success: false;
   error: { code: string; message: string; fieldErrors?: FieldErrors };
 };
-export type ApiResponseBody<T> = ApiSuccess<T> | ApiFailure;
 
 export function apiSuccess<T>(data: T, meta?: ApiMeta, status = 200): NextResponse<ApiSuccess<T>> {
   return NextResponse.json<ApiSuccess<T>>(

@@ -145,6 +145,11 @@ export const systemSettingsSchema = z
       .int()
       .min(1, '출차 알림 기준 시간은 1분 이상이어야 합니다.')
       .max(180, '출차 알림 기준 시간은 180분 이하로 설정해 주세요.'),
+    entryReminderMinutes: z.coerce
+      .number()
+      .int()
+      .min(1, '입차 알림 기준 시간은 1분 이상이어야 합니다.')
+      .max(180, '입차 알림 기준 시간은 180분 이하로 설정해 주세요.'),
     maxReservationHours: z.coerce
       .number()
       .int()

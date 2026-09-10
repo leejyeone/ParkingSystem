@@ -48,7 +48,7 @@ import { normalizeVehicleNo } from '@/lib/vehicle';
 import type { RequestContext } from '@/lib/request-context';
 import { AUDIT_ACTIONS, AUDIT_TARGETS, writeAuditLog } from '@/services/audit-service';
 import { assertActiveEmployeeExists } from '@/services/employee-directory-service';
-import { issueAccessToken } from '@/services/reservation-access-service';
+import { extendTokenExpiry, issueAccessToken } from '@/services/reservation-access-service';
 import { SETTING_KEYS } from '@/domain/system-settings';
 import { getSystemSettings } from '@/services/settings-service';
 import {
@@ -540,10 +540,7 @@ export async function updateReservationByRequester(
       },
     });
 
-    await tx.reservationAccessToken.updateMany({
-      where: { reservationId, isActive: true },
-      data: { expiresAt: new Date(input.visitEndAt.getTime() + 7 * 24 * 60 * 60 * 1000) },
-    });
+    await extendTokenExpiry({ reservationId, visitEndAt: input.visitEndAt }, tx);
 
     return result;
   });
@@ -695,10 +692,7 @@ export async function updateReservationByAdmin(
       },
     });
 
-    await tx.reservationAccessToken.updateMany({
-      where: { reservationId, isActive: true },
-      data: { expiresAt: new Date(input.visitEndAt.getTime() + 7 * 24 * 60 * 60 * 1000) },
-    });
+    await extendTokenExpiry({ reservationId, visitEndAt: input.visitEndAt }, tx);
 
     return result;
   });

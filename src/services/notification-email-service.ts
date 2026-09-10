@@ -105,30 +105,3 @@ export async function deleteNotificationEmail(
 
   return { notificationEmailId };
 }
-
-export async function setNotificationEmailActive(
-  notificationEmailId: number,
-  isActive: boolean,
-  actor: { adminUserId: number; requestContext?: RequestContext },
-) {
-  const current = await prisma.adminNotificationEmail.findUnique({
-    where: { notificationEmailId },
-  });
-  if (!current) throw new NotFoundError('알림 이메일을 찾을 수 없습니다.');
-
-  const updated = await prisma.adminNotificationEmail.update({
-    where: { notificationEmailId },
-    data: { isActive },
-  });
-
-  await writeAuditLog({
-    actorAdminId: actor.adminUserId,
-    actionType: AUDIT_ACTIONS.NOTIFICATION_EMAIL_CHANGE,
-    targetType: AUDIT_TARGETS.NOTIFICATION_EMAIL,
-    targetId: notificationEmailId,
-    detail: { isActive },
-    context: actor.requestContext,
-  });
-
-  return updated;
-}

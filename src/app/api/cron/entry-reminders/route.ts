@@ -10,8 +10,8 @@ export const dynamic = 'force-dynamic';
 /**
  * POST /api/cron/entry-reminders
  *
- * 입차 예정 시각 ENTRY_REMINDER_MINUTES(10)분 전인 방문객 예약에 대해, 매핑된 당사 담당자에게
- * 안내 메일을 발송한다.
+ * 입차 예정 시각 기준 시스템 설정(entryReminderMinutes)분 전인 방문객 예약에 대해, 매핑된 당사
+ * 담당자에게 안내 메일을 발송한다.
  *
  * 보안: Authorization: Bearer <CRON_SECRET> 헤더를 검증한다.
  * 멱등성: email_send_logs.dedupe_key UNIQUE 제약으로 중복 발송을 차단하므로

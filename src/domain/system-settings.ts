@@ -8,6 +8,7 @@ export const SETTING_KEYS = {
   PARKING_OPEN_TIME: 'PARKING_OPEN_TIME',
   PARKING_CLOSE_TIME: 'PARKING_CLOSE_TIME',
   EXIT_REMINDER_MINUTES: 'EXIT_REMINDER_MINUTES',
+  ENTRY_REMINDER_MINUTES: 'ENTRY_REMINDER_MINUTES',
   MAX_RESERVATION_HOURS: 'MAX_RESERVATION_HOURS',
   SPACE_ASSIGNMENT_ENABLED: 'SPACE_ASSIGNMENT_ENABLED',
   PARKING_CAPACITY: 'PARKING_CAPACITY',
@@ -30,6 +31,8 @@ export type SystemSettingsValues = {
   parkingCloseTime: string;
   /** 출차 예정 알림 발송 기준(분 전) */
   exitReminderMinutes: number;
+  /** 입차 예정 알림(당사 담당자용) 발송 기준(분 전) */
+  entryReminderMinutes: number;
   /** 1건당 최대 예약 시간(시간) */
   maxReservationHours: number;
   /**
@@ -88,6 +91,7 @@ export const DEFAULT_SETTINGS: SystemSettingsValues = {
   parkingOpenTime: '07:00',
   parkingCloseTime: '22:00',
   exitReminderMinutes: 10,
+  entryReminderMinutes: 10,
   maxReservationHours: 15,
   spaceAssignmentEnabled: true,
   // 실제 주차면 수(지하 1층 55면). 주차면 배정을 껐을 때의 상한으로 쓰인다.
@@ -110,6 +114,7 @@ export const SETTING_DESCRIPTIONS: Record<SettingKey, string> = {
   PARKING_OPEN_TIME: '주차장 운영 시작 시간(HH:mm, Asia/Seoul).',
   PARKING_CLOSE_TIME: '주차장 운영 종료 시간(HH:mm, Asia/Seoul).',
   EXIT_REMINDER_MINUTES: '출차 예정 알림을 발송할 기준 시간(분 전).',
+  ENTRY_REMINDER_MINUTES: '입차 예정 알림(당사 담당자용)을 발송할 기준 시간(분 전).',
   MAX_RESERVATION_HOURS: '예약 1건의 최대 이용 시간(시간).',
   SPACE_ASSIGNMENT_ENABLED:
     '주차면 배정 기능 사용 여부(true/false). false 이면 주차 위치를 배정하지 않습니다.',
@@ -162,6 +167,10 @@ export function toSettingsValues(
       SETTING_KEYS.EXIT_REMINDER_MINUTES,
       DEFAULT_SETTINGS.exitReminderMinutes,
     ),
+    entryReminderMinutes: readNumber(
+      SETTING_KEYS.ENTRY_REMINDER_MINUTES,
+      DEFAULT_SETTINGS.entryReminderMinutes,
+    ),
     maxReservationHours: readNumber(
       SETTING_KEYS.MAX_RESERVATION_HOURS,
       DEFAULT_SETTINGS.maxReservationHours,
@@ -209,6 +218,10 @@ export function toSettingRows(
     {
       settingKey: SETTING_KEYS.EXIT_REMINDER_MINUTES,
       settingValue: String(values.exitReminderMinutes),
+    },
+    {
+      settingKey: SETTING_KEYS.ENTRY_REMINDER_MINUTES,
+      settingValue: String(values.entryReminderMinutes),
     },
     {
       settingKey: SETTING_KEYS.MAX_RESERVATION_HOURS,

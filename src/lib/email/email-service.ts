@@ -30,9 +30,6 @@ export const DEDUPE_EMAIL_TYPES: readonly EmailType[] = [
   EmailType.ENTRY_REMINDER,
 ];
 
-/** 입차 예정 알림(당사 담당자용) 발송 기준 시간(분 전). 설정으로 노출하지 않는 고정값이다. */
-export const ENTRY_REMINDER_MINUTES = 10;
-
 /**
  * 멱등성 키.
  *
@@ -454,6 +451,7 @@ export async function sendExitReminderEmail(
  */
 export async function sendEntryReminderEmail(
   reservation: ReservationForEmail,
+  entryReminderMinutes: number,
 ): Promise<EmailDispatchResult> {
   if (!reservation.hostEmployee) {
     // 당사 담당자가 없는 예약(과거 데이터)은 보낼 대상이 없으므로 조용히 건너뛴다.
@@ -464,7 +462,7 @@ export async function sendEntryReminderEmail(
     EmailType.ENTRY_REMINDER,
     await toEmailData(reservation, {
       hostEmployeeName: reservation.hostEmployee.name,
-      entryReminderMinutes: ENTRY_REMINDER_MINUTES,
+      entryReminderMinutes,
     }),
   );
   return sendEmailWithLog({

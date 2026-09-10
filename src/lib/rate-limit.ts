@@ -41,7 +41,3 @@ function cleanup(now: number): void {
   }
 }
 
-/** 테스트용 초기화 */
-export function resetRateLimits(): void {
-  buckets.clear();
-}

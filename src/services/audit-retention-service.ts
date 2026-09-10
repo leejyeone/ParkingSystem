@@ -10,9 +10,6 @@ import { prisma } from '@/lib/prisma';
  * 1년은 하한선이지 무제한 보관하라는 뜻이 아니므로, 보관 기간이 지난 기록은 삭제한다.
  */
 
-/** 법정 최소 보관 기간(일). 이 값 아래로 내려가면 기준 미달이다. */
-export const MINIMUM_RETENTION_DAYS = 365;
-
 /** 한 번의 DELETE 로 지우는 행 수. 대량 삭제 시 락이 길어지는 것을 막는다. */
 const DELETE_BATCH_SIZE = 1000;
 

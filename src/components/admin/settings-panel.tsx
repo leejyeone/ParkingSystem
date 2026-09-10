@@ -187,6 +187,25 @@ export function PolicySection({ initialSettings }: { initialSettings: SystemSett
             />
           </FormField>
           <FormField
+            label="입차 알림 기준(분 전)"
+            htmlFor="entryReminderMinutes"
+            required
+            hint="방문객 입차 예정 시각 기준으로, 매핑된 당사 담당자에게 안내 메일을 보냅니다."
+            errors={fieldErrors.entryReminderMinutes}
+          >
+            <input
+              id="entryReminderMinutes"
+              type="number"
+              min={1}
+              max={180}
+              className={inputClassName(Boolean(fieldErrors.entryReminderMinutes))}
+              value={form.entryReminderMinutes}
+              onChange={(event) =>
+                setForm({ ...form, entryReminderMinutes: Number(event.target.value) })
+              }
+            />
+          </FormField>
+          <FormField
             label="최대 예약 시간(시간)"
             htmlFor="maxHours"
             required
