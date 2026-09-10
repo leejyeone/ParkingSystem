@@ -4,6 +4,7 @@ import { formatKstHuman, formatKstRange } from '@/lib/datetime';
 import { REQUESTER_TYPE_LABEL } from '@/domain/reservation-status';
 import type { EmailAttachment } from '@/lib/email/email-provider';
 import { PARKING_MAP_CID, renderParkingMapAttachment } from '@/lib/email/parking-map-image';
+import { getAppBaseUrl } from '@/lib/env';
 
 /**
  * 이메일 제목 / HTML / Text 템플릿.
@@ -151,6 +152,9 @@ function renderHtmlLayout(params: {
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
             <tr>
               <td style="padding:20px 24px;background:#0f172a;">
+                <img src="${escapeHtml(`${getAppBaseUrl()}/synopex-logo.png`)}" alt="${escapeHtml(
+                  BRAND,
+                )}" width="140" height="40" style="display:block;margin-bottom:10px;" />
                 <p style="margin:0;color:#e2e8f0;font-size:13px;letter-spacing:1px;">${escapeHtml(BRAND)}</p>
                 <h1 style="margin:6px 0 0;color:#ffffff;font-size:19px;">${escapeHtml(params.title)}</h1>
               </td>

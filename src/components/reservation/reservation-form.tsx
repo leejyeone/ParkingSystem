@@ -277,7 +277,7 @@ export function ReservationForm({
               </Link>
             </div>
             <p className="field-hint">
-              회원 정보로 자동 입력되며 여기서는 수정할 수 없습니다. 바꾸려면 마이페이지에서
+             기본 정보는 마이페이지에서
               변경해 주세요.
             </p>
             <dl>
@@ -460,17 +460,35 @@ export function ReservationForm({
           <div className="card-body">
             <h2 className="card-title">개인정보 수집 및 이용 동의</h2>
             <div className="mt-3 max-h-40 overflow-y-auto rounded-lg bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
-              <p>
-                <strong>수집 항목</strong> : 성명, 이메일, 차량번호, 소속(회사명/사업장), 방문 목적
-              </p>
-              <p className="mt-2">
-                <strong>수집 목적</strong> : 방문 차량 방문 예약 접수·승인, 주차면 배정, 방문 관련
-                안내 메일 발송
-              </p>
-              <p className="mt-2">
-                <strong>보유 기간</strong> : 방문 종료 후 {settings.personalDataRetentionDays}일간
-                보관 후 파기
-              </p>
+              {mode === 'visitor' ? (
+                <>
+                  <p>
+                    <strong>수집 항목</strong> : 방문 일정, 방문 목적
+                  </p>
+                  <p className="mt-2">
+                    <strong>수집 목적</strong> : 방문 차량 방문 예약 접수·승인, 주차면 배정, 방문 관련
+                    안내 메일 발송
+                  </p>
+                  <p className="mt-2">
+                    <strong>보유 기간</strong> : 이 방문 건은 방문 종료 후{' '}
+                    {settings.personalDataRetentionDays}일간 보관 후 파기됩니다.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p>
+                    <strong>수집 항목</strong> : 성명, 이메일, 차량번호, 소속(회사명/사업장), 방문 목적
+                  </p>
+                  <p className="mt-2">
+                    <strong>수집 목적</strong> : 방문 차량 방문 예약 접수·승인, 주차면 배정, 방문 관련
+                    안내 메일 발송
+                  </p>
+                  <p className="mt-2">
+                    <strong>보유 기간</strong> : 방문 종료 후 {settings.personalDataRetentionDays}일간
+                    보관 후 파기
+                  </p>
+                </>
+              )}
               <p className="mt-2">
                 동의를 거부할 권리가 있으며, 거부 시 방문 예약 신청이 제한됩니다.
               </p>
