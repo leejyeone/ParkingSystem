@@ -18,6 +18,7 @@ import { prisma } from '@/lib/prisma';
 import { getUserSession, type UserSession } from '@/lib/user-session';
 import { USER_PASSWORD_POLICY_MESSAGE } from '@/lib/validation/common';
 import { normalizeVehicleNo } from '@/lib/vehicle';
+import { verifyHostEmployee } from '@/services/employee-directory-service';
 
 /**
  * 일반 사용자(회원) 인증 서비스.
@@ -41,6 +42,9 @@ export type UserProfile = {
   name: string;
   companyOrBranchName: string;
   vehicleNo: string | null;
+  hostEmployeeUserId: number | null;
+  hostEmployeeName: string | null;
+  hostEmployeeDepartmentName: string | null;
 };
 
 export type SignUpUserInput = {
@@ -48,7 +52,9 @@ export type SignUpUserInput = {
   password: string;
   name: string;
   companyOrBranchName: string;
-  vehicleNo?: string | null;
+  vehicleNo: string;
+  hostEmployeeName: string;
+  hostEmployeePhone: string;
 };
 
 export type SignUpResult = UserSession & {
@@ -87,7 +93,15 @@ export async function signUpUser(input: SignUpUserInput): Promise<SignUpResult> 
 
   const email = input.email.trim().toLowerCase();
   const name = input.name.trim();
-  const vehicleNo = input.vehicleNo ? normalizeVehicleNo(input.vehicleNo) : null;
+  const vehicleNo = normalizeVehicleNo(input.vehicleNo);
+
+  // 클라이언트가 확인 버튼을 눌렀어도 최종 신뢰는 서버가 한다 — 이름+전화로 다시 조회한다.
+  const hostEmployee = await verifyHostEmployee(input.hostEmployeeName, input.hostEmployeePhone);
+  if (!hostEmployee) {
+    throw new ValidationError('일치하는 담당자를 찾을 수 없습니다.', {
+      hostEmployeeName: ['일치하는 담당자를 찾을 수 없습니다.'],
+    });
+  }
 
   try {
     const { created, linkedReservationCount } = await prisma.$transaction(async (tx) => {
@@ -97,7 +111,8 @@ export async function signUpUser(input: SignUpUserInput): Promise<SignUpResult> 
           passwordHash: await hashPassword(input.password),
           name,
           companyOrBranchName: input.companyOrBranchName.trim(),
-          vehicleNo: vehicleNo || null,
+          vehicleNo,
+          hostEmployeeUserId: hostEmployee.employeeUserId,
           accountStatus: AccountStatus.ACTIVE,
           passwordChangedAt: new Date(),
         },
@@ -230,9 +245,9 @@ export async function requireActiveUser(): Promise<UserSession> {
   return { userId: user.userId, email: user.email, name: user.name };
 }
 
-/** 신청 폼 자동완성에 사용할 회원 정보 */
+/** 신청 폼 자동완성에 사용할 회원 정보. 담당자 이름/부서는 join 해서 함께 내려준다. */
 export async function getUserProfile(userId: number): Promise<UserProfile | null> {
-  return prisma.siteUser.findFirst({
+  const user = await prisma.siteUser.findFirst({
     where: { userId, deletedAt: null, accountStatus: AccountStatus.ACTIVE },
     select: {
       userId: true,
@@ -240,14 +255,24 @@ export async function getUserProfile(userId: number): Promise<UserProfile | null
       name: true,
       companyOrBranchName: true,
       vehicleNo: true,
+      hostEmployeeUserId: true,
+      hostEmployeeUser: { select: { name: true, departmentName: true } },
     },
   });
+  if (!user) return null;
+
+  const { hostEmployeeUser, ...rest } = user;
+  return {
+    ...rest,
+    hostEmployeeName: hostEmployeeUser?.name ?? null,
+    hostEmployeeDepartmentName: hostEmployeeUser?.departmentName ?? null,
+  };
 }
 
 export type UpdateUserProfileInput = {
   name: string;
   companyOrBranchName: string;
-  vehicleNo?: string | null;
+  vehicleNo: string;
   /** 값이 있으면 비밀번호를 변경한다. */
   password?: string;
 };
@@ -262,14 +287,25 @@ export async function updateUserProfile(
     });
   }
 
-  const vehicleNo = input.vehicleNo ? normalizeVehicleNo(input.vehicleNo) : null;
+  // 담당자 없는 계정은 저장할 수 없다(신규 가입은 항상 담당자를 확정하고 들어오지만,
+  // 방어적으로 한 번 더 확인한다).
+  const current = await prisma.siteUser.findFirst({
+    where: { userId, deletedAt: null },
+    select: { hostEmployeeUserId: true },
+  });
+  if (!current) throw new NotFoundError('회원 정보를 찾을 수 없습니다.');
+  if (!current.hostEmployeeUserId) {
+    throw new ValidationError('먼저 담당자를 등록해 주세요.');
+  }
 
-  return prisma.siteUser.update({
+  const vehicleNo = normalizeVehicleNo(input.vehicleNo);
+
+  const updated = await prisma.siteUser.update({
     where: { userId },
     data: {
       name: input.name.trim(),
       companyOrBranchName: input.companyOrBranchName.trim(),
-      vehicleNo: vehicleNo || null,
+      vehicleNo,
       ...(input.password !== undefined
         ? {
             passwordHash: await hashPassword(input.password),
@@ -285,7 +321,34 @@ export async function updateUserProfile(
       name: true,
       companyOrBranchName: true,
       vehicleNo: true,
+      hostEmployeeUserId: true,
+      hostEmployeeUser: { select: { name: true, departmentName: true } },
     },
+  });
+
+  const { hostEmployeeUser, ...rest } = updated;
+  return {
+    ...rest,
+    hostEmployeeName: hostEmployeeUser?.name ?? null,
+    hostEmployeeDepartmentName: hostEmployeeUser?.departmentName ?? null,
+  };
+}
+
+/** 마이페이지 "담당자 변경" — 이름+전화 재확인 후 즉시 반영한다(이메일 알림 없음). */
+export async function updateUserHostEmployee(
+  userId: number,
+  input: { name: string; phone: string },
+): Promise<void> {
+  const hostEmployee = await verifyHostEmployee(input.name, input.phone);
+  if (!hostEmployee) {
+    throw new ValidationError('일치하는 담당자를 찾을 수 없습니다.', {
+      name: ['일치하는 담당자를 찾을 수 없습니다.'],
+    });
+  }
+
+  await prisma.siteUser.update({
+    where: { userId },
+    data: { hostEmployeeUserId: hostEmployee.employeeUserId },
   });
 }
 

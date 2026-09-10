@@ -48,12 +48,8 @@ export type ReservationEmailData = {
   exitReminderMinutes?: number;
   /** 입차 알림 기준 시간(분 전). ENTRY_REMINDER 메일 제목/본문에 표시한다. */
   entryReminderMinutes?: number;
-  /** 당사 담당자 이름. ENTRY_REMINDER/HOST_EMPLOYEE_CHANGED 메일 수신자(담당 직원) 호칭에 쓴다. */
+  /** 당사 담당자 이름. ENTRY_REMINDER 메일 수신자(담당 직원) 호칭에 쓴다. */
   hostEmployeeName?: string;
-  /** 변경 전 담당자 이름. HOST_EMPLOYEE_CHANGED 메일 전용. 없으면 "미지정". */
-  hostEmployeeChangeFrom?: string;
-  /** 변경 후 담당자 이름. HOST_EMPLOYEE_CHANGED 메일 전용. 없으면 "미지정". */
-  hostEmployeeChangeTo?: string;
   /**
    * 이 메일을 받는 사람이 신청자 본인인지 당사 담당자인지.
    * 미지정이면 신청자로 간주한다. 당사 담당자는 신청 경로(자가신청/대리신청)와
@@ -267,6 +263,8 @@ export type ReservationEmailType = Exclude<
   | 'RECURRING_SCHEDULE_UPDATED'
   | 'RECURRING_OCCURRENCE_SKIPPED'
   | 'RECURRING_SCHEDULE_CANCELLED'
+  // 담당자 재지정 기능 자체를 되돌리면서 더 이상 발송하지 않는다(enum 값은 DB 호환을 위해 유지).
+  | 'HOST_EMPLOYEE_CHANGED'
 >;
 
 /**
@@ -533,26 +531,6 @@ export function renderReservationEmail(
       };
       return {
         subject: `[시노펙스] ${data.companyOrBranchName} ${data.requesterName}님 입차 예정 안내 (${minutes}분 전)`,
-        html: renderHtmlLayout(params),
-        text: renderTextLayout(params),
-      };
-    }
-
-    case EmailType.HOST_EMPLOYEE_CHANGED: {
-      /* 이전/새 담당자 각각에게 개인화해서 보낸다 — 신청자(방문객)가 아니라 담당 직원 수신용. */
-      const from = data.hostEmployeeChangeFrom ?? '미지정';
-      const to = data.hostEmployeeChangeTo ?? '미지정';
-      const greeting = data.hostEmployeeName ? `${data.hostEmployeeName}님, ` : '';
-      const params = {
-        title: '방문 신청 담당자가 변경되었습니다',
-        lead: `${greeting}방문객 ${data.requesterName}님의 담당자가 ${from}에서 ${to}(으)로 변경되었습니다.`,
-        rows: [...rows, { label: '담당자 변경', value: `${from} → ${to}` }],
-        notices: ['담당자 변경 내역이 맞지 않으면 방문 관리 담당자에게 문의해 주세요.'],
-        buttonLabel: '내 예약 조회하기',
-        buttonUrl: data.accessUrl,
-      };
-      return {
-        subject: `[시노펙스] ${data.companyOrBranchName} ${data.requesterName}님 방문 신청 담당자가 변경되었습니다`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };

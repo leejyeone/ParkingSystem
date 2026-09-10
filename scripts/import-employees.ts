@@ -6,8 +6,9 @@
  * 원본 엑셀의 1행은 헤더이고, 열 순서는 항상
  *   A=부서, B=직위, C=이름, D=휴대전화, E=전화번호, F=USER ID, G=사번, H=e-Mail
  * 로 고정되어 있다고 전달받았다 — 헤더 문자열로 찾지 않고 절대 열 위치(A~H)로 읽는다.
- * 이 중 실제로 DB에 필요한 건 부서(A)/이름(C)/사번(G)/이메일(H)뿐이고, 직위·휴대전화·
- * 전화번호·USER ID 는 현재 스키마에 저장할 곳이 없어 무시한다.
+ * DB에 필요한 건 부서(A)/이름(C)/휴대전화(D, 없으면 전화번호 E)/사번(G)/이메일(H)이고,
+ * 직위·USER ID 는 저장할 곳이 없어 무시한다. 전화번호는 "당사 담당자" 확인(이름+전화번호
+ * 일치 검증) 비교를 단순하게 하기 위해 숫자만 남겨 저장한다.
  *
  * 그룹웨어 SSO가 아직 붙지 않은 동안, 직원 로그인은 이 표에 심어 둔 사번(employeeCode)
  * 만으로 이루어진다 — 비밀번호는 없다. 사용을 원치 않는 계정을 관리자가 다시 검토해
@@ -28,10 +29,28 @@ import * as XLSX from 'xlsx';
 
 const prisma = new PrismaClient();
 
-/** 절대 열 위치(0-based). A=0, C=2, G=6, H=7. */
-const COLUMN = { department: 0, name: 2, employeeCode: 6, email: 7 } as const;
+/** 절대 열 위치(0-based). A=0, C=2, D=3, E=4, G=6, H=7. */
+const COLUMN = {
+  department: 0,
+  name: 2,
+  mobile: 3,
+  telephone: 4,
+  employeeCode: 6,
+  email: 7,
+} as const;
 
-type Row = { departmentName: string; name: string; employeeCode: string; email: string };
+type Row = {
+  departmentName: string;
+  name: string;
+  phone: string;
+  employeeCode: string;
+  email: string;
+};
+
+/** 하이픈/공백 등을 제거하고 숫자만 남긴다. 검증(verifyHostEmployee) 비교 방식과 맞춰야 한다. */
+function digitsOnly(value: string): string {
+  return value.replace(/\D/g, '');
+}
 
 function readRows(xlsPath: string): Row[] {
   const workbook = XLSX.readFile(xlsPath);
@@ -39,14 +58,19 @@ function readRows(xlsPath: string): Row[] {
   const cells: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false });
 
   // 1행은 헤더이므로 건너뛴다.
-  return cells.slice(1).map((cells) => ({
-    departmentName: String(cells[COLUMN.department] ?? '').trim(),
-    name: String(cells[COLUMN.name] ?? '').trim(),
-    employeeCode: String(cells[COLUMN.employeeCode] ?? '').trim(),
-    email: String(cells[COLUMN.email] ?? '')
-      .trim()
-      .toLowerCase(),
-  }));
+  return cells.slice(1).map((cells) => {
+    const mobile = digitsOnly(String(cells[COLUMN.mobile] ?? ''));
+    const telephone = digitsOnly(String(cells[COLUMN.telephone] ?? ''));
+    return {
+      departmentName: String(cells[COLUMN.department] ?? '').trim(),
+      name: String(cells[COLUMN.name] ?? '').trim(),
+      phone: mobile || telephone,
+      employeeCode: String(cells[COLUMN.employeeCode] ?? '').trim(),
+      email: String(cells[COLUMN.email] ?? '')
+        .trim()
+        .toLowerCase(),
+    };
+  });
 }
 
 async function main() {
@@ -82,6 +106,7 @@ async function main() {
         email: row.email,
         name: row.name,
         departmentName: row.departmentName,
+        phone: row.phone || null,
         // 관리자가 검토해 하나씩 켜기 전까지는 비활성으로 심는다.
         accountStatus: AccountStatus.INACTIVE,
       },
@@ -89,6 +114,7 @@ async function main() {
         email: row.email,
         name: row.name,
         departmentName: row.departmentName,
+        phone: row.phone || null,
       },
     });
 

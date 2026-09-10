@@ -7,7 +7,6 @@ import { useState, type ChangeEvent, type FormEvent } from 'react';
 import { Alert } from '@/components/ui/alert';
 import { FormField, inputClassName } from '@/components/ui/form-field';
 import { STATUS_BADGE_CLASS } from '@/components/ui/status-badge';
-import { EmployeeSearchSelect, type SelectedEmployee } from '@/components/reservation/employee-search-select';
 import { apiRequest, type ApiErrorPayload } from '@/lib/client/api-client';
 import type { RequesterReservationView } from '@/lib/serializers/reservation-view';
 import { normalizeVehicleNo } from '@/lib/vehicle';
@@ -92,9 +91,6 @@ export function ReservationAccessPanel({ token, homeHref, initialReservation, se
             <Row term="성명" desc={reservation.requesterName} />
             <Row term="이메일" desc={reservation.requesterEmail} />
             <Row term="차량번호" desc={reservation.vehicleNo} />
-            {reservation.requesterType === 'VISITOR' && (
-              <Row term="당사 담당자" desc={reservation.hostEmployeeLabel ?? '미지정'} />
-            )}
             <Row term="방문 시간" desc={reservation.visitRangeText} />
             {settings.spaceAssignmentEnabled && (
               <Row
@@ -220,11 +216,6 @@ function EditForm({
     visitStartAt: reservation.visitStartInput,
     visitEndAt: reservation.visitEndInput,
   });
-  const [hostEmployee, setHostEmployee] = useState<SelectedEmployee | null>(
-    reservation.hostEmployeeUserId
-      ? { employeeUserId: reservation.hostEmployeeUserId, label: reservation.hostEmployeeLabel ?? '' }
-      : null,
-  );
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [formError, setFormError] = useState<ApiErrorPayload | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -251,7 +242,6 @@ function EditForm({
           ...form,
           visitPurpose: form.visitPurpose || null,
           requestMemo: form.requestMemo || null,
-          hostEmployeeUserId: hostEmployee?.employeeUserId,
         }),
       },
     );
@@ -311,22 +301,6 @@ function EditForm({
             maxLength={50}
           />
         </FormField>
-
-        {reservation.requesterType === 'VISITOR' && (
-          <FormField
-            label="당사 담당자"
-            htmlFor="edit-host-employee"
-            required
-            errors={fieldErrors.hostEmployeeUserId}
-          >
-            <EmployeeSearchSelect
-              id="edit-host-employee"
-              value={hostEmployee}
-              hasError={Boolean(fieldErrors.hostEmployeeUserId)}
-              onChange={setHostEmployee}
-            />
-          </FormField>
-        )}
 
         <FormField
           label="차량번호"

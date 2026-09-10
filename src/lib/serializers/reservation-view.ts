@@ -32,10 +32,6 @@ export type RequesterReservationView = {
   requesterName: string;
   requesterEmail: string;
   vehicleNo: string;
-  /** 당사 담당자(직원) 계정 ID. VISITOR 예약에만 의미가 있다. */
-  hostEmployeeUserId: number | null;
-  /** 담당자 표시용 "이름(부서)" 라벨. 담당자가 없으면 null. */
-  hostEmployeeLabel: string | null;
   visitPurpose: string | null;
   requestMemo: string | null;
   visitStartAt: string;
@@ -70,12 +66,6 @@ export function toRequesterReservationView(
     requesterName: reservation.requesterName,
     requesterEmail: reservation.requesterEmail,
     vehicleNo: reservation.vehicleNo,
-    hostEmployeeUserId: reservation.employeeUserId,
-    hostEmployeeLabel: reservation.employeeUser
-      ? reservation.employeeUser.departmentName
-        ? `${reservation.employeeUser.name} (${reservation.employeeUser.departmentName})`
-        : reservation.employeeUser.name
-      : null,
     visitPurpose: reservation.visitPurpose,
     requestMemo: reservation.requestMemo,
     visitStartAt: formatKstDateTime(reservation.visitStartAt),

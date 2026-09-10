@@ -5,6 +5,7 @@ import { apiSuccess, handleApiError } from '@/lib/api-response';
 import { consumeRateLimit } from '@/lib/rate-limit';
 import { getRequestContext } from '@/lib/request-context';
 import { employeeSearchSchema } from '@/lib/validation/employee-schema';
+import { requireActiveAdmin } from '@/services/admin-auth-service';
 import { searchActiveEmployees } from '@/services/employee-directory-service';
 
 export const runtime = 'nodejs';
@@ -12,11 +13,13 @@ export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/employees/search
- * 예약 신청 화면에서 "당사 담당자"를 검색한다. 방문객 본인 신청도 써야 하므로 공개(비로그인) 접근을
- * 허용하되, 검색어를 서버 로그에 남기지 않도록 GET 대신 POST를 쓰고 IP 기준으로 레이트리밋한다.
+ * 직원 명부 이름/부서 부분일치 검색(최대 20명 목록 반환). 명부 노출 자체가 보안상
+ * 민감해 관리자 전용으로 잠근다(반복예약 관리자 화면의 직원 검색에서만 쓴다) — 방문객/직원
+ * 본인용 "당사 담당자" 확인은 /api/employees/verify-host(이름+전화 단건 검증)를 쓴다.
  */
 export async function POST(request: NextRequest) {
   try {
+    await requireActiveAdmin();
     const { ipAddress } = getRequestContext(request.headers);
     consumeRateLimit({
       key: `employee-search:${ipAddress ?? 'unknown'}`,

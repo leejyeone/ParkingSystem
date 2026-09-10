@@ -5,6 +5,7 @@ import {
   emailSchema,
   optionalText,
   optionalVehicleNoSchema,
+  phoneSchema,
   requiredText,
 } from '@/lib/validation/common';
 
@@ -62,7 +63,16 @@ export const employeeUserBulkStatusSchema = z.object({
     .refine((value) => value !== AccountStatus.LOCKED, '활성 또는 비활성만 선택할 수 있습니다.'),
 });
 
-/** 예약 신청 화면의 "당사 담당자" 검색(공개). 방문객도 사용하므로 로그인 여부와 무관하다. */
+/** 직원 명부 이름/부서 검색. 명부 목록 노출이라 관리자 전용이다. */
 export const employeeSearchSchema = z.object({
   query: z.string().trim().min(2, '검색어는 2자 이상 입력해 주세요.').max(100, '검색어가 너무 깁니다.'),
+});
+
+/**
+ * "당사 담당자" 확인(공개). 회원가입/마이페이지에서 이름+전화번호로 담당자 1명을 확정한다.
+ * 방문객도 사용하므로 로그인 여부와 무관하다 — 목록이 아니라 단건 검증만 응답한다.
+ */
+export const verifyHostEmployeeSchema = z.object({
+  name: requiredText(50, '담당자 이름'),
+  phone: phoneSchema,
 });

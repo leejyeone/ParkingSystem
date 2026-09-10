@@ -3,10 +3,7 @@
 import Link from 'next/link';
 import { useState, type ChangeEvent, type FormEvent } from 'react';
 
-import {
-  EmployeeSearchSelect,
-  type SelectedEmployee,
-} from '@/components/reservation/employee-search-select';
+import type { SelectedEmployee } from '@/components/reservation/employee-search-select';
 import { Alert } from '@/components/ui/alert';
 import { FormField, inputClassName } from '@/components/ui/form-field';
 import { apiRequest, type ApiErrorPayload } from '@/lib/client/api-client';
@@ -34,13 +31,15 @@ type Settings = {
   defaultDateTimeInput: string;
 };
 
-/** 로그인 회원이면 서버가 프로필로 채워 보내는 초기값 */
+/**
+ * visitor 모드는 회원 프로필 값을 그대로 읽기 전용으로 보여준다(수정은 마이페이지에서만).
+ * employee-proxy 모드는 hostEmployee 가 항상 로그인한 직원 본인으로 고정된다(수정 불가).
+ */
 export type ReservationFormInitialValues = {
   companyOrBranchName?: string;
   requesterName?: string;
   requesterEmail?: string;
   vehicleNo?: string;
-  /** 대리 신청 화면의 기본 당사 담당자(로그인한 직원 본인). 검색해서 다른 직원으로 바꿀 수 있다. */
   hostEmployee?: SelectedEmployee;
 };
 
@@ -119,9 +118,8 @@ export function ReservationForm({
   const [form, setForm] = useState<FormState>(() =>
     buildInitialState(initialValues, settings.defaultDateTimeInput),
   );
-  const [hostEmployee, setHostEmployee] = useState<SelectedEmployee | null>(
-    initialValues?.hostEmployee ?? null,
-  );
+  // visitor: 회원 프로필의 담당자. employee-proxy: 로그인한 직원 본인. 둘 다 화면에서 바꿀 수 없다.
+  const hostEmployee = initialValues?.hostEmployee ?? null;
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [formError, setFormError] = useState<ApiErrorPayload | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -137,19 +135,6 @@ export function ReservationForm({
     });
   }
 
-  /** 담당자를 선택하면, 이전에 "선택해 주세요" 에러로 떴던 빨간 테두리를 바로 지운다. */
-  function handleHostEmployeeChange(next: SelectedEmployee | null) {
-    setHostEmployee(next);
-    if (next) {
-      setFieldErrors((previous) => {
-        if (!previous.hostEmployeeUserId) return previous;
-        const rest = { ...previous };
-        delete rest.hostEmployeeUserId;
-        return rest;
-      });
-    }
-  }
-
   /** 차량번호는 입력 중 공백과 하이픈을 자동으로 정리한다. */
   function handleVehicleNoChange(event: ChangeEvent<HTMLInputElement>) {
     update('vehicleNo', normalizeVehicleNo(event.target.value));
@@ -162,22 +147,23 @@ export function ReservationForm({
   function findRequiredFieldErrors(): Record<string, string[]> {
     const errors: Record<string, string[]> = {};
 
-    if (form.companyOrBranchName.trim() === '') {
-      errors.companyOrBranchName = [
-        mode === 'employee-self' ? '소속 사업장명을 입력해 주세요.' : '회사명을 입력해 주세요.',
-      ];
-    }
-    if (form.requesterName.trim() === '') {
-      errors.requesterName = ['성명을 입력해 주세요.'];
-    }
-    if (form.requesterEmail.trim() === '') {
-      errors.requesterEmail = ['이메일을 입력해 주세요.'];
-    }
-    if (form.vehicleNo.trim() === '') {
-      errors.vehicleNo = ['차량번호를 입력해 주세요.'];
-    }
-    if (mode !== 'employee-self' && hostEmployee === null) {
-      errors.hostEmployeeUserId = ['당사 담당자를 선택해 주세요.'];
+    // visitor 는 회사명/성명/이메일/차량번호/담당자가 전부 회원 프로필에서 온 읽기 전용 값이라
+    // 검증할 입력 자체가 없다(페이지 진입 시점에 프로필 완결성을 이미 확인했다).
+    if (mode !== 'visitor') {
+      if (form.companyOrBranchName.trim() === '') {
+        errors.companyOrBranchName = [
+          mode === 'employee-self' ? '소속 사업장명을 입력해 주세요.' : '회사명을 입력해 주세요.',
+        ];
+      }
+      if (form.requesterName.trim() === '') {
+        errors.requesterName = ['성명을 입력해 주세요.'];
+      }
+      if (form.requesterEmail.trim() === '') {
+        errors.requesterEmail = ['이메일을 입력해 주세요.'];
+      }
+      if (form.vehicleNo.trim() === '') {
+        errors.vehicleNo = ['차량번호를 입력해 주세요.'];
+      }
     }
     if (form.visitStartAt === '') {
       errors.visitStartAt = ['날짜와 시간을 입력해 주세요.'];
@@ -219,29 +205,28 @@ export function ReservationForm({
     setFormError(null);
     setFieldErrors({});
 
-    const basePayload = {
-      companyOrBranchName: form.companyOrBranchName,
-      requesterName: form.requesterName,
-      requesterEmail: form.requesterEmail,
-      vehicleNo: form.vehicleNo,
+    const scheduleAndMemo = {
       visitPurpose: form.visitPurpose || null,
       requestMemo: form.requestMemo || null,
       visitStartAt: form.visitStartAt,
       visitEndAt: form.visitEndAt,
     };
+    // visitor: 회사명/성명/이메일/차량번호/담당자는 서버가 로그인 세션의 회원 프로필에서
+    // 직접 읽으므로 아예 보내지 않는다(화면에도 안 보이는 값을 클라이언트가 조작해 보내는
+    // 경로 자체를 없앤다). employee-proxy: 담당자는 항상 신청 중인 직원 본인으로 서버가
+    // 고정하므로 마찬가지로 보내지 않는다.
+    const basePayload = {
+      companyOrBranchName: form.companyOrBranchName,
+      requesterName: form.requesterName,
+      requesterEmail: form.requesterEmail,
+      vehicleNo: form.vehicleNo,
+      ...scheduleAndMemo,
+    };
     const payload =
       mode === 'visitor'
-        ? {
-            ...basePayload,
-            hostEmployeeUserId: hostEmployee?.employeeUserId,
-            privacyConsent: form.privacyConsent,
-          }
+        ? { ...scheduleAndMemo, privacyConsent: form.privacyConsent }
         : mode === 'employee-proxy'
-          ? {
-              ...basePayload,
-              hostEmployeeUserId: hostEmployee?.employeeUserId,
-              visitorConsentConfirmed: form.privacyConsent,
-            }
+          ? { ...basePayload, visitorConsentConfirmed: form.privacyConsent }
           : basePayload;
 
     const response = await apiRequest<CreateResponse>(ENDPOINT_BY_MODE[mode], {
@@ -282,102 +267,120 @@ export function ReservationForm({
         </div>
       )}
 
-      <div className="card">
-        <div className="card-body space-y-5">
-          <FormField
-            label={mode === 'employee-self' ? '소속 사업장명' : '회사명'}
-            htmlFor="companyOrBranchName"
-            required
-            errors={fieldErrors.companyOrBranchName}
-          >
-            <input
-              id="companyOrBranchName"
-              name="companyOrBranchName"
-              className={inputClassName(Boolean(fieldErrors.companyOrBranchName))}
-              value={form.companyOrBranchName}
-              onChange={(event) => update('companyOrBranchName', event.target.value)}
-              maxLength={100}
-              autoComplete="organization"
-              placeholder={mode === 'employee-self' ? '동탄' : undefined}
-            />
-          </FormField>
-
-          <FormField
-            label="성명"
-            htmlFor="requesterName"
-            required
-            errors={fieldErrors.requesterName}
-          >
-            <input
-              id="requesterName"
-              name="requesterName"
-              className={inputClassName(Boolean(fieldErrors.requesterName))}
-              value={form.requesterName}
-              onChange={(event) => update('requesterName', event.target.value)}
-              maxLength={50}
-              autoComplete="name"
-              disabled={mode === 'employee-self'}
-              readOnly={mode === 'employee-self'}
-            />
-          </FormField>
-
-          <FormField
-            label="이메일"
-            htmlFor="requesterEmail"
-            required
-            hint={mode === 'employee-self' ? undefined : '신청 결과와 예약 조회 링크를 보내드립니다.'}
-            errors={fieldErrors.requesterEmail}
-          >
-            <input
-              id="requesterEmail"
-              name="requesterEmail"
-              type="email"
-              inputMode="email"
-              className={inputClassName(Boolean(fieldErrors.requesterEmail))}
-              value={form.requesterEmail}
-              onChange={(event) => update('requesterEmail', event.target.value)}
-              placeholder="hong@example.com"
-              maxLength={255}
-              autoComplete="email"
-              disabled={mode === 'employee-self'}
-              readOnly={mode === 'employee-self'}
-            />
-          </FormField>
-
-          <FormField label="차량번호" htmlFor="vehicleNo" required errors={fieldErrors.vehicleNo}>
-            <input
-              id="vehicleNo"
-              name="vehicleNo"
-              className={inputClassName(Boolean(fieldErrors.vehicleNo))}
-              value={form.vehicleNo}
-              onChange={handleVehicleNoChange}
-              placeholder="12가3456"
-              maxLength={20}
-            />
-          </FormField>
-
-          {mode !== 'employee-self' && (
+      {mode === 'visitor' ? (
+        <div className="card">
+          <div className="card-body space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="card-title">신청자 정보</h2>
+              <Link href="/mypage" className="text-brand-700 text-xs font-semibold">
+                수정하러 가기 →
+              </Link>
+            </div>
+            <p className="field-hint">
+              회원 정보로 자동 입력되며 여기서는 수정할 수 없습니다. 바꾸려면 마이페이지에서
+              변경해 주세요.
+            </p>
+            <dl>
+              <Row term="회사명" desc={form.companyOrBranchName} />
+              <Row term="성명" desc={form.requesterName} />
+              <Row term="이메일" desc={form.requesterEmail} />
+              <Row term="차량번호" desc={form.vehicleNo} />
+              <Row term="당사 담당자" desc={hostEmployee?.label ?? ''} />
+            </dl>
+          </div>
+        </div>
+      ) : (
+        <div className="card">
+          <div className="card-body space-y-5">
             <FormField
-              label="당사 담당자"
-              htmlFor="hostEmployeeUserId"
+              label={mode === 'employee-self' ? '소속 사업장명' : '회사명'}
+              htmlFor="companyOrBranchName"
               required
-              hint={
-                mode === 'employee-proxy'
-                  ? '기본값은 본인입니다. 다른 직원이 담당하면 검색해서 바꿔 주세요.'
-                  : '방문하시는 곳의 담당 직원을 검색해서 선택해 주세요.'
-              }
-              errors={fieldErrors.hostEmployeeUserId}
+              errors={fieldErrors.companyOrBranchName}
             >
-              <EmployeeSearchSelect
-                id="hostEmployeeUserId"
-                value={hostEmployee}
-                onChange={handleHostEmployeeChange}
-                hasError={Boolean(fieldErrors.hostEmployeeUserId)}
+              <input
+                id="companyOrBranchName"
+                name="companyOrBranchName"
+                className={inputClassName(Boolean(fieldErrors.companyOrBranchName))}
+                value={form.companyOrBranchName}
+                onChange={(event) => update('companyOrBranchName', event.target.value)}
+                maxLength={100}
+                autoComplete="organization"
+                placeholder={mode === 'employee-self' ? '동탄' : undefined}
               />
             </FormField>
-          )}
+
+            <FormField
+              label="성명"
+              htmlFor="requesterName"
+              required
+              errors={fieldErrors.requesterName}
+            >
+              <input
+                id="requesterName"
+                name="requesterName"
+                className={inputClassName(Boolean(fieldErrors.requesterName))}
+                value={form.requesterName}
+                onChange={(event) => update('requesterName', event.target.value)}
+                maxLength={50}
+                autoComplete="name"
+                disabled={mode === 'employee-self'}
+                readOnly={mode === 'employee-self'}
+              />
+            </FormField>
+
+            <FormField
+              label="이메일"
+              htmlFor="requesterEmail"
+              required
+              hint={
+                mode === 'employee-self' ? undefined : '신청 결과와 예약 조회 링크를 보내드립니다.'
+              }
+              errors={fieldErrors.requesterEmail}
+            >
+              <input
+                id="requesterEmail"
+                name="requesterEmail"
+                type="email"
+                inputMode="email"
+                className={inputClassName(Boolean(fieldErrors.requesterEmail))}
+                value={form.requesterEmail}
+                onChange={(event) => update('requesterEmail', event.target.value)}
+                placeholder="hong@example.com"
+                maxLength={255}
+                autoComplete="email"
+                disabled={mode === 'employee-self'}
+                readOnly={mode === 'employee-self'}
+              />
+            </FormField>
+
+            <FormField label="차량번호" htmlFor="vehicleNo" required errors={fieldErrors.vehicleNo}>
+              <input
+                id="vehicleNo"
+                name="vehicleNo"
+                className={inputClassName(Boolean(fieldErrors.vehicleNo))}
+                value={form.vehicleNo}
+                onChange={handleVehicleNoChange}
+                placeholder="12가3456"
+                maxLength={20}
+              />
+            </FormField>
+
+            {mode === 'employee-proxy' && (
+              <FormField label="당사 담당자" htmlFor="hostEmployeeLabel">
+                <input
+                  id="hostEmployeeLabel"
+                  className={inputClassName(false)}
+                  value={hostEmployee?.label ?? ''}
+                  disabled
+                  readOnly
+                />
+                <p className="field-hint mt-1">대리 신청은 담당자가 본인으로 고정됩니다.</p>
+              </FormField>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="card mt-4">
         <div className="card-body space-y-5">
@@ -582,6 +585,15 @@ function CompletionView({
           </Link>
         </div>
       </div>
+    </div>
+  );
+}
+
+function Row({ term, desc }: { term: string; desc: string }) {
+  return (
+    <div className="definition-row">
+      <dt className="definition-term">{term}</dt>
+      <dd className="definition-desc">{desc}</dd>
     </div>
   );
 }

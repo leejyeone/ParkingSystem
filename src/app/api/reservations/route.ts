@@ -6,7 +6,8 @@ import { consumeRateLimit } from '@/lib/rate-limit';
 import { getRequestContext } from '@/lib/request-context';
 import { createReservationSchema } from '@/lib/validation/reservation-schema';
 import { createVisitorReservation } from '@/services/reservation-service';
-import { requireActiveUser } from '@/services/user-auth-service';
+import { getUserProfile, requireActiveUser } from '@/services/user-auth-service';
+import { ValidationError } from '@/lib/errors';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -35,13 +36,20 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const payload = createReservationSchema.parse(body);
 
+    // 회사명/성명/이메일/차량번호/당사 담당자는 화면에서 수정할 수 없는 값이라 클라이언트가
+    // 보내지 않는다 — 세션의 회원 프로필에서 서버가 직접 읽어 채운다.
+    const profile = await getUserProfile(session.userId);
+    if (!profile || !profile.vehicleNo || !profile.hostEmployeeUserId) {
+      throw new ValidationError('먼저 마이페이지에서 차량번호와 담당자를 등록해 주세요.');
+    }
+
     const { reservation } = await createVisitorReservation({
       visitorUserId: session.userId,
-      employeeUserId: payload.hostEmployeeUserId,
-      companyOrBranchName: payload.companyOrBranchName,
-      requesterName: payload.requesterName,
-      requesterEmail: payload.requesterEmail,
-      vehicleNo: payload.vehicleNo,
+      employeeUserId: profile.hostEmployeeUserId,
+      companyOrBranchName: profile.companyOrBranchName,
+      requesterName: profile.name,
+      requesterEmail: profile.email,
+      vehicleNo: profile.vehicleNo,
       visitPurpose: payload.visitPurpose,
       requestMemo: payload.requestMemo,
       visitStartAt: payload.visitStartAt,

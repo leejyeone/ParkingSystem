@@ -16,6 +16,10 @@ import { getNumberEnv, getOptionalEnv, getRequiredEnv } from '@/lib/env';
  *   tim_user_basic   사용자 기본 — EMPLOYEE_ID(사번), SYSMAIL(메일), DEPT_ID(부서코드)
  *   tco_resource     다국어 리소스 — 이름/부서명이 여기에 들어 있다 (LANG_TYPE='ko')
  *   tim_organization 조직 — DEPT_ID 로 부서명 리소스 ID 를 찾는다
+ *
+ * TODO: 그룹웨어 tim_user_basic 테이블의 실제 휴대전화 컬럼명을 서버 담당자에게 확인 후
+ * EmployeeUser.phone 필드를 채우는 쿼리를 여기에 추가해야 한다(당사 담당자 이름+전화번호
+ * 검증 기능이 그룹웨어 실시간 동기화 대상 직원에게도 동작하려면 필요하다).
  */
 
 export type UniportalEmployee = {

@@ -56,6 +56,15 @@ export const optionalVehicleNoSchema = z
   .optional()
   .transform((value) => (value === '' || value === undefined ? null : value));
 
+const PHONE_PATTERN = /^[0-9-]{9,20}$/;
+
+/** 당사 담당자 확인(이름+전화번호 일치 검증)용 전화번호. 숫자/하이픈만 허용한다. */
+export const phoneSchema = z
+  .string({ error: '전화번호를 입력해 주세요.' })
+  .trim()
+  .min(1, '전화번호를 입력해 주세요.')
+  .refine((value) => PHONE_PATTERN.test(value), '전화번호 형식이 올바르지 않습니다.');
+
 /** 빈 문자열을 null 로 바꾸는 선택 입력 */
 export function optionalText(maxLength: number, label: string) {
   return z

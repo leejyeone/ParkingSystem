@@ -5,6 +5,7 @@ import {
   ReservationForm,
   type ReservationFormInitialValues,
 } from '@/components/reservation/reservation-form';
+import { Alert } from '@/components/ui/alert';
 import { DEFAULT_SETTINGS } from '@/domain/system-settings';
 import { earliestSelectableInput } from '@/lib/datetime';
 import { resolveHomeHref } from '@/lib/home-link';
@@ -26,24 +27,47 @@ export default async function NewReservationPage() {
     getUserProfile(session.userId),
   ]);
 
-  const initialValues: ReservationFormInitialValues | undefined = profile
-    ? {
-        companyOrBranchName: profile.companyOrBranchName,
-        requesterName: profile.name,
-        requesterEmail: profile.email,
-        vehicleNo: profile.vehicleNo ?? '',
-      }
-    : undefined;
+  const headerBlock = (
+    <div className="mb-4">
+      <Link href={homeHref} className="text-brand-700 text-sm font-semibold">
+        ← 처음으로
+      </Link>
+      <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">방문 신청</h1>
+    </div>
+  );
+
+  // 차량번호·담당자를 아직 등록하지 않은 계정(회원가입 필수화 이전 가입자 등)은 신청
+  // 폼 자체를 보여주지 않고 마이페이지에서 먼저 채우도록 안내한다.
+  if (!profile || !profile.vehicleNo || !profile.hostEmployeeUserId) {
+    return (
+      <main className="app-container pb-4">
+        {headerBlock}
+        <Alert variant="info" title="신청 전에 정보를 등록해 주세요">
+          <p>방문 신청은 차량번호와 당사 담당자 등록이 필요합니다.</p>
+          <p className="mt-2">
+            <Link href="/mypage" className="btn btn-primary min-h-9 px-3 py-1.5 text-xs">
+              마이페이지로 이동
+            </Link>
+          </p>
+        </Alert>
+      </main>
+    );
+  }
+
+  const initialValues: ReservationFormInitialValues = {
+    companyOrBranchName: profile.companyOrBranchName,
+    requesterName: profile.name,
+    requesterEmail: profile.email,
+    vehicleNo: profile.vehicleNo,
+    hostEmployee: {
+      employeeUserId: profile.hostEmployeeUserId,
+      label: `${profile.hostEmployeeName} (${profile.hostEmployeeDepartmentName})`,
+    },
+  };
 
   return (
     <main className="app-container pb-4">
-      <div className="mb-4">
-        <Link href={homeHref} className="text-brand-700 text-sm font-semibold">
-          ← 처음으로
-        </Link>
-        <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">방문 신청</h1>
-        <p className="mt-1 text-sm text-slate-600">표시된 항목(*)은 필수입니다.</p>
-      </div>
+      {headerBlock}
 
       <ReservationForm
         mode="visitor"

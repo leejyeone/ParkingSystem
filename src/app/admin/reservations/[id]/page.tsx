@@ -99,7 +99,6 @@ export default async function AdminReservationDetailPage({ params }: PageProps) 
     requestMemo: reservation.requestMemo ?? '',
     visitStartAt: utcToZonedInput(reservation.visitStartAt),
     visitEndAt: utcToZonedInput(reservation.visitEndAt),
-    employeeUserId: reservation.employeeUserId,
   };
 
   return (
@@ -144,15 +143,6 @@ export default async function AdminReservationDetailPage({ params }: PageProps) 
               employeeUserText:
                 reservation.employeeUser && reservation.requesterType === 'VISITOR'
                   ? `${reservation.employeeUser.name} (${reservation.employeeUser.email})`
-                  : null,
-              hostEmployee:
-                reservation.employeeUser && reservation.requesterType === 'VISITOR'
-                  ? {
-                      employeeUserId: reservation.employeeUserId!,
-                      label: reservation.employeeUser.departmentName
-                        ? `${reservation.employeeUser.name} (${reservation.employeeUser.departmentName})`
-                        : reservation.employeeUser.name,
-                    }
                   : null,
             }}
           />

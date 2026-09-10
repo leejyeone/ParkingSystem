@@ -49,14 +49,9 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     guardTokenRate(request);
 
     const resolved = await resolveAccessToken(token);
-    const { hostEmployeeUserId, ...payload } = updateReservationSchema.parse(
-      await request.json(),
-    );
+    const payload = updateReservationSchema.parse(await request.json());
 
-    await updateReservationByRequester(resolved.reservationId, {
-      ...payload,
-      employeeUserId: hostEmployeeUserId,
-    });
+    await updateReservationByRequester(resolved.reservationId, payload);
     const [reservation, settings] = await Promise.all([
       getReservationForRequester(resolved.reservationId),
       getSystemSettings(),

@@ -477,43 +477,6 @@ export async function sendEntryReminderEmail(
 }
 
 /**
- * 9. 당사 담당자 변경 안내 — 이전 담당자와 새 담당자 각자에게 개인화된 메일을 보낸다.
- * 한쪽이 없으면(담당자 미지정→지정, 또는 그 반대) 있는 쪽에만 보낸다. 같은 사람이면
- * (이론상 발생하지 않지만) 중복 발송하지 않는다.
- */
-export async function sendHostEmployeeChangedEmails(
-  reservation: ReservationForEmail,
-  previousHost: { name: string; email: string } | null,
-  accessUrl: string,
-): Promise<EmailDispatchResult[]> {
-  const newHost = reservation.hostEmployee ?? null;
-  const recipients = [previousHost, newHost].filter(
-    (host, index, all): host is { name: string; email: string } =>
-      host !== null && all.findIndex((other) => other?.email === host.email) === index,
-  );
-
-  return Promise.all(
-    recipients.map(async (recipient) => {
-      const rendered = renderReservationEmail(
-        EmailType.HOST_EMPLOYEE_CHANGED,
-        await toEmailData(reservation, {
-          accessUrl,
-          hostEmployeeName: recipient.name,
-          hostEmployeeChangeFrom: previousHost?.name ?? '미지정',
-          hostEmployeeChangeTo: newHost?.name ?? '미지정',
-        }),
-      );
-      return sendEmailWithLog({
-        reservationId: reservation.reservationId,
-        emailType: EmailType.HOST_EMPLOYEE_CHANGED,
-        to: recipient.email,
-        rendered,
-      });
-    }),
-  );
-}
-
-/**
  * 이메일 발송을 API 응답 뒤로 미루는 헬퍼. 예약은 이미 커밋된 상태라 메일 발송
  * 성공 여부가 응답에 영향을 주면 안 되고(실패는 로그로만 남긴다), 무엇보다 SMTP
  * 커넥션 핸드셰이크나 첨부 이미지 렌더링처럼 느릴 수 있는 작업 때문에 방문객/관리자가

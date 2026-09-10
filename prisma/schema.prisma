@@ -158,6 +158,9 @@ model SiteUser {
   companyOrBranchName String  @map("company_or_branch_name") @db.VarChar(100)
   vehicleNo           String? @map("vehicle_no") @db.VarChar(20)
 
+  /// 계정에 고정 매핑된 당사 담당자(이름+전화번호 검증으로 확정). 예약 건마다 다시 고르지 않는다.
+  hostEmployeeUserId Int? @map("host_employee_user_id")
+
   accountStatus AccountStatus @default(ACTIVE) @map("account_status")
 
   /// brute-force 방지용. 연속 로그인 실패 횟수
@@ -171,7 +174,8 @@ model SiteUser {
   updatedAt         DateTime  @updatedAt @map("updated_at")
   deletedAt         DateTime? @map("deleted_at")
 
-  reservations ParkingReservation[]
+  hostEmployeeUser EmployeeUser?        @relation("SiteUserHostEmployee", fields: [hostEmployeeUserId], references: [employeeUserId], onDelete: SetNull)
+  reservations     ParkingReservation[]
 
   @@index([accountStatus], map: "idx_users_account_status")
   @@map("users")
@@ -209,6 +213,8 @@ model EmployeeUser {
   /// 신청 폼 자동완성용(선택). 명부 엑셀에 없는 값(사업장 정보 없음)이라 직원이 마이페이지에서
   /// 직접 입력해 채운다. 본인 방문 신청 폼에서만 자동완성되며, 대리 신청(방문객의 소속)과는 무관하다.
   companyOrBranchName String? @map("company_or_branch_name") @db.VarChar(100)
+  /// 회원가입/마이페이지의 "당사 담당자" 이름+전화번호 일치 검증용. 숫자만 저장한다.
+  phone String? @map("phone") @db.VarChar(20)
 
   accountStatus AccountStatus @default(ACTIVE) @map("account_status")
 
@@ -219,6 +225,7 @@ model EmployeeUser {
 
   reservations       ParkingReservation[]
   recurringSchedules RecurringReservationSchedule[]
+  hostForSiteUsers   SiteUser[]                      @relation("SiteUserHostEmployee")
 
   @@index([accountStatus], map: "idx_employee_users_account_status")
   @@map("employee_users")

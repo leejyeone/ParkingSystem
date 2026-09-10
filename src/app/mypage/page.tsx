@@ -48,6 +48,8 @@ export default async function MyPage() {
           name: profile.name,
           companyOrBranchName: profile.companyOrBranchName,
           vehicleNo: profile.vehicleNo,
+          hostEmployeeName: profile.hostEmployeeName,
+          hostEmployeeDepartmentName: profile.hostEmployeeDepartmentName,
         }}
       />
 

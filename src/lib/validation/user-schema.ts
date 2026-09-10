@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import {
   emailSchema,
-  optionalVehicleNoSchema,
+  phoneSchema,
   requiredText,
   USER_PASSWORD_MIN_LENGTH,
   USER_PASSWORD_POLICY_MESSAGE,
@@ -20,7 +20,10 @@ export const signUpSchema = z.object({
     .max(100, '비밀번호는 100자 이하로 입력해 주세요.'),
   name: requiredText(50, '성명'),
   companyOrBranchName: requiredText(100, '회사명'),
-  vehicleNo: optionalVehicleNoSchema,
+  vehicleNo: vehicleNoSchema,
+  /** 서버가 이름+전화로 다시 조회해 확정한다 — employeeUserId는 클라이언트에서 받지 않는다. */
+  hostEmployeeName: requiredText(50, '담당자 이름'),
+  hostEmployeePhone: phoneSchema,
 });
 
 export const userLoginSchema = z.object({
@@ -34,7 +37,7 @@ export const userLoginSchema = z.object({
 export const userProfileUpdateSchema = z.object({
   name: requiredText(50, '성명'),
   companyOrBranchName: requiredText(100, '회사명'),
-  vehicleNo: optionalVehicleNoSchema,
+  vehicleNo: vehicleNoSchema,
   /** 값이 있을 때만 비밀번호를 변경한다. */
   password: z
     .string()

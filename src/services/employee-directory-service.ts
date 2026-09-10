@@ -45,3 +45,40 @@ export async function assertActiveEmployeeExists(employeeUserId: number): Promis
     });
   }
 }
+
+export type VerifiedHostEmployee = {
+  employeeUserId: number;
+  name: string;
+  departmentName: string;
+};
+
+/** 전화번호에서 숫자만 남긴다. import-employees.ts 의 저장 방식과 맞춰야 비교가 된다. */
+function digitsOnly(value: string): string {
+  return value.replace(/\D/g, '');
+}
+
+/**
+ * 회원가입/마이페이지의 "당사 담당자" 확인 — 이름+전화번호가 모두 정확히 일치하는
+ * 딱 한 명만 확정한다. 명부 목록을 노출하지 않기 위해 검색이 아니라 단건 검증만 제공한다.
+ * 이름/전화 중 무엇이 틀렸는지는 구분하지 않는다(대입 공격 방지) — 실패하면 항상 null.
+ */
+export async function verifyHostEmployee(
+  name: string,
+  phone: string,
+): Promise<VerifiedHostEmployee | null> {
+  const trimmedName = name.trim();
+  const normalizedPhone = digitsOnly(phone);
+  if (!trimmedName || !normalizedPhone) return null;
+
+  const employee = await prisma.employeeUser.findFirst({
+    where: {
+      name: trimmedName,
+      phone: normalizedPhone,
+      accountStatus: AccountStatus.ACTIVE,
+      deletedAt: null,
+    },
+    select: { employeeUserId: true, name: true, departmentName: true },
+  });
+
+  return employee;
+}
