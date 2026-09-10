@@ -141,7 +141,9 @@ export async function listAvailableSpaces(
     bufferMinutes?: number;
   },
   db: Db = prisma,
-): Promise<(AssignableSpace & { areaName: string; available: boolean })[]> {
+): Promise<
+  (AssignableSpace & { areaId: number; areaCode: string; areaName: string; available: boolean })[]
+> {
   const occupiedSpaceIds = new Set(await findOccupiedSpaceIds(params, db));
 
   const types: SpaceType[] = params.doubleParkingEnabled
@@ -158,7 +160,7 @@ export async function listAvailableSpaces(
       spaceCode: true,
       spaceType: true,
       displayOrder: true,
-      area: { select: { areaName: true } },
+      area: { select: { areaId: true, areaCode: true, areaName: true } },
     },
   });
 
@@ -167,6 +169,8 @@ export async function listAvailableSpaces(
     spaceCode: space.spaceCode,
     spaceType: space.spaceType,
     displayOrder: space.displayOrder,
+    areaId: space.area.areaId,
+    areaCode: space.area.areaCode,
     areaName: space.area.areaName,
     available: !occupiedSpaceIds.has(space.spaceId),
   }));

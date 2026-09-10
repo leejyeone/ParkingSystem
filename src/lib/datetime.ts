@@ -119,4 +119,20 @@ export function todayKstDateString(now: Date = nowUtc(), timeZone = appTimeZone(
   return formatKstDate(now, timeZone);
 }
 
+const WEEKDAY_LABEL = ['일', '월', '화', '수', '목', '금', '토'] as const;
+
+/** 'yyyy-MM-dd' 날짜 문자열을 days 만큼 이동한 'yyyy-MM-dd' 문자열로 반환한다. */
+export function shiftKstDateString(dateString: string, days: number): string {
+  const [year, month, day] = dateString.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+/** 'yyyy-MM-dd' 날짜 문자열(달력 날짜)의 요일을 구한다. */
+export function kstWeekdayLabel(dateString: string): string {
+  const [year, month, day] = dateString.split('-').map(Number);
+  return WEEKDAY_LABEL[new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
+}
+
 export { addMinutes, differenceInMinutes };

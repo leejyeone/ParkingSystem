@@ -1,8 +1,10 @@
 'use client';
 
+import type { SpaceType } from '@prisma/client';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
+import { useIsMaximized } from '@/components/admin/maximizable-card';
 import {
   findLayoutForStallCode,
   LAYOUTS_BY_AREA_CODE,
@@ -10,6 +12,14 @@ import {
 } from '@/domain/parking-map-layout';
 import { formatKstTime } from '@/lib/datetime';
 import type { SpaceStatusRow } from '@/services/dashboard-service';
+
+/** 관리자 예약 상세 "주차면 배정" 화면에서 클릭으로 고를 수 있는 주차면 한 칸. */
+export type SelectableSpace = {
+  spaceId: number;
+  spaceCode: string;
+  spaceType: SpaceType;
+  available: boolean;
+};
 
 /**
  * 주차 평면도.
@@ -73,6 +83,10 @@ const UNKNOWN: StallStyle = { fill: '#ffffff', stroke: '#cbd5e1', text: '#94a3b8
 const NEUTRAL: StallStyle = { fill: '#f8fafc', stroke: '#cbd5e1', text: '#cbd5e1' };
 /** 신청자 화면에서 본인에게 배정된 자리 */
 const MINE: StallStyle = { fill: '#22c55e', stroke: '#15803d', text: '#ffffff' };
+/** 관리자가 배정하려고 클릭해서 고른 자리 (select 모드) */
+const SELECTED: StallStyle = { fill: '#2563eb', stroke: '#1d4ed8', text: '#ffffff' };
+/** select 모드: 배정 불가(예약돼 있는 자리 포함) — 회색으로 눌러도 반응하지 않는다 */
+const SELECT_UNAVAILABLE: StallStyle = DISABLED;
 
 /**
  * 다각형의 모든 꼭짓점을 같은 반지름으로 둥글린 path 문자열 하나를 만든다 — 비주차
@@ -174,21 +188,44 @@ function tooltipFor(code: string, space: SpaceStatusRow | undefined): string {
   return `${code}${typeSuffix}\n${lines.join('\n')}`;
 }
 
+type SelectableProps = {
+  spaces: SelectableSpace[];
+  selectedSpaceId: number | null;
+  onSelect: (space: SelectableSpace) => void;
+};
+
 type Props =
   /** 관리자 대시보드: 주차면 상태를 색으로 표시한다. 어느 구역인지는 호출부가 정한다. */
-  | { spaces: SpaceStatusRow[]; layout: MapLayout; highlightCode?: undefined }
+  | { spaces: SpaceStatusRow[]; layout: MapLayout; highlightCode?: undefined; selectable?: undefined }
   /** 신청자 화면: 배정된 한 면만 강조하고 나머지는 회색으로 둔다. 도면은 코드로 자동 탐지한다. */
-  | { spaces?: undefined; layout?: undefined; highlightCode: string | null };
+  | { spaces?: undefined; layout?: undefined; highlightCode: string | null; selectable?: undefined }
+  /** 관리자 예약 상세: 배정할 주차면을 클릭해서 고른다. 도면은 호출부가 정한다. */
+  | {
+      spaces?: undefined;
+      highlightCode?: undefined;
+      layout: MapLayout;
+      selectable: SelectableProps;
+    };
 
-export function ParkingMap({ spaces, layout: explicitLayout, highlightCode }: Props) {
-  const requesterView = spaces === undefined;
-  const layout = requesterView
-    ? highlightCode
-      ? findLayoutForStallCode(highlightCode)
-      : null
-    : explicitLayout;
+export function ParkingMap({ spaces, layout: explicitLayout, highlightCode, selectable }: Props) {
+  const isMaximized = useIsMaximized();
+  const mode: 'dashboard' | 'requester' | 'select' = selectable
+    ? 'select'
+    : spaces !== undefined
+      ? 'dashboard'
+      : 'requester';
+  const requesterView = mode === 'requester';
+  const layout =
+    mode === 'requester'
+      ? highlightCode
+        ? findLayoutForStallCode(highlightCode)
+        : null
+      : explicitLayout;
 
   const byCode = new Map((spaces ?? []).map((space) => [space.spaceCode, space]));
+  const selectByCode = new Map(
+    (selectable?.spaces ?? []).map((space) => [space.spaceCode, space]),
+  );
 
   /** 예약이 여러 건인 주차면을 눌렀을 때 목록을 띄울 대상. */
   const [pickerCode, setPickerCode] = useState<string | null>(null);
@@ -209,18 +246,33 @@ export function ParkingMap({ spaces, layout: explicitLayout, highlightCode }: Pr
    * 않는다.
    */
   if (!layout) return null;
-  const matches = requesterView
-    ? layout.stalls.some((stall) => stall.code === highlightCode)
-    : layout.stalls.some((stall) => byCode.has(stall.code));
+  const matches =
+    mode === 'requester'
+      ? layout.stalls.some((stall) => stall.code === highlightCode)
+      : mode === 'select'
+        ? // 배정 후보 목록엔 비활성 주차면·구역이 아예 빠져 있을 수 있어(위 스타일 계산과
+          // 같은 이유), 후보가 하나도 없다는 이유로 도면 자체를 숨기지 않는다.
+          layout.stalls.length > 0
+        : layout.stalls.some((stall) => byCode.has(stall.code));
   if (!matches) return null;
 
   const counts = { available: 0, occupied: 0, disabled: 0 };
-  for (const stall of layout.stalls) {
-    const space = byCode.get(stall.code);
-    if (!space) continue;
-    if (!space.isActive) counts.disabled += 1;
-    else if (space.status === 'EMPTY') counts.available += 1;
-    else counts.occupied += 1;
+  if (mode === 'select') {
+    for (const stall of layout.stalls) {
+      const space = selectByCode.get(stall.code);
+      // 후보 목록에 없는 칸(비활성 주차면·구역)도 화면엔 회색으로 그리므로, 집계에도
+      // "사용 불가"로 포함해야 범례 숫자와 도면이 어긋나지 않는다.
+      if (!space || !space.available) counts.occupied += 1;
+      else counts.available += 1;
+    }
+  } else {
+    for (const stall of layout.stalls) {
+      const space = byCode.get(stall.code);
+      if (!space) continue;
+      if (!space.isActive) counts.disabled += 1;
+      else if (space.status === 'EMPTY') counts.available += 1;
+      else counts.occupied += 1;
+    }
   }
 
   // 층마다 다른 크기로 맞추지 않고 모든 층이 SHARED_VIEWBOX_W/H 를 그대로 쓴다 —
@@ -231,14 +283,38 @@ export function ParkingMap({ spaces, layout: explicitLayout, highlightCode }: Pr
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
-        {requesterView ? (
-          <Legend color={MINE} label={`내 주차 위치 ${highlightCode}`} />
+      <div
+        className={`flex flex-wrap items-center gap-x-4 gap-y-2 ${isMaximized ? 'text-xl' : 'text-xs'}`}
+      >
+        {mode === 'requester' ? (
+          <Legend color={MINE} label={`내 주차 위치 ${highlightCode}`} large={isMaximized} />
+        ) : mode === 'select' ? (
+          <>
+            <Legend
+              color={AVAILABLE}
+              label={`사용 가능 ${counts.available}면`}
+              large={isMaximized}
+            />
+            <Legend color={SELECTED} label="선택됨" large={isMaximized} />
+            <Legend
+              color={SELECT_UNAVAILABLE}
+              label={`사용 불가 ${counts.occupied}면`}
+              large={isMaximized}
+            />
+          </>
         ) : (
           <>
-            <Legend color={AVAILABLE} label={`사용 가능 ${counts.available}면`} />
-            <Legend color={OCCUPIED} label={`예약·사용 중 ${counts.occupied}면`} />
-            <Legend color={DISABLED} label={`비활성 ${counts.disabled}면`} />
+            <Legend
+              color={AVAILABLE}
+              label={`사용 가능 ${counts.available}면`}
+              large={isMaximized}
+            />
+            <Legend
+              color={OCCUPIED}
+              label={`예약·사용 중 ${counts.occupied}면`}
+              large={isMaximized}
+            />
+            <Legend color={DISABLED} label={`비활성 ${counts.disabled}면`} large={isMaximized} />
           </>
         )}
       </div>
@@ -251,13 +327,15 @@ export function ParkingMap({ spaces, layout: explicitLayout, highlightCode }: Pr
       */}
       <svg
         viewBox={`-8 -8 ${viewBoxW} ${viewBoxH}`}
-        className="mx-auto h-auto w-full max-w-3xl"
+        className={`mx-auto h-auto w-full ${mode === 'requester' ? 'max-w-3xl' : 'max-w-none'}`}
         style={{ fontFamily: MAP_FONT_FAMILY }}
         role="img"
         aria-label={
-          requesterView
+          mode === 'requester'
             ? `주차 평면도. 배정된 주차 위치는 ${highlightCode} 입니다.`
-            : `주차 평면도. 사용 가능 ${counts.available}면, 예약·사용 중 ${counts.occupied}면, 비활성 ${counts.disabled}면.`
+            : mode === 'select'
+              ? `주차 평면도. 사용 가능 ${counts.available}면, 사용 불가 ${counts.occupied}면. 사용 가능한 주차면을 눌러 배정할 위치를 고르세요.`
+              : `주차 평면도. 사용 가능 ${counts.available}면, 예약·사용 중 ${counts.occupied}면, 비활성 ${counts.disabled}면.`
         }
       >
         {/*
@@ -359,15 +437,44 @@ export function ParkingMap({ spaces, layout: explicitLayout, highlightCode }: Pr
           항상 위에 오도록 정렬한다.
         */}
         {[...layout.stalls]
-          .sort((a, b) => Number(a.code === highlightCode) - Number(b.code === highlightCode))
+          .sort((a, b) => {
+            const emphasized = (code: string) =>
+              mode === 'select'
+                ? selectByCode.get(code)?.spaceId === selectable?.selectedSpaceId
+                : code === highlightCode;
+            return Number(emphasized(a.code)) - Number(emphasized(b.code));
+          })
           .map((stall) => {
           const space = byCode.get(stall.code);
+          const selectSpace = mode === 'select' ? selectByCode.get(stall.code) : undefined;
+          const isSelected = Boolean(
+            selectSpace && selectSpace.spaceId === selectable?.selectedSpaceId,
+          );
           const mine = requesterView && stall.code === highlightCode;
-          const style = requesterView ? (mine ? MINE : NEUTRAL) : styleFor(space);
+          const style =
+            mode === 'select'
+              ? selectSpace
+                ? selectSpace.available
+                  ? isSelected
+                    ? SELECTED
+                    : AVAILABLE
+                  : SELECT_UNAVAILABLE
+                : // 배정 후보 목록(listAvailableSpaces)은 비활성 주차면·비활성 구역을 애초에
+                  // 제외하고 내려온다. 그런 칸도 도면에는 그려야 하므로, 목록에 없는 칸은
+                  // "등록 안 됨"이 아니라 "배정 불가"와 같은 회색으로 표시한다.
+                  SELECT_UNAVAILABLE
+              : requesterView
+                ? mine
+                  ? MINE
+                  : NEUTRAL
+                : styleFor(space);
           const cx = u(stall.x + stall.w / 2);
           const cy = u(stall.y + stall.h / 2);
-          const occupancies = requesterView ? [] : activeOccupancies(space);
-          const isDisabledSpace = !requesterView && space?.spaceType === 'DISABLED';
+          const occupancies = mode === 'dashboard' ? activeOccupancies(space) : [];
+          const isDisabledSpace =
+            mode === 'select'
+              ? selectSpace?.spaceType === 'DISABLED'
+              : mode === 'dashboard' && space?.spaceType === 'DISABLED';
           const label = (
             <>
               <rect
@@ -378,8 +485,12 @@ export function ParkingMap({ spaces, layout: explicitLayout, highlightCode }: Pr
                 rx={STALL_RADIUS}
                 fill={style.fill}
                 stroke={style.stroke}
-                strokeWidth={mine ? 3 : 1.2}
-                strokeDasharray={space?.spaceType === 'DOUBLE' ? '3 2' : undefined}
+                strokeWidth={mine || isSelected ? 3 : 1.2}
+                strokeDasharray={
+                  (mode === 'select' ? selectSpace?.spaceType : space?.spaceType) === 'DOUBLE'
+                    ? '3 2'
+                    : undefined
+                }
               />
               <text
                 x={cx}
@@ -446,9 +557,48 @@ export function ParkingMap({ spaces, layout: explicitLayout, highlightCode }: Pr
                 </>
               )}
               {/* 신청자 화면에서는 다른 예약자의 정보를 툴팁으로도 노출하지 않는다. */}
-              {!requesterView && <title>{tooltipFor(stall.code, space)}</title>}
+              {mode === 'dashboard' && <title>{tooltipFor(stall.code, space)}</title>}
+              {mode === 'select' && selectSpace && (
+                <title>{`${stall.code} — ${selectSpace.available ? '사용 가능' : '사용 불가'}`}</title>
+              )}
             </>
           );
+
+          // 배정용 select 모드: 사용 가능한 자리만 클릭해 고를 수 있다.
+          if (mode === 'select') {
+            if (!selectSpace || !selectSpace.available) {
+              return <g key={stall.code}>{label}</g>;
+            }
+            /*
+             * `<button>` 은 SVG 네임스페이스에 없는 HTML 전용 요소라 `<svg>` 안에 두면
+             * 브라우저가 올바른 위치에 그리지 못해(칸과 어긋나거나 아예 반응하지 않아)
+             * 클릭이 되지 않았다. `<a>` 는 SVG 에도 있는 요소라 `<svg>` 안에서도 정상적인
+             * 자리에 그려지고, 기존 코드의 다른 클릭 칸들과 같은 이유로 iOS Safari 에서도
+             * 눌린다 — href 없이도 tabIndex 를 직접 줘 키보드 포커스를 보장한다.
+             */
+            return (
+              <a
+                key={stall.code}
+                tabIndex={0}
+                role="button"
+                className="cursor-pointer"
+                aria-pressed={isSelected}
+                aria-label={`${stall.code} ${isSelected ? '선택 해제' : '선택'}`}
+                onClick={(event) => {
+                  event.preventDefault();
+                  selectable!.onSelect(selectSpace);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    selectable!.onSelect(selectSpace);
+                  }
+                }}
+              >
+                {label}
+              </a>
+            );
+          }
 
           // 예약이 한 건이면 바로 상세로, 여러 건이면 골라야 하므로 패널을 띄운다.
           if (occupancies.length === 1) {
@@ -563,11 +713,20 @@ function ReservationPicker({ space, onClose }: { space: SpaceStatusRow; onClose:
   );
 }
 
-function Legend({ color, label }: { color: StallStyle; label: string }) {
+function Legend({
+  color,
+  label,
+  large,
+}: {
+  color: StallStyle;
+  label: string;
+  /** 최대화 화면에서 배지·글자를 약 2배로 키운다. */
+  large?: boolean;
+}) {
   return (
     <span className="flex items-center gap-1.5">
       <span
-        className="inline-block h-3 w-5 rounded-sm border"
+        className={`inline-block rounded-sm border ${large ? 'h-6 w-10' : 'h-3 w-5'}`}
         style={{ backgroundColor: color.fill, borderColor: color.stroke }}
       />
       <span className="text-slate-600">{label}</span>

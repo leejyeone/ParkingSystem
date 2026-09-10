@@ -7,7 +7,7 @@ import { ParkingFloorTabs } from '@/components/admin/parking-floor-tabs';
 import { SpaceTypeBadge } from '@/components/ui/status-badge';
 import { Alert } from '@/components/ui/alert';
 import { requireAdminPage } from '@/lib/admin-page-guard';
-import { formatKstTime, todayKstDateString } from '@/lib/datetime';
+import { formatKstTime, kstWeekdayLabel, shiftKstDateString, todayKstDateString } from '@/lib/datetime';
 import { getDashboardData, type SpaceOccupancyStatus } from '@/services/dashboard-service';
 
 export const dynamic = 'force-dynamic';
@@ -27,21 +27,6 @@ const SPACE_STATUS_CLASS: Record<SpaceOccupancyStatus, string> = {
 export const metadata: Metadata = { title: '대시보드' };
 
 type PageProps = { searchParams: Promise<{ date?: string; error?: string }> };
-
-function shiftDate(dateString: string, days: number): string {
-  const [year, month, day] = dateString.split('-').map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
-const WEEKDAY_LABEL = ['일', '월', '화', '수', '목', '금', '토'] as const;
-
-/** 'yyyy-MM-dd' 문자열(달력 날짜)의 요일을 구한다. */
-function weekdayOf(dateString: string): string {
-  const [year, month, day] = dateString.split('-').map(Number);
-  return WEEKDAY_LABEL[new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
-}
 
 export default async function AdminDashboardPage({ searchParams }: PageProps) {
   const session = await requireAdminPage('/admin');
@@ -72,7 +57,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
         <div>
           <h1 className="text-ink text-xl font-black sm:text-2xl">대시보드</h1>
           <p className="text-ink-muted mt-1 text-sm">
-             {date} ({weekdayOf(date)}){' '}
+             {date} ({kstWeekdayLabel(date)}){' '}
             <DashboardAutoRefresher intervalMinutes={dashboard.dashboardRefreshIntervalMinutes} />
           </p>
         </div>
@@ -85,9 +70,9 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
             오늘
           </Link>
           <Link
-            href={`/admin?date=${shiftDate(today, 1)}`}
+            href={`/admin?date=${shiftKstDateString(today, 1)}`}
             className={`btn min-h-10 px-3 py-2 text-xs ${
-              date === shiftDate(today, 1) ? 'btn-primary' : 'btn-secondary'
+              date === shiftKstDateString(today, 1) ? 'btn-primary' : 'btn-secondary'
             }`}
           >
             내일

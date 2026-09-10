@@ -128,8 +128,8 @@ export default async function AdminReservationDetailPage({ params }: PageProps) 
         grid-cols-1 을 명시해야 열이 minmax(0, 1fr) 이 되어 항목이 0까지 줄어든다.
         명시하지 않으면 내부 표(min-width 640px) 때문에 모바일에서 가로 스크롤이 생긴다.
       */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="min-w-0 space-y-4 lg:col-span-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="min-w-0 space-y-4">
           <RequesterInfoCard
             reservationId={reservation.reservationId}
             editable={editable}
@@ -190,10 +190,9 @@ export default async function AdminReservationDetailPage({ params }: PageProps) 
           />
         </div>
 
-        <div className="min-w-0 lg:col-span-1">
+        <div className="min-w-0">
           <ReservationActionPanel
             reservationId={reservation.reservationId}
-            reservationNo={reservation.reservationNo}
             reservationStatus={reservation.reservationStatus}
             defaultSpaceId={defaultSpace?.spaceId ?? null}
             assignedSpaceId={reservation.assignedSpaceId}

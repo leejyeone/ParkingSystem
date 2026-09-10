@@ -1,8 +1,10 @@
 'use client';
 
+import type { SpaceType } from '@prisma/client';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
+import { ParkingSpacePicker } from '@/components/admin/parking-space-picker';
 import { Alert } from '@/components/ui/alert';
 import { FormField, inputClassName } from '@/components/ui/form-field';
 import { apiRequest } from '@/lib/client/api-client';
@@ -13,15 +15,15 @@ import { SPACE_TYPE_LABEL } from '@/domain/reservation-status';
 type SpaceOption = {
   spaceId: number;
   spaceCode: string;
-  spaceType: keyof typeof SPACE_TYPE_LABEL;
+  spaceType: SpaceType;
+  areaId: number;
+  areaCode: string;
   areaName: string;
   available: boolean;
 };
 
 type Props = {
   reservationId: number;
-  /** 승인 완료 안내에 표시할 예약번호 */
-  reservationNo: string;
   reservationStatus: string;
   /** 화면 진입 시점에 고른 기본 배정 위치. 드롭다운의 초기값으로만 쓴다. */
   defaultSpaceId: number | null;
@@ -37,7 +39,6 @@ type Props = {
 
 export function ReservationActionPanel({
   reservationId,
-  reservationNo,
   reservationStatus,
   defaultSpaceId,
   assignedSpaceId,
@@ -62,12 +63,36 @@ export function ReservationActionPanel({
     null,
   );
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+  const [spaceSelectOpen, setSpaceSelectOpen] = useState(false);
 
   useDismissOnInteraction(Boolean(message), () => setMessage(null));
+  useDismissOnInteraction(spaceSelectOpen, () => setSpaceSelectOpen(false));
 
   const hasAvailableSpace = availableSpaces.some((space) => space.available);
   const selectedSpace = availableSpaces.find((space) => String(space.spaceId) === selectedSpaceId);
   const isDoubleSelected = selectedSpace?.spaceType === 'DOUBLE';
+
+  // 평면도 클릭 선택 UI는 구역별로 묶어서 넘겨야 한다 — 서비스 응답은 평면(flat) 목록이다.
+  const areaGroups = useMemo(() => {
+    const groups = new Map<
+      number,
+      { areaId: number; areaCode: string; areaName: string; spaces: SpaceOption[] }
+    >();
+    for (const space of availableSpaces) {
+      const group = groups.get(space.areaId);
+      if (group) {
+        group.spaces.push(space);
+      } else {
+        groups.set(space.areaId, {
+          areaId: space.areaId,
+          areaCode: space.areaCode,
+          areaName: space.areaName,
+          spaces: [space],
+        });
+      }
+    }
+    return [...groups.values()];
+  }, [availableSpaces]);
 
   async function run(
     action: string,
@@ -135,6 +160,115 @@ export function ReservationActionPanel({
         <Alert variant="info">종료된 예약입니다. 더 이상 상태를 변경할 수 없습니다.</Alert>
       )}
 
+      {(canEntry || canExit || canNoShow) && (
+        <section className="card">
+          <div className="card-body space-y-3">
+            <h2 className="card-title">입·출차 처리</h2>
+            {canEntry && (
+              <div>
+                <FormField
+                  label="실제 입차 시각"
+                  htmlFor="entry-time"
+                  errors={fieldErrors.actualEntryAt}
+                >
+                  <input
+                    id="entry-time"
+                    type="datetime-local"
+                    className={inputClassName(Boolean(fieldErrors.actualEntryAt))}
+                    value={entryTime}
+                    onChange={(event) => setEntryTime(event.target.value)}
+                  />
+                </FormField>
+                <button
+                  type="button"
+                  className="btn btn-primary mt-3"
+                  disabled={pending !== null}
+                  onClick={() =>
+                    run(
+                      'entry',
+                      `/api/admin/reservations/${reservationId}/entry`,
+                      'POST',
+                      { actualEntryAt: entryTime },
+                      { redirectTo: '/admin' },
+                    )
+                  }
+                >
+                  {pending === 'entry' ? '처리 중…' : '입차 처리'}
+                </button>
+              </div>
+            )}
+            {canExit && (
+              <div className={canEntry ? 'border-line-muted border-t pt-3' : undefined}>
+                <FormField
+                  label="실제 출차 시각"
+                  htmlFor="exit-time"
+                  errors={fieldErrors.actualExitAt}
+                >
+                  <input
+                    id="exit-time"
+                    type="datetime-local"
+                    className={inputClassName(Boolean(fieldErrors.actualExitAt))}
+                    value={exitTime}
+                    onChange={(event) => setExitTime(event.target.value)}
+                  />
+                </FormField>
+                <button
+                  type="button"
+                  className="btn btn-primary mt-3"
+                  disabled={pending !== null}
+                  onClick={() =>
+                    run(
+                      'exit',
+                      `/api/admin/reservations/${reservationId}/exit`,
+                      'POST',
+                      { actualExitAt: exitTime },
+                      { redirectTo: '/admin' },
+                    )
+                  }
+                >
+                  {pending === 'exit' ? '처리 중…' : '출차 처리'}
+                </button>
+              </div>
+            )}
+
+            {canNoShow && (
+              <div className="border-line-muted border-t pt-3">
+                <FormField
+                  label="미방문 처리 사유"
+                  htmlFor="no-show-reason"
+                  errors={fieldErrors.reason}
+                >
+                  <input
+                    id="no-show-reason"
+                    className={inputClassName(Boolean(fieldErrors.reason))}
+                    value={noShowReason}
+                    onChange={(event) => setNoShowReason(event.target.value)}
+                    placeholder="선택 입력 (예: 예약 시간 종료 후 미입차)"
+                    maxLength={500}
+                  />
+                </FormField>
+                <button
+                  type="button"
+                  className="btn btn-secondary mt-3"
+                  disabled={pending !== null}
+                  onClick={() =>
+                    run(
+                      'no-show',
+                      `/api/admin/reservations/${reservationId}/no-show`,
+                      'POST',
+                      { reason: noShowReason || null },
+                      { redirectTo: '/admin' },
+                    )
+                  }
+                >
+                  {pending === 'no-show' ? '처리 중…' : '미방문 처리'}
+                </button>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
       {(canApprove || canChangeSpace) && (
         <section className="card">
           <div className="card-body space-y-4">
@@ -169,22 +303,88 @@ export function ReservationActionPanel({
                 htmlFor="space-select"
                 required
                 errors={fieldErrors.spaceId}
-                hint="비어 있는 주차면만 표시됩니다."
               >
-                <select
-                  id="space-select"
-                  className={inputClassName(Boolean(fieldErrors.spaceId))}
-                  value={selectedSpaceId}
-                  onChange={(event) => setSelectedSpaceId(event.target.value)}
-                >
-                  {availableSpaces
-                    .filter((space) => space.available)
-                    .map((space) => (
-                      <option key={space.spaceId} value={space.spaceId}>
-                        {space.spaceCode} · {SPACE_TYPE_LABEL[space.spaceType]} · {space.areaName}
-                      </option>
-                    ))}
-                </select>
+                <ParkingSpacePicker
+                  areas={areaGroups}
+                  selectedSpaceId={selectedSpaceId ? Number(selectedSpaceId) : null}
+                  onSelect={(space) =>
+                    setSelectedSpaceId((current) =>
+                      String(space.spaceId) === current ? '' : String(space.spaceId),
+                    )
+                  }
+                />
+                <div className="relative mt-2">
+                  <button
+                    id="space-select"
+                    type="button"
+                    className={`${inputClassName(Boolean(fieldErrors.spaceId))} flex items-center justify-between gap-2 text-left`}
+                    aria-haspopup="listbox"
+                    aria-expanded={spaceSelectOpen}
+                    onClick={() => setSpaceSelectOpen((open) => !open)}
+                  >
+                    <span className={selectedSpace ? '' : 'text-ink-faint'}>
+                      {selectedSpace
+                        ? `${selectedSpace.spaceCode} · ${SPACE_TYPE_LABEL[selectedSpace.spaceType]} · ${selectedSpace.areaName}`
+                        : '선택 안 함'}
+                    </span>
+                    <ChevronDownIcon />
+                  </button>
+
+                  {/*
+                    네이티브 select 는 화면 아래쪽 공간이 부족하면 브라우저가 알아서 위로
+                    펼치는데, 카드가 화면 하단에 걸릴 때 이 목록이 위로 열려 오히려 가리는
+                    문제가 있었다. absolute + top-full 로 직접 그려서 항상 트리거 아래로만
+                    펼치고, 화면보다 낮은 자리에 걸리면 카드/화면 스크롤로 대응하게 한다.
+                  */}
+                  {spaceSelectOpen && (
+                    <ul
+                      role="listbox"
+                      className="border-line bg-surface absolute top-full left-0 z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border py-1 shadow-lg"
+                    >
+                      <li>
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={selectedSpaceId === ''}
+                          className={`hover:bg-surface-hover block w-full px-3 py-2 text-left text-sm ${
+                            selectedSpaceId === '' ? 'text-brand-700 font-bold' : 'text-ink-faint'
+                          }`}
+                          onClick={() => {
+                            setSelectedSpaceId('');
+                            setSpaceSelectOpen(false);
+                          }}
+                        >
+                          선택 안 함
+                        </button>
+                      </li>
+                      {availableSpaces
+                        .filter(
+                          (space) => space.available || String(space.spaceId) === selectedSpaceId,
+                        )
+                        .map((space) => (
+                          <li key={space.spaceId}>
+                            <button
+                              type="button"
+                              role="option"
+                              aria-selected={String(space.spaceId) === selectedSpaceId}
+                              className={`hover:bg-surface-hover block w-full px-3 py-2 text-left text-sm ${
+                                String(space.spaceId) === selectedSpaceId
+                                  ? 'text-brand-700 font-bold'
+                                  : 'text-ink'
+                              }`}
+                              onClick={() => {
+                                setSelectedSpaceId(String(space.spaceId));
+                                setSpaceSelectOpen(false);
+                              }}
+                            >
+                              {space.spaceCode} · {SPACE_TYPE_LABEL[space.spaceType]} ·{' '}
+                              {space.areaName}
+                            </button>
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                </div>
               </FormField>
             )}
 
@@ -195,12 +395,15 @@ export function ReservationActionPanel({
             )}
 
             {canAssignSpace && (
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="flex flex-wrap justify-end gap-2">
                 {canApprove && (
                   <button
                     type="button"
-                    className="btn btn-primary"
-                    disabled={pending !== null}
+                    className="btn btn-primary btn-sm"
+                    disabled={
+                      pending !== null ||
+                      (spaceAssignmentEnabled && canAssignSpace && !selectedSpaceId)
+                    }
                     onClick={() =>
                       run(
                         'approve',
@@ -212,9 +415,7 @@ export function ReservationActionPanel({
                               ? Number(selectedSpaceId)
                               : null,
                         },
-                        {
-                          redirectTo: `/admin/reservations?status=REQUESTED&approved=${encodeURIComponent(reservationNo)}`,
-                        },
+                        { redirectTo: '/admin' },
                       )
                     }
                   >
@@ -261,24 +462,24 @@ export function ReservationActionPanel({
                 maxLength={500}
               />
             </FormField>
-            <button
-              type="button"
-              className="btn btn-danger"
-              disabled={pending !== null || rejectionReason.trim() === ''}
-              onClick={() =>
-                run(
-                  'reject',
-                  `/api/admin/reservations/${reservationId}/reject`,
-                  'POST',
-                  { rejectionReason },
-                  {
-                    redirectTo: `/admin/reservations?status=REQUESTED&rejected=${encodeURIComponent(reservationNo)}`,
-                  },
-                )
-              }
-            >
-              {pending === 'reject' ? '반려 중…' : '반려 처리'}
-            </button>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                className="btn btn-danger btn-sm"
+                disabled={pending !== null || rejectionReason.trim() === ''}
+                onClick={() =>
+                  run(
+                    'reject',
+                    `/api/admin/reservations/${reservationId}/reject`,
+                    'POST',
+                    { rejectionReason },
+                    { redirectTo: '/admin' },
+                  )
+                }
+              >
+                {pending === 'reject' ? '반려 중…' : '반려 처리'}
+              </button>
+            </div>
           </div>
         </section>
       )}
@@ -317,9 +518,7 @@ export function ReservationActionPanel({
                   `/api/admin/reservations/${reservationId}/cancel`,
                   'POST',
                   { cancelReason },
-                  {
-                    redirectTo: `/admin/reservations?status=APPROVED&cancelled=${encodeURIComponent(reservationNo)}`,
-                  },
+                  { redirectTo: '/admin' },
                 )
               }
             >
@@ -328,103 +527,21 @@ export function ReservationActionPanel({
           </div>
         </section>
       )}
-
-      {(canEntry || canExit || canNoShow) && (
-        <section className="card">
-          <div className="card-body space-y-3">
-            <h2 className="card-title">입·출차 처리</h2>
-            {canEntry && (
-              <div>
-                <FormField
-                  label="실제 입차 시각"
-                  htmlFor="entry-time"
-                  errors={fieldErrors.actualEntryAt}
-                >
-                  <input
-                    id="entry-time"
-                    type="datetime-local"
-                    className={inputClassName(Boolean(fieldErrors.actualEntryAt))}
-                    value={entryTime}
-                    onChange={(event) => setEntryTime(event.target.value)}
-                  />
-                </FormField>
-                <button
-                  type="button"
-                  className="btn btn-primary mt-3"
-                  disabled={pending !== null}
-                  onClick={() =>
-                    run('entry', `/api/admin/reservations/${reservationId}/entry`, 'POST', {
-                      actualEntryAt: entryTime,
-                    })
-                  }
-                >
-                  {pending === 'entry' ? '처리 중…' : '입차 처리'}
-                </button>
-              </div>
-            )}
-            {canExit && (
-              <div className={canEntry ? 'border-line-muted border-t pt-3' : undefined}>
-                <FormField
-                  label="실제 출차 시각"
-                  htmlFor="exit-time"
-                  errors={fieldErrors.actualExitAt}
-                >
-                  <input
-                    id="exit-time"
-                    type="datetime-local"
-                    className={inputClassName(Boolean(fieldErrors.actualExitAt))}
-                    value={exitTime}
-                    onChange={(event) => setExitTime(event.target.value)}
-                  />
-                </FormField>
-                <button
-                  type="button"
-                  className="btn btn-primary mt-3"
-                  disabled={pending !== null}
-                  onClick={() =>
-                    run('exit', `/api/admin/reservations/${reservationId}/exit`, 'POST', {
-                      actualExitAt: exitTime,
-                    })
-                  }
-                >
-                  {pending === 'exit' ? '처리 중…' : '출차 처리'}
-                </button>
-              </div>
-            )}
-
-            {canNoShow && (
-              <div className="border-line-muted border-t pt-3">
-                <FormField
-                  label="미방문 처리 사유"
-                  htmlFor="no-show-reason"
-                  errors={fieldErrors.reason}
-                >
-                  <input
-                    id="no-show-reason"
-                    className={inputClassName(Boolean(fieldErrors.reason))}
-                    value={noShowReason}
-                    onChange={(event) => setNoShowReason(event.target.value)}
-                    placeholder="선택 입력 (예: 예약 시간 종료 후 미입차)"
-                    maxLength={500}
-                  />
-                </FormField>
-                <button
-                  type="button"
-                  className="btn btn-secondary mt-3"
-                  disabled={pending !== null}
-                  onClick={() =>
-                    run('no-show', `/api/admin/reservations/${reservationId}/no-show`, 'POST', {
-                      reason: noShowReason || null,
-                    })
-                  }
-                >
-                  {pending === 'no-show' ? '처리 중…' : '미방문 처리'}
-                </button>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
     </div>
+  );
+}
+
+function ChevronDownIcon() {
+  return (
+    <svg
+      width={16}
+      height={16}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      className="shrink-0"
+    >
+      <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" />
+    </svg>
   );
 }

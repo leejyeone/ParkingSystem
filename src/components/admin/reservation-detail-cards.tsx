@@ -429,6 +429,12 @@ export function ScheduleCard({
         });
         return;
       }
+
+      // 입·출차 기록 삭제는 단순 정보 수정이 아니라 예약 상태를 되돌리는 상태 변경(PARKING→
+      // APPROVED, EXITED→PARKING)이다. ReservationActionPanel 의 다른 상태 변경 버튼들과
+      // 마찬가지로 대시보드로 돌려보낸다.
+      router.push('/admin');
+      return;
     }
 
     setState(IDLE);

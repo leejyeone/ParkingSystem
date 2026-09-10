@@ -37,6 +37,7 @@ const ROLE_LABEL: Record<AdminRole, string> = {
 function buildMenu(role: AdminRole): MenuItem[] {
   const menu: MenuItem[] = [
     { href: '/admin', label: '대시보드' },
+    { href: '/admin/parking-map', label: '주차 평면도' },
     { href: '/admin/reservations', label: '예약' },
     {
       href: '/admin/settings',
