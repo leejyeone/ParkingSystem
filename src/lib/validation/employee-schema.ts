@@ -23,12 +23,16 @@ export const employeeEmailEntrySchema = z.object({
 });
 
 /**
- * 직원 자기 정보 수정. 이름/이메일/부서는 명부로만 갱신되므로 차량번호·소속 사업장명만
- * 받는다 — 둘 다 명부에 없는 값이라 직원이 직접 채워야 신청 폼 자동완성에 쓸 수 있다.
+ * 직원 자기 정보 수정. 이름/이메일/부서는 명부로만 갱신되므로 차량번호·소속 사업장명·
+ * 전화번호만 받는다 — 셋 다 명부에 없거나(차량번호·사업장명) 그룹웨어 실시간 동기화가
+ * 채워주지 않는 값(전화번호)이라 직원이 직접 입력해야 한다. 전화번호는 방문객이 이
+ * 직원을 "당사 담당자"로 등록할 때 이름과 함께 검증하는 값이라 필수다(requireEmployeePage
+ * 가 비어 있으면 마이페이지 외 화면을 막는다).
  */
 export const employeeProfileUpdateSchema = z.object({
   vehicleNo: optionalVehicleNoSchema,
   companyOrBranchName: optionalText(100, '소속 사업장명'),
+  phone: phoneSchema,
 });
 
 /** 관리자가 직원 계정을 직접 생성할 때의 입력. 자동 로그인(사번 대조)에 필요한 필드는 전부 필수. */

@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 
 import { apiSuccess, handleApiError } from '@/lib/api-response';
 import { formatKstRange } from '@/lib/datetime';
-import { requireActiveEmployee } from '@/services/employee-auth-service';
+import { assertEmployeePhoneRegistered, requireActiveEmployee } from '@/services/employee-auth-service';
 import { consumeRateLimit } from '@/lib/rate-limit';
 import { createEmployeeReservationSchema } from '@/lib/validation/reservation-schema';
 import { createEmployeeReservation } from '@/services/reservation-service';
@@ -17,6 +17,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: NextRequest) {
   try {
     const session = await requireActiveEmployee();
+    assertEmployeePhoneRegistered(session);
 
     consumeRateLimit({
       key: `reservation:employee:${session.employeeUserId}`,

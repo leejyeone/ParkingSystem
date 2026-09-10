@@ -1,6 +1,6 @@
 import { AccountStatus } from '@prisma/client';
 
-import { NotFoundError, UnauthorizedError } from '@/lib/errors';
+import { NotFoundError, UnauthorizedError, ValidationError } from '@/lib/errors';
 import { getEmployeeSession, type EmployeeSession } from '@/lib/employee-session';
 import { prisma } from '@/lib/prisma';
 import { normalizeVehicleNo } from '@/lib/vehicle';
@@ -26,6 +26,8 @@ export type EmployeeProfile = {
   departmentName: string;
   vehicleNo: string | null;
   companyOrBranchName: string | null;
+  /** 없으면 마이페이지 입력 전까지 시스템을 쓸 수 없다 — requireEmployeePage 가 강제한다. */
+  phone: string | null;
 };
 
 /**
@@ -102,8 +104,12 @@ export async function enterByEmail(email: string): Promise<EmployeeSession> {
 /**
  * 현재 요청의 직원 세션을 확인하고 DB 에서 계정이 여전히 유효한지 재검증한다.
  * (세션 발급 이후 비활성화된 계정이 계속 접근하는 것을 막는다)
+ *
+ * `phone` 을 함께 내려주는 이유 — `requireEmployeePage`(employee-page-guard.ts)가 이 값이
+ * 비어 있으면 마이페이지로 강제 이동시키는 데 쓴다. 이 함수가 매 요청 DB를 다시 조회하므로
+ * 별도 쿼리를 추가하지 않고 select 에 한 컬럼만 더한다.
  */
-export async function requireActiveEmployee(): Promise<EmployeeSession> {
+export async function requireActiveEmployee(): Promise<EmployeeSession & { phone: string | null }> {
   const session = await getEmployeeSession();
   if (!session) {
     throw new UnauthorizedError('로그인이 필요합니다.');
@@ -117,6 +123,7 @@ export async function requireActiveEmployee(): Promise<EmployeeSession> {
       email: true,
       name: true,
       accountStatus: true,
+      phone: true,
     },
   });
 
@@ -131,7 +138,21 @@ export async function requireActiveEmployee(): Promise<EmployeeSession> {
     employeeCode: employee.employeeCode ?? '',
     email: employee.email,
     name: employee.name,
+    phone: employee.phone,
   };
+}
+
+/**
+ * 전화번호 없는 직원의 시스템 사용을 막는다 — 화면(requireEmployeePage)에서도 마이페이지
+ * 외 다른 화면으로 못 가게 막지만, API를 직접 두드리면 우회할 수 있으므로 실제로 예약을
+ * 만드는 API 라우트에서도 다시 한번 검증한다.
+ */
+export function assertEmployeePhoneRegistered(session: { phone: string | null }): void {
+  if (!session.phone) {
+    throw new ValidationError('먼저 마이페이지에서 전화번호를 등록해 주세요.', {
+      phone: ['먼저 마이페이지에서 전화번호를 등록해 주세요.'],
+    });
+  }
 }
 
 /** 신청 폼 자동완성에 사용할 직원 정보 */
@@ -146,6 +167,7 @@ export async function getEmployeeProfile(employeeUserId: number): Promise<Employ
       departmentName: true,
       vehicleNo: true,
       companyOrBranchName: true,
+      phone: true,
     },
   });
 }
@@ -153,11 +175,16 @@ export async function getEmployeeProfile(employeeUserId: number): Promise<Employ
 export type UpdateEmployeeProfileInput = {
   vehicleNo?: string | null;
   companyOrBranchName?: string | null;
+  /** 회원가입 당사 담당자 검증(이름+전화번호)에 쓰이므로 필수로 받는다. */
+  phone: string;
 };
 
 /**
  * 직원 자기 정보 수정. 이름/이메일/부서는 명부(그룹웨어/시드 스크립트)로만 갱신되므로
- * 여기서 다루지 않는다 — 직원이 직접 바꿀 수 있는 건 차량번호·소속 사업장명뿐이다.
+ * 여기서 다루지 않는다 — 직원이 직접 바꿀 수 있는 건 차량번호·소속 사업장명·전화번호뿐이다.
+ *
+ * 전화번호는 숫자만 저장한다 — "당사 담당자" 이름+전화번호 검증(employee-directory-service.ts
+ * 의 verifyHostEmployee) 및 scripts/import-employees.ts 의 저장 방식과 맞춰야 비교가 된다.
  */
 export async function updateEmployeeProfile(
   employeeUserId: number,
@@ -170,6 +197,7 @@ export async function updateEmployeeProfile(
     data: {
       vehicleNo: vehicleNo || null,
       companyOrBranchName: input.companyOrBranchName?.trim() || null,
+      phone: input.phone.replace(/\D/g, ''),
     },
     select: {
       employeeUserId: true,
@@ -179,6 +207,7 @@ export async function updateEmployeeProfile(
       departmentName: true,
       vehicleNo: true,
       companyOrBranchName: true,
+      phone: true,
     },
   });
 }
