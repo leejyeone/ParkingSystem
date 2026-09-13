@@ -36,6 +36,13 @@
 
 ---
 
+## 사용자 매뉴얼
+
+- 직원용 매뉴얼: [docs/EMPLOYEE_USER_MANUAL.md](docs/EMPLOYEE_USER_MANUAL.md)
+- 방문객용 매뉴얼: [docs/VISITOR_USER_MANUAL.md](docs/VISITOR_USER_MANUAL.md)
+
+---
+
 ## 1. 프로젝트 개요
 
 ### 기존 업무 흐름
