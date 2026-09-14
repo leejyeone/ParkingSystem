@@ -3,7 +3,10 @@ import { notFound } from 'next/navigation';
 
 import { CompanyVehicleTripCancelPanel } from '@/components/employee/company-vehicle-trip-cancel-panel';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { RESERVATION_STATUS_LABEL } from '@/domain/reservation-status';
+import {
+  COMPANY_VEHICLE_STATUS_LABEL_OVERRIDE,
+  RESERVATION_STATUS_LABEL,
+} from '@/domain/reservation-status';
 import { requireEmployeePage } from '@/lib/employee-page-guard';
 import { formatKstDateTime, formatKstRange } from '@/lib/datetime';
 import { NotFoundError } from '@/lib/errors';
@@ -45,7 +48,11 @@ export default async function EmployeeCompanyVehicleTripDetailPage({ params }: P
     <main className="app-container space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-ink text-xl font-black sm:text-2xl">법인차량 신청 상세</h1>
-        <StatusBadge status={trip.tripStatus} />
+        {trip.tripNo && <span className="text-ink-faint font-mono text-sm">{trip.tripNo}</span>}
+        <StatusBadge
+          status={trip.tripStatus}
+          label={COMPANY_VEHICLE_STATUS_LABEL_OVERRIDE[trip.tripStatus]}
+        />
       </div>
 
       <section className="card">
@@ -81,14 +88,16 @@ export default async function EmployeeCompanyVehicleTripDetailPage({ params }: P
             <dt className="definition-term">배정 차량</dt>
             <dd className="definition-desc">{trip.assignedVehicle?.vehicleNo ?? '승인 후 배정'}</dd>
           </div>
+          {/* 법인차량은 방문 예약과 입출차 방향이 반대라, actualEntryAt(승인 후 첫 처리)이
+              "실제 출차", actualExitAt(그다음 처리)이 "실제 입차"다. */}
           <div className="definition-row">
-            <dt className="definition-term">실제 입차</dt>
+            <dt className="definition-term">실제 출차</dt>
             <dd className="definition-desc">
               {trip.actualEntryAt ? formatKstDateTime(trip.actualEntryAt) : '-'}
             </dd>
           </div>
           <div className="definition-row">
-            <dt className="definition-term">실제 출차</dt>
+            <dt className="definition-term">실제 입차</dt>
             <dd className="definition-desc">
               {trip.actualExitAt ? formatKstDateTime(trip.actualExitAt) : '-'}
             </dd>

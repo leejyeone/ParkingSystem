@@ -438,8 +438,11 @@ model CompanyVehicle {
 }
 
 model CompanyVehicleTrip {
-  tripId         Int    @id @default(autoincrement()) @map("trip_id")
-  employeeUserId Int    @map("employee_user_id")
+  tripId         Int     @id @default(autoincrement()) @map("trip_id")
+  /// 방문 예약의 reservationNo 와 같은 형태(CV-YYYYMMDD-XXXXXX)의 표시용 신청번호.
+  /// 이 테이블이 생기기 전 신청은 없으므로 nullable — 없으면 화면에서 tripId 로 폴백한다.
+  tripNo         String? @unique @map("trip_no") @db.VarChar(20)
+  employeeUserId Int     @map("employee_user_id")
   destination    String @db.VarChar(200)
   reason         String @db.VarChar(500)
 

@@ -8,7 +8,11 @@ import {
   CompanyVehicleTripScheduleCard,
 } from '@/components/admin/company-vehicle-trip-detail-cards';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { isTerminalStatus, RESERVATION_STATUS_LABEL } from '@/domain/reservation-status';
+import {
+  COMPANY_VEHICLE_STATUS_LABEL_OVERRIDE,
+  isTerminalStatus,
+  RESERVATION_STATUS_LABEL,
+} from '@/domain/reservation-status';
 import { requireAdminPage } from '@/lib/admin-page-guard';
 import { formatKstDateTime, formatKstRange, utcToZonedInput } from '@/lib/datetime';
 import { NotFoundError } from '@/lib/errors';
@@ -47,6 +51,8 @@ export default async function CompanyVehicleTripDetailPage({ params }: PageProps
   // 종료된 신청(반려/취소/출차/미방문)은 내용을 바꿀 수 없다. 방문 예약 상세와 같은 기준.
   const editable = !isTerminalStatus(trip.tripStatus);
   const editableFields = {
+    employeeUserId: trip.employeeUserId,
+    employeeLabel: `${trip.employee.name} (${trip.employee.departmentName})`,
     destination: trip.destination,
     reason: trip.reason,
     requestStartAt: utcToZonedInput(trip.requestStartAt),
@@ -62,8 +68,13 @@ export default async function CompanyVehicleTripDetailPage({ params }: PageProps
           ← 운행 신청 목록
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-3">
-          <h1 className="text-ink text-xl font-black sm:text-2xl">운행 신청 #{trip.tripId}</h1>
-          <StatusBadge status={trip.tripStatus} />
+          <h1 className="text-ink font-mono text-xl font-black sm:text-2xl">
+            {trip.tripNo ?? `운행 신청 #${trip.tripId}`}
+          </h1>
+          <StatusBadge
+            status={trip.tripStatus}
+            label={COMPANY_VEHICLE_STATUS_LABEL_OVERRIDE[trip.tripStatus]}
+          />
         </div>
       </div>
 

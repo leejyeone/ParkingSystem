@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
 
+import { EmployeeSearchSelect } from '@/components/reservation/employee-search-select';
 import { Alert } from '@/components/ui/alert';
 import { FormField, inputClassName } from '@/components/ui/form-field';
 import { apiRequest } from '@/lib/client/api-client';
@@ -18,6 +19,9 @@ import { apiRequest } from '@/lib/client/api-client';
  */
 
 export type EditableFields = {
+  employeeUserId: number;
+  /** EmployeeSearchSelect 초기 표시용. 서버로는 안 보낸다. */
+  employeeLabel: string;
   destination: string;
   reason: string;
   /** 'yyyy-MM-ddTHH:mm' (Asia/Seoul 기준) */
@@ -43,7 +47,7 @@ function useTripEdit(tripId: number, initial: EditableFields) {
   const [state, setState] = useState<SaveState>(IDLE);
   const [saved, setSaved] = useState(false);
 
-  function update(key: keyof EditableFields, value: string) {
+  function update<K extends keyof EditableFields>(key: K, value: EditableFields[K]) {
     setForm((previous) => ({ ...previous, [key]: value }));
   }
 
@@ -65,6 +69,7 @@ function useTripEdit(tripId: number, initial: EditableFields) {
       apiRequest(`/api/admin/company-vehicle-trips/${tripId}`, {
         method: 'PATCH',
         body: JSON.stringify({
+          employeeUserId: form.employeeUserId,
           destination: form.destination,
           reason: form.reason,
           requestStartAt: form.requestStartAt,
@@ -228,6 +233,24 @@ export function CompanyVehicleTripInfoCard({
       {editing ? (
         <div className="mt-3 space-y-3">
           <FormField
+            label="신청 직원"
+            htmlFor="edit-employee"
+            required
+            hint="이름 또는 부서명으로 검색해 다른 직원으로 바꿀 수 있습니다."
+            errors={state.fieldErrors.employeeUserId}
+          >
+            <EmployeeSearchSelect
+              id="edit-employee"
+              value={{ employeeUserId: form.employeeUserId, label: form.employeeLabel }}
+              hasError={Boolean(state.fieldErrors.employeeUserId)}
+              onChange={(selected) => {
+                if (!selected) return;
+                update('employeeUserId', selected.employeeUserId);
+                update('employeeLabel', selected.label);
+              }}
+            />
+          </FormField>
+          <FormField
             label="행선지"
             htmlFor="edit-destination"
             required
@@ -376,8 +399,10 @@ export function CompanyVehicleTripScheduleCard({
         <dl className="mt-3">
           <Row term="운행 요청 시간" desc={readOnly.visitRangeText} />
           <Row term="배정 차량" desc={readOnly.assignedVehicleText} />
-          <Row term="실제 입차" desc={readOnly.actualEntryText} />
-          <Row term="실제 출차" desc={readOnly.actualExitText} />
+          {/* 법인차량은 방문 예약과 입출차 방향이 반대라, actualEntryAt(APPROVED→PARKING
+              시각)이 "실제 출차", actualExitAt(PARKING→EXITED 시각)이 "실제 입차"다. */}
+          <Row term="실제 출차" desc={readOnly.actualEntryText} />
+          <Row term="실제 입차" desc={readOnly.actualExitText} />
           <Row term="주행거리" desc={mileageText} />
           {readOnly.rejectionReason && <Row term="반려 사유" desc={readOnly.rejectionReason} />}
           {readOnly.cancelReason && <Row term="취소 사유" desc={readOnly.cancelReason} />}

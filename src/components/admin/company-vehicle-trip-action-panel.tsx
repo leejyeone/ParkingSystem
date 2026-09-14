@@ -87,11 +87,12 @@ export function CompanyVehicleTripActionPanel({
       {(canEntry || canExit) && (
         <section className="card">
           <div className="card-body space-y-3">
-            <h2 className="card-title">입·출차 처리</h2>
+            <h2 className="card-title">출·입차 처리</h2>
             {canEntry && (
               <div>
+                {/* 법인차량은 승인 후 차가 먼저 나가므로, 이 처리(APPROVED→PARKING)는 실제로 "출차"다. */}
                 <FormField
-                  label="실제 입차 시각"
+                  label="실제 출차 시각"
                   htmlFor="trip-entry-time"
                   errors={fieldErrors.actualEntryAt}
                 >
@@ -116,14 +117,15 @@ export function CompanyVehicleTripActionPanel({
                     )
                   }
                 >
-                  {pending === 'entry' ? '처리 중…' : '입차 처리'}
+                  {pending === 'entry' ? '처리 중…' : '출차 처리'}
                 </button>
               </div>
             )}
             {canExit && (
               <div className={canEntry ? 'border-line-muted border-t pt-3' : undefined}>
+                {/* 이 처리(PARKING→EXITED)는 차가 돌아오는 "입차"다. */}
                 <FormField
-                  label="실제 출차 시각"
+                  label="실제 입차 시각"
                   htmlFor="trip-exit-time"
                   errors={fieldErrors.actualExitAt}
                 >
@@ -148,7 +150,7 @@ export function CompanyVehicleTripActionPanel({
                     )
                   }
                 >
-                  {pending === 'exit' ? '처리 중…' : '출차 처리'}
+                  {pending === 'exit' ? '처리 중…' : '입차 처리'}
                 </button>
               </div>
             )}

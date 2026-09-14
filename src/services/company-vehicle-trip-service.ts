@@ -1,10 +1,12 @@
-import { ChangedByType, Prisma, ReservationStatus } from '@prisma/client';
+import { AccountStatus, ChangedByType, Prisma, ReservationStatus } from '@prisma/client';
 
 import { assertCompanyVehicleTripTiming } from '@/domain/company-vehicle-rules';
 import { assertTransition } from '@/domain/reservation-status';
+import { todayKstDateString } from '@/lib/datetime';
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/errors';
 import { prisma } from '@/lib/prisma';
 import type { RequestContext } from '@/lib/request-context';
+import { generateReservationNo } from '@/lib/tokens';
 import { AUDIT_ACTIONS, AUDIT_TARGETS, writeAuditLog } from '@/services/audit-service';
 import { getSystemSettings } from '@/services/settings-service';
 
@@ -96,6 +98,34 @@ export type CreateCompanyVehicleTripInput = {
   requestEndAt: Date;
 };
 
+/**
+ * tripNo 생성 후 충돌(P2002)이면 재시도한다 — 방문 예약의 createWithUniqueReservationNo
+ * 와 같은 패턴. 'CV-' 접두사만 다르다.
+ */
+async function createWithUniqueTripNo<T extends { tripId: number }>(
+  handler: (tripNo: string) => Promise<T>,
+  maxAttempts = 5,
+): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      const tripNo = generateReservationNo(todayKstDateString(), 'CV');
+      return await handler(tripNo);
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002' &&
+        String(error.meta?.target ?? '').includes('trip_no')
+      ) {
+        lastError = error;
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw lastError ?? new Error('운행 신청번호 생성에 실패했습니다.');
+}
+
 /** 직원 신청 진입점. 신청자(employeeUserId)는 항상 세션 값을 호출부가 고정해서 넘긴다. */
 export async function createCompanyVehicleTrip(
   input: CreateCompanyVehicleTripInput,
@@ -108,16 +138,19 @@ export async function createCompanyVehicleTrip(
     settings,
   });
 
-  return prisma.companyVehicleTrip.create({
-    data: {
-      employeeUserId,
-      destination: input.destination.trim(),
-      reason: input.reason.trim(),
-      requestStartAt: input.requestStartAt,
-      requestEndAt: input.requestEndAt,
-      tripStatus: ReservationStatus.REQUESTED,
-    },
-  });
+  return createWithUniqueTripNo((tripNo) =>
+    prisma.companyVehicleTrip.create({
+      data: {
+        tripNo,
+        employeeUserId,
+        destination: input.destination.trim(),
+        reason: input.reason.trim(),
+        requestStartAt: input.requestStartAt,
+        requestEndAt: input.requestEndAt,
+        tripStatus: ReservationStatus.REQUESTED,
+      },
+    }),
+  );
 }
 
 /** 해당 차량이 그 시간대에 이미 다른 트립(APPROVED/PARKING)에 배정되어 있는지 확인 */
@@ -345,14 +378,17 @@ export async function cancelCompanyVehicleTripByRequester(params: {
 }
 
 /**
- * 운행 대장에서 신청 내용(행선지·사유·운행시간)을 관리자가 직접 정정한다. 상태 전이가
- * 아니므로 상태 로그는 남기지 않고, 감사 로그만 남긴다. 신청 단계의 운영시간/최대
- * 사용시간 같은 사업 규칙(`assertCompanyVehicleTripTiming`)은 여기서는 다시 검사하지
- * 않는다 — 관리자가 사후에 기록을 바로잡는 용도라 종료 시각이 시작 이후인지만 확인한다.
+ * 신청 상세(관리자 화면 카드별 [수정하기])에서 신청 내용(신청 직원·행선지·사유·
+ * 운행시간)을 관리자가 직접 정정한다. 상태 전이가 아니므로 상태 로그는 남기지 않고,
+ * 감사 로그만 남긴다. 신청 단계의 운영시간/최대 사용시간 같은 사업 규칙
+ * (`assertCompanyVehicleTripTiming`)은 여기서는 다시 검사하지 않는다 — 관리자가
+ * 사후에 기록을 바로잡는 용도라 종료 시각이 시작 이후인지, 신청 직원이 실존/활성
+ * 상태인지만 확인한다.
  */
 export async function updateCompanyVehicleTripDetails(
   params: {
     tripId: number;
+    employeeUserId: number;
     destination: string;
     reason: string;
     requestStartAt: Date;
@@ -365,11 +401,24 @@ export async function updateCompanyVehicleTripDetails(
     });
   }
 
-  await loadTripOrThrow(params.tripId, prisma);
+  const current = await loadTripOrThrow(params.tripId, prisma);
+
+  if (params.employeeUserId !== current.employeeUserId) {
+    const employee = await prisma.employeeUser.findFirst({
+      where: { employeeUserId: params.employeeUserId, deletedAt: null, accountStatus: AccountStatus.ACTIVE },
+      select: { employeeUserId: true },
+    });
+    if (!employee) {
+      throw new ValidationError('신청 직원을 찾을 수 없습니다. 다시 선택해 주세요.', {
+        employeeUserId: ['신청 직원을 찾을 수 없습니다. 다시 선택해 주세요.'],
+      });
+    }
+  }
 
   const updated = await prisma.companyVehicleTrip.update({
     where: { tripId: params.tripId },
     data: {
+      employeeUserId: params.employeeUserId,
       destination: params.destination.trim(),
       reason: params.reason.trim(),
       requestStartAt: params.requestStartAt,
@@ -388,6 +437,7 @@ export async function updateCompanyVehicleTripDetails(
       reason: updated.reason,
       requestStartAt: updated.requestStartAt,
       requestEndAt: updated.requestEndAt,
+      employeeUserId: { before: current.employeeUserId, after: updated.employeeUserId },
     },
     context: params.requestContext,
   });
@@ -484,7 +534,9 @@ export async function markCompanyVehicleEntry(
     tripId: params.tripId,
     nextStatus: ReservationStatus.PARKING,
     adminUserId: params.adminUserId,
-    reason: '실제 입차 처리',
+    // 법인차량은 승인 후 차가 먼저 나가는(출차) 흐름이라, 이 첫 처리(APPROVED→PARKING)가
+    // 실제로는 "출차 처리"다 — 방문 예약과 방향이 반대다(도메인 상태값 자체는 공유).
+    reason: '실제 출차 처리',
     extraData: { actualEntryAt: params.actualEntryAt },
   });
 
@@ -509,12 +561,13 @@ export async function markCompanyVehicleExit(
     tripId: params.tripId,
     nextStatus: ReservationStatus.EXITED,
     adminUserId: params.adminUserId,
-    reason: '실제 출차 처리',
+    // 이 두 번째 처리(PARKING→EXITED)는 차가 돌아오는 "입차 처리"다.
+    reason: '실제 입차 처리',
     extraData: { actualExitAt: params.actualExitAt },
     validate: (current) => {
       if (current.actualEntryAt && params.actualExitAt < current.actualEntryAt) {
-        throw new ValidationError('출차 시간은 입차 시간 이후여야 합니다.', {
-          actualExitAt: ['출차 시간은 입차 시간 이후여야 합니다.'],
+        throw new ValidationError('입차 시간은 출차 시간 이후여야 합니다.', {
+          actualExitAt: ['입차 시간은 출차 시간 이후여야 합니다.'],
         });
       }
     },

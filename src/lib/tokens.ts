@@ -42,11 +42,11 @@ export function buildReservationAccessUrl(baseUrl: string, rawToken: string): st
  */
 const RESERVATION_NO_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 혼동 문자(I,O,0,1) 제외
 
-export function generateReservationNo(dateString: string): string {
+export function generateReservationNo(dateString: string, prefix = 'PK'): string {
   const bytes = randomBytes(6);
   let suffix = '';
   for (const byte of bytes) {
     suffix += RESERVATION_NO_ALPHABET[byte % RESERVATION_NO_ALPHABET.length];
   }
-  return `PK-${dateString.replace(/-/g, '')}-${suffix}`;
+  return `${prefix}-${dateString.replace(/-/g, '')}-${suffix}`;
 }

@@ -63,6 +63,16 @@ export const RESERVATION_STATUS_LABEL: Readonly<Record<ReservationStatus, string
 };
 
 /**
+ * 법인차량은 방문 예약과 입·출차 방향이 반대다(차가 먼저 나갔다가 돌아온다) — 배지
+ * 문구만 별도로 뒤집는다. 상태값(PARKING/EXITED)과 그 의미(사용 중/종료)는 같으므로
+ * `RESERVATION_STATUS_LABEL`(방문 예약과 공유) 자체는 건드리지 않는다.
+ */
+export const COMPANY_VEHICLE_STATUS_LABEL_OVERRIDE: Partial<Record<ReservationStatus, string>> = {
+  PARKING: '출차',
+  EXITED: '입차',
+};
+
+/**
  * 화면에 표시하는 상태.
  *
  * DB 의 reservation_status 에 더해, **승인 완료된 예약이 예정 시간에 도달했는지**로

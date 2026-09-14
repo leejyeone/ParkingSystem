@@ -5,7 +5,11 @@ import Link from 'next/link';
 import { ClickableTableRow } from '@/components/admin/clickable-table-row';
 import { FilterBar, type FilterChip } from '@/components/admin/filter-bar';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { RESERVATION_STATUS_LABEL, reservationStatusFilterOptions } from '@/domain/reservation-status';
+import {
+  COMPANY_VEHICLE_STATUS_LABEL_OVERRIDE,
+  RESERVATION_STATUS_LABEL,
+  reservationStatusFilterOptions,
+} from '@/domain/reservation-status';
 import { requireAdminPage } from '@/lib/admin-page-guard';
 import { formatKstRange, kstDayRangeUtc } from '@/lib/datetime';
 import { listCompanyVehicles } from '@/services/company-vehicle-service';
@@ -161,6 +165,7 @@ export default async function CompanyVehicleTripsPage({ searchParams }: PageProp
             <table className="data-table">
               <thead>
                 <tr>
+                  <th>신청번호</th>
                   <th>상태</th>
                   <th>운행 일시</th>
                   <th>신청 직원</th>
@@ -171,7 +176,7 @@ export default async function CompanyVehicleTripsPage({ searchParams }: PageProp
               <tbody>
                 {trips.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="text-ink-faint text-center text-sm">
+                    <td colSpan={6} className="text-ink-faint text-center text-sm">
                       조건에 해당하는 신청내역이 없습니다.
                     </td>
                   </tr>
@@ -181,8 +186,14 @@ export default async function CompanyVehicleTripsPage({ searchParams }: PageProp
                     key={trip.tripId}
                     href={`/admin/company-vehicles/trips/${trip.tripId}`}
                   >
+                    <td className="font-mono text-xs whitespace-nowrap">
+                      {trip.tripNo ?? `#${trip.tripId}`}
+                    </td>
                     <td>
-                      <StatusBadge status={trip.tripStatus} />
+                      <StatusBadge
+                        status={trip.tripStatus}
+                        label={COMPANY_VEHICLE_STATUS_LABEL_OVERRIDE[trip.tripStatus]}
+                      />
                     </td>
                     <td className="text-xs whitespace-nowrap">
                       {formatKstRange(trip.requestStartAt, trip.requestEndAt)}

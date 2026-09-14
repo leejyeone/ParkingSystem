@@ -32,7 +32,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
 }
 
-/** PATCH /api/admin/company-vehicle-trips/[id] — 운행 대장에서 신청 내용(행선지·사유·운행시간) 정정 */
+/** PATCH /api/admin/company-vehicle-trips/[id] — 신청 상세 카드에서 신청 내용(신청 직원·행선지·사유·운행시간) 정정 */
 export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
     const session = await requireActiveAdmin();
@@ -41,6 +41,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     const trip = await updateCompanyVehicleTripDetails({
       tripId: parseNumericId(id, '운행 신청 ID'),
+      employeeUserId: payload.employeeUserId,
       destination: payload.destination,
       reason: payload.reason,
       requestStartAt: payload.requestStartAt,
@@ -51,6 +52,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     return apiSuccess({
       tripId: trip.tripId,
+      employeeUserId: trip.employeeUserId,
       destination: trip.destination,
       reason: trip.reason,
       requestStartAt: trip.requestStartAt,

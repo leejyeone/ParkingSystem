@@ -176,6 +176,7 @@ export const companyVehicleTripMileageSchema = z
 
 /** 운행 대장에서 신청 내용(행선지·사유·운행시간)을 관리자가 직접 정정할 때 쓴다. */
 export const companyVehicleTripDetailUpdateSchema = z.object({
+  employeeUserId: z.coerce.number().int().positive('신청 직원을 선택해 주세요.'),
   destination: requiredText(200, '행선지'),
   reason: requiredText(500, '사유'),
   requestStartAt: zonedDateTimeSchema,

@@ -19,10 +19,18 @@ export const STATUS_BADGE_CLASS: Readonly<Record<DisplayReservationStatus, strin
   USED: 'bg-surface-hover text-ink-muted',
 };
 
-export function StatusBadge({ status }: { status: DisplayReservationStatus }) {
+export function StatusBadge({
+  status,
+  label,
+}: {
+  status: DisplayReservationStatus;
+  /** 주어지면 기본 문구 대신 이 문구를 쓴다(색상은 status 기준 그대로) — 법인차량처럼 같은
+   * 상태값이라도 문구가 달라야 하는 화면에서 쓴다. */
+  label?: string;
+}) {
   return (
     <span className={`badge ${STATUS_BADGE_CLASS[status]}`} data-testid="status-badge">
-      {DISPLAY_STATUS_LABEL[status]}
+      {label ?? DISPLAY_STATUS_LABEL[status]}
     </span>
   );
 }

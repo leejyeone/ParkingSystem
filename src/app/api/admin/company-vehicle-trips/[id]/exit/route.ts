@@ -13,7 +13,11 @@ export const dynamic = 'force-dynamic';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-/** POST /api/admin/company-vehicle-trips/[id]/exit — 실제 출차 처리 (PARKING → EXITED) */
+/**
+ * POST /api/admin/company-vehicle-trips/[id]/exit — (PARKING → EXITED)
+ * 법인차량은 방문 예약과 입출차 방향이 반대라, 이 처리는 실제로 "입차"(차가 돌아옴)다.
+ * 경로/함수명은 상태 전이(PARKING→EXITED) 기준으로 그대로 두고, 화면 문구만 다르게 쓴다.
+ */
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const session = await requireActiveAdmin();
