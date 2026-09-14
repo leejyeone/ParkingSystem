@@ -14,17 +14,25 @@ type SpaceOption = { spaceId: number; spaceCode: string; areaName: string };
 type Vehicle = {
   vehicleId: number;
   vehicleNo: string;
+  vehicleModel: string | null;
   memo: string | null;
   isActive: boolean;
   parkingSpaceId: number | null;
   parkingSpace: { spaceId: number; spaceCode: string; area: { areaName: string } } | null;
 };
 
-type Draft = { vehicleNo: string; memo: string; parkingSpaceId: string; isActive: boolean };
+type Draft = {
+  vehicleNo: string;
+  vehicleModel: string;
+  memo: string;
+  parkingSpaceId: string;
+  isActive: boolean;
+};
 
 function toDraft(vehicle: Vehicle): Draft {
   return {
     vehicleNo: vehicle.vehicleNo,
+    vehicleModel: vehicle.vehicleModel ?? '',
     memo: vehicle.memo ?? '',
     parkingSpaceId: vehicle.parkingSpaceId ? String(vehicle.parkingSpaceId) : '',
     isActive: vehicle.isActive,
@@ -34,13 +42,20 @@ function toDraft(vehicle: Vehicle): Draft {
 function isSameDraft(a: Draft, b: Draft): boolean {
   return (
     a.vehicleNo === b.vehicleNo &&
+    a.vehicleModel === b.vehicleModel &&
     a.memo === b.memo &&
     a.parkingSpaceId === b.parkingSpaceId &&
     a.isActive === b.isActive
   );
 }
 
-const EMPTY_DRAFT: Draft = { vehicleNo: '', memo: '', parkingSpaceId: '', isActive: true };
+const EMPTY_DRAFT: Draft = {
+  vehicleNo: '',
+  vehicleModel: '',
+  memo: '',
+  parkingSpaceId: '',
+  isActive: true,
+};
 
 export function CompanyVehicleSection({
   vehicles,
@@ -77,6 +92,7 @@ export function CompanyVehicleSection({
   function bodyFrom(draft: Draft) {
     return {
       vehicleNo: draft.vehicleNo,
+      vehicleModel: draft.vehicleModel || null,
       memo: draft.memo || null,
       parkingSpaceId: draft.parkingSpaceId ? Number(draft.parkingSpaceId) : null,
       isActive: draft.isActive,
@@ -192,6 +208,7 @@ export function CompanyVehicleSection({
               <thead>
                 <tr>
                   <th>차량번호</th>
+                  <th>차종</th>
                   <th className="w-28">주차 위치</th>
                   <th>메모</th>
                   <th>상태</th>
@@ -200,7 +217,7 @@ export function CompanyVehicleSection({
               <tbody>
                 {vehicles.length === 0 && !creating && (
                   <tr>
-                    <td colSpan={4} className="text-ink-faint text-center text-sm">
+                    <td colSpan={5} className="text-ink-faint text-center text-sm">
                       등록된 법인차량이 없습니다.
                     </td>
                   </tr>
@@ -219,6 +236,17 @@ export function CompanyVehicleSection({
                               updateDraft(vehicle.vehicleId, { vehicleNo: event.target.value })
                             }
                             maxLength={20}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            className={inputClassName(false)}
+                            value={draft.vehicleModel}
+                            onChange={(event) =>
+                              updateDraft(vehicle.vehicleId, { vehicleModel: event.target.value })
+                            }
+                            placeholder="예: 쏘나타"
+                            maxLength={50}
                           />
                         </td>
                         <td>
@@ -268,9 +296,10 @@ export function CompanyVehicleSection({
                   return (
                     <ClickableTableRow
                       key={vehicle.vehicleId}
-                      href={`/admin/company-vehicles/trips?vehicleId=${vehicle.vehicleId}`}
+                      href={`/admin/company-vehicles/log?vehicleId=${vehicle.vehicleId}`}
                     >
                       <td className="font-mono font-bold">{vehicle.vehicleNo}</td>
+                      <td className="text-xs">{vehicle.vehicleModel ?? '-'}</td>
                       <td className="w-28 font-mono text-xs">
                         {vehicle.parkingSpace?.spaceCode ?? '미지정'}
                       </td>
@@ -298,6 +327,17 @@ export function CompanyVehicleSection({
                           }
                           placeholder="12가3456"
                           maxLength={20}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className={inputClassName(false)}
+                          value={createDraft.vehicleModel}
+                          onChange={(event) =>
+                            setCreateDraft({ ...createDraft, vehicleModel: event.target.value })
+                          }
+                          placeholder="예: 쏘나타"
+                          maxLength={50}
                         />
                       </td>
                       <td>
@@ -343,7 +383,7 @@ export function CompanyVehicleSection({
                       </td>
                     </tr>
                     <tr className="bg-surface-muted">
-                      <td colSpan={4} className="text-right">
+                      <td colSpan={5} className="text-right">
                         <button
                           type="button"
                           className="btn btn-primary btn-sm"

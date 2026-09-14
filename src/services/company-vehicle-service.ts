@@ -10,6 +10,7 @@ import { AUDIT_ACTIONS, AUDIT_TARGETS, writeAuditLog } from '@/services/audit-se
 const VEHICLE_SELECT = {
   vehicleId: true,
   vehicleNo: true,
+  vehicleModel: true,
   memo: true,
   isActive: true,
   parkingSpaceId: true,
@@ -32,6 +33,7 @@ export async function listCompanyVehicles(options: { includeInactive?: boolean }
 
 export type CompanyVehicleInput = {
   vehicleNo: string;
+  vehicleModel?: string | null;
   memo?: string | null;
   /** 이 주차면은 방문 예약 배정 후보에서 제외되고, 모든 평면도에 다른 색으로 표시된다. */
   parkingSpaceId?: number | null;
@@ -66,6 +68,7 @@ export async function createCompanyVehicle(
   const created = await prisma.companyVehicle.create({
     data: {
       vehicleNo: input.vehicleNo.trim(),
+      vehicleModel: input.vehicleModel?.trim() || null,
       memo: input.memo?.trim() || null,
       parkingSpaceId: input.parkingSpaceId ?? null,
       isActive: input.isActive ?? true,
@@ -104,6 +107,9 @@ export async function updateCompanyVehicle(
       where: { vehicleId },
       data: {
         ...(input.vehicleNo !== undefined ? { vehicleNo: input.vehicleNo.trim() } : {}),
+        ...(input.vehicleModel !== undefined
+          ? { vehicleModel: input.vehicleModel?.trim() || null }
+          : {}),
         ...(input.memo !== undefined ? { memo: input.memo?.trim() || null } : {}),
         ...(input.parkingSpaceId !== undefined ? { parkingSpaceId: input.parkingSpaceId } : {}),
         ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),

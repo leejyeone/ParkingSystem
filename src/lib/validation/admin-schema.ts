@@ -18,6 +18,7 @@ import {
   pageSizeSchema,
   requiredText,
   timeOfDaySchema,
+  zonedDateTimeSchema,
 } from '@/lib/validation/common';
 
 /** 관리자 API 입력 스키마 */
@@ -133,6 +134,7 @@ export const parkingSpaceUpdateSchema = parkingSpaceCreateSchema.partial();
 
 export const companyVehicleCreateSchema = z.object({
   vehicleNo: requiredText(20, '차량번호'),
+  vehicleModel: optionalText(50, '차종'),
   memo: optionalText(500, '메모'),
   parkingSpaceId: z.coerce.number().int().positive('주차 위치를 선택해 주세요.').nullish(),
   isActive: z.boolean().default(true),
@@ -150,6 +152,34 @@ export const companyVehicleTripRejectSchema = z.object({
 
 export const companyVehicleTripCancelSchema = z.object({
   cancelReason: requiredText(500, '취소 사유'),
+});
+
+/** 빈 문자열/undefined 는 null 로, 그 외는 숫자로 강제 변환한다(선택 입력 숫자 필드용). */
+const optionalNonNegativeInt = z.preprocess(
+  (value) => (value === '' || value === undefined ? null : value),
+  z.coerce.number().int().min(0, '0 이상이어야 합니다.').nullable(),
+);
+
+/** 운행일지 주행거리 — 둘 다 선택 입력이지만, 함께 있으면 종료 계기판이 시작보다 커야 한다. */
+export const companyVehicleTripMileageSchema = z
+  .object({
+    odometerStartKm: optionalNonNegativeInt,
+    odometerEndKm: optionalNonNegativeInt,
+  })
+  .refine(
+    (value) =>
+      value.odometerStartKm === null ||
+      value.odometerEndKm === null ||
+      value.odometerEndKm >= value.odometerStartKm,
+    { message: '도착 후 계기판 거리는 출발 전 계기판 거리보다 크거나 같아야 합니다.', path: ['odometerEndKm'] },
+  );
+
+/** 운행 대장에서 신청 내용(행선지·사유·운행시간)을 관리자가 직접 정정할 때 쓴다. */
+export const companyVehicleTripDetailUpdateSchema = z.object({
+  destination: requiredText(200, '행선지'),
+  reason: requiredText(500, '사유'),
+  requestStartAt: zonedDateTimeSchema,
+  requestEndAt: zonedDateTimeSchema,
 });
 
 export const systemSettingsSchema = z

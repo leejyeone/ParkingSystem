@@ -3,10 +3,14 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { CompanyVehicleTripActionPanel } from '@/components/admin/company-vehicle-trip-action-panel';
+import {
+  CompanyVehicleTripInfoCard,
+  CompanyVehicleTripScheduleCard,
+} from '@/components/admin/company-vehicle-trip-detail-cards';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { RESERVATION_STATUS_LABEL } from '@/domain/reservation-status';
+import { isTerminalStatus, RESERVATION_STATUS_LABEL } from '@/domain/reservation-status';
 import { requireAdminPage } from '@/lib/admin-page-guard';
-import { formatKstDateTime, formatKstRange } from '@/lib/datetime';
+import { formatKstDateTime, formatKstRange, utcToZonedInput } from '@/lib/datetime';
 import { NotFoundError } from '@/lib/errors';
 import { parseNumericId } from '@/lib/api-helpers';
 import { listCompanyVehicles } from '@/services/company-vehicle-service';
@@ -40,6 +44,17 @@ export default async function CompanyVehicleTripDetailPage({ params }: PageProps
 
   const [vehicles, settings] = await Promise.all([listCompanyVehicles(), getSystemSettings()]);
 
+  // 종료된 신청(반려/취소/출차/미방문)은 내용을 바꿀 수 없다. 방문 예약 상세와 같은 기준.
+  const editable = !isTerminalStatus(trip.tripStatus);
+  const editableFields = {
+    destination: trip.destination,
+    reason: trip.reason,
+    requestStartAt: utcToZonedInput(trip.requestStartAt),
+    requestEndAt: utcToZonedInput(trip.requestEndAt),
+    odometerStartKm: trip.odometerStartKm !== null ? String(trip.odometerStartKm) : '',
+    odometerEndKm: trip.odometerEndKm !== null ? String(trip.odometerEndKm) : '',
+  };
+
   return (
     <main className="app-container-wide space-y-4">
       <div>
@@ -54,73 +69,30 @@ export default async function CompanyVehicleTripDetailPage({ params }: PageProps
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="min-w-0 space-y-4">
-          <section className="card">
-            <div className="card-body space-y-3">
-              <h2 className="card-title">신청 정보</h2>
-              <div className="definition-row">
-                <dt className="definition-term">신청 직원</dt>
-                <dd className="definition-desc">
-                  {trip.employee.name} ({trip.employee.departmentName})
-                </dd>
-              </div>
-              <div className="definition-row">
-                <dt className="definition-term">이메일</dt>
-                <dd className="definition-desc">{trip.employee.email}</dd>
-              </div>
-              <div className="definition-row">
-                <dt className="definition-term">행선지</dt>
-                <dd className="definition-desc">{trip.destination}</dd>
-              </div>
-              <div className="definition-row">
-                <dt className="definition-term">사유</dt>
-                <dd className="definition-desc whitespace-pre-wrap">{trip.reason}</dd>
-              </div>
-              <div className="definition-row">
-                <dt className="definition-term">신청 일시</dt>
-                <dd className="definition-desc">{formatKstDateTime(trip.createdAt)}</dd>
-              </div>
-            </div>
-          </section>
+          <CompanyVehicleTripInfoCard
+            tripId={trip.tripId}
+            editable={editable}
+            initial={editableFields}
+            readOnly={{
+              employeeText: `${trip.employee.name} (${trip.employee.departmentName})`,
+              employeeEmail: trip.employee.email,
+              createdAtText: formatKstDateTime(trip.createdAt),
+            }}
+          />
 
-          <section className="card">
-            <div className="card-body space-y-3">
-              <h2 className="card-title">운행 일정</h2>
-              <div className="definition-row">
-                <dt className="definition-term">운행 요청 시간</dt>
-                <dd className="definition-desc">
-                  {formatKstRange(trip.requestStartAt, trip.requestEndAt)}
-                </dd>
-              </div>
-              <div className="definition-row">
-                <dt className="definition-term">배정 차량</dt>
-                <dd className="definition-desc">{trip.assignedVehicle?.vehicleNo ?? '미배정'}</dd>
-              </div>
-              <div className="definition-row">
-                <dt className="definition-term">실제 입차</dt>
-                <dd className="definition-desc">
-                  {trip.actualEntryAt ? formatKstDateTime(trip.actualEntryAt) : '-'}
-                </dd>
-              </div>
-              <div className="definition-row">
-                <dt className="definition-term">실제 출차</dt>
-                <dd className="definition-desc">
-                  {trip.actualExitAt ? formatKstDateTime(trip.actualExitAt) : '-'}
-                </dd>
-              </div>
-              {trip.rejectionReason && (
-                <div className="definition-row">
-                  <dt className="definition-term">반려 사유</dt>
-                  <dd className="definition-desc">{trip.rejectionReason}</dd>
-                </div>
-              )}
-              {trip.cancelReason && (
-                <div className="definition-row">
-                  <dt className="definition-term">취소 사유</dt>
-                  <dd className="definition-desc">{trip.cancelReason}</dd>
-                </div>
-              )}
-            </div>
-          </section>
+          <CompanyVehicleTripScheduleCard
+            tripId={trip.tripId}
+            editable={editable}
+            initial={editableFields}
+            readOnly={{
+              visitRangeText: formatKstRange(trip.requestStartAt, trip.requestEndAt),
+              assignedVehicleText: trip.assignedVehicle?.vehicleNo ?? '미배정',
+              actualEntryText: trip.actualEntryAt ? formatKstDateTime(trip.actualEntryAt) : '-',
+              actualExitText: trip.actualExitAt ? formatKstDateTime(trip.actualExitAt) : '-',
+              rejectionReason: trip.rejectionReason,
+              cancelReason: trip.cancelReason,
+            }}
+          />
         </div>
 
         <div className="min-w-0">

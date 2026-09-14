@@ -87,10 +87,7 @@ export default async function CompanyVehicleTripsPage({ searchParams }: PageProp
   return (
     <main className="app-container-wide space-y-4">
       <div>
-        <Link href="/admin/company-vehicles" className="text-brand-700 text-sm font-semibold">
-          ← 법인차량 관리
-        </Link>
-        <h1 className="text-ink mt-2 text-xl font-black sm:text-2xl">법인차량 신청내역</h1>
+        <h1 className="text-ink text-xl font-black sm:text-2xl">법인차량 신청내역</h1>
         <p className="text-ink-muted mt-1 text-sm">
           직원이 신청한 법인 공용 차량 운행 내역입니다. 행을 누르면 상세에서 승인·반려·차량
           배정·입출차 처리를 할 수 있습니다.

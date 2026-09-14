@@ -422,6 +422,7 @@ model ParkingReservationStatusLog {
 model CompanyVehicle {
   vehicleId      Int      @id @default(autoincrement()) @map("vehicle_id")
   vehicleNo      String   @map("vehicle_no") @db.VarChar(20)
+  vehicleModel   String?  @map("vehicle_model") @db.VarChar(50)
   memo           String?  @db.VarChar(500)
   /// 이 차량이 고정 주차된 위치. 이 값이 채워진 주차면은 모든 평면도에서 다른 색으로
   /// 표시되고, 방문 예약 배정 후보에서 제외된다.
@@ -459,6 +460,11 @@ model CompanyVehicleTrip {
   rejectionReason String?   @map("rejection_reason") @db.VarChar(500)
   cancelledAt     DateTime? @map("cancelled_at")
   cancelReason    String?   @map("cancel_reason") @db.VarChar(500)
+
+  /// 운행일지 표준 항목 — 주행 전/후 계기판 거리(km). 입·출차 관리 기능과 무관하게
+  /// 관리자가 신청 상세에서 직접 기록한다(둘 다 있어야 주행거리를 계산해 보여준다).
+  odometerStartKm Int? @map("odometer_start_km")
+  odometerEndKm   Int? @map("odometer_end_km")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

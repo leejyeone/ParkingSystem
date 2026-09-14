@@ -40,6 +40,11 @@ export type CompanyVehicleTripListFilter = {
   /** 운행 요청 시간이 이 구간과 겹치는 신청만 (당일 KST 00:00~24:00 등) */
   dateFrom?: Date;
   dateTo?: Date;
+  /**
+   * 기본 'createdAt_desc'(신청내역 목록 — 최근 신청 순). 운행 대장은 종이 운행일지처럼
+   * 시간순으로 누적되는 형태가 맞으므로 'requestStartAt_asc'를 쓴다.
+   */
+  order?: 'createdAt_desc' | 'requestStartAt_asc';
 };
 
 export async function listCompanyVehicleTrips(filter: CompanyVehicleTripListFilter = {}) {
@@ -52,7 +57,8 @@ export async function listCompanyVehicleTrips(filter: CompanyVehicleTripListFilt
         ? { requestStartAt: { lt: filter.dateTo }, requestEndAt: { gt: filter.dateFrom } }
         : {}),
     },
-    orderBy: { createdAt: 'desc' },
+    orderBy:
+      filter.order === 'requestStartAt_asc' ? { requestStartAt: 'asc' } : { createdAt: 'desc' },
     include: {
       employee: { select: { name: true, departmentName: true } },
       assignedVehicle: { select: { vehicleId: true, vehicleNo: true } },
@@ -336,6 +342,92 @@ export async function cancelCompanyVehicleTripByRequester(params: {
 
     return result;
   });
+}
+
+/**
+ * 운행 대장에서 신청 내용(행선지·사유·운행시간)을 관리자가 직접 정정한다. 상태 전이가
+ * 아니므로 상태 로그는 남기지 않고, 감사 로그만 남긴다. 신청 단계의 운영시간/최대
+ * 사용시간 같은 사업 규칙(`assertCompanyVehicleTripTiming`)은 여기서는 다시 검사하지
+ * 않는다 — 관리자가 사후에 기록을 바로잡는 용도라 종료 시각이 시작 이후인지만 확인한다.
+ */
+export async function updateCompanyVehicleTripDetails(
+  params: {
+    tripId: number;
+    destination: string;
+    reason: string;
+    requestStartAt: Date;
+    requestEndAt: Date;
+  } & AdminActionContext,
+): Promise<CompanyVehicleTripDetail> {
+  if (params.requestEndAt <= params.requestStartAt) {
+    throw new ValidationError('운행 종료 시간은 시작 시간 이후여야 합니다.', {
+      requestEndAt: ['운행 종료 시간은 시작 시간 이후여야 합니다.'],
+    });
+  }
+
+  await loadTripOrThrow(params.tripId, prisma);
+
+  const updated = await prisma.companyVehicleTrip.update({
+    where: { tripId: params.tripId },
+    data: {
+      destination: params.destination.trim(),
+      reason: params.reason.trim(),
+      requestStartAt: params.requestStartAt,
+      requestEndAt: params.requestEndAt,
+    },
+    include: TRIP_DETAIL_INCLUDE,
+  });
+
+  await writeAuditLog({
+    actorAdminId: params.adminUserId,
+    actionType: AUDIT_ACTIONS.COMPANY_VEHICLE_TRIP_UPDATE,
+    targetType: AUDIT_TARGETS.COMPANY_VEHICLE_TRIP,
+    targetId: updated.tripId,
+    detail: {
+      destination: updated.destination,
+      reason: updated.reason,
+      requestStartAt: updated.requestStartAt,
+      requestEndAt: updated.requestEndAt,
+    },
+    context: params.requestContext,
+  });
+
+  return updated;
+}
+
+/**
+ * 운행일지 주행거리 기록. 상태 전이가 아니라 단순 필드 갱신이라 상태 로그는 남기지
+ * 않고, 다른 관리자 조작처럼 감사 로그만 남긴다. 입·출차 관리 기능 on/off 와 무관하게
+ * 항상 사용할 수 있다(실제로는 입출차 관리를 꺼 둔 곳도 계기판 숫자는 따로 기록한다).
+ */
+export async function updateCompanyVehicleTripMileage(
+  params: {
+    tripId: number;
+    odometerStartKm: number | null;
+    odometerEndKm: number | null;
+  } & AdminActionContext,
+): Promise<CompanyVehicleTripDetail> {
+  await loadTripOrThrow(params.tripId, prisma);
+
+  const updated = await prisma.companyVehicleTrip.update({
+    where: { tripId: params.tripId },
+    data: {
+      odometerStartKm: params.odometerStartKm,
+      odometerEndKm: params.odometerEndKm,
+    },
+    include: TRIP_DETAIL_INCLUDE,
+  });
+
+  await writeAuditLog({
+    actorAdminId: params.adminUserId,
+    actionType: AUDIT_ACTIONS.COMPANY_VEHICLE_TRIP_UPDATE,
+    targetType: AUDIT_TARGETS.COMPANY_VEHICLE_TRIP,
+    targetId: updated.tripId,
+    detail: { odometerStartKm: updated.odometerStartKm, odometerEndKm: updated.odometerEndKm },
+    context: params.requestContext,
+  });
+
+  return updated;
 }
 
 /** 입·출차 관리 기능이 꺼져 있으면 호출 자체를 막는다. (방문 예약과 동일한 시스템 설정 공유) */

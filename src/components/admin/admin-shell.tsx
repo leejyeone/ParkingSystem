@@ -46,6 +46,7 @@ function buildMenu(role: AdminRole): MenuItem[] {
       children: [
         { href: '/admin/company-vehicles/trips', label: '법인차량 신청내역' },
         { href: '/admin/company-vehicles', label: '법인차량 관리' },
+        { href: '/admin/company-vehicles/log', label: '법인차량 운행 대장' },
       ],
     },
     {

@@ -76,6 +76,8 @@ export type DashboardData = {
   pendingTotalCount: number;
   /** 발송 실패한 이메일 건수(날짜 무관, 전체). 신청자에게 안내 메일이 못 갔을 수 있어 경고로 띄운다. */
   failedEmailCount: number;
+  /** 승인 대기 중인 법인차량 신청 건수(날짜 무관, 전체). */
+  companyVehiclePendingCount: number;
   spaces: SpaceStatusRow[];
   /** 구역별로 묶은 주차면 현황. 대시보드 평면도 카드의 층 탭에서 쓴다. */
   areas: { areaId: number; areaCode: string; areaName: string; spaces: SpaceStatusRow[] }[];
@@ -97,8 +99,14 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
   const spaceAssignmentEnabled = settings.spaceAssignmentEnabled;
   const { start, end } = kstDayRangeUtc(dateString, settings.appTimeZone);
 
-  const [spaces, dayReservations, pendingReservations, pendingTotalCount, failedEmailCount] =
-    await Promise.all([
+  const [
+    spaces,
+    dayReservations,
+    pendingReservations,
+    pendingTotalCount,
+    failedEmailCount,
+    companyVehiclePendingCount,
+  ] = await Promise.all([
       prisma.parkingSpace.findMany({
         // 비활성 주차면도 도면에 회색으로 표시해야 하므로 함께 가져온다.
         where: { area: { isActive: true } },
@@ -151,6 +159,10 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
       }),
       // 날짜 필터 없이, 아직 해결되지 않은 발송 실패 건수를 센다.
       countUnresolvedFailedEmails(),
+      // 날짜 필터 없이 전체 법인차량 승인 대기 건수를 센다.
+      prisma.companyVehicleTrip.count({
+        where: { tripStatus: ReservationStatus.REQUESTED },
+      }),
     ]);
 
   const nowMs = Date.now();
@@ -267,6 +279,7 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
     pendingCount: pendingReservations.length,
     pendingTotalCount,
     failedEmailCount,
+    companyVehiclePendingCount,
     spaces: spaceRows,
     areas,
     pendingReservations: pendingReservations.map((r) =>

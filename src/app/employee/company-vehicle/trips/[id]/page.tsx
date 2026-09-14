@@ -93,6 +93,14 @@ export default async function EmployeeCompanyVehicleTripDetailPage({ params }: P
               {trip.actualExitAt ? formatKstDateTime(trip.actualExitAt) : '-'}
             </dd>
           </div>
+          <div className="definition-row">
+            <dt className="definition-term">주행거리</dt>
+            <dd className="definition-desc">
+              {trip.odometerStartKm !== null && trip.odometerEndKm !== null
+                ? `${trip.odometerEndKm - trip.odometerStartKm}km`
+                : '-'}
+            </dd>
+          </div>
           {trip.rejectionReason && (
             <div className="definition-row">
               <dt className="definition-term">반려 사유</dt>

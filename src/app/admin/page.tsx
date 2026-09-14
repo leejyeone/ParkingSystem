@@ -153,6 +153,18 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
         </Alert>
       )}
 
+      {dashboard.companyVehiclePendingCount > 0 && (
+        <Alert variant="warning">
+          <Link
+            href="/admin/company-vehicles/trips?status=REQUESTED"
+            className="font-bold hover:underline"
+          >
+            법인차량 신청 대기가 {dashboard.companyVehiclePendingCount}건 있습니다. 눌러서
+            확인하세요.
+          </Link>
+        </Alert>
+      )}
+
       <section className="card">
         <div className="card-body">
           <div className="flex items-center justify-between">
