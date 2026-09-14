@@ -34,7 +34,7 @@ export default async function ReservationAccessPage({ params }: PageProps) {
     const resolved = await resolveAccessToken(token);
     resolvedReservationId = resolved.reservationId;
   } catch {
-    return <InvalidTokenView homeHref={homeHref} />;
+    return <InvalidTokenView />;
   }
 
   const [reservation, settings] = await Promise.all([
@@ -47,10 +47,7 @@ export default async function ReservationAccessPage({ params }: PageProps) {
   return (
     <main className="app-container">
       <div className="mb-4">
-        <Link href={homeHref} className="text-brand-700 text-sm font-semibold">
-          ← 처음으로
-        </Link>
-        <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">내 예약</h1>
+        <h1 className="text-xl font-black text-slate-900 sm:text-2xl">내 예약</h1>
       </div>
 
       <ReservationAccessPanel
@@ -86,14 +83,11 @@ export default async function ReservationAccessPage({ params }: PageProps) {
   );
 }
 
-function InvalidTokenView({ homeHref }: { homeHref: string }) {
+function InvalidTokenView() {
   return (
     <main className="app-container">
       <div className="mb-4">
-        <Link href={homeHref} className="text-brand-700 text-sm font-semibold">
-          ← 처음으로
-        </Link>
-        <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">
+        <h1 className="text-xl font-black text-slate-900 sm:text-2xl">
           예약을 확인할 수 없습니다
         </h1>
       </div>

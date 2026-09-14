@@ -31,10 +31,7 @@ export default async function UserLoginPage({ searchParams }: PageProps) {
   return (
     <main className="app-container max-w-md">
       <div className="mb-6">
-        <Link href={homeHref} className="text-brand-700 text-xs font-semibold">
-          ← 처음으로
-        </Link>
-        <h1 className="mt-2 text-2xl font-black text-slate-900">로그인</h1>
+        <h1 className="text-2xl font-black text-slate-900">로그인</h1>
         <p className="mt-1 text-sm text-slate-600">
           로그인하면 방문 신청 시 내 정보가 자동으로 입력됩니다.
         </p>

@@ -8,7 +8,6 @@ import {
 import { Alert } from '@/components/ui/alert';
 import { DEFAULT_SETTINGS } from '@/domain/system-settings';
 import { earliestSelectableInput } from '@/lib/datetime';
-import { resolveHomeHref } from '@/lib/home-link';
 import { getSystemSettings } from '@/services/settings-service';
 import { getUserProfile } from '@/services/user-auth-service';
 import { requireUserPage } from '@/lib/user-page-guard';
@@ -21,18 +20,14 @@ export default async function NewReservationPage() {
   // 방문 신청은 회원가입·로그인이 필수다. 비로그인이면 로그인 화면으로 보내고,
   // 로그인 후 이 페이지로 그대로 돌아온다(safeUserRedirect 허용 목록에 이미 포함).
   const session = await requireUserPage('/reservations/new');
-  const [settings, homeHref, profile] = await Promise.all([
+  const [settings, profile] = await Promise.all([
     getSystemSettings().catch(() => DEFAULT_SETTINGS),
-    resolveHomeHref(),
     getUserProfile(session.userId),
   ]);
 
   const headerBlock = (
     <div className="mb-4">
-      <Link href={homeHref} className="text-brand-700 text-sm font-semibold">
-        ← 처음으로
-      </Link>
-      <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">방문 신청</h1>
+      <h1 className="text-xl font-black text-slate-900 sm:text-2xl">방문 신청</h1>
     </div>
   );
 

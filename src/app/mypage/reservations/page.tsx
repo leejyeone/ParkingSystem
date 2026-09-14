@@ -6,7 +6,6 @@ import { Alert } from '@/components/ui/alert';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { REQUESTER_TYPE_LABEL } from '@/domain/reservation-status';
 import { formatKstRange } from '@/lib/datetime';
-import { resolveHomeHref } from '@/lib/home-link';
 import { requireUserPage } from '@/lib/user-page-guard';
 import { listReservationsForUser } from '@/services/reservation-service';
 import { getSystemSettings } from '@/services/settings-service';
@@ -20,7 +19,6 @@ type PageProps = { searchParams: Promise<{ linked?: string; page?: string }> };
 
 export default async function MyReservationsPage({ searchParams }: PageProps) {
   const session = await requireUserPage('/mypage/reservations');
-  const homeHref = await resolveHomeHref();
   const params = await searchParams;
   const linkedCount = Number(params.linked);
   const page = Number(params.page) > 0 ? Number(params.page) : 1;
@@ -54,10 +52,7 @@ export default async function MyReservationsPage({ searchParams }: PageProps) {
   return (
     <main className="app-container space-y-4">
       <div>
-        <Link href={homeHref} className="text-brand-700 text-sm font-semibold">
-          ← 처음으로
-        </Link>
-        <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">예약 내역</h1>
+        <h1 className="text-xl font-black text-slate-900 sm:text-2xl">예약 내역</h1>
       </div>
 
       <section className="card">

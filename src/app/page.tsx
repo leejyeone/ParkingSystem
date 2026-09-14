@@ -2,14 +2,14 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
-import { UserLogoutButton } from '@/components/user/user-logout-button';
+import { ClickableTableRow } from '@/components/admin/clickable-table-row';
+import { ActionCard } from '@/components/ui/action-card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { DEFAULT_SETTINGS } from '@/domain/system-settings';
-import { formatKstDate, formatKstRange, kstDayRangeUtc } from '@/lib/datetime';
+import { formatKstRange } from '@/lib/datetime';
 import { getUserSession } from '@/lib/user-session';
 import { listReservationsForUser } from '@/services/reservation-service';
 import { getSystemSettings } from '@/services/settings-service';
-import { getUserProfile } from '@/services/user-auth-service';
 
 const RECENT_RESERVATIONS_LIMIT = 3;
 
@@ -53,46 +53,19 @@ export default async function HomePage({ searchParams }: PageProps) {
     getUserSession(),
   ]);
 
-  const [profile, recentReservations] = session
-    ? await Promise.all([
-        getUserProfile(session.userId),
-        listReservationsForUser(session.userId, {
-          page: 1,
-          pageSize: RECENT_RESERVATIONS_LIMIT,
-          entryExitManagementEnabled: settings.entryExitManagementEnabled,
-          // 오늘(KST 00:00) 이후 예약만 — 지난 방문 이력은 마이페이지에서 본다.
-          fromDate: kstDayRangeUtc(formatKstDate(new Date())).start,
-          order: 'asc',
-        }),
-      ])
-    : [null, null];
+  const recentReservations = session
+    ? await listReservationsForUser(session.userId, {
+        page: 1,
+        pageSize: RECENT_RESERVATIONS_LIMIT,
+        entryExitManagementEnabled: settings.entryExitManagementEnabled,
+        // "최근 예약 현황" 이라는 이름에 맞게, 예정 여부와 무관하게 최근에 신청한
+        // 순(order 기본값 'desc')으로 보여준다 — 지난 방문도 여기 보인다.
+      })
+    : null;
 
   return (
     <main className="app-container">
-      {session && (
-        <div className="flex items-center justify-end gap-3">
-          <div className="text-right">
-            <span className="block text-sm font-bold whitespace-nowrap text-slate-900">
-              {profile?.name ?? session.name}
-            </span>
-            {profile?.companyOrBranchName && (
-              <span className="block text-xs whitespace-nowrap text-slate-500">
-                {profile.companyOrBranchName}
-              </span>
-            )}
-          </div>
-          <Link
-            href="/mypage"
-            className="rounded-full bg-sky-50 px-4 py-2 text-xs font-bold whitespace-nowrap text-sky-600 transition hover:bg-sky-100"
-          >
-            MY
-          </Link>
-          <UserLogoutButton />
-        </div>
-      )}
-
-      <header className={`mb-6 text-center ${session ? 'mt-3' : 'mt-6'}`}>
-
+      <header className="mt-6 mb-6 text-center">
         <div className="mt-3 flex justify-center">
           <Image src="/synopex-logo.png" alt="Synopex" width={175} height={50} priority />
         </div>
@@ -102,23 +75,38 @@ export default async function HomePage({ searchParams }: PageProps) {
         </p>
       </header>
 
-      {/* 방문 신청은 로그인이 필수라, 비로그인 사용자에게는 로그인/회원가입만 보여준다. */}
-      <nav className="grid gap-3">
-        {session ? (
-          <Link href="/reservations/new" className="btn btn-primary btn-lg w-full">
-            방문 신청하기
+      {session ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <ActionCard
+            href="/reservations/new"
+            icon={<CarIcon />}
+            title="방문 신청"
+            description="본인 차량으로 방문 시 신청합니다."
+          />
+          <ActionCard
+            href="/mypage/reservations"
+            icon={<ListIcon />}
+            title="예약 조회"
+            description="신청한 방문 예약을 확인합니다."
+          />
+          <ActionCard
+            href="/mypage"
+            icon={<PersonIcon />}
+            title="마이페이지"
+            description="내 정보와 회원 설정을 관리합니다."
+          />
+        </div>
+      ) : (
+        // 방문 신청은 로그인이 필수라, 비로그인 사용자에게는 로그인/회원가입만 보여준다.
+        <nav className="grid gap-3">
+          <Link href="/login" className="btn btn-primary btn-lg w-full">
+            로그인
           </Link>
-        ) : (
-          <>
-            <Link href="/login" className="btn btn-primary btn-lg w-full">
-              로그인
-            </Link>
-            <Link href="/signup" className="btn btn-primary btn-lg w-full">
-              회원가입
-            </Link>
-          </>
-        )}
-      </nav>
+          <Link href="/signup" className="btn btn-primary btn-lg w-full">
+            회원가입
+          </Link>
+        </nav>
+      )}
 
       {session && recentReservations && (
         <section className="card mt-6">
@@ -133,34 +121,35 @@ export default async function HomePage({ searchParams }: PageProps) {
             {recentReservations.items.length === 0 ? (
               <p className="text-ink-faint mt-3 text-sm">신청 내역이 없습니다.</p>
             ) : (
-              <ul className="mt-3 space-y-2">
-                {recentReservations.items.map((reservation) => (
-                  <li key={reservation.reservationId}>
-                    <Link
-                      href={`/mypage/reservations/${reservation.reservationId}`}
-                      className="hover:border-brand-500 border-line hover:bg-surface-hover flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 transition"
-                    >
-                      <div>
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="text-ink text-sm font-bold">
-                            {reservation.companyOrBranchName}
-                          </span>
-                          <span className="text-ink-muted text-sm">
-                            {reservation.requesterName}
-                          </span>
-                        </div>
-                        <p className="text-ink-faint mt-1 text-xs">
+              <div className="table-scroll mt-3">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>회사명 · 성명</th>
+                      <th>방문일시</th>
+                      <th>상태</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentReservations.items.map((reservation) => (
+                      <ClickableTableRow
+                        key={reservation.reservationId}
+                        href={`/mypage/reservations/${reservation.reservationId}`}
+                      >
+                        <td className="text-xs">
+                          {reservation.companyOrBranchName} · {reservation.requesterName}
+                        </td>
+                        <td className="text-xs whitespace-nowrap">
                           {formatKstRange(reservation.visitStartAt, reservation.visitEndAt)}
-                          {reservation.employeeUserName && (
-                            <> · 시노펙스 담당자: {reservation.employeeUserName}</>
-                          )}
-                        </p>
-                      </div>
-                      <StatusBadge status={reservation.displayStatus} />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+                        </td>
+                        <td>
+                          <StatusBadge status={reservation.displayStatus} />
+                        </td>
+                      </ClickableTableRow>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </section>
@@ -192,7 +181,57 @@ export default async function HomePage({ searchParams }: PageProps) {
           </ul>
         </div>
       </section>
-
     </main>
+  );
+}
+
+function CarIcon() {
+  return (
+    <svg width={22} height={22} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M5 16.5V11l1.6-4.2A2 2 0 0 1 8.5 5.5h7a2 2 0 0 1 1.9 1.3L19 11v5.5"
+        stroke="currentColor"
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M5 16.5h14v2a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H8v1a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-2Z"
+        stroke="currentColor"
+        strokeWidth={1.8}
+        strokeLinejoin="round"
+      />
+      <path d="M5 11h14" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ListIcon() {
+  return (
+    <svg width={22} height={22} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M8 6h11M8 12h11M8 18h11"
+        stroke="currentColor"
+        strokeWidth={1.8}
+        strokeLinecap="round"
+      />
+      <circle cx={4} cy={6} r={1.3} fill="currentColor" />
+      <circle cx={4} cy={12} r={1.3} fill="currentColor" />
+      <circle cx={4} cy={18} r={1.3} fill="currentColor" />
+    </svg>
+  );
+}
+
+function PersonIcon() {
+  return (
+    <svg width={22} height={22} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx={12} cy={8} r={3.5} stroke="currentColor" strokeWidth={1.8} />
+      <path
+        d="M4.5 20c1.2-3.6 4.2-5.5 7.5-5.5s6.3 1.9 7.5 5.5"
+        stroke="currentColor"
+        strokeWidth={1.8}
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { ClickableTableRow } from '@/components/admin/clickable-table-row';
+import { ActionCard } from '@/components/ui/action-card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { DEFAULT_SETTINGS } from '@/domain/system-settings';
 import { requireEmployeePage } from '@/lib/employee-page-guard';
@@ -133,31 +134,6 @@ export default async function EmployeeHomePage() {
         </div>
       </section>
     </main>
-  );
-}
-
-function ActionCard({
-  href,
-  icon,
-  title,
-  description,
-}: {
-  href: string;
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="border-line hover:border-brand-500 hover:bg-surface-hover flex flex-col items-center gap-2 rounded-xl border p-5 text-center transition"
-    >
-      <span className="bg-brand-100 text-brand-700 flex size-12 items-center justify-center rounded-full">
-        {icon}
-      </span>
-      <span className="text-ink text-base font-bold">{title}</span>
-      <span className="text-ink-muted text-xs leading-relaxed">{description}</span>
-    </Link>
   );
 }
 
