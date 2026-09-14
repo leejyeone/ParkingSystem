@@ -43,7 +43,7 @@ export default async function EmployeeHomePage() {
           href="/employee/company-vehicle/new"
           icon={<BuildingIcon />}
           title="법인 차량 예약"
-          description="업무용 법인차량 사용을 예약합니다."
+          description="법인차량 사용을 예약합니다."
         />
       </div>
 
@@ -70,7 +70,7 @@ export default async function EmployeeHomePage() {
                 <thead>
                   <tr>
                     <th>구분</th>
-                    <th>신청자</th>
+                    <th>성명</th>
                     <th>차량번호</th>
                     <th>방문일시</th>
                     <th>목적</th>

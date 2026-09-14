@@ -14,3 +14,8 @@ export const createCompanyVehicleTripSchema = z.object({
   requestStartAt: zonedDateTimeSchema,
   requestEndAt: zonedDateTimeSchema,
 });
+
+/** 신청자 본인 취소 (승인 대기 상태에서만 허용 — 서비스 계층에서 확인). */
+export const cancelCompanyVehicleTripSchema = z.object({
+  cancelReason: requiredText(500, '취소 사유'),
+});

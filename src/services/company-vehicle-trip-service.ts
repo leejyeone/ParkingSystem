@@ -290,6 +290,54 @@ export async function cancelCompanyVehicleTripByAdmin(
   return cancelled;
 }
 
+/**
+ * 신청자(운행 예정자) 본인 취소. 방문 예약의 `cancelReservationByRequester`와 같은 원칙 —
+ * 승인 대기(REQUESTED) 상태에서만 허용한다. 승인 이후에는 차량이 이미 배정된 상태라
+ * 관리자에게 문의해 처리하도록 안내한다(`cancelCompanyVehicleTripByAdmin` 참고).
+ */
+export async function cancelCompanyVehicleTripByRequester(params: {
+  tripId: number;
+  employeeUserId: number;
+  cancelReason: string;
+}): Promise<CompanyVehicleTripDetail> {
+  return prisma.$transaction(async (tx) => {
+    const current = await loadTripOrThrow(params.tripId, tx);
+    if (current.employeeUserId !== params.employeeUserId) {
+      // 남의 신청 ID 를 넣은 경우도 "없음"으로 동일하게 처리한다.
+      throw new NotFoundError('법인차량 운행 신청을 찾을 수 없습니다.');
+    }
+    if (current.tripStatus !== ReservationStatus.REQUESTED) {
+      throw new ConflictError(
+        '승인 대기 상태에서만 취소할 수 있습니다. 승인 이후 취소가 필요하면 관리자에게 문의해 주세요.',
+        'CHANGE_NOT_ALLOWED',
+      );
+    }
+    assertTransition(current.tripStatus, ReservationStatus.CANCELLED);
+
+    const result = await tx.companyVehicleTrip.update({
+      where: { tripId: params.tripId },
+      data: {
+        tripStatus: ReservationStatus.CANCELLED,
+        cancelledAt: new Date(),
+        cancelReason: params.cancelReason,
+      },
+      include: TRIP_DETAIL_INCLUDE,
+    });
+
+    await tx.companyVehicleTripStatusLog.create({
+      data: {
+        tripId: params.tripId,
+        previousStatus: current.tripStatus,
+        currentStatus: ReservationStatus.CANCELLED,
+        changedByType: ChangedByType.REQUESTER,
+        changeReason: params.cancelReason,
+      },
+    });
+
+    return result;
+  });
+}
+
 /** 입·출차 관리 기능이 꺼져 있으면 호출 자체를 막는다. (방문 예약과 동일한 시스템 설정 공유) */
 async function assertEntryExitEnabled(): Promise<void> {
   const settings = await getSystemSettings();

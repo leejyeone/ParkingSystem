@@ -65,15 +65,17 @@ export default async function HomePage({ searchParams }: PageProps) {
 
   return (
     <main className="app-container">
-      <header className="mt-6 mb-6 text-center">
-        <div className="mt-3 flex justify-center">
-          <Image src="/synopex-logo.png" alt="Synopex" width={175} height={50} priority />
-        </div>
-        <h1 className="mt-3 text-2xl font-black text-slate-900 sm:text-3xl">시노펙스 방문 예약</h1>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600">
-          시노펙스 동탄 사업장의 방문을 신청할 수 있습니다.
-        </p>
-      </header>
+      {!session && (
+        <header className="mt-6 mb-6 text-center">
+          <div className="mt-3 flex justify-center">
+            <Image src="/synopex-logo.png" alt="Synopex" width={175} height={50} priority />
+          </div>
+          <h1 className="mt-3 text-2xl font-black text-slate-900 sm:text-3xl">시노펙스 방문 예약</h1>
+          <p className="mt-2 text-sm leading-relaxed text-slate-600">
+            시노펙스 동탄 사업장의 방문을 신청할 수 있습니다.
+          </p>
+        </header>
+      )}
 
       {session ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -125,7 +127,8 @@ export default async function HomePage({ searchParams }: PageProps) {
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>회사명 · 성명</th>
+                      <th>회사명</th>
+                      <th>성명</th>
                       <th>방문일시</th>
                       <th>상태</th>
                     </tr>
@@ -136,9 +139,8 @@ export default async function HomePage({ searchParams }: PageProps) {
                         key={reservation.reservationId}
                         href={`/mypage/reservations/${reservation.reservationId}`}
                       >
-                        <td className="text-xs">
-                          {reservation.companyOrBranchName} · {reservation.requesterName}
-                        </td>
+                        <td className="text-xs">{reservation.companyOrBranchName}</td>
+                        <td className="text-xs">{reservation.requesterName}</td>
                         <td className="text-xs whitespace-nowrap">
                           {formatKstRange(reservation.visitStartAt, reservation.visitEndAt)}
                         </td>

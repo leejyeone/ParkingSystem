@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
+import { CompanyVehicleTripCancelPanel } from '@/components/employee/company-vehicle-trip-cancel-panel';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { RESERVATION_STATUS_LABEL } from '@/domain/reservation-status';
 import { requireEmployeePage } from '@/lib/employee-page-guard';
@@ -50,6 +51,10 @@ export default async function EmployeeCompanyVehicleTripDetailPage({ params }: P
       <section className="card">
         <div className="card-body space-y-3">
           <h2 className="card-title">신청 정보</h2>
+          <div className="definition-row">
+            <dt className="definition-term">신청자</dt>
+            <dd className="definition-desc">{trip.employee.name}</dd>
+          </div>
           <div className="definition-row">
             <dt className="definition-term">행선지</dt>
             <dd className="definition-desc">{trip.destination}</dd>
@@ -102,6 +107,8 @@ export default async function EmployeeCompanyVehicleTripDetailPage({ params }: P
           )}
         </div>
       </section>
+
+      {trip.tripStatus === 'REQUESTED' && <CompanyVehicleTripCancelPanel tripId={trip.tripId} />}
 
       <section className="card">
         <div className="card-body">
