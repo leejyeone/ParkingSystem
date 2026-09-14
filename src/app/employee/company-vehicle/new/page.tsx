@@ -22,10 +22,9 @@ export default async function CompanyVehicleNewTripPage() {
       <div>
         <h1 className="text-xl font-black text-slate-900 sm:text-2xl">법인 차량 신청</h1>
         <p className="mt-1 text-sm text-slate-600">
-          운행 요청 시간(
+          법인 차량 운행 시간 (
           {settings.companyVehicleOperatingStartTime} ~ {settings.companyVehicleOperatingEndTime})
-          내에서 1회 최대 {settings.companyVehicleMaxUsageHours}시간까지 신청할 수 있습니다. 어떤
-          차량을 배정할지는 관리자가 승인하면서 정합니다.
+          내에서 1회 최대 {settings.companyVehicleMaxUsageHours}시간까지 신청할 수 있습니다.
         </p>
       </div>
 

@@ -240,7 +240,7 @@ function EditForm({
         method: 'PUT',
         body: JSON.stringify({
           ...form,
-          visitPurpose: form.visitPurpose || null,
+          visitPurpose: form.visitPurpose,
           requestMemo: form.requestMemo || null,
         }),
       },
@@ -350,7 +350,12 @@ function EditForm({
           />
         </FormField>
 
-        <FormField label="방문 목적" htmlFor="edit-purpose" errors={fieldErrors.visitPurpose}>
+        <FormField
+          label="방문 목적"
+          htmlFor="edit-purpose"
+          required
+          errors={fieldErrors.visitPurpose}
+        >
           <input
             id="edit-purpose"
             className={inputClassName(Boolean(fieldErrors.visitPurpose))}

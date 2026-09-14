@@ -16,7 +16,7 @@ import {
  * 직접 읽어 채운다 — 화면에서도 수정할 수 없으므로 클라이언트에서 받지 않는다.
  */
 export const createReservationSchema = z.object({
-  visitPurpose: optionalText(200, '방문 목적'),
+  visitPurpose: requiredText(200, '방문 목적'),
   requestMemo: optionalText(1000, '요청 메모'),
   visitStartAt: zonedDateTimeSchema,
   visitEndAt: zonedDateTimeSchema,
@@ -40,7 +40,7 @@ export const createEmployeeReservationSchema = z.object({
   requesterName: requiredText(50, '성명'),
   requesterEmail: emailSchema,
   vehicleNo: vehicleNoSchema,
-  visitPurpose: optionalText(200, '방문 목적'),
+  visitPurpose: requiredText(200, '방문 목적'),
   requestMemo: optionalText(1000, '요청 메모'),
   visitStartAt: zonedDateTimeSchema,
   visitEndAt: zonedDateTimeSchema,
@@ -58,7 +58,7 @@ export const createEmployeeProxyReservationSchema = z.object({
   requesterName: requiredText(50, '성명'),
   requesterEmail: emailSchema,
   vehicleNo: vehicleNoSchema,
-  visitPurpose: optionalText(200, '방문 목적'),
+  visitPurpose: requiredText(200, '방문 목적'),
   requestMemo: optionalText(1000, '요청 메모'),
   visitStartAt: zonedDateTimeSchema,
   visitEndAt: zonedDateTimeSchema,
@@ -83,7 +83,7 @@ export const updateReservationSchema = z.object({
   companyOrBranchName: requiredText(100, '회사명'),
   requesterName: requiredText(50, '성명'),
   vehicleNo: vehicleNoSchema,
-  visitPurpose: optionalText(200, '방문 목적'),
+  visitPurpose: requiredText(200, '방문 목적'),
   requestMemo: optionalText(1000, '요청 메모'),
   visitStartAt: zonedDateTimeSchema,
   visitEndAt: zonedDateTimeSchema,

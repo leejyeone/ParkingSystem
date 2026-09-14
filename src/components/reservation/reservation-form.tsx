@@ -73,6 +73,7 @@ const REQUIRED_FIELD_LABELS: Record<string, string> = {
   hostEmployeeUserId: '당사 담당자',
   visitStartAt: '입차 예정 시간',
   visitEndAt: '출차 예정 시간',
+  visitPurpose: '방문 목적',
   privacyConsent: '개인정보 수집 및 이용 동의',
   visitorConsentConfirmed: '방문객 개인정보 수집·이용 동의 확인',
   securityPledgeConsent: '보안서약서 동의',
@@ -183,6 +184,9 @@ export function ReservationForm({
     if (form.visitEndAt === '') {
       errors.visitEndAt = ['날짜와 시간을 입력해 주세요.'];
     }
+    if (form.visitPurpose.trim() === '') {
+      errors.visitPurpose = ['방문 목적을 입력해 주세요.'];
+    }
     if (mode !== 'employee-self' && !form.privacyConsent) {
       const consentKey = mode === 'employee-proxy' ? 'visitorConsentConfirmed' : 'privacyConsent';
       errors[consentKey] = [
@@ -227,7 +231,7 @@ export function ReservationForm({
     setFieldErrors({});
 
     const scheduleAndMemo = {
-      visitPurpose: form.visitPurpose || null,
+      visitPurpose: form.visitPurpose,
       requestMemo: form.requestMemo || null,
       visitStartAt: form.visitStartAt,
       visitEndAt: form.visitEndAt,
@@ -455,14 +459,19 @@ export function ReservationForm({
             />
           </FormField>
 
-          <FormField label="방문 목적" htmlFor="visitPurpose" errors={fieldErrors.visitPurpose}>
+          <FormField
+            label="방문 목적"
+            htmlFor="visitPurpose"
+            required
+            errors={fieldErrors.visitPurpose}
+          >
             <input
               id="visitPurpose"
               name="visitPurpose"
               className={inputClassName(Boolean(fieldErrors.visitPurpose))}
               value={form.visitPurpose}
               onChange={(event) => update('visitPurpose', event.target.value)}
-              placeholder="선택 입력 (예: 품질회의 참석)"
+              placeholder="예: 품질회의 참석"
               maxLength={200}
             />
           </FormField>

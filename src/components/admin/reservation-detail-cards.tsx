@@ -263,6 +263,7 @@ export function RequesterInfoCard({
             <FormField
               label="방문 목적"
               htmlFor="edit-purpose"
+              required
               errors={state.fieldErrors.visitPurpose}
             >
               <input
@@ -389,7 +390,7 @@ export function ScheduleCard({
         method: 'PUT',
         body: JSON.stringify({
           ...form,
-          visitPurpose: form.visitPurpose || null,
+          visitPurpose: form.visitPurpose,
           requestMemo: form.requestMemo || null,
         }),
       });

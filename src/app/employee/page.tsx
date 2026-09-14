@@ -41,7 +41,7 @@ export default async function EmployeeHomePage() {
         <ActionCard
           href="/employee/company-vehicle/new"
           icon={<BuildingIcon />}
-          title="법인차량예약"
+          title="법인 차량 예약"
           description="업무용 법인차량 사용을 예약합니다."
         />
       </div>
@@ -77,31 +77,20 @@ export default async function EmployeeHomePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {recentActivity.map((item, index) => {
-                    const cells = (
-                      <>
-                        <td className="text-xs whitespace-nowrap">{item.kindLabel}</td>
-                        <td className="text-xs">{item.requesterName}</td>
-                        <td className="font-mono text-xs">{item.vehicleNo}</td>
-                        <td className="text-xs whitespace-nowrap">{item.dateRangeText}</td>
-                        <td className="max-w-[10rem] truncate text-xs" title={item.purpose}>
-                          {item.purpose}
-                        </td>
-                        <td>
-                          <StatusBadge status={item.status} />
-                        </td>
-                      </>
-                    );
-
-                    if (item.href) {
-                      return (
-                        <ClickableTableRow key={`${item.kind}-${index}`} href={item.href}>
-                          {cells}
-                        </ClickableTableRow>
-                      );
-                    }
-                    return <tr key={`${item.kind}-${index}`}>{cells}</tr>;
-                  })}
+                  {recentActivity.map((item) => (
+                    <ClickableTableRow key={`${item.kind}-${item.id}`} href={item.href}>
+                      <td className="text-xs whitespace-nowrap">{item.kindLabel}</td>
+                      <td className="text-xs">{item.requesterName}</td>
+                      <td className="font-mono text-xs">{item.vehicleNo}</td>
+                      <td className="text-xs whitespace-nowrap">{item.dateRangeText}</td>
+                      <td className="max-w-[10rem] truncate text-xs" title={item.purpose}>
+                        {item.purpose}
+                      </td>
+                      <td>
+                        <StatusBadge status={item.status} />
+                      </td>
+                    </ClickableTableRow>
+                  ))}
                 </tbody>
               </table>
             </div>
