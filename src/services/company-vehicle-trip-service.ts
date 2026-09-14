@@ -396,12 +396,12 @@ export async function cancelCompanyVehicleTripByRequester(params: {
  * 신청 상세(관리자 화면 카드별 [수정하기])에서 신청 내용(신청 직원·행선지·사유·
  * 운행시간)과 사후 정정이 필요한 운행 기록(배정 차량·실제 출차/입차 시각)을
  * 관리자가 직접 고친다. 상태 전이가 아니므로 상태 로그는 남기지 않고, 감사 로그만
- * 남긴다. 신청 단계의 운영시간/최대 사용시간 같은 사업 규칙
- * (`assertCompanyVehicleTripTiming`)은 여기서는 다시 검사하지 않는다 — 관리자가
- * 사후에 기록을 바로잡는 용도라 종료 시각이 시작 이후인지, 신청 직원이 실존/활성
- * 상태인지, 배정 차량이 실존/활성이고 그 시간대에 다른 운행과 겹치지 않는지만
- * 확인한다. 실제 출·입차 처리 자체(상태 전이)는 markCompanyVehicleEntry/Exit 가
- * 맡고, 여기서는 이미 기록된 시각을 바로잡는 것만 다룬다.
+ * 남긴다. 신청 단계의 운영시간/최대 사용시간 규칙(`assertCompanyVehicleTripTiming`)은
+ * 관리자가 고친 시간에도 동일하게 적용한다 — 그래야 관리자 수정을 거쳐 운영시간 밖이나
+ * 최대 사용시간을 넘는 신청이 남는 걸 막을 수 있다(방문 예약 관리자 수정의
+ * `checkVisitRange`/`checkOperatingHours` 재검증과 같은 원칙). 실제 출·입차 처리 자체
+ * (상태 전이)는 markCompanyVehicleEntry/Exit 가 맡고, 여기서는 신청 내용과 이미 기록된
+ * 실제 시각을 바로잡는 것만 다룬다.
  */
 export async function updateCompanyVehicleTripDetails(
   params: {
@@ -416,11 +416,12 @@ export async function updateCompanyVehicleTripDetails(
     actualExitAt: Date | null;
   } & AdminActionContext,
 ): Promise<CompanyVehicleTripDetail> {
-  if (params.requestEndAt <= params.requestStartAt) {
-    throw new ValidationError('운행 종료 시간은 시작 시간 이후여야 합니다.', {
-      requestEndAt: ['운행 종료 시간은 시작 시간 이후여야 합니다.'],
-    });
-  }
+  const settings = await getSystemSettings();
+  assertCompanyVehicleTripTiming({
+    requestStartAt: params.requestStartAt,
+    requestEndAt: params.requestEndAt,
+    settings,
+  });
 
   // 법인차량은 방문 예약과 입출차 방향이 반대라, actualEntryAt이 "실제 출차",
   // actualExitAt이 "실제 입차"다 — 그래도 시간 순서상 출차가 입차보다 먼저여야 한다.
