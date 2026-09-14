@@ -29,7 +29,14 @@ type Profile = {
  * 그룹웨어 실시간 동기화가 채워주지 않는 값이라 본인이 채워야 한다)다. 전화번호는 방문객이
  * 이 직원을 "당사 담당자"로 등록할 때 검증하는 값이라 필수다.
  */
-export function EmployeeProfilePanel({ profile }: { profile: Profile }) {
+export function EmployeeProfilePanel({
+  profile,
+  redirectOnSuccess,
+}: {
+  profile: Profile;
+  /** 주어지면 저장 성공 시 이 경로로 이동한다(예: 전화번호 미등록으로 강제 진입한 경우 홈으로). */
+  redirectOnSuccess?: string;
+}) {
   const router = useRouter();
   const [vehicleNo, setVehicleNo] = useState(profile.vehicleNo ?? '');
   const [companyOrBranchName, setCompanyOrBranchName] = useState(profile.companyOrBranchName ?? '');
@@ -58,6 +65,11 @@ export function EmployeeProfilePanel({ profile }: { profile: Profile }) {
     setSubmitting(false);
 
     if (response.ok) {
+      if (redirectOnSuccess) {
+        router.push(redirectOnSuccess);
+        router.refresh();
+        return;
+      }
       setMessage({ variant: 'success', text: '내 정보를 저장했습니다.' });
       router.refresh();
       return;

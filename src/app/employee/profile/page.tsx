@@ -35,7 +35,12 @@ export default async function EmployeeProfilePage({ searchParams }: PageProps) {
         </Alert>
       )}
 
-      {profile && <EmployeeProfilePanel profile={profile} />}
+      {profile && (
+        <EmployeeProfilePanel
+          profile={profile}
+          redirectOnSuccess={reason === 'phone_required' ? '/employee' : undefined}
+        />
+      )}
     </main>
   );
 }

@@ -11,13 +11,13 @@
  */
 
 @theme {
-  --color-brand-50: #eff6ff;
-  --color-brand-100: #dbeafe;
-  --color-brand-200: #bfdbfe;
-  --color-brand-500: #3b82f6;
-  --color-brand-600: #2563eb;
-  --color-brand-700: #1d4ed8;
-  --color-brand-900: #1e3a8a;
+  --color-brand-50: #eff6fc;
+  --color-brand-100: #dce9f7;
+  --color-brand-200: #b0d0ee;
+  --color-brand-500: #1f74c0;
+  --color-brand-600: #0f63ac;
+  --color-brand-700: #0052a4;
+  --color-brand-900: #013b78;
 
   /* 의미 기반 색상 토큰. 기본값(= 라이트)은 기존에 쓰던 슬레이트 배색 그대로다. */
   --color-bg: #f1f5f9;

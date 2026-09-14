@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, type ChangeEvent, type FormEvent } from 'react';
 
@@ -15,8 +14,6 @@ type Mode = 'view' | 'edit' | 'cancel';
 
 type Props = {
   token: string;
-  /** "처음으로" 링크가 갈 곳. 직원 로그인 상태면 직원 홈, 그 외에는 방문객 메인. */
-  homeHref: string;
   initialReservation: RequesterReservationView;
   settings: {
     reservationMinLeadMinutes: number;
@@ -26,7 +23,7 @@ type Props = {
   };
 };
 
-export function ReservationAccessPanel({ token, homeHref, initialReservation, settings }: Props) {
+export function ReservationAccessPanel({ token, initialReservation, settings }: Props) {
   const [reservation, setReservation] = useState(initialReservation);
   const [mode, setMode] = useState<Mode>('view');
   const [notice, setNotice] = useState<string | null>(null);
@@ -172,9 +169,6 @@ export function ReservationAccessPanel({ token, homeHref, initialReservation, se
         />
       )}
 
-      <Link href={homeHref} className="btn btn-secondary w-full">
-        처음으로
-      </Link>
     </div>
   );
 }

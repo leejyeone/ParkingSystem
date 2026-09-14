@@ -86,7 +86,7 @@ const NEUTRAL: StallStyle = { fill: '#f8fafc', stroke: '#cbd5e1', text: '#cbd5e1
 /** 신청자 화면에서 본인에게 배정된 자리 */
 const MINE: StallStyle = { fill: '#22c55e', stroke: '#15803d', text: '#ffffff' };
 /** 관리자가 배정하려고 클릭해서 고른 자리 (select 모드) */
-const SELECTED: StallStyle = { fill: '#2563eb', stroke: '#1d4ed8', text: '#ffffff' };
+const SELECTED: StallStyle = { fill: '#0f63ac', stroke: '#0052a4', text: '#ffffff' };
 /** select 모드: 배정 불가(예약돼 있는 자리 포함) — 회색으로 눌러도 반응하지 않는다 */
 const SELECT_UNAVAILABLE: StallStyle = DISABLED;
 

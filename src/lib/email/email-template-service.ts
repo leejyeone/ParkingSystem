@@ -129,7 +129,7 @@ function renderHtmlLayout(params: {
   const buttonHtml =
     params.buttonUrl && params.buttonLabel
       ? `<div style="margin-top:24px;text-align:center;">
-           <a href="${escapeHtml(params.buttonUrl)}" style="display:inline-block;padding:14px 28px;background:#1d4ed8;color:#ffffff;border-radius:8px;font-size:15px;font-weight:700;text-decoration:none;">${escapeHtml(
+           <a href="${escapeHtml(params.buttonUrl)}" style="display:inline-block;padding:14px 28px;background:#0052a4;color:#ffffff;border-radius:8px;font-size:15px;font-weight:700;text-decoration:none;">${escapeHtml(
              params.buttonLabel,
            )}</a>
            <p style="margin:12px 0 0;font-size:12px;color:#64748b;word-break:break-all;">버튼이 동작하지 않으면 아래 주소를 복사해 접속하세요.<br />${escapeHtml(
