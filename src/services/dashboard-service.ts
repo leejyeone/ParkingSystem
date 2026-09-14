@@ -48,6 +48,8 @@ export type SpaceStatusRow = {
   status: SpaceOccupancyStatus;
   /** 지금 사용 중인 예약 ID. 화면에서 해당 시간 행에만 "사용 중" 표시를 붙인다. */
   inUseReservationId: number | null;
+  /** 이 주차면이 법인 공용 차량 전용으로 고정 배정되어 있으면 채워진다. 평면도에서 다른 색으로 표시한다. */
+  companyVehicle: { vehicleId: number; vehicleNo: string } | null;
 };
 
 export type HourlyUsage = { hour: number; usedCount: number };
@@ -111,6 +113,7 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
           isActive: true,
           memo: true,
           area: { select: { areaId: true, areaCode: true, areaName: true } },
+          companyVehicle: { select: { vehicleId: true, vehicleNo: true, isActive: true } },
         },
       }),
       prisma.parkingReservation.findMany({
@@ -203,6 +206,10 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
       occupancies,
       status,
       inUseReservationId: inUse?.reservationId ?? null,
+      companyVehicle:
+        space.companyVehicle && space.companyVehicle.isActive
+          ? { vehicleId: space.companyVehicle.vehicleId, vehicleNo: space.companyVehicle.vehicleNo }
+          : null,
     };
   });
 

@@ -131,6 +131,27 @@ export const parkingSpaceCreateSchema = z.object({
 
 export const parkingSpaceUpdateSchema = parkingSpaceCreateSchema.partial();
 
+export const companyVehicleCreateSchema = z.object({
+  vehicleNo: requiredText(20, '차량번호'),
+  memo: optionalText(500, '메모'),
+  parkingSpaceId: z.coerce.number().int().positive('주차 위치를 선택해 주세요.').nullish(),
+  isActive: z.boolean().default(true),
+});
+
+export const companyVehicleUpdateSchema = companyVehicleCreateSchema.partial();
+
+export const companyVehicleTripApproveSchema = z.object({
+  vehicleId: z.coerce.number().int().positive('배정할 차량을 선택해 주세요.'),
+});
+
+export const companyVehicleTripRejectSchema = z.object({
+  rejectionReason: requiredText(500, '반려 사유'),
+});
+
+export const companyVehicleTripCancelSchema = z.object({
+  cancelReason: requiredText(500, '취소 사유'),
+});
+
 export const systemSettingsSchema = z
   .object({
     reservationMinLeadMinutes: z.coerce
@@ -179,11 +200,20 @@ export const systemSettingsSchema = z
       .int()
       .min(0, '주차면 간 완충 시간은 0분 이상이어야 합니다.')
       .max(60, '주차면 간 완충 시간은 60분 이하로 설정해 주세요.'),
+    companyVehicleOperatingStartTime: timeOfDaySchema,
+    companyVehicleOperatingEndTime: timeOfDaySchema,
   })
   .refine((values) => values.parkingOpenTime < values.parkingCloseTime, {
     error: '운영 종료 시간은 운영 시작 시간보다 늦어야 합니다.',
     path: ['parkingCloseTime'],
-  });
+  })
+  .refine(
+    (values) => values.companyVehicleOperatingStartTime < values.companyVehicleOperatingEndTime,
+    {
+      error: '법인차량 운행 신청 가능 종료 시간은 시작 시간보다 늦어야 합니다.',
+      path: ['companyVehicleOperatingEndTime'],
+    },
+  );
 
 export const adminUserCreateSchema = z.object({
   email: emailSchema,

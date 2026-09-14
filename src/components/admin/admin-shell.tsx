@@ -38,7 +38,14 @@ function buildMenu(role: AdminRole): MenuItem[] {
   const menu: MenuItem[] = [
     { href: '/admin', label: '대시보드' },
     { href: '/admin/parking-map', label: '주차 평면도' },
-    { href: '/admin/reservations', label: '예약' },
+    {
+      href: '/admin/reservations',
+      label: '예약',
+      children: [
+        { href: '/admin/reservations', label: '예약 목록' },
+        { href: '/admin/company-vehicles', label: '법인차량 관리' },
+      ],
+    },
     {
       href: '/admin/settings',
       label: '시스템 설정',

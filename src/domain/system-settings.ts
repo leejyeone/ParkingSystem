@@ -18,6 +18,8 @@ export const SETTING_KEYS = {
   DASHBOARD_REFRESH_INTERVAL_MINUTES: 'DASHBOARD_REFRESH_INTERVAL_MINUTES',
   PERSONAL_DATA_RETENTION_DAYS: 'PERSONAL_DATA_RETENTION_DAYS',
   SPACE_BUFFER_MINUTES: 'SPACE_BUFFER_MINUTES',
+  COMPANY_VEHICLE_OPERATING_START_TIME: 'COMPANY_VEHICLE_OPERATING_START_TIME',
+  COMPANY_VEHICLE_OPERATING_END_TIME: 'COMPANY_VEHICLE_OPERATING_END_TIME',
 } as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS];
@@ -84,6 +86,10 @@ export type SystemSettingsValues = {
    * 끈 상태의 정원 카운트에는 적용되지 않는다.
    */
   spaceBufferMinutes: number;
+  /** 법인 공용 차량 운행 신청 가능 시간대 시작 'HH:mm'. 방문 예약 운영시간과 별개다. */
+  companyVehicleOperatingStartTime: string;
+  /** 법인 공용 차량 운행 신청 가능 시간대 종료 'HH:mm'. 방문 예약 운영시간과 별개다. */
+  companyVehicleOperatingEndTime: string;
 };
 
 export const DEFAULT_SETTINGS: SystemSettingsValues = {
@@ -106,6 +112,8 @@ export const DEFAULT_SETTINGS: SystemSettingsValues = {
   personalDataRetentionDays: 365,
   // 기본은 끔(0) — 기존 동작(경계 맞닿음 허용)과 동일하게 유지한다.
   spaceBufferMinutes: 0,
+  companyVehicleOperatingStartTime: '07:00',
+  companyVehicleOperatingEndTime: '22:00',
 };
 
 export const SETTING_DESCRIPTIONS: Record<SettingKey, string> = {
@@ -129,6 +137,8 @@ export const SETTING_DESCRIPTIONS: Record<SettingKey, string> = {
     '방문객·직원 개인정보 보관 기간(일). 방문 신청 폼의 개인정보 수집·이용 동의 문구에 노출됩니다.',
   SPACE_BUFFER_MINUTES:
     '같은 주차면에 배정된 예약 사이 최소 간격(분). 0이면 경계가 맞닿아도 배정을 허용합니다(기존과 동일).',
+  COMPANY_VEHICLE_OPERATING_START_TIME: '법인 공용 차량 운행 신청 가능 시작 시간(HH:mm, Asia/Seoul).',
+  COMPANY_VEHICLE_OPERATING_END_TIME: '법인 공용 차량 운행 신청 가능 종료 시간(HH:mm, Asia/Seoul).',
 };
 
 /** DB 의 key/value 목록을 타입이 있는 설정 객체로 변환 */
@@ -201,6 +211,14 @@ export function toSettingsValues(
       SETTING_KEYS.SPACE_BUFFER_MINUTES,
       DEFAULT_SETTINGS.spaceBufferMinutes,
     ),
+    companyVehicleOperatingStartTime: readString(
+      SETTING_KEYS.COMPANY_VEHICLE_OPERATING_START_TIME,
+      DEFAULT_SETTINGS.companyVehicleOperatingStartTime,
+    ),
+    companyVehicleOperatingEndTime: readString(
+      SETTING_KEYS.COMPANY_VEHICLE_OPERATING_END_TIME,
+      DEFAULT_SETTINGS.companyVehicleOperatingEndTime,
+    ),
   };
 }
 
@@ -255,6 +273,14 @@ export function toSettingRows(
     {
       settingKey: SETTING_KEYS.SPACE_BUFFER_MINUTES,
       settingValue: String(values.spaceBufferMinutes),
+    },
+    {
+      settingKey: SETTING_KEYS.COMPANY_VEHICLE_OPERATING_START_TIME,
+      settingValue: values.companyVehicleOperatingStartTime,
+    },
+    {
+      settingKey: SETTING_KEYS.COMPANY_VEHICLE_OPERATING_END_TIME,
+      settingValue: values.companyVehicleOperatingEndTime,
     },
   ];
 }

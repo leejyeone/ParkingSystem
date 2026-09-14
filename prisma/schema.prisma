@@ -2,6 +2,8 @@
 //
 // 설계 제약(반드시 유지):
 //  - vehicles 테이블을 만들지 않는다. 차량번호는 parking_reservations 에 직접 저장한다.
+//    (예외: 회사 소유 공용 차량 자산을 관리하는 CompanyVehicle은 방문객 차량번호
+//    정규화 금지 취지와 무관하므로 이 제약의 대상이 아니다.)
 //  - users(회원) 계정은 방문 예약 신청에 필수다. 방문객은 반드시 회원가입·로그인 후에만
 //    신청할 수 있다(직원 본인/대리 신청은 별도 직원 로그인으로 처리, 회원 계정과 무관).
 //    parking_reservations.visitor_user_id 가 nullable 인 것은 과거 데이터·직원 신청
@@ -128,11 +130,13 @@ model AdminUser {
   updatedAt         DateTime  @updatedAt @map("updated_at")
   deletedAt         DateTime? @map("deleted_at")
 
-  approvedReservations      ParkingReservation[]           @relation("ReservationApprovalAdmin")
-  statusLogs                ParkingReservationStatusLog[]
-  auditLogs                 AuditLog[]
-  updatedSettings           SystemSetting[]
-  createdRecurringSchedules RecurringReservationSchedule[]
+  approvedReservations         ParkingReservation[]           @relation("ReservationApprovalAdmin")
+  statusLogs                   ParkingReservationStatusLog[]
+  auditLogs                    AuditLog[]
+  updatedSettings              SystemSetting[]
+  createdRecurringSchedules    RecurringReservationSchedule[]
+  approvedCompanyVehicleTrips  CompanyVehicleTrip[]
+  companyVehicleTripStatusLogs CompanyVehicleTripStatusLog[]
 
   @@index([accountStatus], map: "idx_admin_users_account_status")
   @@index([role], map: "idx_admin_users_role")
@@ -214,7 +218,7 @@ model EmployeeUser {
   /// 직접 입력해 채운다. 본인 방문 신청 폼에서만 자동완성되며, 대리 신청(방문객의 소속)과는 무관하다.
   companyOrBranchName String? @map("company_or_branch_name") @db.VarChar(100)
   /// 회원가입/마이페이지의 "당사 담당자" 이름+전화번호 일치 검증용. 숫자만 저장한다.
-  phone String? @map("phone") @db.VarChar(20)
+  phone               String? @map("phone") @db.VarChar(20)
 
   accountStatus AccountStatus @default(ACTIVE) @map("account_status")
 
@@ -223,9 +227,10 @@ model EmployeeUser {
   updatedAt   DateTime  @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
 
-  reservations       ParkingReservation[]
-  recurringSchedules RecurringReservationSchedule[]
-  hostForSiteUsers   SiteUser[]                      @relation("SiteUserHostEmployee")
+  reservations        ParkingReservation[]
+  recurringSchedules  RecurringReservationSchedule[]
+  hostForSiteUsers    SiteUser[]                     @relation("SiteUserHostEmployee")
+  companyVehicleTrips CompanyVehicleTrip[]
 
   @@index([accountStatus], map: "idx_employee_users_account_status")
   @@map("employee_users")
@@ -277,6 +282,8 @@ model ParkingSpace {
   area                 ParkingArea                    @relation(fields: [areaId], references: [areaId])
   assignedReservations ParkingReservation[]           @relation("ReservationAssignedSpace")
   recurringSchedules   RecurringReservationSchedule[]
+  /// 이 주차면이 법인 공용 차량 전용으로 고정 배정되어 있으면 채워진다(1:0..1).
+  companyVehicle       CompanyVehicle?
 
   @@unique([areaId, spaceCode], map: "uq_parking_spaces_area_code")
   @@index([spaceType, isActive, displayOrder], map: "idx_parking_spaces_type_active_order")
@@ -330,8 +337,10 @@ model ParkingReservation {
   cancelledAt     DateTime? @map("cancelled_at")
   cancelReason    String?   @map("cancel_reason") @db.VarChar(500)
 
-  privacyConsentAt DateTime @map("privacy_consent_at")
-  /** 직원 본인 방문(EMPLOYEE)은 서약 대상이 아니라 null. */
+  privacyConsentAt        DateTime  @map("privacy_consent_at")
+  /**
+   * 직원 본인 방문(EMPLOYEE)은 서약 대상이 아니라 null.
+   */
   securityPledgeConsentAt DateTime? @map("security_pledge_consent_at")
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -402,6 +411,89 @@ model ParkingReservationStatusLog {
 }
 
 // ---------------------------------------------------------------------------
+// company_vehicles / company_vehicle_trips — 법인 공용 차량 운행 관리
+//
+// 방문 예약(ParkingReservation)과 흐름은 비슷하지만(신청→승인→입출차→이력), 방문객
+// 전용 필드(개인정보 동의, 보안서약서, 회사명 등)가 전혀 필요 없고 배정 대상도 "주차
+// 공간"이 아니라 "차량 자산"이라 별도 모델로 둔다. 상태 값은 의미가 동일한
+// ReservationStatus/ChangedByType enum 을 그대로 재사용한다.
+// ---------------------------------------------------------------------------
+
+model CompanyVehicle {
+  vehicleId      Int      @id @default(autoincrement()) @map("vehicle_id")
+  vehicleNo      String   @map("vehicle_no") @db.VarChar(20)
+  memo           String?  @db.VarChar(500)
+  /// 이 차량이 고정 주차된 위치. 이 값이 채워진 주차면은 모든 평면도에서 다른 색으로
+  /// 표시되고, 방문 예약 배정 후보에서 제외된다.
+  parkingSpaceId Int?     @unique @map("parking_space_id")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  parkingSpace ParkingSpace?        @relation(fields: [parkingSpaceId], references: [spaceId], onDelete: SetNull)
+  trips        CompanyVehicleTrip[]
+
+  @@map("company_vehicles")
+}
+
+model CompanyVehicleTrip {
+  tripId         Int    @id @default(autoincrement()) @map("trip_id")
+  employeeUserId Int    @map("employee_user_id")
+  destination    String @db.VarChar(200)
+  reason         String @db.VarChar(500)
+
+  /// 모든 시각은 UTC로 저장하고 화면에서 Asia/Seoul로 변환한다.
+  requestStartAt DateTime  @map("request_start_at")
+  requestEndAt   DateTime  @map("request_end_at")
+  actualEntryAt  DateTime? @map("actual_entry_at")
+  actualExitAt   DateTime? @map("actual_exit_at")
+
+  /// 신청 시점에는 비어 있다 — 2대 중 어느 차를 내줄지는 관리자가 승인하면서 정한다.
+  assignedVehicleId Int? @map("assigned_vehicle_id")
+
+  tripStatus ReservationStatus @default(REQUESTED) @map("trip_status")
+
+  approvalAdminId Int?      @map("approval_admin_id")
+  approvedAt      DateTime? @map("approved_at")
+  rejectedAt      DateTime? @map("rejected_at")
+  rejectionReason String?   @map("rejection_reason") @db.VarChar(500)
+  cancelledAt     DateTime? @map("cancelled_at")
+  cancelReason    String?   @map("cancel_reason") @db.VarChar(500)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  employee        EmployeeUser    @relation(fields: [employeeUserId], references: [employeeUserId])
+  assignedVehicle CompanyVehicle? @relation(fields: [assignedVehicleId], references: [vehicleId], onDelete: SetNull)
+  approvalAdmin   AdminUser?      @relation(fields: [approvalAdminId], references: [adminUserId], onDelete: SetNull)
+
+  statusLogs CompanyVehicleTripStatusLog[]
+
+  @@index([tripStatus, requestStartAt], map: "idx_company_vehicle_trips_status_start")
+  @@index([assignedVehicleId, requestStartAt, requestEndAt], map: "idx_company_vehicle_trips_vehicle_range")
+  @@index([employeeUserId, createdAt], map: "idx_company_vehicle_trips_employee_created")
+  @@map("company_vehicle_trips")
+}
+
+model CompanyVehicleTripStatusLog {
+  statusLogId      Int                @id @default(autoincrement()) @map("status_log_id")
+  tripId           Int                @map("trip_id")
+  previousStatus   ReservationStatus? @map("previous_status")
+  currentStatus    ReservationStatus  @map("current_status")
+  changedByType    ChangedByType      @map("changed_by_type")
+  changedByAdminId Int?               @map("changed_by_admin_id")
+  changeReason     String?            @map("change_reason") @db.VarChar(500)
+  createdAt        DateTime           @default(now()) @map("created_at")
+
+  trip           CompanyVehicleTrip @relation(fields: [tripId], references: [tripId], onDelete: Cascade)
+  changedByAdmin AdminUser?         @relation(fields: [changedByAdminId], references: [adminUserId], onDelete: SetNull)
+
+  @@index([tripId, createdAt], map: "idx_company_vehicle_trip_status_logs_trip_created")
+  @@index([changedByAdminId], map: "idx_company_vehicle_trip_status_logs_admin")
+  @@map("company_vehicle_trip_status_logs")
+}
+
+// ---------------------------------------------------------------------------
 // recurring_reservation_schedules — 반복 예약(정기 주차 배정)
 //
 // 관리자가 특정 직원에게 특정 주차면을 기간·요일·매일 시간대로 미리 선점해 주는
@@ -433,12 +525,12 @@ model RecurringReservationSchedule {
   dailyEndTime   String    @map("daily_end_time") @db.VarChar(5)
 
   /// false 면 occurrence 를 REQUESTED 대신 곧바로 APPROVED 로 만든다(승인 절차 생략·자동 승인).
-  approvalEnabled Boolean @default(true) @map("approval_enabled")
+  approvalEnabled           Boolean @default(true) @map("approval_enabled")
   /// true 면 이 시리즈의 occurrence 는 예정 시각(visitStartAt/visitEndAt)이 되었을 때
   /// 주차 관리자의 수동 입·출차 처리 없이 자동으로 입차/출차 처리된다
   /// (src/services/exit-reminder-service.ts 의 runAutoEntryExitJob 참고). 시스템 설정의
   /// 입·출차 관리 자체가 꺼져 있으면 이 값과 무관하게 동작하지 않는다.
-  autoEntryExitEnabled Boolean @default(false) @map("auto_entry_exit_enabled")
+  autoEntryExitEnabled      Boolean @default(false) @map("auto_entry_exit_enabled")
   /// true(기본값) 면 이 시리즈의 occurrence 는 취소 여부와 무관하게 관리자 "전체 예약"
   /// 목록(주차 관리자도 접근)에 나타나지 않는다 — 반복 예약은 방문 신청/승인 절차를
   /// 우회하는 시스템 관리자 전용 기능이라, 기본적으로 주차 관리자에게는 보이지 않아야

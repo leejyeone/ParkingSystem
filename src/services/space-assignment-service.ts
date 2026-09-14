@@ -93,6 +93,8 @@ async function findFirstAvailableSpace(
       spaceType,
       isActive: true,
       area: { isActive: true },
+      // 법인 공용 차량이 고정 배정된 주차면은 방문 예약 배정 후보에서 제외한다.
+      OR: [{ companyVehicle: null }, { companyVehicle: { isActive: false } }],
       ...(occupiedSpaceIds.length > 0 ? { spaceId: { notIn: occupiedSpaceIds } } : {}),
     },
     // 대시보드·구역·주차면 관리 화면과 같은 기준: 구역 표시 순서를 먼저 따르고,
@@ -151,7 +153,13 @@ export async function listAvailableSpaces(
     : [SpaceType.NORMAL, SpaceType.DISABLED, SpaceType.EV];
 
   const spaces = await db.parkingSpace.findMany({
-    where: { isActive: true, spaceType: { in: types }, area: { isActive: true } },
+    where: {
+      isActive: true,
+      spaceType: { in: types },
+      area: { isActive: true },
+      // 법인 공용 차량이 고정 배정된 주차면은 방문 예약 배정 후보에서 제외한다.
+      OR: [{ companyVehicle: null }, { companyVehicle: { isActive: false } }],
+    },
     // 대시보드·구역·주차면 관리 화면과 같은 기준: 구역 표시 순서를 먼저 따르고,
     // 그 안에서 주차면 코드 순으로 정렬한다.
     orderBy: [{ area: { displayOrder: 'asc' } }, { spaceCode: 'asc' }],

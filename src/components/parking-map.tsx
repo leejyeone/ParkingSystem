@@ -77,6 +77,8 @@ type StallStyle = { fill: string; stroke: string; text: string };
 const AVAILABLE: StallStyle = { fill: '#fef9c3', stroke: '#a16207', text: '#713f12' };
 const OCCUPIED: StallStyle = { fill: '#86efac', stroke: '#15803d', text: '#14532d' };
 const DISABLED: StallStyle = { fill: '#64748b', stroke: '#334155', text: '#f1f5f9' };
+/** 법인 공용 차량 고정 배정 주차면 */
+const COMPANY_VEHICLE: StallStyle = { fill: '#ddd6fe', stroke: '#6d28d9', text: '#4c1d95' };
 /** DB 에 없는 코드가 도면에 있을 때 (배치와 등록이 어긋난 상태) */
 const UNKNOWN: StallStyle = { fill: '#ffffff', stroke: '#cbd5e1', text: '#94a3b8' };
 /** 신청자 화면에서 본인 자리가 아닌 주차면 */
@@ -159,6 +161,7 @@ function EntranceArrows({ box }: { box: { x: number; y: number; w: number; h: nu
 
 function styleFor(space: SpaceStatusRow | undefined): StallStyle {
   if (!space) return UNKNOWN;
+  if (space.companyVehicle) return COMPANY_VEHICLE;
   if (!space.isActive) return DISABLED;
   return space.status === 'EMPTY' ? AVAILABLE : OCCUPIED;
 }
@@ -175,6 +178,7 @@ function activeOccupancies(space: SpaceStatusRow | undefined): SpaceStatusRow['o
 /** 마우스를 올렸을 때 나오는 설명 */
 function tooltipFor(code: string, space: SpaceStatusRow | undefined): string {
   if (!space) return `${code} — 등록되지 않은 주차면`;
+  if (space.companyVehicle) return `${code} — 법인차량 전용 (${space.companyVehicle.vehicleNo})`;
   if (!space.isActive) return `${code} — 비활성`;
   const typeSuffix = space.spaceType === 'DISABLED' ? ' (장애인 주차면)' : '';
   const occupancies = activeOccupancies(space);
@@ -256,7 +260,7 @@ export function ParkingMap({ spaces, layout: explicitLayout, highlightCode, sele
         : layout.stalls.some((stall) => byCode.has(stall.code));
   if (!matches) return null;
 
-  const counts = { available: 0, occupied: 0, disabled: 0 };
+  const counts = { available: 0, occupied: 0, disabled: 0, companyVehicle: 0 };
   if (mode === 'select') {
     for (const stall of layout.stalls) {
       const space = selectByCode.get(stall.code);
@@ -269,7 +273,8 @@ export function ParkingMap({ spaces, layout: explicitLayout, highlightCode, sele
     for (const stall of layout.stalls) {
       const space = byCode.get(stall.code);
       if (!space) continue;
-      if (!space.isActive) counts.disabled += 1;
+      if (space.companyVehicle) counts.companyVehicle += 1;
+      else if (!space.isActive) counts.disabled += 1;
       else if (space.status === 'EMPTY') counts.available += 1;
       else counts.occupied += 1;
     }
@@ -315,6 +320,13 @@ export function ParkingMap({ spaces, layout: explicitLayout, highlightCode, sele
               large={isMaximized}
             />
             <Legend color={DISABLED} label={`비활성 ${counts.disabled}면`} large={isMaximized} />
+            {counts.companyVehicle > 0 && (
+              <Legend
+                color={COMPANY_VEHICLE}
+                label={`법인차량 ${counts.companyVehicle}면`}
+                large={isMaximized}
+              />
+            )}
           </>
         )}
       </div>

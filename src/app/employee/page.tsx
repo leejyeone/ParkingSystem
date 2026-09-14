@@ -77,6 +77,9 @@ export default async function EmployeeHomePage() {
             방문객 대리 신청
           </Link>
         </div>
+        <Link href="/employee/company-vehicle/new" className="btn btn-primary btn-lg w-full">
+          법인 차량 신청
+        </Link>
         {matchingAdmin && (
           <Link href="/api/employee/enter-admin" className="btn btn-secondary btn-lg w-full">
             관리자 대시보드
