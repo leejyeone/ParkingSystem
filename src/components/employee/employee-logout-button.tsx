@@ -5,8 +5,21 @@ import { useState } from 'react';
 
 import { apiRequest } from '@/lib/client/api-client';
 
+const VARIANT_CLASS = {
+  /** 밝은 배경 화면(마이페이지 등)에서 쓰는 기본 스타일 */
+  default: 'bg-red-50 text-red-600 hover:bg-red-100',
+  /** 네이비 상단바 등 어두운 배경 위에서 쓰는 스타일 */
+  onDark: 'border border-white/30 text-white hover:bg-white/10',
+} as const;
+
 /** confirmMessage 를 주면 그 문구로 window.confirm 을 먼저 통과해야 로그아웃된다. */
-export function EmployeeLogoutButton({ confirmMessage }: { confirmMessage?: string } = {}) {
+export function EmployeeLogoutButton({
+  confirmMessage,
+  variant = 'default',
+}: {
+  confirmMessage?: string;
+  variant?: keyof typeof VARIANT_CLASS;
+} = {}) {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
 
@@ -22,7 +35,7 @@ export function EmployeeLogoutButton({ confirmMessage }: { confirmMessage?: stri
   return (
     <button
       type="button"
-      className="rounded-full bg-red-50 px-4 py-2 text-xs font-bold whitespace-nowrap text-red-600 transition hover:bg-red-100 disabled:opacity-60"
+      className={`rounded-full px-4 py-2 text-xs font-bold whitespace-nowrap transition disabled:opacity-60 ${VARIANT_CLASS[variant]}`}
       onClick={handleLogout}
       disabled={loggingOut}
     >

@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 
 import { CompanyVehicleRequestForm } from '@/components/employee/company-vehicle-request-form';
 import { earliestSelectableInput } from '@/lib/datetime';
@@ -21,10 +20,7 @@ export default async function CompanyVehicleNewTripPage() {
   return (
     <main className="app-container space-y-4">
       <div>
-        <Link href="/employee" className="text-brand-700 text-sm font-semibold">
-          ← 직원 홈
-        </Link>
-        <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">법인 차량 신청</h1>
+        <h1 className="text-xl font-black text-slate-900 sm:text-2xl">법인 차량 신청</h1>
         <p className="mt-1 text-sm text-slate-600">
           운행 요청 시간(
           {settings.companyVehicleOperatingStartTime} ~ {settings.companyVehicleOperatingEndTime})
