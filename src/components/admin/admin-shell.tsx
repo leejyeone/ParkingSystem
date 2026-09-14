@@ -1,6 +1,7 @@
 'use client';
 
 import type { AdminRole } from '@prisma/client';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -178,8 +179,15 @@ export function AdminShell({ adminName, role, children }: Props) {
         } ${desktopCollapsed ? 'lg:w-0 lg:overflow-hidden lg:border-r-0' : 'lg:w-56'}`}
       >
         <div className="border-line flex h-16 items-center justify-between gap-2 border-b px-4">
-          <Link href="/admin" className="text-ink text-lg font-black whitespace-nowrap">
-            시스템 관리
+          <Link href="/admin" className="shrink-0">
+            <Image
+              src="/synopex-logo.png"
+              alt="Synopex"
+              width={120}
+              height={34}
+              className="h-[34px] w-[120px]"
+              priority
+            />
           </Link>
           {/* 모바일: 드로어 닫기. PC: 사이드바 접기. 화면 폭에 따라 하나만 보인다. */}
           <button
