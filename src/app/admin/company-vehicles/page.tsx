@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 
 import { CompanyVehicleSection } from '@/components/admin/company-vehicle-section';
 import { CompanyVehicleSettingsForm } from '@/components/admin/company-vehicle-settings-form';
@@ -29,12 +28,10 @@ export default async function CompanyVehiclesPage() {
           <p className="text-ink-muted mt-1 text-sm">
             법인 공용 차량의 기본 정보(차량번호·메모·주차 위치)와 운행 정책(신청 가능
             시간대·최대 사용시간)을 함께 관리합니다. 주차 위치를 지정하면 모든 주차
-            평면도에서 다른 색으로 표시되고, 방문 예약 배정 후보에서 제외됩니다.
+            평면도에서 다른 색으로 표시되고, 방문 예약 배정 후보에서 제외됩니다. 목록에서
+            행을 누르면 해당 차량의 신청내역으로 이동합니다.
           </p>
         </div>
-        <Link href="/admin/company-vehicles/trips" className="btn btn-secondary">
-          법인차량 신청내역
-        </Link>
       </div>
 
       <CompanyVehicleSettingsForm initialSettings={settings} />

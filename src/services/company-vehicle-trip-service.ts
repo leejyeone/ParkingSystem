@@ -32,9 +32,26 @@ export type CompanyVehicleTripDetail = Prisma.CompanyVehicleTripGetPayload<{
 
 type AdminActionContext = { adminUserId: number; requestContext?: RequestContext };
 
-export async function listCompanyVehicleTrips(filter: { vehicleId?: number } = {}) {
+export type CompanyVehicleTripListFilter = {
+  vehicleId?: number;
+  status?: ReservationStatus;
+  /** 신청 직원 성명(부분 일치) */
+  employeeName?: string;
+  /** 운행 요청 시간이 이 구간과 겹치는 신청만 (당일 KST 00:00~24:00 등) */
+  dateFrom?: Date;
+  dateTo?: Date;
+};
+
+export async function listCompanyVehicleTrips(filter: CompanyVehicleTripListFilter = {}) {
   return prisma.companyVehicleTrip.findMany({
-    where: filter.vehicleId ? { assignedVehicleId: filter.vehicleId } : {},
+    where: {
+      ...(filter.vehicleId ? { assignedVehicleId: filter.vehicleId } : {}),
+      ...(filter.status ? { tripStatus: filter.status } : {}),
+      ...(filter.employeeName ? { employee: { name: { contains: filter.employeeName } } } : {}),
+      ...(filter.dateFrom && filter.dateTo
+        ? { requestStartAt: { lt: filter.dateTo }, requestEndAt: { gt: filter.dateFrom } }
+        : {}),
+    },
     orderBy: { createdAt: 'desc' },
     include: {
       employee: { select: { name: true, departmentName: true } },

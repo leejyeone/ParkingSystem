@@ -1,11 +1,11 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import { ClickableTableRow } from '@/components/admin/clickable-table-row';
 import { Alert } from '@/components/ui/alert';
-import { FormField, inputClassName } from '@/components/ui/form-field';
+import { inputClassName } from '@/components/ui/form-field';
 import { apiRequest } from '@/lib/client/api-client';
 import { useDismissOnInteraction } from '@/lib/hooks/use-dismiss-on-interaction';
 
@@ -31,6 +31,15 @@ function toDraft(vehicle: Vehicle): Draft {
   };
 }
 
+function isSameDraft(a: Draft, b: Draft): boolean {
+  return (
+    a.vehicleNo === b.vehicleNo &&
+    a.memo === b.memo &&
+    a.parkingSpaceId === b.parkingSpaceId &&
+    a.isActive === b.isActive
+  );
+}
+
 const EMPTY_DRAFT: Draft = { vehicleNo: '', memo: '', parkingSpaceId: '', isActive: true };
 
 export function CompanyVehicleSection({
@@ -41,7 +50,7 @@ export function CompanyVehicleSection({
   spaces: SpaceOption[];
 }) {
   const router = useRouter();
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [sectionEditMode, setSectionEditMode] = useState(false);
   const [drafts, setDrafts] = useState<Record<number, Draft>>({});
   const [creating, setCreating] = useState(false);
   const [createDraft, setCreateDraft] = useState<Draft>(EMPTY_DRAFT);
@@ -74,6 +83,13 @@ export function CompanyVehicleSection({
     };
   }
 
+  function enterEditMode() {
+    setSectionEditMode(true);
+    setDrafts({});
+    setMessage(null);
+    setFieldErrors({});
+  }
+
   async function handleCreate() {
     setPending(true);
     setMessage(null);
@@ -96,42 +112,48 @@ export function CompanyVehicleSection({
     setMessage({ variant: 'error', text: response.error.message });
   }
 
-  async function handleUpdate(vehicleId: number) {
-    setPending(true);
-    setMessage(null);
-    setFieldErrors({});
+  /** 편집 모드의 모든 행 중 실제로 값이 바뀐 차량만 한꺼번에 저장한다. */
+  async function handleSaveAll() {
+    const changed = vehicles.filter((vehicle) => !isSameDraft(draftOf(vehicle), toDraft(vehicle)));
 
-    const response = await apiRequest(`/api/admin/company-vehicles/${vehicleId}`, {
-      method: 'PATCH',
-      body: JSON.stringify(bodyFrom(draftOf(vehicleFor(vehicleId)))),
-    });
-
-    setPending(false);
-    if (response.ok) {
-      setEditingId(null);
-      setMessage({ variant: 'success', text: '수정했습니다.' });
-      router.refresh();
+    if (changed.length === 0) {
+      setSectionEditMode(false);
+      setDrafts({});
       return;
     }
-    setFieldErrors(response.error.fieldErrors ?? {});
-    setMessage({ variant: 'error', text: response.error.message });
-  }
 
-  async function handleDeactivate(vehicleId: number) {
     setPending(true);
     setMessage(null);
 
-    const response = await apiRequest(`/api/admin/company-vehicles/${vehicleId}`, {
-      method: 'DELETE',
-    });
+    const results = await Promise.all(
+      changed.map((vehicle) =>
+        apiRequest(`/api/admin/company-vehicles/${vehicle.vehicleId}`, {
+          method: 'PATCH',
+          body: JSON.stringify(bodyFrom(draftOf(vehicle))),
+        }).then((response) => ({ vehicle, response })),
+      ),
+    );
 
     setPending(false);
-    if (response.ok) {
-      setMessage({ variant: 'success', text: '비활성화했습니다.' });
+
+    const failures = results.filter((result) => !result.response.ok);
+    if (failures.length === 0) {
+      setSectionEditMode(false);
+      setDrafts({});
+      setMessage({ variant: 'success', text: `${changed.length}건을 저장했습니다.` });
       router.refresh();
       return;
     }
-    setMessage({ variant: 'error', text: response.error.message });
+
+    setMessage({
+      variant: 'error',
+      text: failures
+        .map(({ vehicle, response }) =>
+          response.ok ? '' : `${vehicle.vehicleNo}: ${response.error.message}`,
+        )
+        .join(' / '),
+    });
+    router.refresh();
   }
 
   return (
@@ -142,226 +164,213 @@ export function CompanyVehicleSection({
 
       <section className="card">
         <div className="card-body space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="card-title">법인차량 목록</h2>
+            <div className="flex items-center gap-2">
+              {sectionEditMode && (
+                <button
+                  type="button"
+                  className="btn btn-secondary min-h-9 px-3 py-1.5 text-xs"
+                  onClick={() => setCreating(true)}
+                >
+                  법인차량 추가
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn btn-primary min-h-9 px-3 py-1.5 text-xs"
+                disabled={pending}
+                onClick={sectionEditMode ? handleSaveAll : enterEditMode}
+              >
+                {sectionEditMode ? (pending ? '저장 중…' : '저장') : '수정'}
+              </button>
+            </div>
+          </div>
+
           <div className="table-scroll">
             <table className="data-table">
               <thead>
                 <tr>
                   <th>차량번호</th>
-                  <th>주차 위치</th>
+                  <th className="w-28">주차 위치</th>
                   <th>메모</th>
                   <th>상태</th>
-                  <th />
                 </tr>
               </thead>
               <tbody>
-                {vehicles.length === 0 && (
+                {vehicles.length === 0 && !creating && (
                   <tr>
-                    <td colSpan={5} className="text-ink-faint text-center text-sm">
+                    <td colSpan={4} className="text-ink-faint text-center text-sm">
                       등록된 법인차량이 없습니다.
                     </td>
                   </tr>
                 )}
                 {vehicles.map((vehicle) => {
-                  const isEditing = editingId === vehicle.vehicleId;
                   const draft = draftOf(vehicle);
+
+                  if (sectionEditMode) {
+                    return (
+                      <tr key={vehicle.vehicleId}>
+                        <td>
+                          <input
+                            className={inputClassName(false)}
+                            value={draft.vehicleNo}
+                            onChange={(event) =>
+                              updateDraft(vehicle.vehicleId, { vehicleNo: event.target.value })
+                            }
+                            maxLength={20}
+                          />
+                        </td>
+                        <td>
+                          <select
+                            className={inputClassName(false)}
+                            value={draft.parkingSpaceId}
+                            onChange={(event) =>
+                              updateDraft(vehicle.vehicleId, { parkingSpaceId: event.target.value })
+                            }
+                          >
+                            <option value="">미지정</option>
+                            {spaces.map((space) => (
+                              <option key={space.spaceId} value={space.spaceId}>
+                                {space.spaceCode}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>
+                          <input
+                            className={inputClassName(false)}
+                            value={draft.memo}
+                            onChange={(event) =>
+                              updateDraft(vehicle.vehicleId, { memo: event.target.value })
+                            }
+                            maxLength={500}
+                          />
+                        </td>
+                        <td>
+                          <select
+                            className={inputClassName(false)}
+                            value={draft.isActive ? 'true' : 'false'}
+                            onChange={(event) =>
+                              updateDraft(vehicle.vehicleId, {
+                                isActive: event.target.value === 'true',
+                              })
+                            }
+                          >
+                            <option value="true">활성</option>
+                            <option value="false">비활성</option>
+                          </select>
+                        </td>
+                      </tr>
+                    );
+                  }
+
                   return (
-                    <tr key={vehicle.vehicleId}>
-                      {isEditing ? (
-                        <>
-                          <td>
-                            <input
-                              className={inputClassName(Boolean(fieldErrors.vehicleNo))}
-                              value={draft.vehicleNo}
-                              onChange={(event) =>
-                                updateDraft(vehicle.vehicleId, { vehicleNo: event.target.value })
-                              }
-                              maxLength={20}
-                            />
-                          </td>
-                          <td>
-                            <select
-                              className={inputClassName(Boolean(fieldErrors.parkingSpaceId))}
-                              value={draft.parkingSpaceId}
-                              onChange={(event) =>
-                                updateDraft(vehicle.vehicleId, {
-                                  parkingSpaceId: event.target.value,
-                                })
-                              }
-                            >
-                              <option value="">미지정</option>
-                              {spaces.map((space) => (
-                                <option key={space.spaceId} value={space.spaceId}>
-                                  {space.spaceCode} ({space.areaName})
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td>
-                            <input
-                              className={inputClassName(false)}
-                              value={draft.memo}
-                              onChange={(event) =>
-                                updateDraft(vehicle.vehicleId, { memo: event.target.value })
-                              }
-                              maxLength={500}
-                            />
-                          </td>
-                          <td>
-                            <label className="flex items-center gap-1 text-xs">
-                              <input
-                                type="checkbox"
-                                checked={draft.isActive}
-                                onChange={(event) =>
-                                  updateDraft(vehicle.vehicleId, { isActive: event.target.checked })
-                                }
-                              />
-                              사용
-                            </label>
-                          </td>
-                          <td className="whitespace-nowrap">
-                            <button
-                              type="button"
-                              className="btn btn-primary btn-sm"
-                              disabled={pending}
-                              onClick={() => handleUpdate(vehicle.vehicleId)}
-                            >
-                              저장
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-secondary btn-sm ml-1"
-                              disabled={pending}
-                              onClick={() => setEditingId(null)}
-                            >
-                              취소
-                            </button>
-                          </td>
-                        </>
-                      ) : (
-                        <>
-                          <td className="font-mono font-bold">{vehicle.vehicleNo}</td>
-                          <td className="text-xs">
-                            {vehicle.parkingSpace
-                              ? `${vehicle.parkingSpace.spaceCode} (${vehicle.parkingSpace.area.areaName})`
-                              : '미지정'}
-                          </td>
-                          <td className="text-xs">{vehicle.memo ?? '-'}</td>
-                          <td className="text-xs">
-                            {vehicle.isActive ? (
-                              <span className="badge bg-green-100 text-green-800">사용</span>
-                            ) : (
-                              <span className="badge bg-surface-hover text-ink-muted">비활성</span>
-                            )}
-                          </td>
-                          <td className="whitespace-nowrap">
-                            <button
-                              type="button"
-                              className="btn btn-secondary btn-sm"
-                              onClick={() => setEditingId(vehicle.vehicleId)}
-                            >
-                              수정
-                            </button>
-                            {vehicle.isActive && (
-                              <button
-                                type="button"
-                                className="btn btn-danger btn-sm ml-1"
-                                disabled={pending}
-                                onClick={() => handleDeactivate(vehicle.vehicleId)}
-                              >
-                                비활성화
-                              </button>
-                            )}
-                            <Link
-                              href={`/admin/company-vehicles/trips?vehicleId=${vehicle.vehicleId}`}
-                              className="text-brand-700 ml-2 text-xs font-semibold"
-                            >
-                              운행일지 보기 →
-                            </Link>
-                          </td>
-                        </>
-                      )}
-                    </tr>
+                    <ClickableTableRow
+                      key={vehicle.vehicleId}
+                      href={`/admin/company-vehicles/trips?vehicleId=${vehicle.vehicleId}`}
+                    >
+                      <td className="font-mono font-bold">{vehicle.vehicleNo}</td>
+                      <td className="w-28 font-mono text-xs">
+                        {vehicle.parkingSpace?.spaceCode ?? '미지정'}
+                      </td>
+                      <td className="text-xs">{vehicle.memo ?? '-'}</td>
+                      <td className="text-xs">
+                        {vehicle.isActive ? (
+                          <span className="badge bg-green-100 text-green-800">활성</span>
+                        ) : (
+                          <span className="badge bg-surface-hover text-ink-muted">비활성</span>
+                        )}
+                      </td>
+                    </ClickableTableRow>
                   );
                 })}
+
+                {sectionEditMode && creating && (
+                  <>
+                    <tr className="bg-surface-muted">
+                      <td>
+                        <input
+                          className={inputClassName(Boolean(fieldErrors.vehicleNo))}
+                          value={createDraft.vehicleNo}
+                          onChange={(event) =>
+                            setCreateDraft({ ...createDraft, vehicleNo: event.target.value })
+                          }
+                          placeholder="12가3456"
+                          maxLength={20}
+                        />
+                      </td>
+                      <td>
+                        <select
+                          className={inputClassName(Boolean(fieldErrors.parkingSpaceId))}
+                          value={createDraft.parkingSpaceId}
+                          onChange={(event) =>
+                            setCreateDraft({ ...createDraft, parkingSpaceId: event.target.value })
+                          }
+                        >
+                          <option value="">미지정</option>
+                          {spaces.map((space) => (
+                            <option key={space.spaceId} value={space.spaceId}>
+                              {space.spaceCode}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        <input
+                          className={inputClassName(false)}
+                          value={createDraft.memo}
+                          onChange={(event) =>
+                            setCreateDraft({ ...createDraft, memo: event.target.value })
+                          }
+                          maxLength={500}
+                        />
+                      </td>
+                      <td>
+                        <select
+                          className={inputClassName(false)}
+                          value={createDraft.isActive ? 'true' : 'false'}
+                          onChange={(event) =>
+                            setCreateDraft({
+                              ...createDraft,
+                              isActive: event.target.value === 'true',
+                            })
+                          }
+                        >
+                          <option value="true">활성</option>
+                          <option value="false">비활성</option>
+                        </select>
+                      </td>
+                    </tr>
+                    <tr className="bg-surface-muted">
+                      <td colSpan={4} className="text-right">
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          disabled={pending || createDraft.vehicleNo.trim() === ''}
+                          onClick={handleCreate}
+                        >
+                          등록
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm ml-1"
+                          disabled={pending}
+                          onClick={() => {
+                            setCreating(false);
+                            setCreateDraft(EMPTY_DRAFT);
+                            setFieldErrors({});
+                          }}
+                        >
+                          취소
+                        </button>
+                      </td>
+                    </tr>
+                  </>
+                )}
               </tbody>
             </table>
           </div>
-
-          {creating ? (
-            <div className="border-line-muted grid gap-3 border-t pt-3 sm:grid-cols-2">
-              <FormField label="차량번호" htmlFor="new-vehicle-no" required errors={fieldErrors.vehicleNo}>
-                <input
-                  id="new-vehicle-no"
-                  className={inputClassName(Boolean(fieldErrors.vehicleNo))}
-                  value={createDraft.vehicleNo}
-                  onChange={(event) =>
-                    setCreateDraft({ ...createDraft, vehicleNo: event.target.value })
-                  }
-                  placeholder="12가3456"
-                  maxLength={20}
-                />
-              </FormField>
-              <FormField
-                label="주차 위치"
-                htmlFor="new-vehicle-space"
-                errors={fieldErrors.parkingSpaceId}
-              >
-                <select
-                  id="new-vehicle-space"
-                  className={inputClassName(Boolean(fieldErrors.parkingSpaceId))}
-                  value={createDraft.parkingSpaceId}
-                  onChange={(event) =>
-                    setCreateDraft({ ...createDraft, parkingSpaceId: event.target.value })
-                  }
-                >
-                  <option value="">미지정</option>
-                  {spaces.map((space) => (
-                    <option key={space.spaceId} value={space.spaceId}>
-                      {space.spaceCode} ({space.areaName})
-                    </option>
-                  ))}
-                </select>
-              </FormField>
-              <FormField
-                label="메모"
-                htmlFor="new-vehicle-memo"
-                errors={fieldErrors.memo}
-              >
-                <input
-                  id="new-vehicle-memo"
-                  className={inputClassName(false)}
-                  value={createDraft.memo}
-                  onChange={(event) => setCreateDraft({ ...createDraft, memo: event.target.value })}
-                  maxLength={500}
-                />
-              </FormField>
-              <div className="flex items-end gap-2">
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={pending || createDraft.vehicleNo.trim() === ''}
-                  onClick={handleCreate}
-                >
-                  등록
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  disabled={pending}
-                  onClick={() => {
-                    setCreating(false);
-                    setCreateDraft(EMPTY_DRAFT);
-                  }}
-                >
-                  취소
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
-              법인차량 추가
-            </button>
-          )}
         </div>
       </section>
     </div>
