@@ -45,21 +45,25 @@ export function MaximizableCard({
   return (
     <section ref={sectionRef} className={`card ${maximized ? 'flex flex-col' : ''}`}>
       <div className={`card-body ${maximized ? 'flex min-h-0 flex-1 flex-col' : ''}`}>
-        <div className="flex items-center justify-between gap-2">
-          {header}
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm !px-2"
-            aria-label={maximized ? '축소' : '최대화'}
-            title={maximized ? '축소' : '최대화'}
-            onClick={toggle}
-          >
-            {maximized ? <ContractIcon /> : <ExpandIcon />}
-          </button>
-        </div>
-        <div className={maximized ? 'mt-2 min-h-0 flex-1' : 'mt-2'}>
-          <MaximizedContext.Provider value={maximized}>{children}</MaximizedContext.Provider>
-        </div>
+        {/*
+          header 안의 내용(예: 승인대기 뱃지)도 최대화 여부에 따라 스스로 모습을 바꿔야 할 수
+          있어 Provider 를 children 뿐 아니라 header 까지 감싸도록 넓힌다.
+        */}
+        <MaximizedContext.Provider value={maximized}>
+          <div className="flex items-center justify-between gap-2">
+            {header}
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm !px-2"
+              aria-label={maximized ? '축소' : '최대화'}
+              title={maximized ? '축소' : '최대화'}
+              onClick={toggle}
+            >
+              {maximized ? <ContractIcon /> : <ExpandIcon />}
+            </button>
+          </div>
+          <div className={maximized ? 'mt-2 min-h-0 flex-1' : 'mt-2'}>{children}</div>
+        </MaximizedContext.Provider>
       </div>
     </section>
   );

@@ -50,6 +50,17 @@ export type SpaceStatusRow = {
   inUseReservationId: number | null;
   /** 이 주차면이 법인 공용 차량 전용으로 고정 배정되어 있으면 채워진다. 평면도에서 다른 색으로 표시한다. */
   companyVehicle: { vehicleId: number; vehicleNo: string } | null;
+  /**
+   * 이 주차면에 고정 배정된 법인 차량의, 선택한 날짜에 걸치는 운행 신청. 배정 전(REQUESTED,
+   * 아직 어느 차를 내줄지 정해지지 않은 신청)은 특정 주차면과 연결할 수 없으므로 포함하지
+   * 않는다 — `companyVehiclePendingCount`로 별도 노출한다.
+   */
+  companyVehicleTrips: {
+    tripId: number;
+    tripStatus: ReservationStatus;
+    requestStartAt: Date;
+    requestEndAt: Date;
+  }[];
 };
 
 export type HourlyUsage = { hour: number; usedCount: number };
@@ -102,6 +113,7 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
   const [
     spaces,
     dayReservations,
+    dayCompanyVehicleTrips,
     pendingReservations,
     pendingTotalCount,
     failedEmailCount,
@@ -144,6 +156,25 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
         },
         orderBy: { visitStartAt: 'asc' },
       }),
+      // 법인차량 주차면의 "상태" 열도 방문 예약과 같은 방식(신청된 시간대)으로 보여주기
+      // 위해 선택한 날짜에 걸치는 운행 신청을 가져온다. 승인 전(REQUESTED)은 아직 어느
+      // 차량을 내줄지 정해지지 않아 특정 주차면과 연결할 수 없으므로 뺀다.
+      prisma.companyVehicleTrip.findMany({
+        where: {
+          assignedVehicleId: { not: null },
+          tripStatus: { in: [...SPACE_OCCUPYING_STATUSES, ReservationStatus.EXITED] },
+          requestStartAt: { lt: end },
+          requestEndAt: { gt: start },
+        },
+        select: {
+          tripId: true,
+          tripStatus: true,
+          requestStartAt: true,
+          requestEndAt: true,
+          assignedVehicleId: true,
+        },
+        orderBy: { requestStartAt: 'asc' },
+      }),
       prisma.parkingReservation.findMany({
         where: { reservationStatus: ReservationStatus.REQUESTED, ...buildOverlapWhere(start, end) },
         include: {
@@ -179,6 +210,21 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
       visitEndAt: reservation.visitEndAt,
     });
     bySpace.set(reservation.assignedSpaceId, list);
+  }
+
+  // 법인차량은 주차면이 아니라 차량(assignedVehicleId) 기준으로 묶여 있으므로,
+  // 그 차량이 고정 배정된 주차면을 찾을 때는 아래에서 vehicleId 로 조회한다.
+  const tripsByVehicle = new Map<number, SpaceStatusRow['companyVehicleTrips']>();
+  for (const trip of dayCompanyVehicleTrips) {
+    if (trip.assignedVehicleId === null) continue;
+    const list = tripsByVehicle.get(trip.assignedVehicleId) ?? [];
+    list.push({
+      tripId: trip.tripId,
+      tripStatus: trip.tripStatus,
+      requestStartAt: trip.requestStartAt,
+      requestEndAt: trip.requestEndAt,
+    });
+    tripsByVehicle.set(trip.assignedVehicleId, list);
   }
 
   const spaceRows: SpaceStatusRow[] = spaces.map((space) => {
@@ -222,6 +268,10 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
         space.companyVehicle && space.companyVehicle.isActive
           ? { vehicleId: space.companyVehicle.vehicleId, vehicleNo: space.companyVehicle.vehicleNo }
           : null,
+      companyVehicleTrips:
+        space.companyVehicle && space.companyVehicle.isActive
+          ? (tripsByVehicle.get(space.companyVehicle.vehicleId) ?? [])
+          : [],
     };
   });
 

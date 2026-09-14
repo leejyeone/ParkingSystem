@@ -52,3 +52,12 @@ export function SpaceTypeBadge({ spaceType }: { spaceType: SpaceType }) {
     </span>
   );
 }
+
+/** 법인 공용 차량 고정 배정 주차면 표시 — 평면도(`parking-map.tsx`)의 보라색과 톤을 맞춘다. */
+export function CompanyVehicleBadge() {
+  return (
+    <span className="badge bg-violet-100 text-violet-800" data-testid="company-vehicle-badge">
+      법인차량
+    </span>
+  );
+}
