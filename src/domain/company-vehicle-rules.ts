@@ -36,11 +36,6 @@ export function checkCompanyVehicleOperatingHours(
   return null;
 }
 
-/** 10분 단위 시각인지 검증(분이 10의 배수). 화면 step=600 을 우회해도 서버에서 강제한다. */
-export function isTenMinuteAligned(date: Date, timeZone?: string): boolean {
-  return kstMinutesOfDay(date, timeZone) % 10 === 0;
-}
-
 /**
  * 신청 시 공통 시간 규칙 검증. 위반이 있으면 ValidationError 를 던진다.
  */
@@ -54,13 +49,13 @@ export function assertCompanyVehicleTripTiming(params: {
 
   if (requestEndAt.getTime() <= requestStartAt.getTime()) {
     (fieldErrors.requestEndAt ??= []).push('운행 종료 예정 시간은 시작 예정 시간보다 늦어야 합니다.');
-  }
-
-  if (!isTenMinuteAligned(requestStartAt, settings.appTimeZone)) {
-    (fieldErrors.requestStartAt ??= []).push('운행 시작 시간은 10분 단위로 선택해 주세요.');
-  }
-  if (!isTenMinuteAligned(requestEndAt, settings.appTimeZone)) {
-    (fieldErrors.requestEndAt ??= []).push('운행 종료 시간은 10분 단위로 선택해 주세요.');
+  } else {
+    const hours = (requestEndAt.getTime() - requestStartAt.getTime()) / 3_600_000;
+    if (hours > settings.companyVehicleMaxUsageHours) {
+      (fieldErrors.requestEndAt ??= []).push(
+        `1회 최대 사용 가능 시간은 ${settings.companyVehicleMaxUsageHours}시간입니다.`,
+      );
+    }
   }
 
   if (!fieldErrors.requestStartAt && !fieldErrors.requestEndAt) {

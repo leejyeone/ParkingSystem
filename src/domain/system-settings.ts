@@ -20,6 +20,7 @@ export const SETTING_KEYS = {
   SPACE_BUFFER_MINUTES: 'SPACE_BUFFER_MINUTES',
   COMPANY_VEHICLE_OPERATING_START_TIME: 'COMPANY_VEHICLE_OPERATING_START_TIME',
   COMPANY_VEHICLE_OPERATING_END_TIME: 'COMPANY_VEHICLE_OPERATING_END_TIME',
+  COMPANY_VEHICLE_MAX_USAGE_HOURS: 'COMPANY_VEHICLE_MAX_USAGE_HOURS',
 } as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS];
@@ -90,6 +91,8 @@ export type SystemSettingsValues = {
   companyVehicleOperatingStartTime: string;
   /** 법인 공용 차량 운행 신청 가능 시간대 종료 'HH:mm'. 방문 예약 운영시간과 별개다. */
   companyVehicleOperatingEndTime: string;
+  /** 법인 공용 차량 1회 신청당 최대 사용 가능 시간(시간). */
+  companyVehicleMaxUsageHours: number;
 };
 
 export const DEFAULT_SETTINGS: SystemSettingsValues = {
@@ -114,6 +117,7 @@ export const DEFAULT_SETTINGS: SystemSettingsValues = {
   spaceBufferMinutes: 0,
   companyVehicleOperatingStartTime: '07:00',
   companyVehicleOperatingEndTime: '22:00',
+  companyVehicleMaxUsageHours: 4,
 };
 
 export const SETTING_DESCRIPTIONS: Record<SettingKey, string> = {
@@ -139,6 +143,7 @@ export const SETTING_DESCRIPTIONS: Record<SettingKey, string> = {
     '같은 주차면에 배정된 예약 사이 최소 간격(분). 0이면 경계가 맞닿아도 배정을 허용합니다(기존과 동일).',
   COMPANY_VEHICLE_OPERATING_START_TIME: '법인 공용 차량 운행 신청 가능 시작 시간(HH:mm, Asia/Seoul).',
   COMPANY_VEHICLE_OPERATING_END_TIME: '법인 공용 차량 운행 신청 가능 종료 시간(HH:mm, Asia/Seoul).',
+  COMPANY_VEHICLE_MAX_USAGE_HOURS: '법인 공용 차량 1회 신청당 최대 사용 가능 시간(시간).',
 };
 
 /** DB 의 key/value 목록을 타입이 있는 설정 객체로 변환 */
@@ -219,6 +224,10 @@ export function toSettingsValues(
       SETTING_KEYS.COMPANY_VEHICLE_OPERATING_END_TIME,
       DEFAULT_SETTINGS.companyVehicleOperatingEndTime,
     ),
+    companyVehicleMaxUsageHours: readNumber(
+      SETTING_KEYS.COMPANY_VEHICLE_MAX_USAGE_HOURS,
+      DEFAULT_SETTINGS.companyVehicleMaxUsageHours,
+    ),
   };
 }
 
@@ -281,6 +290,10 @@ export function toSettingRows(
     {
       settingKey: SETTING_KEYS.COMPANY_VEHICLE_OPERATING_END_TIME,
       settingValue: values.companyVehicleOperatingEndTime,
+    },
+    {
+      settingKey: SETTING_KEYS.COMPANY_VEHICLE_MAX_USAGE_HOURS,
+      settingValue: String(values.companyVehicleMaxUsageHours),
     },
   ];
 }

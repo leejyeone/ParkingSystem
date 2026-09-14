@@ -150,39 +150,6 @@ export function PolicySection({ initialSettings }: { initialSettings: SystemSett
             />
           </FormField>
           <FormField
-            label="법인차량 운행 신청 가능 시작 시간"
-            htmlFor="companyVehicleOperatingStartTime"
-            required
-            hint="방문 예약 운영시간과 별개로 관리되는 법인 공용 차량 전용 시간대입니다."
-            errors={fieldErrors.companyVehicleOperatingStartTime}
-          >
-            <input
-              id="companyVehicleOperatingStartTime"
-              type="time"
-              className={inputClassName(Boolean(fieldErrors.companyVehicleOperatingStartTime))}
-              value={form.companyVehicleOperatingStartTime}
-              onChange={(event) =>
-                setForm({ ...form, companyVehicleOperatingStartTime: event.target.value })
-              }
-            />
-          </FormField>
-          <FormField
-            label="법인차량 운행 신청 가능 종료 시간"
-            htmlFor="companyVehicleOperatingEndTime"
-            required
-            errors={fieldErrors.companyVehicleOperatingEndTime}
-          >
-            <input
-              id="companyVehicleOperatingEndTime"
-              type="time"
-              className={inputClassName(Boolean(fieldErrors.companyVehicleOperatingEndTime))}
-              value={form.companyVehicleOperatingEndTime}
-              onChange={(event) =>
-                setForm({ ...form, companyVehicleOperatingEndTime: event.target.value })
-              }
-            />
-          </FormField>
-          <FormField
             label="예약 최소 사전 신청 시간(분)"
             htmlFor="lead"
             required

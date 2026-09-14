@@ -28,13 +28,16 @@ export default async function CompanyVehicleNewTripPage() {
         <p className="mt-1 text-sm text-slate-600">
           운행 요청 시간(
           {settings.companyVehicleOperatingStartTime} ~ {settings.companyVehicleOperatingEndTime})
-          내에서 10분 단위로 신청해 주세요. 어떤 차량을 배정할지는 관리자가 승인하면서 정합니다.
+          내에서 1회 최대 {settings.companyVehicleMaxUsageHours}시간까지 신청할 수 있습니다. 어떤
+          차량을 배정할지는 관리자가 승인하면서 정합니다.
         </p>
       </div>
 
       <CompanyVehicleRequestForm
         employeeName={profile?.name ?? session.name}
         minDateTimeInput={earliestSelectableInput(settings.reservationMinLeadMinutes)}
+        operatingEndTime={settings.companyVehicleOperatingEndTime}
+        maxUsageHours={settings.companyVehicleMaxUsageHours}
       />
     </main>
   );
