@@ -470,7 +470,7 @@ export function CompanyVehicleTripMileageCard({
 
   const mileageText =
     initial.odometerStartKm !== '' && initial.odometerEndKm !== ''
-      ? `${Number(initial.odometerEndKm) - Number(initial.odometerStartKm)}km (${initial.odometerStartKm} → ${initial.odometerEndKm})`
+      ? `${Number(initial.odometerEndKm) - Number(initial.odometerStartKm)}km`
       : '-';
 
   return (
@@ -520,6 +520,8 @@ export function CompanyVehicleTripMileageCard({
         </div>
       ) : (
         <dl className="mt-3">
+          <Row term="출발 전 계기판" desc={initial.odometerStartKm !== '' ? `${initial.odometerStartKm}km` : '-'} />
+          <Row term="도착 후 계기판" desc={initial.odometerEndKm !== '' ? `${initial.odometerEndKm}km` : '-'} />
           <Row term="주행거리" desc={mileageText} />
         </dl>
       )}

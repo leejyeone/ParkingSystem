@@ -44,12 +44,28 @@ export type CompanyVehicleTripListFilter = {
   dateTo?: Date;
   /**
    * 기본 'createdAt_desc'(신청내역 목록 — 최근 신청 순). 운행 대장은 종이 운행일지처럼
-   * 시간순으로 누적되는 형태가 맞으므로 'requestStartAt_asc'를 쓴다.
+   * 시간순으로 누적되는 형태가 맞으므로 'requestStartAt_asc'를 쓴다. 'actualEntryAt_*'는
+   * 예정 시간이 아니라 실제 출차 시각(운행 대장에서 "실제 운행 일시") 기준 정렬이다 —
+   * 아직 출차 처리 전(실제 운행 일시 없음)인 행은 MySQL 기본 동작대로 오름차순에서는
+   * 맨 앞, 내림차순에서는 맨 뒤에 온다.
    */
-  order?: 'createdAt_desc' | 'requestStartAt_asc';
+  order?:
+    | 'createdAt_desc'
+    | 'requestStartAt_asc'
+    | 'actualEntryAt_asc'
+    | 'actualEntryAt_desc';
 };
 
 export async function listCompanyVehicleTrips(filter: CompanyVehicleTripListFilter = {}) {
+  const orderBy: Prisma.CompanyVehicleTripOrderByWithRelationInput =
+    filter.order === 'requestStartAt_asc'
+      ? { requestStartAt: 'asc' }
+      : filter.order === 'actualEntryAt_asc'
+        ? { actualEntryAt: 'asc' }
+        : filter.order === 'actualEntryAt_desc'
+          ? { actualEntryAt: 'desc' }
+          : { createdAt: 'desc' };
+
   return prisma.companyVehicleTrip.findMany({
     where: {
       ...(filter.vehicleId ? { assignedVehicleId: filter.vehicleId } : {}),
@@ -59,8 +75,7 @@ export async function listCompanyVehicleTrips(filter: CompanyVehicleTripListFilt
         ? { requestStartAt: { lt: filter.dateTo }, requestEndAt: { gt: filter.dateFrom } }
         : {}),
     },
-    orderBy:
-      filter.order === 'requestStartAt_asc' ? { requestStartAt: 'asc' } : { createdAt: 'desc' },
+    orderBy,
     include: {
       employee: { select: { name: true, departmentName: true } },
       assignedVehicle: { select: { vehicleId: true, vehicleNo: true } },
