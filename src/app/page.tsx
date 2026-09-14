@@ -6,7 +6,7 @@ import { ClickableTableRow } from '@/components/admin/clickable-table-row';
 import { ActionCard } from '@/components/ui/action-card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { DEFAULT_SETTINGS } from '@/domain/system-settings';
-import { formatKstRange } from '@/lib/datetime';
+import { formatKstDateTime } from '@/lib/datetime';
 import { getUserSession } from '@/lib/user-session';
 import { listReservationsForUser } from '@/services/reservation-service';
 import { getSystemSettings } from '@/services/settings-service';
@@ -64,7 +64,7 @@ export default async function HomePage({ searchParams }: PageProps) {
     : null;
 
   return (
-    <main className="app-container">
+    <main className="app-container-medium">
       {!session && (
         <header className="mt-6 mb-6 text-center">
           <div className="mt-3 flex justify-center">
@@ -129,6 +129,8 @@ export default async function HomePage({ searchParams }: PageProps) {
                     <tr>
                       <th>회사명</th>
                       <th>성명</th>
+                      <th>차량번호</th>
+                      <th>담당자</th>
                       <th>방문일시</th>
                       <th>상태</th>
                     </tr>
@@ -141,8 +143,14 @@ export default async function HomePage({ searchParams }: PageProps) {
                       >
                         <td className="text-xs">{reservation.companyOrBranchName}</td>
                         <td className="text-xs">{reservation.requesterName}</td>
+                        <td className="font-mono text-xs whitespace-nowrap">
+                          {reservation.vehicleNo}
+                        </td>
                         <td className="text-xs whitespace-nowrap">
-                          {formatKstRange(reservation.visitStartAt, reservation.visitEndAt)}
+                          {reservation.employeeUserName ?? '-'}
+                        </td>
+                        <td className="text-xs whitespace-nowrap">
+                          {formatKstDateTime(reservation.visitStartAt)}
                         </td>
                         <td>
                           <StatusBadge status={reservation.displayStatus} />

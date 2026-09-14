@@ -174,13 +174,33 @@ export const companyVehicleTripMileageSchema = z
     { message: '도착 후 계기판 거리는 출발 전 계기판 거리보다 크거나 같아야 합니다.', path: ['odometerEndKm'] },
   );
 
-/** 운행 대장에서 신청 내용(행선지·사유·운행시간)을 관리자가 직접 정정할 때 쓴다. */
+/** 빈 문자열/undefined 는 null 로 취급하는 선택 입력 배정 차량 ID. */
+const optionalVehicleId = z.preprocess(
+  (value) => (value === '' || value === undefined ? null : value),
+  z.coerce.number().int().positive('배정할 차량을 선택해 주세요.').nullable(),
+);
+
+/** 빈 문자열/undefined 는 null 로 취급하는 선택 입력 실제 입·출차 시각(문자열, 타임존 변환은 라우트에서). */
+const optionalZonedDateTimeInput = z.preprocess(
+  (value) => (value === '' || value === undefined ? null : value),
+  z.string().refine(isValidZonedInput, DATETIME_FORMAT_MESSAGE).nullable(),
+);
+
+/**
+ * 신청 상세 카드에서 신청 내용(신청 직원·행선지·사유·운행시간)과 사후 정정이 필요한
+ * 운행 기록(배정 차량·실제 출차/입차 시각)을 관리자가 직접 고칠 때 쓴다. 입·출차
+ * 처리 자체(상태 전이)는 entry/exit 라우트가 맡고, 여기서는 이미 기록된 값을
+ * 바로잡는 것만 다룬다.
+ */
 export const companyVehicleTripDetailUpdateSchema = z.object({
   employeeUserId: z.coerce.number().int().positive('신청 직원을 선택해 주세요.'),
   destination: requiredText(200, '행선지'),
   reason: requiredText(500, '사유'),
   requestStartAt: zonedDateTimeSchema,
   requestEndAt: zonedDateTimeSchema,
+  assignedVehicleId: optionalVehicleId,
+  actualEntryAt: optionalZonedDateTimeInput,
+  actualExitAt: optionalZonedDateTimeInput,
 });
 
 export const systemSettingsSchema = z

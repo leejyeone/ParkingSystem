@@ -45,7 +45,7 @@ export default async function ReservationAccessPage({ params }: PageProps) {
   return (
     <main className="app-container">
       <div className="mb-4">
-        <h1 className="text-xl font-black text-slate-900 sm:text-2xl">내 예약</h1>
+        <h1 className="text-xl font-black text-slate-900 sm:text-2xl">{view.requesterKindLabel}</h1>
       </div>
 
       <ReservationAccessPanel

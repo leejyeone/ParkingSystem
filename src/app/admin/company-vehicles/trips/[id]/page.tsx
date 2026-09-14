@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { CompanyVehicleTripActionPanel } from '@/components/admin/company-vehicle-trip-action-panel';
 import {
   CompanyVehicleTripInfoCard,
+  CompanyVehicleTripMileageCard,
   CompanyVehicleTripScheduleCard,
 } from '@/components/admin/company-vehicle-trip-detail-cards';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -57,6 +58,9 @@ export default async function CompanyVehicleTripDetailPage({ params }: PageProps
     reason: trip.reason,
     requestStartAt: utcToZonedInput(trip.requestStartAt),
     requestEndAt: utcToZonedInput(trip.requestEndAt),
+    assignedVehicleId: trip.assignedVehicleId,
+    actualEntryAt: trip.actualEntryAt ? utcToZonedInput(trip.actualEntryAt) : '',
+    actualExitAt: trip.actualExitAt ? utcToZonedInput(trip.actualExitAt) : '',
     odometerStartKm: trip.odometerStartKm !== null ? String(trip.odometerStartKm) : '',
     odometerEndKm: trip.odometerEndKm !== null ? String(trip.odometerEndKm) : '',
   };
@@ -95,6 +99,7 @@ export default async function CompanyVehicleTripDetailPage({ params }: PageProps
             tripId={trip.tripId}
             editable={editable}
             initial={editableFields}
+            vehicles={vehicles}
             readOnly={{
               visitRangeText: formatKstRange(trip.requestStartAt, trip.requestEndAt),
               assignedVehicleText: trip.assignedVehicle?.vehicleNo ?? '미배정',
@@ -106,12 +111,18 @@ export default async function CompanyVehicleTripDetailPage({ params }: PageProps
           />
         </div>
 
-        <div className="min-w-0">
+        <div className="min-w-0 space-y-4">
           <CompanyVehicleTripActionPanel
             tripId={trip.tripId}
             tripStatus={trip.tripStatus}
             vehicles={vehicles}
             entryExitManagementEnabled={settings.entryExitManagementEnabled}
+          />
+
+          <CompanyVehicleTripMileageCard
+            tripId={trip.tripId}
+            editable={editable}
+            initial={editableFields}
           />
         </div>
       </div>

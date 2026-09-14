@@ -5,6 +5,7 @@ import { useState } from 'react';
 
 import { ClickableTableRow } from '@/components/admin/clickable-table-row';
 import { Alert } from '@/components/ui/alert';
+import { ActiveSwitch } from '@/components/ui/active-switch';
 import { inputClassName } from '@/components/ui/form-field';
 import { apiRequest } from '@/lib/client/api-client';
 import { useDismissOnInteraction } from '@/lib/hooks/use-dismiss-on-interaction';
@@ -204,14 +205,14 @@ export function CompanyVehicleSection({
           </div>
 
           <div className="table-scroll">
-            <table className="data-table">
+            <table className="data-table table-fixed">
               <thead>
                 <tr>
-                  <th>차량번호</th>
-                  <th>차종</th>
+                  <th className="w-32">차량번호</th>
+                  <th className="w-28">차종</th>
                   <th className="w-28">주차 위치</th>
                   <th>메모</th>
-                  <th>상태</th>
+                  <th className="w-24">상태</th>
                 </tr>
               </thead>
               <tbody>
@@ -276,18 +277,14 @@ export function CompanyVehicleSection({
                           />
                         </td>
                         <td>
-                          <select
-                            className={inputClassName(false)}
-                            value={draft.isActive ? 'true' : 'false'}
-                            onChange={(event) =>
-                              updateDraft(vehicle.vehicleId, {
-                                isActive: event.target.value === 'true',
-                              })
+                          <ActiveSwitch
+                            checked={draft.isActive}
+                            disabled={false}
+                            label={`${vehicle.vehicleNo} ${draft.isActive ? '비활성화' : '활성화'}`}
+                            onToggle={() =>
+                              updateDraft(vehicle.vehicleId, { isActive: !draft.isActive })
                             }
-                          >
-                            <option value="true">활성</option>
-                            <option value="false">비활성</option>
-                          </select>
+                          />
                         </td>
                       </tr>
                     );
@@ -298,13 +295,13 @@ export function CompanyVehicleSection({
                       key={vehicle.vehicleId}
                       href={`/admin/company-vehicles/log?vehicleId=${vehicle.vehicleId}`}
                     >
-                      <td className="font-mono font-bold">{vehicle.vehicleNo}</td>
-                      <td className="text-xs">{vehicle.vehicleModel ?? '-'}</td>
-                      <td className="w-28 font-mono text-xs">
+                      <td className="font-mono font-bold whitespace-nowrap">{vehicle.vehicleNo}</td>
+                      <td className="text-xs whitespace-nowrap">{vehicle.vehicleModel ?? '-'}</td>
+                      <td className="font-mono text-xs whitespace-nowrap">
                         {vehicle.parkingSpace?.spaceCode ?? '미지정'}
                       </td>
-                      <td className="text-xs">{vehicle.memo ?? '-'}</td>
-                      <td className="text-xs">
+                      <td className="text-xs break-words">{vehicle.memo ?? '-'}</td>
+                      <td className="text-xs whitespace-nowrap">
                         {vehicle.isActive ? (
                           <span className="badge bg-green-100 text-green-800">활성</span>
                         ) : (
@@ -367,19 +364,14 @@ export function CompanyVehicleSection({
                         />
                       </td>
                       <td>
-                        <select
-                          className={inputClassName(false)}
-                          value={createDraft.isActive ? 'true' : 'false'}
-                          onChange={(event) =>
-                            setCreateDraft({
-                              ...createDraft,
-                              isActive: event.target.value === 'true',
-                            })
+                        <ActiveSwitch
+                          checked={createDraft.isActive}
+                          disabled={false}
+                          label={`신규 법인차량 ${createDraft.isActive ? '비활성화' : '활성화'}`}
+                          onToggle={() =>
+                            setCreateDraft({ ...createDraft, isActive: !createDraft.isActive })
                           }
-                        >
-                          <option value="true">활성</option>
-                          <option value="false">비활성</option>
-                        </select>
+                        />
                       </td>
                     </tr>
                     <tr className="bg-surface-muted">

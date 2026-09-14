@@ -1,6 +1,6 @@
 import { Prisma, type ReservationStatus } from '@prisma/client';
 
-import { formatKstRange } from '@/lib/datetime';
+import { formatKstDateTime, formatKstRange } from '@/lib/datetime';
 import { prisma } from '@/lib/prisma';
 
 /**
@@ -26,6 +26,8 @@ export type EmployeeActivityItem = {
   requesterName: string;
   vehicleNo: string;
   dateRangeText: string;
+  /** 직원 홈 "최근 예약 현황" 요약 표 전용 — 방문 시작 시각만(예: '2026-09-14 09:00'). */
+  startAtText: string;
   purpose: string;
   status: ReservationStatus;
   href: string;
@@ -127,6 +129,7 @@ function reservationToItem(reservation: ReservationRow): EmployeeActivityItem {
     requesterName: reservation.requesterName,
     vehicleNo: reservation.vehicleNo,
     dateRangeText: formatKstRange(reservation.visitStartAt, reservation.visitEndAt),
+    startAtText: formatKstDateTime(reservation.visitStartAt),
     purpose: reservation.visitPurpose ?? '-',
     status: reservation.reservationStatus,
     href: `/employee/reservations/${reservation.reservationId}`,
@@ -152,6 +155,7 @@ function tripToItem(trip: {
     requesterName: trip.employee.name,
     vehicleNo: trip.assignedVehicle?.vehicleNo ?? '미배정',
     dateRangeText: formatKstRange(trip.requestStartAt, trip.requestEndAt),
+    startAtText: formatKstDateTime(trip.requestStartAt),
     purpose: trip.reason,
     status: trip.tripStatus,
     href: `/employee/company-vehicle/trips/${trip.tripId}`,

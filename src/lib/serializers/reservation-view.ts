@@ -22,6 +22,8 @@ export type RequesterReservationView = {
   reservationNo: string;
   requesterType: string;
   requesterTypeLabel: string;
+  /** 이 예약의 구분 — 직원 본인 방문 / 직원의 방문객 대리 신청 / 방문객 본인 신청. */
+  requesterKindLabel: string;
   /** DB 에 저장된 상태. 수정 가능 여부 등 판정에 쓴다. */
   reservationStatus: string;
   reservationStatusLabel: string;
@@ -58,6 +60,12 @@ export function toRequesterReservationView(
     reservationNo: reservation.reservationNo,
     requesterType: reservation.requesterType,
     requesterTypeLabel: REQUESTER_TYPE_LABEL[reservation.requesterType],
+    requesterKindLabel:
+      reservation.requesterType === 'EMPLOYEE'
+        ? '내 방문신청'
+        : reservation.employeeUserId
+          ? '방문객 대리 신청'
+          : '방문 예약',
     reservationStatus: reservation.reservationStatus,
     reservationStatusLabel: RESERVATION_STATUS_LABEL[reservation.reservationStatus],
     displayStatus,

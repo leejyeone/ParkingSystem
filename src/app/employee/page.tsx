@@ -25,7 +25,7 @@ export default async function EmployeeHomePage() {
   ]);
 
   return (
-    <main className="app-container space-y-6">
+    <main className="app-container-medium space-y-6">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <ActionCard
           href="/employee/reservations/new"
@@ -70,7 +70,7 @@ export default async function EmployeeHomePage() {
                 <thead>
                   <tr>
                     <th>구분</th>
-                    <th>성명</th>
+                    <th className="w-16">성명</th>
                     <th>차량번호</th>
                     <th>방문일시</th>
                     <th>목적</th>
@@ -81,9 +81,9 @@ export default async function EmployeeHomePage() {
                   {recentActivity.map((item) => (
                     <ClickableTableRow key={`${item.kind}-${item.id}`} href={item.href}>
                       <td className="text-xs whitespace-nowrap">{item.kindLabel}</td>
-                      <td className="text-xs">{item.requesterName}</td>
-                      <td className="font-mono text-xs">{item.vehicleNo}</td>
-                      <td className="text-xs whitespace-nowrap">{item.dateRangeText}</td>
+                      <td className="text-xs whitespace-nowrap">{item.requesterName}</td>
+                      <td className="font-mono text-xs whitespace-nowrap">{item.vehicleNo}</td>
+                      <td className="text-xs whitespace-nowrap">{item.startAtText}</td>
                       <td className="max-w-[10rem] truncate text-xs" title={item.purpose}>
                         {item.purpose}
                       </td>

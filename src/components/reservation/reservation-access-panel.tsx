@@ -5,7 +5,7 @@ import { useState, type ChangeEvent, type FormEvent } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { FormField, inputClassName } from '@/components/ui/form-field';
-import { STATUS_BADGE_CLASS } from '@/components/ui/status-badge';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { apiRequest, type ApiErrorPayload } from '@/lib/client/api-client';
 import type { RequesterReservationView } from '@/lib/serializers/reservation-view';
 import { normalizeVehicleNo } from '@/lib/vehicle';
@@ -45,10 +45,7 @@ export function ReservationAccessPanel({ token, initialReservation, settings }: 
                 {reservation.reservationNo}
               </p>
             </div>
-            {/* 승인 완료 건은 방문 시간이 지나면 사용 중 / 사용 완료로 표시된다. */}
-            <span className={`badge ${STATUS_BADGE_CLASS[reservation.displayStatus]}`}>
-              {reservation.displayStatusLabel}
-            </span>
+            <StatusBadge status={reservation.displayStatus} />
           </div>
 
           {reservation.reservationStatus === 'REJECTED' && reservation.rejectionReason && (

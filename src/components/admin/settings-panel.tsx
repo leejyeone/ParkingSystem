@@ -3,8 +3,8 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
-import { MapImageUploader, type PendingMapImage } from '@/components/admin/map-image-uploader';
 import { Alert } from '@/components/ui/alert';
+import { ActiveSwitch } from '@/components/ui/active-switch';
 import { FormField, inputClassName } from '@/components/ui/form-field';
 import { PasswordInput } from '@/components/ui/password-input';
 import { SpaceTypeBadge } from '@/components/ui/status-badge';
@@ -12,7 +12,6 @@ import { SPACE_TYPE_LABEL } from '@/domain/reservation-status';
 import type { SystemSettingsValues } from '@/domain/system-settings';
 import { apiRequest } from '@/lib/client/api-client';
 import { useDismissOnInteraction } from '@/lib/hooks/use-dismiss-on-interaction';
-import { buildMapImageUrl } from '@/lib/map-image';
 
 type NotificationEmail = {
   notificationEmailId: number;
@@ -547,15 +546,15 @@ function NotificationTable({ emails }: { emails: NotificationEmail[] }) {
         )}
 
         <div className="table-scroll mt-3">
-          {/* 편집 모드는 칸마다 입력이 들어가 보기 모드보다 넓은 폭이 필요하다. */}
-          <table className={`data-table ${editing ? 'min-w-[820px] table-fixed' : ''}`}>
+          {/* 보기/편집 공용으로 열 너비를 고정해, 수정 버튼을 눌러도 열 너비가 흔들리지 않는다. */}
+          <table className="data-table min-w-[820px] table-fixed">
             <thead>
               <tr>
-                <th className={editing ? 'w-64' : ''}>이메일</th>
-                <th className={editing ? 'w-40' : ''}>수신자</th>
-                <th className={editing ? 'w-24' : ''}>신규신청</th>
-                <th className={editing ? 'w-24' : ''}>변경/취소</th>
-                <th className={editing ? 'w-32' : ''}>상태</th>
+                <th className="w-64">이메일</th>
+                <th className="w-40">수신자</th>
+                <th className="w-24">신규신청</th>
+                <th className="w-24">변경/취소</th>
+                <th className="w-32">상태</th>
                 {editing && <th className="w-20"></th>}
               </tr>
             </thead>
@@ -567,7 +566,7 @@ function NotificationTable({ emails }: { emails: NotificationEmail[] }) {
                 if (!editing) {
                   return (
                     <tr key={item.notificationEmailId}>
-                      <td className="text-xs">{item.email}</td>
+                      <td className="text-xs break-all">{item.email}</td>
                       <td className="text-xs">{item.recipientName ?? '-'}</td>
                       <td>{item.receiveNewRequest ? '✓' : '-'}</td>
                       <td>{item.receiveChangeAlert ? '✓' : '-'}</td>
@@ -631,20 +630,14 @@ function NotificationTable({ emails }: { emails: NotificationEmail[] }) {
                       />
                     </td>
                     <td>
-                      <select
-                        className="input"
-                        value={draft.isActive ? 'ACTIVE' : 'INACTIVE'}
+                      <ActiveSwitch
+                        checked={draft.isActive}
                         disabled={isRemoved}
-                        onChange={(event) =>
-                          updateDraft(item.notificationEmailId, {
-                            isActive: event.target.value === 'ACTIVE',
-                          })
+                        label={`${item.email} ${draft.isActive ? '비활성화' : '활성화'}`}
+                        onToggle={() =>
+                          updateDraft(item.notificationEmailId, { isActive: !draft.isActive })
                         }
-                        aria-label={`${item.email} 상태`}
-                      >
-                        <option value="ACTIVE">활성</option>
-                        <option value="INACTIVE">비활성</option>
-                      </select>
+                      />
                     </td>
                     <td>
                       <button
@@ -796,12 +789,6 @@ export function SpaceSection({
   useDismissOnInteraction(Boolean(message), () => setMessage(null));
   /** 편집 중인 구역 값 */
   const [areaDrafts, setAreaDrafts] = useState<Record<number, AreaDraft>>({});
-  /** 선택했지만 아직 저장하지 않은 도면 파일 (구역별) */
-  const [mapFiles, setMapFiles] = useState<Record<number, PendingMapImage | null>>({});
-  /** 저장 시 도면을 지울 구역 */
-  const [mapRemovals, setMapRemovals] = useState<number[]>([]);
-  /** 도면 선택 단계에서 생긴 오류 (구역별) */
-  const [mapErrors, setMapErrors] = useState<Record<number, string>>({});
   /** 편집 중인 기존 주차면 값. 상단 [저장]을 누를 때 한꺼번에 반영한다. */
   const [drafts, setDrafts] = useState<Record<number, SpaceDraft>>({});
   /** 삭제 표시된 주차면. 저장 시 함께 처리한다. */
@@ -838,9 +825,6 @@ export function SpaceSection({
 
   function reset() {
     setAreaDrafts({});
-    setMapFiles({});
-    setMapRemovals([]);
-    setMapErrors({});
     setDrafts({});
     setRemoved([]);
     setAdded([]);
@@ -855,8 +839,6 @@ export function SpaceSection({
   const changedCount =
     added.length +
     removed.length +
-    Object.values(mapFiles).filter(Boolean).length +
-    mapRemovals.length +
     areas.filter(
       (area) => areaDrafts[area.areaId] && !isSameArea(areaDrafts[area.areaId], toAreaDraft(area)),
     ).length +
@@ -871,34 +853,6 @@ export function SpaceSection({
 
     const failures: string[] = [];
     let done = 0;
-
-    // 도면은 multipart 라 JSON 요청과 함께 보낼 수 없다. 같은 [저장]에서 순서대로 처리한다.
-    for (const area of areas) {
-      if (mapRemovals.includes(area.areaId)) {
-        const response = await fetch(`/api/admin/parking-areas/${area.areaId}/map`, {
-          method: 'DELETE',
-        });
-        if (response.ok) done += 1;
-        else failures.push(`${area.areaName} 도면 삭제 실패`);
-        continue;
-      }
-
-      const selected = mapFiles[area.areaId];
-      if (!selected) continue;
-
-      const body = new FormData();
-      body.append('file', selected.file);
-      const response = await fetch(`/api/admin/parking-areas/${area.areaId}/map`, {
-        method: 'POST',
-        body,
-      });
-      if (response.ok) {
-        done += 1;
-      } else {
-        const payload = await response.json().catch(() => null);
-        failures.push(`${area.areaName} 도면: ${payload?.error?.message ?? '업로드 실패'}`);
-      }
-    }
 
     for (const area of areas) {
       const draft = areaDrafts[area.areaId];
@@ -1113,9 +1067,9 @@ export function SpaceSection({
             </p>
           )}
 
-          {/* 구역·도면 — 주차면 표 위에 둔다. */}
+          {/* 구역 — 주차면 표 위에 둔다. */}
           <div className="mt-4 space-y-3">
-            <h3 className="text-ink-muted text-sm font-bold">구역 및 도면</h3>
+            <h3 className="text-ink-muted text-sm font-bold">구역</h3>
             {areas.length === 0 && <p className="field-hint">등록된 구역이 없습니다.</p>}
             {areas.map((area) => {
               const draft = areaDraftOf(area);
@@ -1146,38 +1100,17 @@ export function SpaceSection({
                         </FormField>
                       </div>
 
-                      <MapImageUploader
-                        area={area}
-                        pending={mapFiles[area.areaId] ?? null}
-                        markedForRemoval={mapRemovals.includes(area.areaId)}
-                        disabled={pending}
-                        error={mapErrors[area.areaId]}
-                        onSelect={(selected) =>
-                          setMapFiles((previous) => ({ ...previous, [area.areaId]: selected }))
-                        }
-                        onToggleRemoval={() =>
-                          setMapRemovals((previous) =>
-                            previous.includes(area.areaId)
-                              ? previous.filter((id) => id !== area.areaId)
-                              : [...previous, area.areaId],
-                          )
-                        }
-                        onError={(text) =>
-                          setMapErrors((previous) => ({ ...previous, [area.areaId]: text }))
-                        }
-                      />
-
-                      <label className="border-line flex min-h-12 items-center gap-3 rounded-lg border px-3">
-                        <input
-                          type="checkbox"
-                          className="accent-brand-700 size-5"
+                      <div className="border-line flex min-h-12 items-center gap-3 rounded-lg border px-3">
+                        <ActiveSwitch
                           checked={draft.isActive}
-                          onChange={(event) =>
-                            updateAreaDraft(area.areaId, { isActive: event.target.checked })
+                          disabled={false}
+                          label={`${area.areaName} ${draft.isActive ? '비활성화' : '활성화'}`}
+                          onToggle={() =>
+                            updateAreaDraft(area.areaId, { isActive: !draft.isActive })
                           }
                         />
                         <span className="text-ink text-sm font-semibold">구역 활성화</span>
-                      </label>
+                      </div>
                     </div>
                   ) : (
                     <dl className="grid gap-1 text-sm">
@@ -1196,30 +1129,6 @@ export function SpaceSection({
                       {area.description && (
                         <p className="text-ink-faint text-xs">{area.description}</p>
                       )}
-                      <p className="text-ink-faint text-xs break-all">
-                        도면: {area.mapImageName ?? '등록 안 함'}
-                      </p>
-                      {area.mapImageName && (
-                        <a
-                          href={buildMapImageUrl(
-                            area.areaId,
-                            area.mapImageUpdatedAt ? new Date(area.mapImageUpdatedAt) : null,
-                          )}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="border-line bg-surface-muted mt-1 block max-w-xs overflow-hidden rounded-lg border"
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={buildMapImageUrl(
-                              area.areaId,
-                              area.mapImageUpdatedAt ? new Date(area.mapImageUpdatedAt) : null,
-                            )}
-                            alt={`${area.areaName} 도면 미리보기 — 새 탭에서 크게 보기`}
-                            className="max-h-40 w-full object-contain"
-                          />
-                        </a>
-                      )}
                     </dl>
                   )}
                 </div>
@@ -1230,18 +1139,16 @@ export function SpaceSection({
           <h3 className="text-ink-muted mt-5 text-sm font-bold">주차면</h3>
           <div className="table-scroll mt-2">
             {/*
-              편집 모드는 칸마다 입력·선택이 들어가서 보기 모드와 필요한 폭이 다르다. auto
-              레이아웃에 그대로 맡기면 좁은 화면에서 select 의 화살표만 남고 내용이 잘린다.
-              편집할 때만 table-fixed + 열별 고정 폭을 주고 가로 스크롤로 보게 한다.
-              메모는 내용 길이가 다양해 고정하지 않고 남는 폭을 가져가게 둔다.
+              보기/편집 공용으로 열 너비를 고정해, 수정 버튼을 눌러도 열 너비가 흔들리지
+              않는다. 메모는 내용 길이가 다양해 고정하지 않고 남는 폭을 가져가게 둔다.
             */}
-            <table className={`data-table ${editing ? 'min-w-[860px] table-fixed' : ''}`}>
+            <table className="data-table min-w-[860px] table-fixed">
               <thead>
                 <tr>
-                  <th className={editing ? 'w-28' : ''}>코드</th>
-                  <th className={editing ? 'w-32' : ''}>유형</th>
-                  <th className={editing ? 'w-28' : ''}>상태</th>
-                  <th className={editing ? 'w-56' : ''}>구역</th>
+                  <th className="w-28">코드</th>
+                  <th className="w-32">유형</th>
+                  <th className="w-28">상태</th>
+                  <th className="w-56">구역</th>
                   <th>메모</th>
                   {editing && <th className="w-24"></th>}
                 </tr>
@@ -1298,20 +1205,14 @@ export function SpaceSection({
                         </select>
                       </td>
                       <td>
-                        <select
-                          className="input"
-                          value={draft.isActive ? 'ACTIVE' : 'INACTIVE'}
+                        <ActiveSwitch
+                          checked={draft.isActive}
                           disabled={isRemoved}
-                          onChange={(event) =>
-                            updateDraft(space.spaceId, {
-                              isActive: event.target.value === 'ACTIVE',
-                            })
+                          label={`${space.spaceCode} ${draft.isActive ? '비활성화' : '활성화'}`}
+                          onToggle={() =>
+                            updateDraft(space.spaceId, { isActive: !draft.isActive })
                           }
-                          aria-label={`${space.spaceCode} 상태`}
-                        >
-                          <option value="ACTIVE">활성</option>
-                          <option value="INACTIVE">비활성</option>
-                        </select>
+                        />
                       </td>
                       <td>
                         <select
@@ -1771,15 +1672,15 @@ function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
         )}
 
         <div className="table-scroll mt-3">
-          {/* 편집 모드는 칸마다 입력이 들어가 보기 모드보다 넓은 폭이 필요하다. */}
-          <table className={`data-table ${editing ? 'min-w-[1180px] table-fixed' : ''}`}>
+          {/* 보기/편집 공용으로 열 너비를 고정해, 수정 버튼을 눌러도 열 너비가 흔들리지 않는다. */}
+          <table className="data-table min-w-[1180px] table-fixed">
             <thead>
               <tr>
-                <th className={editing ? 'w-32' : ''}>이름</th>
-                <th className={editing ? 'w-60' : ''}>이메일</th>
-                <th className={editing ? 'w-36' : ''}>연락처</th>
-                <th className={editing ? 'w-28' : ''}>권한</th>
-                <th className={editing ? 'w-32' : ''}>상태</th>
+                <th className="w-32">이름</th>
+                <th className="w-60">이메일</th>
+                <th className="w-36">연락처</th>
+                <th className="w-28">권한</th>
+                <th className="w-32">상태</th>
                 {editing && <th className="w-20"></th>}
               </tr>
             </thead>
@@ -1794,9 +1695,9 @@ function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
                 if (!editing) {
                   return (
                     <tr key={user.adminUserId}>
-                      <td>{user.adminName}</td>
-                      <td className="text-xs">{user.email}</td>
-                      <td className="text-xs">{user.phone ?? '-'}</td>
+                      <td className="whitespace-nowrap">{user.adminName}</td>
+                      <td className="text-xs whitespace-nowrap">{user.email}</td>
+                      <td className="text-xs whitespace-nowrap">{user.phone ?? '-'}</td>
                       <td>
                         <span
                           className={`badge ${
@@ -1878,26 +1779,21 @@ function AdminUserTable({ adminUsers }: { adminUsers: AdminUser[] }) {
                       </select>
                     </td>
                     <td>
-                      <select
-                        className="input"
-                        value={draft.accountStatus}
+                      {/*
+                        잠금은 로그인 연속 실패로 시스템이 거는 상태라 직접 고를 일은 없다.
+                        스위치는 활성/비활성 둘만 다루므로 잠금도 "꺼짐"으로 보여주고, 켜면
+                        서버가 실패 횟수와 잠금 시각을 함께 풀며 ACTIVE 로 전환한다.
+                      */}
+                      <ActiveSwitch
+                        checked={draft.accountStatus === 'ACTIVE'}
                         disabled={isRemoved}
-                        onChange={(event) =>
+                        label={`${user.email} ${draft.accountStatus === 'ACTIVE' ? '비활성화' : '활성화'}`}
+                        onToggle={() =>
                           updateDraft(user.adminUserId, {
-                            accountStatus: event.target.value as AdminUserDraft['accountStatus'],
+                            accountStatus: draft.accountStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE',
                           })
                         }
-                        aria-label={`${user.email} 상태`}
-                      >
-                        <option value="ACTIVE">활성</option>
-                        <option value="INACTIVE">비활성</option>
-                        {/*
-                          잠금은 로그인 연속 실패로 시스템이 거는 상태라 직접 고를 일은 없지만,
-                          현재 값이 잠금이면 선택지에 있어야 select 가 빈 값이 되지 않는다.
-                          활성으로 바꾸면 서버가 실패 횟수와 잠금 시각을 함께 푼다.
-                        */}
-                        {user.accountStatus === 'LOCKED' && <option value="LOCKED">잠금</option>}
-                      </select>
+                      />
                     </td>
                     <td>
                       <button

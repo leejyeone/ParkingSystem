@@ -47,17 +47,23 @@ export default async function EmployeeCompanyVehicleTripDetailPage({ params }: P
   return (
     <main className="app-container space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-ink text-xl font-black sm:text-2xl">법인차량 신청 상세</h1>
-        {trip.tripNo && <span className="text-ink-faint font-mono text-sm">{trip.tripNo}</span>}
-        <StatusBadge
-          status={trip.tripStatus}
-          label={COMPANY_VEHICLE_STATUS_LABEL_OVERRIDE[trip.tripStatus]}
-        />
+        <h1 className="text-ink text-xl font-black sm:text-2xl">법인 차량 예약</h1>
       </div>
 
       <section className="card">
         <div className="card-body space-y-3">
-          <h2 className="card-title">신청 정보</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-ink-faint text-xs font-bold">신청번호</p>
+              <p className="text-ink font-mono text-lg font-black">
+                {trip.tripNo ?? `운행 신청 #${trip.tripId}`}
+              </p>
+            </div>
+            <StatusBadge
+              status={trip.tripStatus}
+              label={COMPANY_VEHICLE_STATUS_LABEL_OVERRIDE[trip.tripStatus]}
+            />
+          </div>
           <div className="definition-row">
             <dt className="definition-term">신청자</dt>
             <dd className="definition-desc">{trip.employee.name}</dd>

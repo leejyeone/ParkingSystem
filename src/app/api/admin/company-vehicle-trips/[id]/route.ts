@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 
 import { parseNumericId, readJsonBody } from '@/lib/api-helpers';
 import { apiSuccess, handleApiError } from '@/lib/api-response';
+import { zonedInputToUtc } from '@/lib/datetime';
 import { getRequestContext } from '@/lib/request-context';
 import { companyVehicleTripDetailUpdateSchema } from '@/lib/validation/admin-schema';
 import { requireActiveAdmin } from '@/services/admin-auth-service';
@@ -32,7 +33,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
 }
 
-/** PATCH /api/admin/company-vehicle-trips/[id] — 신청 상세 카드에서 신청 내용(신청 직원·행선지·사유·운행시간) 정정 */
+/**
+ * PATCH /api/admin/company-vehicle-trips/[id] — 신청 상세 카드에서 신청 내용(신청
+ * 직원·행선지·사유·운행시간)과 운행 기록(배정 차량·실제 출차/입차 시각) 정정
+ */
 export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
     const session = await requireActiveAdmin();
@@ -46,6 +50,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       reason: payload.reason,
       requestStartAt: payload.requestStartAt,
       requestEndAt: payload.requestEndAt,
+      assignedVehicleId: payload.assignedVehicleId,
+      actualEntryAt: payload.actualEntryAt === null ? null : zonedInputToUtc(payload.actualEntryAt),
+      actualExitAt: payload.actualExitAt === null ? null : zonedInputToUtc(payload.actualExitAt),
       adminUserId: session.adminUserId,
       requestContext: getRequestContext(request.headers),
     });
@@ -57,6 +64,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       reason: trip.reason,
       requestStartAt: trip.requestStartAt,
       requestEndAt: trip.requestEndAt,
+      assignedVehicleId: trip.assignedVehicleId,
+      actualEntryAt: trip.actualEntryAt,
+      actualExitAt: trip.actualExitAt,
     });
   } catch (error) {
     return handleApiError(error);
