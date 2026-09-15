@@ -3,6 +3,7 @@ import { AccountStatus, ChangedByType, Prisma, ReservationStatus } from '@prisma
 import { assertCompanyVehicleTripTiming } from '@/domain/company-vehicle-rules';
 import { assertTransition } from '@/domain/reservation-status';
 import { todayKstDateString } from '@/lib/datetime';
+import { dispatchQuietly, sendNewVehicleTripRequestToAdminEmails } from '@/lib/email/email-service';
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/errors';
 import { prisma } from '@/lib/prisma';
 import type { RequestContext } from '@/lib/request-context';
@@ -160,7 +161,7 @@ export async function createCompanyVehicleTrip(
     settings,
   });
 
-  return createWithUniqueTripNo((tripNo) =>
+  const created = await createWithUniqueTripNo((tripNo) =>
     prisma.companyVehicleTrip.create({
       data: {
         tripNo,
@@ -171,8 +172,24 @@ export async function createCompanyVehicleTrip(
         requestEndAt: input.requestEndAt,
         tripStatus: ReservationStatus.REQUESTED,
       },
+      include: { employee: { select: { name: true, departmentName: true } } },
     }),
   );
+
+  dispatchQuietly(() =>
+    sendNewVehicleTripRequestToAdminEmails({
+      tripId: created.tripId,
+      tripNo: created.tripNo ?? `#${created.tripId}`,
+      employeeName: created.employee.name,
+      departmentName: created.employee.departmentName,
+      destination: created.destination,
+      reason: created.reason,
+      requestStartAt: created.requestStartAt,
+      requestEndAt: created.requestEndAt,
+    }),
+  );
+
+  return created;
 }
 
 /** 해당 차량이 그 시간대에 이미 다른 트립(APPROVED/PARKING)에 배정되어 있는지 확인 */

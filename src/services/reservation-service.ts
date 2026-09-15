@@ -817,7 +817,9 @@ export async function cancelReservationByAdmin(
   });
 
   if (!cancelled.recurringScheduleId) {
-    dispatchQuietly(() => sendCancelledEmails(toReservationForEmail(cancelled)));
+    dispatchQuietly(() =>
+      sendCancelledEmails(toReservationForEmail(cancelled), { changedByAdmin: true }),
+    );
   }
   return cancelled;
 }

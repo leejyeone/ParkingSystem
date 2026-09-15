@@ -56,7 +56,7 @@ export type ReservationEmailData = {
    * 미지정이면 신청자로 간주한다. 당사 담당자는 신청 경로(자가신청/대리신청)와
    * 무관하게 항상 이 값으로 렌더링한다 — 대리 신청한 직원 본인도 예외가 아니다.
    */
-  recipientRole?: 'requester' | 'hostEmployee';
+  recipientRole?: 'requester' | 'hostEmployee' | 'admin';
 };
 
 export type RenderedEmail = {
@@ -269,6 +269,8 @@ export type ReservationEmailType = Exclude<
   | 'RECURRING_SCHEDULE_CANCELLED'
   // 담당자 재지정 기능 자체를 되돌리면서 더 이상 발송하지 않는다(enum 값은 DB 호환을 위해 유지).
   | 'HOST_EMPLOYEE_CHANGED'
+  // 방문 예약이 아니라 법인차량 운행 신청 메일이라 별도 함수(renderCompanyVehicleTripEmail)로 렌더링한다.
+  | 'NEW_VEHICLE_TRIP_TO_ADMIN'
 >;
 
 /**
@@ -473,11 +475,14 @@ export function renderReservationEmail(
     }
 
     case EmailType.CANCELLED: {
+      const isAdminRecipient = data.recipientRole === 'admin';
       const params = {
         title: '예약이 취소되었습니다',
-        lead: isHostRecipient(data)
-          ? `담당하고 계신 방문객 ${data.requesterName}님의 방문 예약이 취소되었습니다.`
-          : '요청하신 방문 예약이 취소 처리되었습니다.',
+        lead: isAdminRecipient
+          ? `${data.companyOrBranchName} ${data.requesterName}님의 방문 예약이 취소되었습니다. 관리자 화면에서 확인해 주세요.`
+          : isHostRecipient(data)
+            ? `담당하고 계신 방문객 ${data.requesterName}님의 방문 예약이 취소되었습니다.`
+            : '요청하신 방문 예약이 취소 처리되었습니다.',
         rows: [
           ...rows,
           { label: '취소 사유', value: data.cancelReason ?? '사유 미기재' },
@@ -487,11 +492,18 @@ export function renderReservationEmail(
           ...(usesSpaceAssignment(data)
             ? ['배정되어 있던 주차 위치는 해제되었습니다.']
             : ['예약이 취소되어 주차가 불가합니다.']),
-          ...hostNotice(data),
+          ...(isAdminRecipient
+            ? ['신청자 개인정보가 포함된 메일입니다. 업무 목적 외 사용이나 외부 공유를 금지합니다.']
+            : hostNotice(data)),
         ],
+        ...(isAdminRecipient
+          ? { buttonLabel: '관리자 화면에서 확인하기', buttonUrl: data.adminDetailUrl }
+          : {}),
       };
       return {
-        subject: `[시노펙스] ${hostSubjectPrefix(data)}예약이 취소되었습니다`,
+        subject: isAdminRecipient
+          ? `[시노펙스][취소] 방문 예약이 취소되었습니다`
+          : `[시노펙스] ${hostSubjectPrefix(data)}예약이 취소되었습니다`,
         html: renderHtmlLayout(params),
         text: renderTextLayout(params),
       };
@@ -545,4 +557,45 @@ export function renderReservationEmail(
       throw new Error(`지원하지 않는 이메일 종류입니다: ${String(exhaustiveCheck)}`);
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// 법인차량 운행 신청 메일 (방문 예약과 데이터 형태가 달라 별도 렌더링)
+// ---------------------------------------------------------------------------
+
+export type CompanyVehicleTripEmailData = {
+  tripNo: string;
+  employeeName: string;
+  departmentName: string;
+  destination: string;
+  reason: string;
+  requestStartAt: Date;
+  requestEndAt: Date;
+  adminDetailUrl: string;
+};
+
+/** 법인차량 신규 운행 신청 알림 (관리자 전용, NEW_REQUEST_TO_ADMIN과 같은 톤) */
+export function renderCompanyVehicleTripEmail(data: CompanyVehicleTripEmailData): RenderedEmail {
+  const params = {
+    title: '법인차량 신규 운행 신청이 접수되었습니다',
+    lead: '승인 대기 중인 법인차량 운행 신청이 있습니다. 관리자 화면에서 확인 후 승인 또는 반려해 주세요.',
+    rows: [
+      { label: '신청번호', value: data.tripNo },
+      { label: '신청 직원', value: `${data.employeeName} (${data.departmentName})` },
+      { label: '행선지', value: data.destination },
+      { label: '운행 목적', value: data.reason },
+      { label: '운행 요청 시간', value: formatKstRange(data.requestStartAt, data.requestEndAt) },
+    ],
+    notices: [
+      '신청자 개인정보가 포함된 메일입니다. 업무 목적 외 사용이나 외부 공유를 금지합니다.',
+    ],
+    buttonLabel: '관리자 화면에서 확인하기',
+    buttonUrl: data.adminDetailUrl,
+    footerNote: '본 메일은 관리자 알림 수신자에게 발송됩니다.',
+  };
+  return {
+    subject: `[시노펙스][승인요청] 법인차량 신규 운행 신청`,
+    html: renderHtmlLayout(params),
+    text: renderTextLayout(params),
+  };
 }

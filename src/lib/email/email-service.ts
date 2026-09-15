@@ -5,6 +5,7 @@ import { getEmailProvider } from '@/lib/email/email-provider-factory';
 import { EmailSendError } from '@/lib/email/email-provider';
 import { serializeAttachments } from '@/lib/email/email-attachments';
 import {
+  renderCompanyVehicleTripEmail,
   renderReservationEmail,
   type ReservationEmailData,
   type ReservationEmailType,
@@ -276,6 +277,10 @@ export function buildAdminDetailUrl(reservationId: number): string {
   return `${getAppBaseUrl()}/admin/reservations/${reservationId}`;
 }
 
+export function buildAdminVehicleTripDetailUrl(tripId: number): string {
+  return `${getAppBaseUrl()}/admin/company-vehicles/trips/${tripId}`;
+}
+
 export function buildAccessUrl(rawToken: string): string {
   return buildReservationAccessUrl(getAppBaseUrl(), rawToken);
 }
@@ -345,11 +350,12 @@ export async function sendRejectedEmail(
 }
 
 /**
- * 5. 변경 (신청자 + 관리자)
+ * 5. 변경 (신청자 + 당사 담당자가 매핑되어 있으면 담당자도 함께)
  *
- * 관리자가 직접 고친 경우에는 관리자에게 보내지 않는다. 본인이 화면에서 한 일을
- * 다시 메일로 통보받는 셈이라 알림 가치가 없고, 처리해야 할 신규 신청 메일 사이에
- * 섞여 노이즈가 된다. 변경 이력은 감사 로그와 상태 이력에 이미 남는다.
+ * 관리자에게는 보내지 않는다. 신청자가 수정할 수 있는 시점은 항상 승인 전(REQUESTED)
+ * 상태뿐이라(`REQUESTER_MODIFIABLE_STATUSES`), 관리자 입장에서는 아직 검토도 안 한
+ * 대기 항목의 내용이 최신화된 것뿐이라 알려줄 실익이 없다. 관리자가 직접 고친 경우는
+ * 애초에 본인이 한 일이라 통보가 의미 없다. 변경 이력은 감사 로그와 상태 이력에 남는다.
  */
 export async function sendUpdatedEmails(
   reservation: ReservationForEmail,
@@ -357,10 +363,7 @@ export async function sendUpdatedEmails(
     accessUrl: string;
     previousVisitStartAt: Date;
     previousVisitEndAt: Date;
-    /**
-     * 신청자가 아니라 관리자가 수정한 경우.
-     * 본문 안내 문구가 달라지고, 관리자 수신자에게는 보내지 않는다.
-     */
+    /** 신청자가 아니라 관리자가 수정한 경우 — 본문 안내 문구가 달라진다. */
     changedByAdmin?: boolean;
   },
 ): Promise<EmailDispatchResult[]> {
@@ -370,36 +373,29 @@ export async function sendUpdatedEmails(
     previousVisitEndAt: options.previousVisitEndAt,
     changedByAdmin: options.changedByAdmin ?? false,
   });
-  const adminMail = renderReservationEmail(EmailType.UPDATED, {
+  return sendToRequesterAndHost(reservation, EmailType.UPDATED, data);
+}
+
+/**
+ * 6. 취소 (신청자 + 당사 담당자가 매핑되어 있으면 담당자도 함께 + 관리자)
+ *
+ * 신청자가 취소하는 경우는 항상 승인 전(REQUESTED) 상태라, 관리자의 대기 목록에서
+ * 항목이 통째로 사라진다는 실질적 의미가 있어 계속 알린다. 반면 관리자가 이미 처리한
+ * (APPROVED) 건을 직접 취소하는 경우엔 본인이 한 일이라 다른 관리자에게 통보할 실익이
+ * 없다 — UPDATE와 같은 이유로 스킵한다.
+ */
+export async function sendCancelledEmails(
+  reservation: ReservationForEmail,
+  options?: { changedByAdmin?: boolean },
+): Promise<EmailDispatchResult[]> {
+  const data = await toEmailData(reservation);
+  const adminRendered = renderReservationEmail(EmailType.CANCELLED, {
     ...data,
     accessUrl: null,
     adminDetailUrl: buildAdminDetailUrl(reservation.reservationId),
+    recipientRole: 'admin',
   });
-
-  const admins = options.changedByAdmin ? [] : await getAdminRecipients('receiveChangeAlert');
-  const [requesterAndHostResults, adminResults] = await Promise.all([
-    sendToRequesterAndHost(reservation, EmailType.UPDATED, data),
-    Promise.all(
-      admins.map((to) =>
-        sendEmailWithLog({
-          reservationId: reservation.reservationId,
-          emailType: EmailType.UPDATED,
-          to,
-          rendered: adminMail,
-        }),
-      ),
-    ),
-  ]);
-  return [...requesterAndHostResults, ...adminResults];
-}
-
-/** 6. 취소 (신청자 + 당사 담당자가 매핑되어 있으면 담당자도 함께 + 관리자) */
-export async function sendCancelledEmails(
-  reservation: ReservationForEmail,
-): Promise<EmailDispatchResult[]> {
-  const data = await toEmailData(reservation);
-  const adminRendered = renderReservationEmail(EmailType.CANCELLED, data);
-  const admins = await getAdminRecipients('receiveChangeAlert');
+  const admins = options?.changedByAdmin ? [] : await getAdminRecipients('receiveChangeAlert');
   const [requesterAndHostResults, adminResults] = await Promise.all([
     sendToRequesterAndHost(reservation, EmailType.CANCELLED, data),
     Promise.all(
@@ -472,6 +468,42 @@ export async function sendEntryReminderEmail(
     rendered,
     dedupeOccurrence: reservation.visitStartAt.toISOString().slice(0, 16),
   });
+}
+
+// ---------------------------------------------------------------------------
+// 법인차량 운행 신청 관련 발송 함수
+// ---------------------------------------------------------------------------
+
+export type CompanyVehicleTripForEmail = {
+  tripId: number;
+  tripNo: string;
+  employeeName: string;
+  departmentName: string;
+  destination: string;
+  reason: string;
+  requestStartAt: Date;
+  requestEndAt: Date;
+};
+
+/** 법인차량 신규 운행 신청 알림 (관리자). 방문 예약의 `receiveNewRequest` 플래그를 공유한다. */
+export async function sendNewVehicleTripRequestToAdminEmails(
+  trip: CompanyVehicleTripForEmail,
+): Promise<EmailDispatchResult[]> {
+  const recipients = await getAdminRecipients('receiveNewRequest');
+  const rendered = renderCompanyVehicleTripEmail({
+    ...trip,
+    adminDetailUrl: buildAdminVehicleTripDetailUrl(trip.tripId),
+  });
+  return Promise.all(
+    recipients.map((to) =>
+      sendEmailWithLog({
+        reservationId: null,
+        emailType: EmailType.NEW_VEHICLE_TRIP_TO_ADMIN,
+        to,
+        rendered,
+      }),
+    ),
+  );
 }
 
 /**
