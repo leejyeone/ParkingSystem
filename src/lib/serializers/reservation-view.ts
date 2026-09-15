@@ -33,6 +33,8 @@ export type RequesterReservationView = {
   companyOrBranchName: string;
   requesterName: string;
   requesterEmail: string;
+  /** 당사 담당자(방문 예약에만 있을 수 있다 — 직원 본인 방문은 담당자가 곧 본인이라 null). */
+  hostEmployeeText: string | null;
   vehicleNo: string;
   visitPurpose: string | null;
   requestMemo: string | null;
@@ -68,6 +70,10 @@ export function toRequesterReservationView(
     companyOrBranchName: reservation.companyOrBranchName,
     requesterName: reservation.requesterName,
     requesterEmail: reservation.requesterEmail,
+    hostEmployeeText:
+      reservation.requesterType === 'VISITOR' && reservation.employeeUser
+        ? `${reservation.employeeUser.name} (${reservation.employeeUser.email})`
+        : null,
     vehicleNo: reservation.vehicleNo,
     visitPurpose: reservation.visitPurpose,
     requestMemo: reservation.requestMemo,

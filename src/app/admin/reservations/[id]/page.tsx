@@ -5,11 +5,7 @@ import { notFound } from 'next/navigation';
 import { ReservationActionPanel } from '@/components/admin/reservation-action-panel';
 import { RequesterInfoCard, ScheduleCard } from '@/components/admin/reservation-detail-cards';
 import { SpaceTypeBadge, StatusBadge } from '@/components/ui/status-badge';
-import {
-  isTerminalStatus,
-  REQUESTER_TYPE_LABEL,
-  RESERVATION_STATUS_LABEL,
-} from '@/domain/reservation-status';
+import { REQUESTER_TYPE_LABEL, RESERVATION_STATUS_LABEL } from '@/domain/reservation-status';
 import { requireAdminPage } from '@/lib/admin-page-guard';
 import { formatKstDateTime, formatKstRange, utcToZonedInput } from '@/lib/datetime';
 import { NotFoundError } from '@/lib/errors';
@@ -107,8 +103,10 @@ export default async function AdminReservationDetailPage({ params, searchParams 
         excludeReservationId: reservationId,
       });
 
-  // 종료된 예약(반려/취소/출차/미방문)은 내용을 바꿀 수 없다.
-  const editable = !isTerminalStatus(reservation.reservationStatus);
+  // 종료된 예약(반려/취소/출차/미방문)도 관리자가 내용을 정정할 수 있다 — 상태 전이가
+  // 아니라 사후 기록 정정 목적이며, 이 경우 신청자에게 변경 안내 메일은 보내지 않는다
+  // (updateReservationByAdmin 참고).
+  const editable = true;
   const editableFields = {
     companyOrBranchName: reservation.companyOrBranchName,
     requesterName: reservation.requesterName,
@@ -246,7 +244,7 @@ export default async function AdminReservationDetailPage({ params, searchParams 
                     <td className="text-xs whitespace-nowrap">
                       {formatKstDateTime(log.createdAt)}
                     </td>
-                    <td className="text-xs">
+                    <td className="text-xs whitespace-nowrap">
                       {log.previousStatus
                         ? `${RESERVATION_STATUS_LABEL[log.previousStatus]} → `
                         : ''}

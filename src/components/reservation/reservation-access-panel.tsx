@@ -98,6 +98,9 @@ export function ReservationAccessPanel({ token, initialReservation, settings }: 
                 />
                 <Row term="성명" desc={reservation.requesterName} />
                 <Row term="이메일" desc={reservation.requesterEmail} />
+                {reservation.hostEmployeeText && (
+                  <Row term="담당자" desc={reservation.hostEmployeeText} />
+                )}
                 <Row term="차량번호" desc={reservation.vehicleNo} />
                 <Row term="방문 시간" desc={reservation.visitRangeText} />
                 {settings.spaceAssignmentEnabled && (

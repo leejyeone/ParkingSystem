@@ -505,7 +505,7 @@ export function ReservationForm({
       {mode !== 'employee-self' && (
         <div className="card mt-4">
           <div className="card-body">
-            <h2 className="card-title">보안서약서 동의</h2>
+            <h2 className="card-title label-required">보안서약서 동의</h2>
             <div className="mt-3 max-h-40 overflow-y-auto rounded-lg bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
               <p>
                 시노펙스(이하 &quot;회사&quot;라 합니다)를 방문하는 방문자 본인은 다음의 보안 및
@@ -550,7 +550,7 @@ export function ReservationForm({
       {mode !== 'employee-self' && (
         <div className="card mt-4">
           <div className="card-body">
-            <h2 className="card-title">개인정보 수집 및 이용 동의</h2>
+            <h2 className="card-title label-required">개인정보 수집 및 이용 동의</h2>
             <div className="mt-3 max-h-40 overflow-y-auto rounded-lg bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
               {mode === 'visitor' ? (
                 <>

@@ -9,7 +9,7 @@ import {
   CompanyVehicleTripScheduleCard,
 } from '@/components/admin/company-vehicle-trip-detail-cards';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { isTerminalStatus, RESERVATION_STATUS_LABEL } from '@/domain/reservation-status';
+import { RESERVATION_STATUS_LABEL } from '@/domain/reservation-status';
 import { requireAdminPage } from '@/lib/admin-page-guard';
 import { formatKstDateTime, formatKstRange, utcToZonedInput } from '@/lib/datetime';
 import { NotFoundError } from '@/lib/errors';
@@ -59,8 +59,9 @@ export default async function CompanyVehicleTripDetailPage({ params, searchParam
 
   const [vehicles, settings] = await Promise.all([listCompanyVehicles(), getSystemSettings()]);
 
-  // 종료된 신청(반려/취소/출차/미방문)은 내용을 바꿀 수 없다. 방문 예약 상세와 같은 기준.
-  const editable = !isTerminalStatus(trip.tripStatus);
+  // 종료된 신청(반려/취소/출차/미방문)도 관리자가 내용을 정정할 수 있다 — 방문 예약
+  // 상세와 같은 기준. 법인차량은 애초에 이 수정으로 이메일을 보내지 않는다.
+  const editable = true;
   const editableFields = {
     employeeUserId: trip.employeeUserId,
     employeeLabel: `${trip.employee.name} (${trip.employee.departmentName})`,
@@ -153,7 +154,7 @@ export default async function CompanyVehicleTripDetailPage({ params, searchParam
                     <td className="text-xs whitespace-nowrap">
                       {formatKstDateTime(log.createdAt)}
                     </td>
-                    <td className="text-xs">
+                    <td className="text-xs whitespace-nowrap">
                       {log.previousStatus
                         ? `${RESERVATION_STATUS_LABEL[log.previousStatus]} → `
                         : ''}

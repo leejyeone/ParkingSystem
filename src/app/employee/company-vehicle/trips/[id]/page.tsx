@@ -143,7 +143,7 @@ export default async function EmployeeCompanyVehicleTripDetailPage({ params }: P
                 {trip.statusLogs.map((log) => (
                   <tr key={log.statusLogId}>
                     <td className="text-xs whitespace-nowrap">{formatKstDateTime(log.createdAt)}</td>
-                    <td className="text-xs">
+                    <td className="text-xs whitespace-nowrap">
                       {log.previousStatus ? `${RESERVATION_STATUS_LABEL[log.previousStatus]} → ` : ''}
                       <strong>{RESERVATION_STATUS_LABEL[log.currentStatus]}</strong>
                     </td>

@@ -18,7 +18,6 @@ import {
   assertTransition,
   isTerminalStatus,
   resolveDisplayStatus,
-  RESERVATION_STATUS_LABEL,
   SPACE_OCCUPYING_STATUSES,
   type DisplayReservationStatus,
 } from '@/domain/reservation-status';
@@ -562,12 +561,9 @@ export async function updateReservationByAdmin(
   const settings = await getSystemSettings();
   const current = await loadReservationOrThrow(reservationId);
 
-  if (isTerminalStatus(current.reservationStatus)) {
-    throw new ConflictError(
-      `종료된 예약(${RESERVATION_STATUS_LABEL[current.reservationStatus]})은 수정할 수 없습니다.`,
-      'RESERVATION_TERMINAL',
-    );
-  }
+  // 종료된 예약(반려/취소/출차/미방문)도 관리자가 내용을 정정할 수 있다 — 상태 전이가
+  // 아니라 사후 기록 정정이므로 여기서 막지 않는다. 다만 이미 끝난 건이라 신청자에게
+  // 다시 안내 메일을 보낼 이유는 없으므로, 아래 이메일 발송은 종료 상태면 건너뛴다.
 
   // 운영시간·최대 이용시간·시작<종료 는 그대로 적용하고, 최소 사전 신청 시간만 면제한다.
   const fieldErrors: FieldErrors = {};
@@ -696,8 +692,8 @@ export async function updateReservationByAdmin(
     context: actor.requestContext,
   });
 
-  const accessUrl = await issueAccessUrl(updated.reservationId, updated.visitEndAt);
-  if (!updated.recurringScheduleId) {
+  if (!isTerminalStatus(current.reservationStatus) && !updated.recurringScheduleId) {
+    const accessUrl = await issueAccessUrl(updated.reservationId, updated.visitEndAt);
     dispatchQuietly(() =>
       sendUpdatedEmails(toReservationForEmail(updated), {
         accessUrl,
