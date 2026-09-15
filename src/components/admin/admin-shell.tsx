@@ -29,8 +29,8 @@ const ROLE_LABEL: Record<AdminRole, string> = {
 };
 
 /**
- * 감사 로그는 잠시 비활성화 상태라 메뉴에서 뺐다. 페이지(/admin/audit-logs)와 데이터는
- * 그대로 남아있으니, 다시 노출하려면 이 메뉴 항목만 되살리면 된다.
+ * 감사 로그 조회 화면은 폐지했다(/admin/audit-logs 페이지 삭제). 기록 자체
+ * (`writeAuditLog`, `audit_logs` 테이블)는 계속 남기지만, 조회 UI는 없다.
  *
  * "시스템 관리" 그룹은 방문 신청/승인 절차를 우회할 수 있는 화면(반복 예약, 관리자
  * 계정 생성 등)을 모아 둔 곳이라 시스템 관리자에게만 보인다 — buildMenu 참고.
