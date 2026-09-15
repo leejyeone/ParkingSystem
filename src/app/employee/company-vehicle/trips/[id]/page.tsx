@@ -3,10 +3,7 @@ import { notFound } from 'next/navigation';
 
 import { CompanyVehicleTripCancelPanel } from '@/components/employee/company-vehicle-trip-cancel-panel';
 import { StatusBadge } from '@/components/ui/status-badge';
-import {
-  COMPANY_VEHICLE_STATUS_LABEL_OVERRIDE,
-  RESERVATION_STATUS_LABEL,
-} from '@/domain/reservation-status';
+import { RESERVATION_STATUS_LABEL } from '@/domain/reservation-status';
 import { requireEmployeePage } from '@/lib/employee-page-guard';
 import { formatKstDateTime, formatKstRange } from '@/lib/datetime';
 import { NotFoundError } from '@/lib/errors';
@@ -59,10 +56,7 @@ export default async function EmployeeCompanyVehicleTripDetailPage({ params }: P
                 {trip.tripNo ?? `운행 신청 #${trip.tripId}`}
               </p>
             </div>
-            <StatusBadge
-              status={trip.tripStatus}
-              label={COMPANY_VEHICLE_STATUS_LABEL_OVERRIDE[trip.tripStatus]}
-            />
+            <StatusBadge status={trip.tripStatus} />
           </div>
           <div className="definition-row">
             <dt className="definition-term">신청자</dt>

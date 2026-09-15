@@ -52,24 +52,23 @@ export const SPACE_OCCUPYING_STATUSES: readonly ReservationStatus[] = ['APPROVED
  */
 export const REQUESTER_MODIFIABLE_STATUSES: readonly ReservationStatus[] = ['REQUESTED'];
 
+/**
+ * 방문 예약과 법인차량 운행 신청이 함께 쓰는 상태 라벨.
+ *
+ * PARKING/EXITED는 일부러 "입차"/"출차"처럼 물리적 방향을 못박지 않고 "사용 중"/"사용
+ * 완료"로 표현한다 — 방문 예약은 들어왔다 나가는 방향이지만 법인차량은 차가 먼저
+ * 나갔다가 돌아오는 반대 방향이라, 방향을 못박은 단어를 쓰면 둘 중 한쪽에서 뜻이
+ * 뒤집힌다. "지금 자원을 쓰고 있는지/다 썼는지"는 방향과 무관하게 항상 같은 뜻이라
+ * 도메인별로 라벨을 따로 뒤집을 필요가 없어진다.
+ */
 export const RESERVATION_STATUS_LABEL: Readonly<Record<ReservationStatus, string>> = {
   REQUESTED: '승인 대기',
   APPROVED: '승인 완료',
   REJECTED: '반려',
   CANCELLED: '취소',
-  PARKING: '입차',
-  EXITED: '출차',
+  PARKING: '사용 중',
+  EXITED: '사용 완료',
   NO_SHOW: '미방문',
-};
-
-/**
- * 법인차량은 방문 예약과 입·출차 방향이 반대다(차가 먼저 나갔다가 돌아온다) — 배지
- * 문구만 별도로 뒤집는다. 상태값(PARKING/EXITED)과 그 의미(사용 중/종료)는 같으므로
- * `RESERVATION_STATUS_LABEL`(방문 예약과 공유) 자체는 건드리지 않는다.
- */
-export const COMPANY_VEHICLE_STATUS_LABEL_OVERRIDE: Partial<Record<ReservationStatus, string>> = {
-  PARKING: '출차',
-  EXITED: '입차',
 };
 
 /**

@@ -6,7 +6,6 @@ import { ClickableTableRow } from '@/components/admin/clickable-table-row';
 import { FilterBar, type FilterChip } from '@/components/admin/filter-bar';
 import { StatusBadge } from '@/components/ui/status-badge';
 import {
-  COMPANY_VEHICLE_STATUS_LABEL_OVERRIDE,
   RESERVATION_STATUS_LABEL,
   reservationStatusFilterOptions,
 } from '@/domain/reservation-status';
@@ -190,10 +189,7 @@ export default async function CompanyVehicleTripsPage({ searchParams }: PageProp
                       {trip.tripNo ?? `#${trip.tripId}`}
                     </td>
                     <td>
-                      <StatusBadge
-                        status={trip.tripStatus}
-                        label={COMPANY_VEHICLE_STATUS_LABEL_OVERRIDE[trip.tripStatus]}
-                      />
+                      <StatusBadge status={trip.tripStatus} />
                     </td>
                     <td className="text-xs whitespace-nowrap">
                       {formatKstRange(trip.requestStartAt, trip.requestEndAt)}

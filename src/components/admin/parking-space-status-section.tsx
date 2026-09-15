@@ -1,6 +1,5 @@
 import Link from 'next/link';
 
-import { COMPANY_VEHICLE_STATUS_LABEL_OVERRIDE } from '@/domain/reservation-status';
 import { formatKstTime } from '@/lib/datetime';
 import type { SpaceOccupancyStatus, SpaceStatusRow } from '@/services/dashboard-service';
 import { CompanyVehicleBadge, SpaceTypeBadge, StatusBadge } from '@/components/ui/status-badge';
@@ -131,10 +130,7 @@ function SpaceRow({ space, nowMs }: { space: SpaceStatusRow; nowMs: number }) {
                 >
                   {formatKstTime(trip.requestStartAt)} ~ {formatKstTime(trip.requestEndAt)}
                 </Link>
-                <StatusBadge
-                  status={trip.tripStatus}
-                  label={COMPANY_VEHICLE_STATUS_LABEL_OVERRIDE[trip.tripStatus]}
-                />
+                <StatusBadge status={trip.tripStatus} />
               </li>
             ))}
           </ul>

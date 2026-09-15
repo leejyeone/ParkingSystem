@@ -119,7 +119,7 @@ export default async function AdminEmailLogsPage({ searchParams }: PageProps) {
       <div>
         <h1 className="text-ink text-xl font-black sm:text-2xl">이메일 발송 이력</h1>
         <p className="text-ink-muted mt-1 text-sm">
-          Gmail API 발송 실패 시 실패 사유를 이 화면에서 확인할 수 있습니다. 수신자 주소는
+          이메일 발송 실패 시 실패 사유를 이 화면에서 확인할 수 있습니다. 수신자 주소는
           마스킹됩니다.
         </p>
       </div>

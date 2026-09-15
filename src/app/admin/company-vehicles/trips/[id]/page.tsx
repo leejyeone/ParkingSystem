@@ -9,11 +9,7 @@ import {
   CompanyVehicleTripScheduleCard,
 } from '@/components/admin/company-vehicle-trip-detail-cards';
 import { StatusBadge } from '@/components/ui/status-badge';
-import {
-  COMPANY_VEHICLE_STATUS_LABEL_OVERRIDE,
-  isTerminalStatus,
-  RESERVATION_STATUS_LABEL,
-} from '@/domain/reservation-status';
+import { isTerminalStatus, RESERVATION_STATUS_LABEL } from '@/domain/reservation-status';
 import { requireAdminPage } from '@/lib/admin-page-guard';
 import { formatKstDateTime, formatKstRange, utcToZonedInput } from '@/lib/datetime';
 import { NotFoundError } from '@/lib/errors';
@@ -75,10 +71,7 @@ export default async function CompanyVehicleTripDetailPage({ params }: PageProps
           <h1 className="text-ink font-mono text-xl font-black sm:text-2xl">
             {trip.tripNo ?? `운행 신청 #${trip.tripId}`}
           </h1>
-          <StatusBadge
-            status={trip.tripStatus}
-            label={COMPANY_VEHICLE_STATUS_LABEL_OVERRIDE[trip.tripStatus]}
-          />
+          <StatusBadge status={trip.tripStatus} />
         </div>
       </div>
 

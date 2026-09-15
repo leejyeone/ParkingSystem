@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { ClickableTableRow } from '@/components/admin/clickable-table-row';
 import { FilterBar, type FilterChip } from '@/components/admin/filter-bar';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { COMPANY_VEHICLE_STATUS_LABEL_OVERRIDE } from '@/domain/reservation-status';
 import { requireAdminPage } from '@/lib/admin-page-guard';
 import { formatKstDate, formatKstTime, kstDayRangeUtc } from '@/lib/datetime';
 import { listCompanyVehicles } from '@/services/company-vehicle-service';
@@ -254,10 +253,7 @@ export default async function CompanyVehicleLogPage({ searchParams }: PageProps)
                             : '-'}
                         </td>
                         <td>
-                          <StatusBadge
-                            status={trip.tripStatus}
-                            label={COMPANY_VEHICLE_STATUS_LABEL_OVERRIDE[trip.tripStatus]}
-                          />
+                          <StatusBadge status={trip.tripStatus} />
                         </td>
                       </ClickableTableRow>
                     ))}
