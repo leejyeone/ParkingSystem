@@ -216,18 +216,41 @@ type SelectableProps = {
 
 type Props =
   /** 관리자 대시보드: 주차면 상태를 색으로 표시한다. 어느 구역인지는 호출부가 정한다. */
-  | { spaces: SpaceStatusRow[]; layout: MapLayout; highlightCode?: undefined; selectable?: undefined }
-  /** 신청자 화면: 배정된 한 면만 강조하고 나머지는 회색으로 둔다. 도면은 코드로 자동 탐지한다. */
-  | { spaces?: undefined; layout?: undefined; highlightCode: string | null; selectable?: undefined }
+  | {
+      spaces: SpaceStatusRow[];
+      layout: MapLayout;
+      highlightCode?: undefined;
+      highlightLabel?: undefined;
+      selectable?: undefined;
+    }
+  /**
+   * 신청자 화면: 배정된 한 면만 강조하고 나머지는 회색으로 둔다. 도면은 코드로 자동 탐지한다.
+   * 관리자가 다른 사람의 예약을 보는 화면 등에서는 "내 주차 위치"라는 문구가 맞지 않으므로
+   * `highlightLabel`로 범례 문구를 바꿀 수 있다(기본값은 "내 주차 위치 {code}").
+   */
+  | {
+      spaces?: undefined;
+      layout?: undefined;
+      highlightCode: string | null;
+      highlightLabel?: string;
+      selectable?: undefined;
+    }
   /** 관리자 예약 상세: 배정할 주차면을 클릭해서 고른다. 도면은 호출부가 정한다. */
   | {
       spaces?: undefined;
       highlightCode?: undefined;
+      highlightLabel?: undefined;
       layout: MapLayout;
       selectable: SelectableProps;
     };
 
-export function ParkingMap({ spaces, layout: explicitLayout, highlightCode, selectable }: Props) {
+export function ParkingMap({
+  spaces,
+  layout: explicitLayout,
+  highlightCode,
+  highlightLabel,
+  selectable,
+}: Props) {
   const isMaximized = useIsMaximized();
   const mode: 'dashboard' | 'requester' | 'select' = selectable
     ? 'select'
@@ -310,7 +333,11 @@ export function ParkingMap({ spaces, layout: explicitLayout, highlightCode, sele
         className={`flex flex-wrap items-center gap-x-4 gap-y-2 ${isMaximized ? 'text-xl' : 'text-xs'}`}
       >
         {mode === 'requester' ? (
-          <Legend color={MINE} label={`내 주차 위치 ${highlightCode}`} large={isMaximized} />
+          <Legend
+            color={MINE}
+            label={highlightLabel ?? `내 주차 위치 ${highlightCode}`}
+            large={isMaximized}
+          />
         ) : mode === 'select' ? (
           <>
             <Legend

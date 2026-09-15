@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
 import { ParkingSpacePicker } from '@/components/admin/parking-space-picker';
+import { ParkingMap } from '@/components/parking-map';
 import { Alert } from '@/components/ui/alert';
 import { FormField, inputClassName } from '@/components/ui/form-field';
 import { apiRequest } from '@/lib/client/api-client';
@@ -67,6 +68,9 @@ export function ReservationActionPanel({
   );
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [spaceSelectOpen, setSpaceSelectOpen] = useState(false);
+  // 이미 배정된 자리를 바꾸는 경우에만 쓴다 — [주차 위치 변경]을 눌러야 드롭다운이 열린다.
+  // 처음 승인하며 배정하는 경우(canApprove)는 바꿀 기존 배정이 없으므로 항상 바로 연다.
+  const [editingSpace, setEditingSpace] = useState(false);
 
   useDismissOnInteraction(Boolean(message), () => setMessage(null));
   useDismissOnInteraction(spaceSelectOpen, () => setSpaceSelectOpen(false));
@@ -102,7 +106,7 @@ export function ReservationActionPanel({
     url: string,
     method: 'POST' | 'PUT',
     body?: unknown,
-    options: { redirectTo?: string } = {},
+    options: { redirectTo?: string; onSuccess?: () => void } = {},
   ) {
     setPending(action);
     setMessage(null);
@@ -124,6 +128,7 @@ export function ReservationActionPanel({
       }
       setPending(null);
       setMessage({ variant: 'success', text: '처리되었습니다.' });
+      options.onSuccess?.();
       router.refresh();
       return;
     }
@@ -275,7 +280,55 @@ export function ReservationActionPanel({
       {(canApprove || canChangeSpace) && (
         <section className="card">
           <div className="card-body space-y-4">
-            <h2 className="card-title">{spaceAssignmentEnabled ? '주차면 배정' : '승인'}</h2>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="card-title">{spaceAssignmentEnabled ? '주차면 배정' : '승인'}</h2>
+              {/* 이미 배정된 자리를 바꾸는 경우에만 토글이 필요하다 — 처음 배정하며
+                  승인하는 경우(canApprove)는 바꿀 기존 배정이 없다. */}
+              {spaceAssignmentEnabled && canChangeSpace && hasAvailableSpace && (
+                <>
+                  {editingSpace ? (
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className="btn btn-secondary min-h-9 px-3 py-1.5 text-xs"
+                        disabled={pending !== null}
+                        onClick={() => {
+                          setSelectedSpaceId(String(assignedSpaceId ?? defaultSpaceId ?? ''));
+                          setSpaceSelectOpen(false);
+                          setEditingSpace(false);
+                        }}
+                      >
+                        취소
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-primary min-h-9 px-3 py-1.5 text-xs"
+                        disabled={pending !== null || !selectedSpaceId}
+                        onClick={() =>
+                          run(
+                            'space',
+                            `/api/admin/reservations/${reservationId}/space`,
+                            'PUT',
+                            { spaceId: Number(selectedSpaceId) },
+                            { onSuccess: () => setEditingSpace(false) },
+                          )
+                        }
+                      >
+                        {pending === 'space' ? '변경 중…' : '저장'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn-secondary min-h-9 px-3 py-1.5 text-xs"
+                      onClick={() => setEditingSpace(true)}
+                    >
+                      주차 위치 변경
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
 
             {!spaceAssignmentEnabled &&
               (capacityUsage && capacityUsage.remaining === 0 ? (
@@ -300,7 +353,26 @@ export function ReservationActionPanel({
               </Alert>
             )}
 
-            {spaceAssignmentEnabled && canAssignSpace && (
+            {spaceAssignmentEnabled && canChangeSpace && !editingSpace && (
+              <div>
+                <p className="label">배정된 주차면</p>
+                <p className="text-ink mt-1 text-sm font-bold">
+                  {selectedSpace
+                    ? `${selectedSpace.spaceCode} · ${SPACE_TYPE_LABEL[selectedSpace.spaceType]} · ${selectedSpace.areaName}`
+                    : '-'}
+                </p>
+                {selectedSpace && (
+                  <div className="mt-2">
+                    <ParkingMap
+                      highlightCode={selectedSpace.spaceCode}
+                      highlightLabel={`배정된 주차 위치 ${selectedSpace.spaceCode}`}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {spaceAssignmentEnabled && canAssignSpace && (canApprove || editingSpace) && (
               <FormField
                 label="배정할 주차면"
                 htmlFor="space-select"
@@ -391,56 +463,43 @@ export function ReservationActionPanel({
               </FormField>
             )}
 
-            {spaceAssignmentEnabled && canAssignSpace && isDoubleSelected && (
-              <Alert variant="warning" title="⚠ 이중주차 위치를 선택했습니다">
-                승인 시 신청자에게 이중주차 안내 메일이 추가 발송됩니다.
-              </Alert>
-            )}
+            {spaceAssignmentEnabled &&
+              canAssignSpace &&
+              (canApprove || editingSpace) &&
+              isDoubleSelected && (
+                <Alert variant="warning" title="⚠ 이중주차 위치를 선택했습니다">
+                  승인 시 신청자에게 이중주차 안내 메일이 추가 발송됩니다.
+                </Alert>
+              )}
 
-            {canAssignSpace && (
+            {canApprove && canAssignSpace && (
               <div className="flex flex-wrap justify-end gap-2">
-                {canApprove && (
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm"
-                    disabled={
-                      pending !== null ||
-                      (spaceAssignmentEnabled && canAssignSpace && !selectedSpaceId)
-                    }
-                    onClick={() =>
-                      run(
-                        'approve',
-                        `/api/admin/reservations/${reservationId}/approve`,
-                        'POST',
-                        {
-                          spaceId:
-                            spaceAssignmentEnabled && selectedSpaceId
-                              ? Number(selectedSpaceId)
-                              : null,
-                        },
-                        {
-                          redirectTo: `/admin/reservations?status=REQUESTED&approved=${encodeURIComponent(reservationNo)}`,
-                        },
-                      )
-                    }
-                  >
-                    {pending === 'approve' ? '승인 중…' : '승인'}
-                  </button>
-                )}
-                {canChangeSpace && (
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    disabled={pending !== null || !selectedSpaceId}
-                    onClick={() =>
-                      run('space', `/api/admin/reservations/${reservationId}/space`, 'PUT', {
-                        spaceId: Number(selectedSpaceId),
-                      })
-                    }
-                  >
-                    {pending === 'space' ? '변경 중…' : '주차 위치 변경'}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  disabled={
+                    pending !== null ||
+                    (spaceAssignmentEnabled && canAssignSpace && !selectedSpaceId)
+                  }
+                  onClick={() =>
+                    run(
+                      'approve',
+                      `/api/admin/reservations/${reservationId}/approve`,
+                      'POST',
+                      {
+                        spaceId:
+                          spaceAssignmentEnabled && selectedSpaceId
+                            ? Number(selectedSpaceId)
+                            : null,
+                      },
+                      {
+                        redirectTo: `/admin/reservations?status=REQUESTED&approved=${encodeURIComponent(reservationNo)}`,
+                      },
+                    )
+                  }
+                >
+                  {pending === 'approve' ? '승인 중…' : '승인'}
+                </button>
               </div>
             )}
           </div>
