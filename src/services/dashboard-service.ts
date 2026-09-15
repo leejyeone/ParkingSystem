@@ -2,7 +2,7 @@ import { ReservationStatus, SpaceType } from '@prisma/client';
 
 import { SPACE_OCCUPYING_STATUSES } from '@/domain/reservation-status';
 import { buildOverlapWhere } from '@/domain/time-overlap';
-import { kstDayRangeUtc, parseTimeOfDayToMinutes } from '@/lib/datetime';
+import { kstDayRangeUtc, parseTimeOfDayToMinutes, todayKstDateString } from '@/lib/datetime';
 import { prisma } from '@/lib/prisma';
 import { countUnresolvedFailedEmails } from '@/services/log-query-service';
 import { toReservationListItem, type ReservationListItem } from '@/services/reservation-service';
@@ -103,6 +103,11 @@ export type DashboardData = {
   companyVehiclePendingCount: number;
   /** 승인 대기 중인 법인차량 신청 목록(날짜 무관, 전체, 운행 예정 임박순). */
   companyVehiclePendingTrips: PendingCompanyVehicleTripItem[];
+  /**
+   * 오늘 접수된 신규 신청 건수(방문 예약 + 법인차량, 반복 예약의 개별 일정 제외).
+   * 화면에서 조회 중인 날짜(dateString)와 무관하게 항상 서버 기준 오늘 값이다.
+   */
+  todayNewRequestCount: number;
   spaces: SpaceStatusRow[];
   /** 구역별로 묶은 주차면 현황. 대시보드 평면도 카드의 층 탭에서 쓴다. */
   areas: { areaId: number; areaCode: string; areaName: string; spaces: SpaceStatusRow[] }[];
@@ -123,6 +128,9 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
   const settings = await getSystemSettings();
   const spaceAssignmentEnabled = settings.spaceAssignmentEnabled;
   const { start, end } = kstDayRangeUtc(dateString, settings.appTimeZone);
+  // "오늘 신규 신청" 은 화면에서 조회 중인 날짜(dateString)와 무관하게 항상 서버 기준
+  // 오늘 하루 접수된 건수다 — 다른 날짜를 조회해도 값이 바뀌지 않는다.
+  const todayRange = kstDayRangeUtc(todayKstDateString(new Date(), settings.appTimeZone), settings.appTimeZone);
 
   const [
     spaces,
@@ -132,6 +140,8 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
     pendingTotalCount,
     failedEmailCount,
     companyVehiclePendingTrips,
+    todayNewReservationCount,
+    todayNewCompanyVehicleTripCount,
   ] = await Promise.all([
       prisma.parkingSpace.findMany({
         // 비활성 주차면도 도면에 회색으로 표시해야 하므로 함께 가져온다.
@@ -211,6 +221,17 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
         where: { tripStatus: ReservationStatus.REQUESTED },
         include: { employee: { select: { name: true, departmentName: true } } },
         orderBy: { requestStartAt: 'asc' },
+      }),
+      // 오늘 접수된(생성된) 방문 예약 건수 — 반복 예약에서 매번 새로 생기는 개별 일정은
+      // 신규 "신청"이 아니라 기존 시리즈의 결과물이므로 제외한다.
+      prisma.parkingReservation.count({
+        where: {
+          createdAt: { gte: todayRange.start, lt: todayRange.end },
+          recurringScheduleId: null,
+        },
+      }),
+      prisma.companyVehicleTrip.count({
+        where: { createdAt: { gte: todayRange.start, lt: todayRange.end } },
       }),
     ]);
 
@@ -350,6 +371,7 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
     pendingCount: pendingReservations.length,
     pendingTotalCount,
     failedEmailCount,
+    todayNewRequestCount: todayNewReservationCount + todayNewCompanyVehicleTripCount,
     companyVehiclePendingCount: companyVehiclePendingTrips.length,
     companyVehiclePendingTrips: companyVehiclePendingTrips.map((trip) => ({
       tripId: trip.tripId,

@@ -127,10 +127,10 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
           </>
         )}
         <StatCard
-          label="방문 예약 승인 대기"
-          value={`${dashboard.pendingCount} 건`}
-          tone="amber"
-          hint={`전체 ${dashboard.pendingTotalCount} 건`}
+          label="오늘 신규 신청"
+          value={`${dashboard.todayNewRequestCount} 건`}
+          tone="brand"
+          hint="방문 예약 + 법인차량"
         />
         <StatCard
           label="운영시간"
@@ -245,12 +245,12 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
             <>
               <p className="field-hint mt-2">행을 누르면 처리 화면으로 이동합니다.</p>
               <div className="table-scroll mt-2">
-                <table className="data-table">
+                <table className="data-table table-fixed">
                   <thead>
                     <tr>
-                      <th>운행 시간</th>
-                      <th>신청 직원</th>
-                      <th>행선지</th>
+                      <th className="w-60">운행 시간</th>
+                      <th className="w-60">신청 직원</th>
+                      <th className="w-28">행선지</th>
                       <th>사유</th>
                     </tr>
                   </thead>
@@ -260,7 +260,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
                         key={trip.tripId}
                         href={`/admin/company-vehicles/trips/${trip.tripId}`}
                       >
-                        <td className="whitespace-nowrap">
+                        <td>
                           {/* 키보드 이동과 새 탭 열기를 위해 실제 링크를 둔다. */}
                           <Link
                             href={`/admin/company-vehicles/trips/${trip.tripId}`}
@@ -273,7 +273,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
                           {trip.requesterName} ({trip.departmentName})
                         </td>
                         <td>{trip.destination}</td>
-                        <td className="max-w-[12rem] truncate" title={trip.reason}>
+                        <td className="truncate" title={trip.reason}>
                           {trip.reason}
                         </td>
                       </ClickableTableRow>
