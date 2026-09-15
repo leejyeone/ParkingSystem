@@ -89,7 +89,9 @@ function SpaceRow({ space, nowMs }: { space: SpaceStatusRow; nowMs: number }) {
       </td>
       {/*
         상태 열과 상세 열은 같은 목록(방문 예약 또는 법인차량 운행 신청)을 행 단위로
-        나란히 보여준다. (상태 = 시간대, 상세 = 그 건의 차량번호)
+        나란히 보여준다. (상태 = 시간대, 상세 = 방문 예약이면 차량번호, 법인차량 운행
+        신청이면 신청 직원 — 차량번호는 유형 열의 배지로 이미 이 주차면의 고정 배정
+        차량임을 알 수 있어 여기서는 굳이 반복하지 않는다)
       */}
       <td>
         {hasOccupancies ? (
@@ -157,15 +159,11 @@ function SpaceRow({ space, nowMs }: { space: SpaceStatusRow; nowMs: number }) {
         ) : hasCompanyVehicleTrips ? (
           <ul className="space-y-1">
             {space.companyVehicleTrips.map((trip) => (
-              <li key={trip.tripId} className="font-mono text-xs font-bold text-brand-700">
-                {space.companyVehicle?.vehicleNo}
+              <li key={trip.tripId} className="text-xs whitespace-nowrap">
+                {trip.requesterName} ({trip.departmentName})
               </li>
             ))}
           </ul>
-        ) : space.companyVehicle ? (
-          <span className="font-mono text-xs font-bold text-brand-700">
-            {space.companyVehicle.vehicleNo}
-          </span>
         ) : (
           <span className="text-ink-faint text-xs">-</span>
         )}

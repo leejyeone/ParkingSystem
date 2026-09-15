@@ -43,6 +43,12 @@ export type CompanyVehicleTripListFilter = {
   dateFrom?: Date;
   dateTo?: Date;
   /**
+   * true 면 실제 출차 처리된(actualEntryAt 있음) 신청만 남긴다 — 운행 대장처럼 "실제로
+   * 있었던 일"만 기록해야 하는 화면에서 쓴다. 이 필터를 켜면 아래 actualEntryAt_* 정렬에서
+   * NULL 정렬 순서를 신경 쓸 필요가 없어진다(결과에 NULL 이 없으므로).
+   */
+  actualEntryOnly?: boolean;
+  /**
    * 기본 'createdAt_desc'(신청내역 목록 — 최근 신청 순). 운행 대장은 종이 운행일지처럼
    * 시간순으로 누적되는 형태가 맞으므로 'requestStartAt_asc'를 쓴다. 'actualEntryAt_*'는
    * 예정 시간이 아니라 실제 출차 시각(운행 대장에서 "실제 운행 일시") 기준 정렬이다 —
@@ -74,6 +80,7 @@ export async function listCompanyVehicleTrips(filter: CompanyVehicleTripListFilt
       ...(filter.dateFrom && filter.dateTo
         ? { requestStartAt: { lt: filter.dateTo }, requestEndAt: { gt: filter.dateFrom } }
         : {}),
+      ...(filter.actualEntryOnly ? { actualEntryAt: { not: null } } : {}),
     },
     orderBy,
     include: {

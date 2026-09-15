@@ -60,6 +60,8 @@ export type SpaceStatusRow = {
     tripStatus: ReservationStatus;
     requestStartAt: Date;
     requestEndAt: Date;
+    requesterName: string;
+    departmentName: string;
   }[];
 };
 
@@ -196,6 +198,7 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
           requestStartAt: true,
           requestEndAt: true,
           assignedVehicleId: true,
+          employee: { select: { name: true, departmentName: true } },
         },
         orderBy: { requestStartAt: 'asc' },
       }),
@@ -262,6 +265,8 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
       tripStatus: trip.tripStatus,
       requestStartAt: trip.requestStartAt,
       requestEndAt: trip.requestEndAt,
+      requesterName: trip.employee.name,
+      departmentName: trip.employee.departmentName,
     });
     tripsByVehicle.set(trip.assignedVehicleId, list);
   }

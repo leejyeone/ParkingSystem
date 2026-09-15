@@ -3,7 +3,6 @@ import Link from 'next/link';
 
 import { ClickableTableRow } from '@/components/admin/clickable-table-row';
 import { FilterBar, type FilterChip } from '@/components/admin/filter-bar';
-import { StatusBadge } from '@/components/ui/status-badge';
 import { requireAdminPage } from '@/lib/admin-page-guard';
 import { formatKstDate, formatKstTime, kstDayRangeUtc } from '@/lib/datetime';
 import { listCompanyVehicles } from '@/services/company-vehicle-service';
@@ -23,12 +22,14 @@ type PageProps = {
 /**
  * 차량별 운행 대장 — 실제 종이 운행일지처럼 한 차량의 운행 기록을 시간순으로 모아 본다.
  * 아직 차량이 배정되지 않은 신청(REQUESTED/REJECTED)은 "이 차의 운행 기록"이 아니므로
- * listCompanyVehicleTrips 의 vehicleId 필터(= assignedVehicleId 기준) 그대로 제외된다.
+ * listCompanyVehicleTrips 의 vehicleId 필터(= assignedVehicleId 기준) 그대로 제외되고,
+ * 승인은 됐지만 아직 실제로 출차하지 않은 신청도 actualEntryOnly 필터로 제외된다 —
+ * 대장에는 "실제로 있었던 일"만 남긴다. 처리 상태(승인/반려 등)는 대장의 관심사가
+ * 아니므로 표에 보여주지 않는다.
  *
  * 기본 정렬은 실제 운행 일시(실제 출차 시각) 오름차순 — 종이 운행일지처럼 실제 일어난
- * 순서대로 쌓인다. 아직 출차 처리 전이라 실제 운행 일시가 없는 행은 이 화면에 애초에
- * 나오지 않는다(assignedVehicleId 필터가 승인 이후 상태만 남기지만, 승인 직후~출차
- * 전 상태는 남을 수 있어 그런 행은 MySQL 기본 동작대로 오름차순에서 맨 앞에 온다).
+ * 순서대로, 아래로 갈수록 최신이 되도록 쌓인다. actualEntryOnly 필터 덕분에 이 화면에
+ * 오는 행은 항상 실제 출차 시각이 있으므로 NULL 정렬 순서를 신경 쓸 필요가 없다.
  */
 export default async function CompanyVehicleLogPage({ searchParams }: PageProps) {
   await requireAdminPage(BASE_PATH);
@@ -52,6 +53,7 @@ export default async function CompanyVehicleLogPage({ searchParams }: PageProps)
         vehicleId,
         dateFrom: rangeFrom,
         dateTo: rangeTo,
+        actualEntryOnly: true,
         order: sort === 'actual_desc' ? 'actualEntryAt_desc' : 'actualEntryAt_asc',
       })
     : [];
@@ -88,8 +90,8 @@ export default async function CompanyVehicleLogPage({ searchParams }: PageProps)
       <div>
         <h1 className="text-ink text-xl font-black sm:text-2xl">법인차량 운행 대장</h1>
         <p className="text-ink-muted mt-1 text-sm">
-          탭에서 차량을 고르면 그 차량에 실제로 배정된 운행을 실제 운행 일시(실제 출차
-          시각) 순으로 모아 보여줍니다.
+          탭에서 차량을 고르면 그 차량이 실제로 출차한 운행 기록만 실제 출입차 시각 순으로
+          모아 보여줍니다. 아직 출차하지 않은 신청은 여기 나오지 않습니다.
         </p>
       </div>
 
@@ -218,13 +220,12 @@ export default async function CompanyVehicleLogPage({ searchParams }: PageProps)
                       <th>행선지</th>
                       <th>운행목적</th>
                       <th>주행거리</th>
-                      <th>상태</th>
                     </tr>
                   </thead>
                   <tbody>
                     {trips.length === 0 && (
                       <tr>
-                        <td colSpan={7} className="text-ink-faint text-center text-sm">
+                        <td colSpan={6} className="text-ink-faint text-center text-sm">
                           이 조건에 해당하는 운행 기록이 없습니다.
                         </td>
                       </tr>
@@ -235,13 +236,14 @@ export default async function CompanyVehicleLogPage({ searchParams }: PageProps)
                         href={`/admin/company-vehicles/trips/${trip.tripId}?returnTo=${encodeURIComponent(buildHref())}`}
                       >
                         <td className="text-xs whitespace-nowrap">
-                          {formatKstDate(trip.requestStartAt)}
+                          {trip.actualEntryAt ? formatKstDate(trip.actualEntryAt) : '-'}
                         </td>
                         <td className="text-xs whitespace-nowrap">
                           {trip.employee.name} ({trip.employee.departmentName})
                         </td>
                         <td className="text-xs whitespace-nowrap">
-                          {formatKstTime(trip.requestStartAt)} ~ {formatKstTime(trip.requestEndAt)}
+                          {trip.actualEntryAt ? formatKstTime(trip.actualEntryAt) : '-'} ~{' '}
+                          {trip.actualExitAt ? formatKstTime(trip.actualExitAt) : '-'}
                         </td>
                         <td className="text-xs">{trip.destination}</td>
                         <td className="max-w-xs truncate text-xs" title={trip.reason}>
@@ -251,9 +253,6 @@ export default async function CompanyVehicleLogPage({ searchParams }: PageProps)
                           {trip.odometerStartKm !== null && trip.odometerEndKm !== null
                             ? `${trip.odometerEndKm - trip.odometerStartKm}km`
                             : '-'}
-                        </td>
-                        <td>
-                          <StatusBadge status={trip.tripStatus} />
                         </td>
                       </ClickableTableRow>
                     ))}
