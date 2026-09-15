@@ -438,7 +438,9 @@ export async function listRecurringSchedulesForEmployee(
 ): Promise<RecurringScheduleListItem[]> {
   const schedules = await prisma.recurringReservationSchedule.findMany({
     where: { employeeUserId, status: RecurringScheduleStatus.ACTIVE },
-    orderBy: [{ scheduleId: 'desc' }],
+    // 직원 본인이 보는 목록이라 화면에 보이는 "기간"의 시작일 기준 최신순으로 정렬한다
+    // (관리자용 listRecurringSchedules 는 관리 업무 목록이라 생성 순서를 그대로 유지).
+    orderBy: [{ startDate: 'desc' }, { scheduleId: 'desc' }],
     include: {
       employeeUser: { select: { name: true, departmentName: true } },
       assignedSpace: { select: { spaceCode: true } },

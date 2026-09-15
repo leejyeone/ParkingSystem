@@ -223,7 +223,7 @@ export default async function EmployeeReservationsPage({ searchParams }: PagePro
                     <thead>
                       <tr>
                         <th>구분</th>
-                        <th>번호</th>
+                        <th>예약번호</th>
                         <th>성명</th>
                         <th>차량번호</th>
                         <th>일시</th>

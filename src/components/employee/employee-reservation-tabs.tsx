@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 import type { RecurringScheduleListItem } from '@/services/recurring-reservation-service';
 
 const SCHEDULE_STATUS_LABEL = { ACTIVE: '진행 중', CANCELLED: '취소됨' } as const;
@@ -8,6 +10,7 @@ const SCHEDULE_STATUS_CLASS = {
 
 /**
  * 직원 "반복 예약" 요약 목록 — 시리즈당 한 줄(주차면·기간·요일·시간대·상태)만 보여준다.
+ * 카드를 누르면 이 시리즈로 생성된 개별 예약 목록(상세 화면)으로 이동한다.
  * 개별 방문/법인차량 신청은 "예약 조회" 통합 목록(employee-activity-service)에서 다룬다.
  */
 export function EmployeeRecurringScheduleList({
@@ -22,31 +25,36 @@ export function EmployeeRecurringScheduleList({
   return (
     <ul className="mt-3 space-y-3">
       {schedules.map((schedule) => (
-        <li key={schedule.scheduleId} className="border-line rounded-lg border p-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-ink font-mono text-sm font-bold">{schedule.spaceCode}</span>
-            <span className={`badge ${SCHEDULE_STATUS_CLASS[schedule.status]}`}>
-              {SCHEDULE_STATUS_LABEL[schedule.status]}
-            </span>
-          </div>
-          <dl className="text-ink-muted mt-2 space-y-1 text-sm">
-            <div className="flex gap-2">
-              <dt className="text-ink-faint w-20 shrink-0 text-xs font-bold">기간</dt>
-              <dd>
-                {schedule.startDate} ~ {schedule.endDate ?? ''}
-              </dd>
+        <li key={schedule.scheduleId}>
+          <Link
+            href={`/employee/reservations/recurring/${schedule.scheduleId}`}
+            className="border-line hover:border-brand-500 hover:bg-brand-50 block rounded-lg border p-3 transition"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-ink font-mono text-sm font-bold">{schedule.spaceCode}</span>
+              <span className={`badge ${SCHEDULE_STATUS_CLASS[schedule.status]}`}>
+                {SCHEDULE_STATUS_LABEL[schedule.status]}
+              </span>
             </div>
-            <div className="flex gap-2">
-              <dt className="text-ink-faint w-20 shrink-0 text-xs font-bold">요일</dt>
-              <dd>{schedule.weekdaysLabel}</dd>
-            </div>
-            <div className="flex gap-2">
-              <dt className="text-ink-faint w-20 shrink-0 text-xs font-bold">시간대</dt>
-              <dd>
-                {schedule.dailyStartTime} ~ {schedule.dailyEndTime}
-              </dd>
-            </div>
-          </dl>
+            <dl className="text-ink-muted mt-2 space-y-1 text-sm">
+              <div className="flex gap-2">
+                <dt className="text-ink-faint w-20 shrink-0 text-xs font-bold">기간</dt>
+                <dd>
+                  {schedule.startDate} ~ {schedule.endDate ?? ''}
+                </dd>
+              </div>
+              <div className="flex gap-2">
+                <dt className="text-ink-faint w-20 shrink-0 text-xs font-bold">요일</dt>
+                <dd>{schedule.weekdaysLabel}</dd>
+              </div>
+              <div className="flex gap-2">
+                <dt className="text-ink-faint w-20 shrink-0 text-xs font-bold">시간대</dt>
+                <dd>
+                  {schedule.dailyStartTime} ~ {schedule.dailyEndTime}
+                </dd>
+              </div>
+            </dl>
+          </Link>
         </li>
       ))}
     </ul>

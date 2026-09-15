@@ -80,6 +80,9 @@ function reservationWhere(
   return {
     employeeUserId,
     requesterType,
+    // 반복 예약 occurrence(개별 방문 예약 행)는 "반복 예약" 탭에서 시리즈 요약으로만
+    // 보여준다 — 여기서 빼지 않으면 "내 방문신청"/"전체" 탭과 홈 위젯에도 섞여 나온다.
+    recurringScheduleId: null,
     ...(filter.status ? { reservationStatus: filter.status } : {}),
     ...(filter.dateFrom && filter.dateTo
       ? { visitStartAt: { lt: filter.dateTo }, visitEndAt: { gt: filter.dateFrom } }
@@ -133,12 +136,15 @@ function reservationToItem(reservation: ReservationRow): EmployeeActivityItem {
     purpose: reservation.visitPurpose ?? '-',
     status: reservation.reservationStatus,
     href: `/employee/reservations/${reservation.reservationId}`,
-    sortAt: reservation.createdAt,
+    // 목록에 보이는 "일시" 열과 정렬 기준이 어긋나면(신청 시각순인데 화면엔 방문 시각이
+    // 보임) 최신순이 아닌 것처럼 보인다 — 화면에 보이는 그 날짜(방문 시각) 기준으로 정렬한다.
+    sortAt: reservation.visitStartAt,
   };
 }
 
 function tripToItem(trip: {
   tripId: number;
+  tripNo: string | null;
   employee: { name: string };
   assignedVehicle: { vehicleNo: string } | null;
   requestStartAt: Date;
@@ -151,7 +157,7 @@ function tripToItem(trip: {
     id: trip.tripId,
     kind: 'COMPANY_VEHICLE',
     kindLabel: KIND_LABEL.COMPANY_VEHICLE,
-    no: `법인#${trip.tripId}`,
+    no: trip.tripNo ?? `#${trip.tripId}`,
     requesterName: trip.employee.name,
     vehicleNo: trip.assignedVehicle?.vehicleNo ?? '미배정',
     dateRangeText: formatKstRange(trip.requestStartAt, trip.requestEndAt),
@@ -159,7 +165,8 @@ function tripToItem(trip: {
     purpose: trip.reason,
     status: trip.tripStatus,
     href: `/employee/company-vehicle/trips/${trip.tripId}`,
-    sortAt: trip.createdAt,
+    // 방문 예약과 같은 이유로 화면에 보이는 "일시"(운행 시각) 기준으로 정렬한다.
+    sortAt: trip.requestStartAt,
   };
 }
 
