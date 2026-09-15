@@ -24,7 +24,7 @@ export const metadata: Metadata = { title: '운행 신청 상세' };
 
 type PageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ returnTo?: string }>;
+  searchParams: Promise<{ returnTo?: string; mileagePrompt?: string }>;
 };
 
 export default async function CompanyVehicleTripDetailPage({ params, searchParams }: PageProps) {
@@ -33,7 +33,7 @@ export default async function CompanyVehicleTripDetailPage({ params, searchParam
 
   /* 예약 상세와 같은 이유(목록·운행 대장 두 곳에서 들어올 수 있음)로 returnTo 를 신뢰
      범위(`/admin/`) 안에서만 뒤로가기에 쓴다. */
-  const { returnTo: rawReturnTo } = await searchParams;
+  const { returnTo: rawReturnTo, mileagePrompt } = await searchParams;
   const returnTo =
     typeof rawReturnTo === 'string' && rawReturnTo.startsWith('/admin/')
       ? rawReturnTo
@@ -74,6 +74,7 @@ export default async function CompanyVehicleTripDetailPage({ params, searchParam
     actualExitAt: trip.actualExitAt ? utcToZonedInput(trip.actualExitAt) : '',
     odometerStartKm: trip.odometerStartKm !== null ? String(trip.odometerStartKm) : '',
     odometerEndKm: trip.odometerEndKm !== null ? String(trip.odometerEndKm) : '',
+    manualDistanceKm: trip.manualDistanceKm !== null ? String(trip.manualDistanceKm) : '',
   };
 
   return (
@@ -131,6 +132,7 @@ export default async function CompanyVehicleTripDetailPage({ params, searchParam
             tripId={trip.tripId}
             editable={editable}
             initial={editableFields}
+            autoOpen={mileagePrompt === '1'}
           />
         </div>
       </div>

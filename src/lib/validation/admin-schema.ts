@@ -165,6 +165,8 @@ export const companyVehicleTripMileageSchema = z
   .object({
     odometerStartKm: optionalNonNegativeInt,
     odometerEndKm: optionalNonNegativeInt,
+    /** 계기판을 확인할 수 없을 때를 대비한 대체 입력. */
+    manualDistanceKm: optionalNonNegativeInt,
   })
   .refine(
     (value) =>

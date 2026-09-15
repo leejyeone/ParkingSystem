@@ -181,6 +181,13 @@ function activeOccupancies(space: SpaceStatusRow | undefined): SpaceStatusRow['o
   return (space?.occupancies ?? []).filter((occupancy) => occupancy.reservationStatus !== 'EXITED');
 }
 
+/** 방문 예약의 activeOccupancies 와 같은 기준 — 이미 돌아온(EXITED) 운행은 뺀다. */
+function activeCompanyVehicleTrips(
+  space: SpaceStatusRow | undefined,
+): SpaceStatusRow['companyVehicleTrips'] {
+  return (space?.companyVehicleTrips ?? []).filter((trip) => trip.tripStatus !== 'EXITED');
+}
+
 /** 마우스를 올렸을 때 나오는 설명 */
 function tooltipFor(code: string, space: SpaceStatusRow | undefined): string {
   if (!space) return `${code} — 등록되지 않은 주차면`;
@@ -501,6 +508,10 @@ export function ParkingMap({ spaces, layout: explicitLayout, highlightCode, sele
           const cx = u(stall.x + stall.w / 2);
           const cy = u(stall.y + stall.h / 2);
           const occupancies = mode === 'dashboard' ? activeOccupancies(space) : [];
+          const companyTrips = mode === 'dashboard' ? activeCompanyVehicleTrips(space) : [];
+          // 한 주차면은 방문 예약 전용이거나 법인차량 전용이거나 둘 중 하나라, 둘이 동시에
+          // 걸릴 일은 없다.
+          const badgeCount = occupancies.length || companyTrips.length;
           const isDisabledSpace =
             mode === 'select'
               ? selectSpace?.spaceType === 'DISABLED'
@@ -564,7 +575,7 @@ export function ParkingMap({ spaces, layout: explicitLayout, highlightCode, sele
                 예약이 두 건 이상이면 눌렀을 때 바로 넘어가지 않고 목록이 뜬다.
                 누르기 전에 알 수 있도록 건수를 표시한다.
               */}
-              {occupancies.length > 1 && (
+              {badgeCount > 1 && (
                 <>
                   <circle
                     cx={u(stall.x + stall.w) - 7}
@@ -582,7 +593,7 @@ export function ParkingMap({ spaces, layout: explicitLayout, highlightCode, sele
                     fill={style.stroke}
                     textAnchor="middle"
                   >
-                    {occupancies.length}
+                    {badgeCount}
                   </text>
                 </>
               )}
@@ -665,18 +676,54 @@ export function ParkingMap({ spaces, layout: explicitLayout, highlightCode, sele
               </Link>
             );
           }
+          // 법인차량 주차면도 방문 예약과 동일하게 동작한다 — 운행 신청이 한 건이면 바로
+          // 상세로, 여러 건이면 패널을 띄운다.
+          if (companyTrips.length === 1) {
+            return (
+              <Link
+                key={stall.code}
+                href={`/admin/company-vehicles/trips/${companyTrips[0].tripId}`}
+              >
+                {label}
+              </Link>
+            );
+          }
+          if (companyTrips.length > 1) {
+            return (
+              <Link
+                key={stall.code}
+                href={`/admin/company-vehicles/trips/${companyTrips[0].tripId}`}
+                className="cursor-pointer"
+                aria-label={`${stall.code} 운행 신청 ${companyTrips.length}건 선택`}
+                onClick={(event) => {
+                  event.preventDefault();
+                  setPickerCode(stall.code);
+                }}
+              >
+                {label}
+              </Link>
+            );
+          }
           return <g key={stall.code}>{label}</g>;
         })}
       </svg>
 
-      {picker && <ReservationPicker space={picker} onClose={() => setPickerCode(null)} />}
+      {picker && <SpacePicker space={picker} onClose={() => setPickerCode(null)} />}
     </div>
   );
 }
 
-/** 한 주차면에 걸린 예약이 여러 건일 때 고르는 패널. */
-function ReservationPicker({ space, onClose }: { space: SpaceStatusRow; onClose: () => void }) {
+/**
+ * 한 주차면에 걸린 건이 여러 건일 때 고르는 패널.
+ * 방문 예약 전용 주차면이면 예약 목록을, 법인차량 전용 주차면이면 운행 신청 목록을 보여준다
+ * (한 주차면이 둘 다 가질 일은 없다).
+ */
+function SpacePicker({ space, onClose }: { space: SpaceStatusRow; onClose: () => void }) {
   const occupancies = activeOccupancies(space);
+  const companyTrips = activeCompanyVehicleTrips(space);
+  if (companyTrips.length > 0) {
+    return <CompanyVehicleTripPicker space={space} trips={companyTrips} onClose={onClose} />;
+  }
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center"
@@ -732,6 +779,74 @@ function ReservationPicker({ space, onClose }: { space: SpaceStatusRow; onClose:
                       {occupancy.vehicleNo}
                     </span>
                     <span className="font-mono">{occupancy.reservationNo}</span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** 법인차량 전용 주차면에 그날 운행 신청이 여러 건일 때 고르는 패널. */
+function CompanyVehicleTripPicker({
+  space,
+  trips,
+  onClose,
+}: {
+  space: SpaceStatusRow;
+  trips: SpaceStatusRow['companyVehicleTrips'];
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="parking-map-picker-title"
+    >
+      <button
+        type="button"
+        className="absolute inset-0 bg-slate-900/50"
+        aria-label="닫기"
+        onClick={onClose}
+      />
+
+      <div className="card relative w-full max-w-md">
+        <div className="card-body space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 id="parking-map-picker-title" className="card-title">
+                {space.spaceCode}
+              </h3>
+              <p className="field-hint">
+                운행 신청 {trips.length}건이 걸려 있습니다. 볼 신청을 선택하세요.
+              </p>
+            </div>
+            <button type="button" className="btn btn-ghost" onClick={onClose}>
+              닫기
+            </button>
+          </div>
+
+          <ul className="space-y-2">
+            {trips.map((trip) => (
+              <li key={trip.tripId}>
+                <Link
+                  href={`/admin/company-vehicles/trips/${trip.tripId}`}
+                  className="hover:border-brand-500 hover:bg-brand-50 block rounded-lg border border-slate-200 px-3 py-2.5 transition"
+                >
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="text-brand-700 text-sm font-bold">
+                      {formatKstTime(trip.requestStartAt)} ~ {formatKstTime(trip.requestEndAt)}
+                    </span>
+                    {trip.tripStatus === 'PARKING' && (
+                      <span className="badge bg-emerald-100 text-emerald-800">운행 중</span>
+                    )}
+                  </span>
+                  <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                    {trip.requesterName} ({trip.departmentName})
                   </span>
                 </Link>
               </li>

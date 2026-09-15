@@ -215,8 +215,8 @@ export default async function CompanyVehicleLogPage({ searchParams }: PageProps)
                   <thead>
                     <tr>
                       <th>운행일</th>
-                      <th>운전자</th>
                       <th>운행시간</th>
+                      <th>운전자</th>
                       <th>행선지</th>
                       <th>운행목적</th>
                       <th>주행거리</th>
@@ -239,11 +239,11 @@ export default async function CompanyVehicleLogPage({ searchParams }: PageProps)
                           {trip.actualEntryAt ? formatKstDate(trip.actualEntryAt) : '-'}
                         </td>
                         <td className="text-xs whitespace-nowrap">
-                          {trip.employee.name} ({trip.employee.departmentName})
-                        </td>
-                        <td className="text-xs whitespace-nowrap">
                           {trip.actualEntryAt ? formatKstTime(trip.actualEntryAt) : '-'} ~{' '}
                           {trip.actualExitAt ? formatKstTime(trip.actualExitAt) : '-'}
+                        </td>
+                        <td className="text-xs whitespace-nowrap">
+                          {trip.employee.name} ({trip.employee.departmentName})
                         </td>
                         <td className="text-xs">{trip.destination}</td>
                         <td className="max-w-xs truncate text-xs" title={trip.reason}>
@@ -252,7 +252,9 @@ export default async function CompanyVehicleLogPage({ searchParams }: PageProps)
                         <td className="text-xs whitespace-nowrap">
                           {trip.odometerStartKm !== null && trip.odometerEndKm !== null
                             ? `${trip.odometerEndKm - trip.odometerStartKm}km`
-                            : '-'}
+                            : trip.manualDistanceKm !== null
+                              ? `${trip.manualDistanceKm}km`
+                              : '-'}
                         </td>
                       </ClickableTableRow>
                     ))}

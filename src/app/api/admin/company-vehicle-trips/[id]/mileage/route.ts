@@ -23,6 +23,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       tripId: parseNumericId(id, '운행 신청 ID'),
       odometerStartKm: payload.odometerStartKm,
       odometerEndKm: payload.odometerEndKm,
+      manualDistanceKm: payload.manualDistanceKm,
       adminUserId: session.adminUserId,
       requestContext: getRequestContext(request.headers),
     });
@@ -31,6 +32,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       tripId: trip.tripId,
       odometerStartKm: trip.odometerStartKm,
       odometerEndKm: trip.odometerEndKm,
+      manualDistanceKm: trip.manualDistanceKm,
     });
   } catch (error) {
     return handleApiError(error);

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import { EmployeeSearchSelect } from '@/components/reservation/employee-search-select';
 import { Alert } from '@/components/ui/alert';
@@ -36,6 +36,8 @@ export type EditableFields = {
   /** 입력 필드 바인딩용 문자열. 빈 문자열이면 미기록. */
   odometerStartKm: string;
   odometerEndKm: string;
+  /** 계기판을 확인할 수 없을 때 대신 적는 주행거리(km). 빈 문자열이면 미기록. */
+  manualDistanceKm: string;
 };
 
 export type VehicleOption = { vehicleId: number; vehicleNo: string; isActive: boolean };
@@ -92,6 +94,7 @@ function useTripEdit(tripId: number, initial: EditableFields) {
         body: JSON.stringify({
           odometerStartKm: form.odometerStartKm,
           odometerEndKm: form.odometerEndKm,
+          manualDistanceKm: form.manualDistanceKm,
         }),
       }),
     ]);
@@ -381,29 +384,6 @@ export function CompanyVehicleTripScheduleCard({
             </FormField>
           </div>
 
-          <FormField
-            label="배정 차량"
-            htmlFor="edit-vehicle"
-            errors={state.fieldErrors.assignedVehicleId}
-          >
-            <select
-              id="edit-vehicle"
-              className={inputClassName(Boolean(state.fieldErrors.assignedVehicleId))}
-              value={form.assignedVehicleId ?? ''}
-              onChange={(event) =>
-                update('assignedVehicleId', event.target.value ? Number(event.target.value) : null)
-              }
-            >
-              <option value="">미지정</option>
-              {vehicleOptions.map((vehicle) => (
-                <option key={vehicle.vehicleId} value={vehicle.vehicleId}>
-                  {vehicle.vehicleNo}
-                  {!vehicle.isActive ? ' (비활성)' : ''}
-                </option>
-              ))}
-            </select>
-          </FormField>
-
           {/* 법인차량은 방문 예약과 입출차 방향이 반대라, actualEntryAt이 "실제 출차",
               actualExitAt이 "실제 입차"다. */}
           <div className="grid gap-3 sm:grid-cols-2">
@@ -436,15 +416,38 @@ export function CompanyVehicleTripScheduleCard({
               />
             </FormField>
           </div>
+
+          <FormField
+            label="배정 차량"
+            htmlFor="edit-vehicle"
+            errors={state.fieldErrors.assignedVehicleId}
+          >
+            <select
+              id="edit-vehicle"
+              className={inputClassName(Boolean(state.fieldErrors.assignedVehicleId))}
+              value={form.assignedVehicleId ?? ''}
+              onChange={(event) =>
+                update('assignedVehicleId', event.target.value ? Number(event.target.value) : null)
+              }
+            >
+              <option value="">미지정</option>
+              {vehicleOptions.map((vehicle) => (
+                <option key={vehicle.vehicleId} value={vehicle.vehicleId}>
+                  {vehicle.vehicleNo}
+                  {!vehicle.isActive ? ' (비활성)' : ''}
+                </option>
+              ))}
+            </select>
+          </FormField>
         </div>
       ) : (
         <dl className="mt-3">
           <Row term="운행 요청 시간" desc={readOnly.visitRangeText} />
-          <Row term="배정 차량" desc={readOnly.assignedVehicleText} />
           {/* 법인차량은 방문 예약과 입출차 방향이 반대라, actualEntryAt(APPROVED→PARKING
               시각)이 "실제 출차", actualExitAt(PARKING→EXITED 시각)이 "실제 입차"다. */}
           <Row term="실제 출차" desc={readOnly.actualEntryText} />
           <Row term="실제 입차" desc={readOnly.actualExitText} />
+          <Row term="배정 차량" desc={readOnly.assignedVehicleText} />
           {readOnly.rejectionReason && <Row term="반려 사유" desc={readOnly.rejectionReason} />}
           {readOnly.cancelReason && <Row term="취소 사유" desc={readOnly.cancelReason} />}
         </dl>
@@ -453,25 +456,48 @@ export function CompanyVehicleTripScheduleCard({
   );
 }
 
-/** 주행 기록 카드 — 출발/도착 계기판 값을 수정한다. */
+/** 계기판 두 값이 있으면 그 차이를, 없으면 직접 입력한 주행거리를 우선순위대로 고른다. */
+function resolveMileageText(fields: Pick<EditableFields, 'odometerStartKm' | 'odometerEndKm' | 'manualDistanceKm'>): string {
+  if (fields.odometerStartKm !== '' && fields.odometerEndKm !== '') {
+    return `${Number(fields.odometerEndKm) - Number(fields.odometerStartKm)}km`;
+  }
+  if (fields.manualDistanceKm !== '') {
+    return `${fields.manualDistanceKm}km`;
+  }
+  return '-';
+}
+
+/** 주행 기록 카드 — 출발/도착 계기판 값(또는 계기판 없이 주행거리만)을 수정한다. */
 export function CompanyVehicleTripMileageCard({
   tripId,
   editable,
   initial,
+  autoOpen,
 }: {
   tripId: number;
   editable: boolean;
   initial: EditableFields;
+  /** 출차/입차 처리 직후 이 카드를 자동으로 편집 모드로 열어 입력을 유도한다. */
+  autoOpen?: boolean;
 }) {
   const { editing, setEditing, form, update, state, saved, save, cancel } = useTripEdit(
     tripId,
     initial,
   );
 
-  const mileageText =
-    initial.odometerStartKm !== '' && initial.odometerEndKm !== ''
-      ? `${Number(initial.odometerEndKm) - Number(initial.odometerStartKm)}km`
-      : '-';
+  const hasAnyMileageRecord =
+    initial.odometerStartKm !== '' || initial.odometerEndKm !== '' || initial.manualDistanceKm !== '';
+
+  useEffect(() => {
+    // 이미 뭔가 기록돼 있으면(계기판이든 직접 입력이든) 자동으로 편집 모드를 열지 않는다 —
+    // 입력을 유도할 필요가 없는 상태라 실수로 기존 값을 건드리게 하지 않기 위함이다.
+    if (autoOpen && editable && !hasAnyMileageRecord) {
+      setEditing();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const mileageText = resolveMileageText(initial);
 
   return (
     <CardShell
@@ -486,35 +512,53 @@ export function CompanyVehicleTripMileageCard({
       onSave={save}
     >
       {editing ? (
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div className="mt-3 space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <FormField
+              label="출발 전 계기판(km)"
+              htmlFor="edit-odometer-start"
+              errors={state.fieldErrors.odometerStartKm}
+            >
+              <input
+                id="edit-odometer-start"
+                type="number"
+                min={0}
+                inputMode="numeric"
+                className={inputClassName(Boolean(state.fieldErrors.odometerStartKm))}
+                value={form.odometerStartKm}
+                onChange={(event) => update('odometerStartKm', event.target.value)}
+              />
+            </FormField>
+            <FormField
+              label="도착 후 계기판(km)"
+              htmlFor="edit-odometer-end"
+              errors={state.fieldErrors.odometerEndKm}
+            >
+              <input
+                id="edit-odometer-end"
+                type="number"
+                min={0}
+                inputMode="numeric"
+                className={inputClassName(Boolean(state.fieldErrors.odometerEndKm))}
+                value={form.odometerEndKm}
+                onChange={(event) => update('odometerEndKm', event.target.value)}
+              />
+            </FormField>
+          </div>
           <FormField
-            label="출발 전 계기판(km)"
-            htmlFor="edit-odometer-start"
-            errors={state.fieldErrors.odometerStartKm}
+            label="주행거리 직접 입력(km)"
+            htmlFor="edit-manual-distance"
+            hint="계기판을 확인할 수 없으면 이 칸에 주행거리만 입력해도 됩니다."
+            errors={state.fieldErrors.manualDistanceKm}
           >
             <input
-              id="edit-odometer-start"
+              id="edit-manual-distance"
               type="number"
               min={0}
               inputMode="numeric"
-              className={inputClassName(Boolean(state.fieldErrors.odometerStartKm))}
-              value={form.odometerStartKm}
-              onChange={(event) => update('odometerStartKm', event.target.value)}
-            />
-          </FormField>
-          <FormField
-            label="도착 후 계기판(km)"
-            htmlFor="edit-odometer-end"
-            errors={state.fieldErrors.odometerEndKm}
-          >
-            <input
-              id="edit-odometer-end"
-              type="number"
-              min={0}
-              inputMode="numeric"
-              className={inputClassName(Boolean(state.fieldErrors.odometerEndKm))}
-              value={form.odometerEndKm}
-              onChange={(event) => update('odometerEndKm', event.target.value)}
+              className={inputClassName(Boolean(state.fieldErrors.manualDistanceKm))}
+              value={form.manualDistanceKm}
+              onChange={(event) => update('manualDistanceKm', event.target.value)}
             />
           </FormField>
         </div>

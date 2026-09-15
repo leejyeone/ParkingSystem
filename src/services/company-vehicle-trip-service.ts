@@ -605,6 +605,7 @@ export async function updateCompanyVehicleTripMileage(
     tripId: number;
     odometerStartKm: number | null;
     odometerEndKm: number | null;
+    manualDistanceKm: number | null;
   } & AdminActionContext,
 ): Promise<CompanyVehicleTripDetail> {
   await loadTripOrThrow(params.tripId, prisma);
@@ -614,6 +615,7 @@ export async function updateCompanyVehicleTripMileage(
     data: {
       odometerStartKm: params.odometerStartKm,
       odometerEndKm: params.odometerEndKm,
+      manualDistanceKm: params.manualDistanceKm,
     },
     include: TRIP_DETAIL_INCLUDE,
   });
@@ -623,7 +625,11 @@ export async function updateCompanyVehicleTripMileage(
     actionType: AUDIT_ACTIONS.COMPANY_VEHICLE_TRIP_UPDATE,
     targetType: AUDIT_TARGETS.COMPANY_VEHICLE_TRIP,
     targetId: updated.tripId,
-    detail: { odometerStartKm: updated.odometerStartKm, odometerEndKm: updated.odometerEndKm },
+    detail: {
+      odometerStartKm: updated.odometerStartKm,
+      odometerEndKm: updated.odometerEndKm,
+      manualDistanceKm: updated.manualDistanceKm,
+    },
     context: params.requestContext,
   });
 

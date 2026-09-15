@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 
 import { Alert } from '@/components/ui/alert';
@@ -25,6 +25,7 @@ export function CompanyVehicleTripActionPanel({
   entryExitManagementEnabled,
 }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const activeVehicles = vehicles.filter((vehicle) => vehicle.isActive);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>(
     String(activeVehicles[0]?.vehicleId ?? ''),
@@ -41,7 +42,17 @@ export function CompanyVehicleTripActionPanel({
 
   useDismissOnInteraction(Boolean(message), () => setMessage(null));
 
-  async function run(action: string, url: string, body?: unknown, redirectTo?: string) {
+  async function run(
+    action: string,
+    url: string,
+    body?: unknown,
+    opts?: {
+      redirectTo?: string;
+      successMessage?: string;
+      /** 페이지 이동 없이, 현재 쿼리에 이 값들만 덧붙여 같은 페이지를 새로 불러온다. */
+      appendQuery?: Record<string, string>;
+    },
+  ) {
     setPending(action);
     setMessage(null);
     setFieldErrors({});
@@ -52,13 +63,19 @@ export function CompanyVehicleTripActionPanel({
     });
 
     if (response.ok) {
-      if (redirectTo) {
-        router.push(redirectTo);
+      if (opts?.redirectTo) {
+        router.push(opts.redirectTo);
         return;
       }
       setPending(null);
-      setMessage({ variant: 'success', text: '처리되었습니다.' });
-      router.refresh();
+      setMessage({ variant: 'success', text: opts?.successMessage ?? '처리되었습니다.' });
+      if (opts?.appendQuery) {
+        const params = new URLSearchParams(searchParams.toString());
+        for (const [key, value] of Object.entries(opts.appendQuery)) params.set(key, value);
+        router.replace(`?${params.toString()}`);
+      } else {
+        router.refresh();
+      }
       return;
     }
 
@@ -113,7 +130,11 @@ export function CompanyVehicleTripActionPanel({
                       'entry',
                       `/api/admin/company-vehicle-trips/${tripId}/entry`,
                       { actualEntryAt: entryTime },
-                      '/admin/company-vehicles/trips',
+                      {
+                        successMessage:
+                          '출차 처리되었습니다. 아래 주행 기록에서 출발 전 계기판(또는 주행거리)을 입력해 주세요.',
+                        appendQuery: { mileagePrompt: '1' },
+                      },
                     )
                   }
                 >
@@ -146,7 +167,11 @@ export function CompanyVehicleTripActionPanel({
                       'exit',
                       `/api/admin/company-vehicle-trips/${tripId}/exit`,
                       { actualExitAt: exitTime },
-                      '/admin/company-vehicles/trips',
+                      {
+                        successMessage:
+                          '입차 처리되었습니다. 아래 주행 기록에서 도착 후 계기판(또는 주행거리)을 입력해 주세요.',
+                        appendQuery: { mileagePrompt: '1' },
+                      },
                     )
                   }
                 >
@@ -199,7 +224,7 @@ export function CompanyVehicleTripActionPanel({
                     'approve',
                     `/api/admin/company-vehicle-trips/${tripId}/approve`,
                     { vehicleId: Number(selectedVehicleId) },
-                    '/admin/company-vehicles/trips',
+                    { redirectTo: '/admin/company-vehicles/trips' },
                   )
                 }
               >
@@ -239,7 +264,7 @@ export function CompanyVehicleTripActionPanel({
                     'reject',
                     `/api/admin/company-vehicle-trips/${tripId}/reject`,
                     { rejectionReason },
-                    '/admin/company-vehicles/trips',
+                    { redirectTo: '/admin/company-vehicles/trips' },
                   )
                 }
               >
@@ -282,7 +307,7 @@ export function CompanyVehicleTripActionPanel({
                   'cancel',
                   `/api/admin/company-vehicle-trips/${tripId}/cancel`,
                   { cancelReason },
-                  '/admin/company-vehicles/trips',
+                  { redirectTo: '/admin/company-vehicles/trips' },
                 )
               }
             >
