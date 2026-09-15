@@ -183,7 +183,7 @@ export default async function CompanyVehicleTripsPage({ searchParams }: PageProp
                 {trips.map((trip) => (
                   <ClickableTableRow
                     key={trip.tripId}
-                    href={`/admin/company-vehicles/trips/${trip.tripId}`}
+                    href={`/admin/company-vehicles/trips/${trip.tripId}?returnTo=${encodeURIComponent(buildHref())}`}
                   >
                     <td className="font-mono text-xs whitespace-nowrap">
                       {trip.tripNo ?? `#${trip.tripId}`}

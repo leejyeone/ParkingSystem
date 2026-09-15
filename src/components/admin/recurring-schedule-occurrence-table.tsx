@@ -38,9 +38,12 @@ type BulkResultRow = { reservationNo: string; dateLabel: string; ok: boolean; me
 export function RecurringScheduleOccurrenceTable({
   occurrences,
   spaceOptions,
+  returnTo,
 }: {
   occurrences: Occurrence[];
   spaceOptions: SpaceOption[];
+  /** 예약 상세에서 뒤로가기를 누르면 돌아올 이 반복 예약 상세의 URL */
+  returnTo: string;
 }) {
   const router = useRouter();
   const [skippingOccurrence, setSkippingOccurrence] = useState<Occurrence | null>(null);
@@ -348,7 +351,7 @@ export function RecurringScheduleOccurrenceTable({
             <tbody>
               {occurrences.map((occurrence) => {
                 const skippable = SKIPPABLE_STATUSES.has(occurrence.reservationStatus);
-                const detailHref = `/admin/reservations/${occurrence.reservationId}`;
+                const detailHref = `/admin/reservations/${occurrence.reservationId}?returnTo=${encodeURIComponent(returnTo)}`;
 
                 return (
                   <ClickableTableRow key={occurrence.reservationId} href={detailHref}>

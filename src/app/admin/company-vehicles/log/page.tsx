@@ -232,7 +232,7 @@ export default async function CompanyVehicleLogPage({ searchParams }: PageProps)
                     {trips.map((trip) => (
                       <ClickableTableRow
                         key={trip.tripId}
-                        href={`/admin/company-vehicles/trips/${trip.tripId}`}
+                        href={`/admin/company-vehicles/trips/${trip.tripId}?returnTo=${encodeURIComponent(buildHref())}`}
                       >
                         <td className="text-xs whitespace-nowrap">
                           {formatKstDate(trip.requestStartAt)}

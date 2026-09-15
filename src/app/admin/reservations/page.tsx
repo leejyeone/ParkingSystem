@@ -257,6 +257,7 @@ export default async function AdminReservationListPage({ searchParams }: PagePro
         <div className="card-body">
           <ReservationBulkRejectTable
             basePath={BASE_PATH}
+            returnTo={buildHref()}
             totalCount={result.totalCount}
             pendingCount={result.pendingCount}
             items={result.items.map((reservation) => ({

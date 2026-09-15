@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 
 import { ReservationForm } from '@/components/reservation/reservation-form';
-import { Alert } from '@/components/ui/alert';
 import { DEFAULT_SETTINGS } from '@/domain/system-settings';
 import { earliestSelectableInput } from '@/lib/datetime';
 import { requireEmployeePage } from '@/lib/employee-page-guard';
@@ -30,12 +29,6 @@ export default async function EmployeeProxyReservationPage() {
         <p className="mt-1 text-sm text-slate-600">
           담당자: {session.name} ({session.email})
         </p>
-      </div>
-
-      <div className="mb-4">
-        <Alert variant="info" title="방문객 개인정보 동의 확인이 필요합니다">
-          방문객에게 개인정보 수집·이용 목적을 안내하고 동의를 확인한 뒤 신청해 주세요.
-        </Alert>
       </div>
 
       <ReservationForm

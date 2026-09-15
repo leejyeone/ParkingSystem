@@ -445,8 +445,8 @@ export function renderReservationEmail(
         lead: byAdmin
           ? '방문 관리 담당자가 예약 내용을 변경했습니다. 아래 내용을 확인해 주세요.'
           : isHostRecipient(data)
-            ? `담당하고 계신 방문객 ${data.requesterName}님이 예약 내용을 변경했습니다. 변경된 예약은 다시 관리자 승인을 받아야 합니다.`
-            : '신청자 요청으로 예약 내용이 변경되었습니다. 변경된 예약은 다시 관리자 승인을 받아야 합니다.',
+            ? `담당하고 계신 방문객 ${data.requesterName}님이 예약 내용을 변경했습니다. 아직 승인 대기 중인 예약입니다.`
+            : '신청자 요청으로 예약 내용이 변경되었습니다. 아직 승인 대기 중인 예약입니다.',
         rows: [
           ...changeRows,
           ...rows.map((row) =>
@@ -459,7 +459,7 @@ export function renderReservationEmail(
             ? ['변경 내용이 맞지 않으면 방문 관리 담당자에게 문의해 주세요.']
             : usesSpaceAssignment(data)
               ? ['관리자 승인 후 배정 주차 위치가 안내됩니다.']
-              : ['변경된 예약은 관리자 승인 후 다시 주차 가능 상태가 됩니다.']),
+              : ['관리자 승인 후 주차 가능 상태가 됩니다.']),
           ...hostNotice(data),
         ],
         buttonLabel: '내 예약 조회하기',

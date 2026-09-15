@@ -111,6 +111,7 @@ export default async function RecurringReservationDetailPage({ params }: PagePro
           spaceCode: space.spaceCode,
           areaName: space.area.areaName,
         }))}
+        returnTo={`/admin/recurring-reservations/${scheduleId}`}
       />
     </main>
   );

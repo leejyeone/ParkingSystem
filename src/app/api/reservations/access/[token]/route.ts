@@ -41,7 +41,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
 /**
  * PUT /api/reservations/access/[token]
- * 본인 예약 수정. 승인 완료 상태였다면 주차면을 해제하고 승인 대기로 되돌린다.
+ * 본인 예약 수정. 승인 대기(REQUESTED) 상태에서만 가능하다.
  */
 export async function PUT(request: NextRequest, context: RouteContext) {
   try {

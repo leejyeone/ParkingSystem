@@ -22,11 +22,25 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = { title: '운행 신청 상세' };
 
-type PageProps = { params: Promise<{ id: string }> };
+type PageProps = {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ returnTo?: string }>;
+};
 
-export default async function CompanyVehicleTripDetailPage({ params }: PageProps) {
+export default async function CompanyVehicleTripDetailPage({ params, searchParams }: PageProps) {
   await requireAdminPage('/admin/company-vehicles/trips');
   const { id } = await params;
+
+  /* 예약 상세와 같은 이유(목록·운행 대장 두 곳에서 들어올 수 있음)로 returnTo 를 신뢰
+     범위(`/admin/`) 안에서만 뒤로가기에 쓴다. */
+  const { returnTo: rawReturnTo } = await searchParams;
+  const returnTo =
+    typeof rawReturnTo === 'string' && rawReturnTo.startsWith('/admin/')
+      ? rawReturnTo
+      : '/admin/company-vehicles/trips';
+  const returnLabel = returnTo.startsWith('/admin/company-vehicles/log')
+    ? '← 운행 대장'
+    : '← 운행 신청 목록';
 
   let tripId: number;
   try {
@@ -64,8 +78,8 @@ export default async function CompanyVehicleTripDetailPage({ params }: PageProps
   return (
     <main className="app-container-wide space-y-4">
       <div>
-        <Link href="/admin/company-vehicles/trips" className="text-brand-700 text-sm font-semibold">
-          ← 운행 신청 목록
+        <Link href={returnTo} className="text-brand-700 text-sm font-semibold">
+          {returnLabel}
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <h1 className="text-ink font-mono text-xl font-black sm:text-2xl">

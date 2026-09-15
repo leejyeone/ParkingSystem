@@ -395,13 +395,16 @@ export async function cancelCompanyVehicleTripByRequester(params: {
 /**
  * 신청 상세(관리자 화면 카드별 [수정하기])에서 신청 내용(신청 직원·행선지·사유·
  * 운행시간)과 사후 정정이 필요한 운행 기록(배정 차량·실제 출차/입차 시각)을
- * 관리자가 직접 고친다. 상태 전이가 아니므로 상태 로그는 남기지 않고, 감사 로그만
- * 남긴다. 신청 단계의 운영시간/최대 사용시간 규칙(`assertCompanyVehicleTripTiming`)은
- * 관리자가 고친 시간에도 동일하게 적용한다 — 그래야 관리자 수정을 거쳐 운영시간 밖이나
- * 최대 사용시간을 넘는 신청이 남는 걸 막을 수 있다(방문 예약 관리자 수정의
- * `checkVisitRange`/`checkOperatingHours` 재검증과 같은 원칙). 실제 출·입차 처리 자체
- * (상태 전이)는 markCompanyVehicleEntry/Exit 가 맡고, 여기서는 신청 내용과 이미 기록된
- * 실제 시각을 바로잡는 것만 다룬다.
+ * 관리자가 직접 고친다. 신청 단계의 운영시간/최대 사용시간 규칙
+ * (`assertCompanyVehicleTripTiming`)은 관리자가 고친 시간에도 동일하게 적용한다 —
+ * 그래야 관리자 수정을 거쳐 운영시간 밖이나 최대 사용시간을 넘는 신청이 남는 걸 막을
+ * 수 있다(방문 예약 관리자 수정의 `checkVisitRange`/`checkOperatingHours` 재검증과
+ * 같은 원칙). 실제 출·입차 "처리"(정방향 상태 전이) 자체는 markCompanyVehicleEntry/Exit
+ * 가 맡고, 여기서는 신청 내용과 이미 기록된 실제 시각을 바로잡는다 — 다만 실제 시각을
+ * 지워서(null) 그 처리 자체를 취소하는 경우에는, `reservation-service.ts`의
+ * `updateEntryExitRecords`와 같은 이유로 `tripStatus`도 처리 이전 상태로 함께 되돌리고
+ * 상태 로그를 남긴다(정방향 전이가 아니라 사후 취소라 `assertTransition`은 쓰지 않는다 —
+ * `ALLOWED_TRANSITIONS`에는 역방향 전이가 정의돼 있지 않기 때문).
  */
 export async function updateCompanyVehicleTripDetails(
   params: {
@@ -435,62 +438,134 @@ export async function updateCompanyVehicleTripDetails(
     });
   }
 
-  const current = await loadTripOrThrow(params.tripId, prisma);
+  const txResult = await prisma.$transaction(async (tx) => {
+    const current = await loadTripOrThrow(params.tripId, tx);
 
-  if (params.employeeUserId !== current.employeeUserId) {
-    const employee = await prisma.employeeUser.findFirst({
-      where: { employeeUserId: params.employeeUserId, deletedAt: null, accountStatus: AccountStatus.ACTIVE },
-      select: { employeeUserId: true },
-    });
-    if (!employee) {
-      throw new ValidationError('신청 직원을 찾을 수 없습니다. 다시 선택해 주세요.', {
-        employeeUserId: ['신청 직원을 찾을 수 없습니다. 다시 선택해 주세요.'],
+    if (params.employeeUserId !== current.employeeUserId) {
+      const employee = await tx.employeeUser.findFirst({
+        where: {
+          employeeUserId: params.employeeUserId,
+          deletedAt: null,
+          accountStatus: AccountStatus.ACTIVE,
+        },
+        select: { employeeUserId: true },
       });
-    }
-  }
-
-  if (params.assignedVehicleId !== null && params.assignedVehicleId !== current.assignedVehicleId) {
-    const vehicle = await prisma.companyVehicle.findFirst({
-      where: { vehicleId: params.assignedVehicleId, isActive: true },
-      select: { vehicleId: true },
-    });
-    if (!vehicle) {
-      throw new ValidationError('배정할 차량을 찾을 수 없습니다. 다시 선택해 주세요.', {
-        assignedVehicleId: ['배정할 차량을 찾을 수 없습니다. 다시 선택해 주세요.'],
-      });
+      if (!employee) {
+        throw new ValidationError('신청 직원을 찾을 수 없습니다. 다시 선택해 주세요.', {
+          employeeUserId: ['신청 직원을 찾을 수 없습니다. 다시 선택해 주세요.'],
+        });
+      }
     }
 
-    const conflict = await findConflictingTrip(
-      {
-        vehicleId: params.assignedVehicleId,
+    if (
+      params.assignedVehicleId !== null &&
+      params.assignedVehicleId !== current.assignedVehicleId
+    ) {
+      const vehicle = await tx.companyVehicle.findFirst({
+        where: { vehicleId: params.assignedVehicleId, isActive: true },
+        select: { vehicleId: true },
+      });
+      if (!vehicle) {
+        throw new ValidationError('배정할 차량을 찾을 수 없습니다. 다시 선택해 주세요.', {
+          assignedVehicleId: ['배정할 차량을 찾을 수 없습니다. 다시 선택해 주세요.'],
+        });
+      }
+
+      const conflict = await findConflictingTrip(
+        {
+          vehicleId: params.assignedVehicleId,
+          requestStartAt: params.requestStartAt,
+          requestEndAt: params.requestEndAt,
+          excludeTripId: params.tripId,
+        },
+        tx,
+      );
+      if (conflict) {
+        throw new ConflictError(
+          '선택하신 차량은 해당 시간대에 이미 다른 운행에 배정되어 있습니다.',
+          'VEHICLE_TIME_CONFLICT',
+        );
+      }
+    }
+
+    /*
+     * 실제 출·입차 기록을 지우면(값 -> null) 그 처리 이전 상태로 되돌린다 —
+     * markCompanyVehicleEntry/Exit 가 기록을 "남길" 때 tripStatus 를 함께 전이시키는
+     * 것과 대칭이다. 법인차량은 필드 의미가 반대라(actualEntryAt=출차, actualExitAt=
+     * 입차) 되돌리는 순서도 반대다: 나중 사건인 입차(actualExitAt) 기록부터 지워야
+     * EXITED->PARKING, 그다음 출차(actualEntryAt) 기록을 지워야 PARKING->APPROVED —
+     * 한 번에 두 값을 함께 null 로 보내도 이 순서대로 처리하므로 문제없다.
+     */
+    let nextTripStatus = current.tripStatus;
+    const statusLogsToWrite: {
+      previousStatus: ReservationStatus;
+      currentStatus: ReservationStatus;
+      changeReason: string;
+    }[] = [];
+
+    if (params.actualExitAt === null && current.actualExitAt !== null) {
+      if (nextTripStatus !== ReservationStatus.EXITED) {
+        throw new ConflictError(
+          '입차 처리된 신청만 입차 기록을 지울 수 있습니다.',
+          'TRIP_NOT_EXITED',
+        );
+      }
+      statusLogsToWrite.push({
+        previousStatus: nextTripStatus,
+        currentStatus: ReservationStatus.PARKING,
+        changeReason: '입차 기록 삭제(관리자 정정) — 입차 처리 이전 상태로 되돌림',
+      });
+      nextTripStatus = ReservationStatus.PARKING;
+    }
+
+    if (params.actualEntryAt === null && current.actualEntryAt !== null) {
+      if (nextTripStatus !== ReservationStatus.PARKING) {
+        throw new ConflictError(
+          '출차 처리된 신청만 출차 기록을 지울 수 있습니다. (입차 기록이 남아 있다면 함께 지워 주세요)',
+          'TRIP_NOT_PARKING',
+        );
+      }
+      statusLogsToWrite.push({
+        previousStatus: nextTripStatus,
+        currentStatus: ReservationStatus.APPROVED,
+        changeReason: '출차 기록 삭제(관리자 정정) — 출차 처리 이전 상태로 되돌림',
+      });
+      nextTripStatus = ReservationStatus.APPROVED;
+    }
+
+    const result = await tx.companyVehicleTrip.update({
+      where: { tripId: params.tripId },
+      data: {
+        employeeUserId: params.employeeUserId,
+        destination: params.destination.trim(),
+        reason: params.reason.trim(),
         requestStartAt: params.requestStartAt,
         requestEndAt: params.requestEndAt,
-        excludeTripId: params.tripId,
+        assignedVehicleId: params.assignedVehicleId,
+        actualEntryAt: params.actualEntryAt,
+        actualExitAt: params.actualExitAt,
+        tripStatus: nextTripStatus,
       },
-      prisma,
-    );
-    if (conflict) {
-      throw new ConflictError(
-        '선택하신 차량은 해당 시간대에 이미 다른 운행에 배정되어 있습니다.',
-        'VEHICLE_TIME_CONFLICT',
-      );
-    }
-  }
+      include: TRIP_DETAIL_INCLUDE,
+    });
 
-  const updated = await prisma.companyVehicleTrip.update({
-    where: { tripId: params.tripId },
-    data: {
-      employeeUserId: params.employeeUserId,
-      destination: params.destination.trim(),
-      reason: params.reason.trim(),
-      requestStartAt: params.requestStartAt,
-      requestEndAt: params.requestEndAt,
-      assignedVehicleId: params.assignedVehicleId,
-      actualEntryAt: params.actualEntryAt,
-      actualExitAt: params.actualExitAt,
-    },
-    include: TRIP_DETAIL_INCLUDE,
+    for (const log of statusLogsToWrite) {
+      await tx.companyVehicleTripStatusLog.create({
+        data: {
+          tripId: params.tripId,
+          previousStatus: log.previousStatus,
+          currentStatus: log.currentStatus,
+          changedByType: ChangedByType.ADMIN,
+          changedByAdminId: params.adminUserId,
+          changeReason: log.changeReason,
+        },
+      });
+    }
+
+    return { result, current };
   });
+
+  const { result: updated, current } = txResult;
 
   await writeAuditLog({
     actorAdminId: params.adminUserId,

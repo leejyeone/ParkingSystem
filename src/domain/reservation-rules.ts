@@ -112,7 +112,7 @@ export type RequesterChangeCheck = { allowed: true } | { allowed: false; reason:
 
 /**
  * 신청자가 지금 예약을 수정/취소할 수 있는지 판정.
- * - 상태가 REQUESTED 또는 APPROVED 여야 한다.
+ * - 상태가 REQUESTED(승인 대기)여야 한다.
  * - 방문 시작 minLeadMinutes 분 전까지만 가능하다.
  */
 export function checkRequesterCanChange(params: {

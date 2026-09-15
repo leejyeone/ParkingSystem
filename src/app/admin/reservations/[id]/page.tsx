@@ -23,16 +23,34 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = { title: '예약 상세' };
 
-type PageProps = { params: Promise<{ id: string }> };
+type PageProps = {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ returnTo?: string }>;
+};
 
 /**
  * 예약 상세 화면.
  * 개인정보 원문이 노출되므로 조회 시점에 audit_logs 에 열람 이력이 기록된다.
  */
-export default async function AdminReservationDetailPage({ params }: PageProps) {
+export default async function AdminReservationDetailPage({ params, searchParams }: PageProps) {
   const session = await requireAdminPage('/admin/reservations');
   const { id } = await params;
   const reservationId = Number(id);
+
+  /*
+   * 예약 상세로 들어오는 경로가 여러 곳(일반 목록, 반복 예약 상세 등)이라 뒤로가기가
+   * 항상 일반 목록으로 고정되면 반복 예약 쪽에서 들어왔을 때 원래 보던 화면으로 못
+   * 돌아간다. 호출부가 실어 보낸 `returnTo`를 그대로 쓰되, `/admin/` 밖으로 나가는
+   * 값(오픈 리다이렉트)은 신뢰하지 않고 기본 목록으로 폴백한다.
+   */
+  const { returnTo: rawReturnTo } = await searchParams;
+  const returnTo =
+    typeof rawReturnTo === 'string' && rawReturnTo.startsWith('/admin/')
+      ? rawReturnTo
+      : '/admin/reservations';
+  const returnLabel = returnTo.startsWith('/admin/recurring-reservations')
+    ? '← 반복 예약 상세'
+    : '← 예약 목록';
 
   if (!Number.isInteger(reservationId) || reservationId <= 0) {
     notFound();
@@ -104,8 +122,8 @@ export default async function AdminReservationDetailPage({ params }: PageProps) 
   return (
     <main className="app-container-wide space-y-4">
       <div>
-        <Link href="/admin/reservations" className="text-brand-700 text-sm font-semibold">
-          ← 예약 목록
+        <Link href={returnTo} className="text-brand-700 text-sm font-semibold">
+          {returnLabel}
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <h1 className="text-ink font-mono text-xl font-black sm:text-2xl">

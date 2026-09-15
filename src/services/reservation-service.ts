@@ -519,25 +519,8 @@ export async function updateReservationByRequester(
         requestMemo: input.requestMemo ?? null,
         visitStartAt: input.visitStartAt,
         visitEndAt: input.visitEndAt,
-        // 승인 상태였다면 배정 해제 후 다시 승인 대기로 되돌린다.
-        assignedSpaceId: null,
-        reservationStatus: ReservationStatus.REQUESTED,
-        approvalAdminId: null,
-        approvedAt: null,
-        rejectedAt: null,
-        rejectionReason: null,
       },
       include: RESERVATION_WITH_SPACES,
-    });
-
-    await tx.parkingReservationStatusLog.create({
-      data: {
-        reservationId,
-        previousStatus: current.reservationStatus,
-        currentStatus: ReservationStatus.REQUESTED,
-        changedByType: ChangedByType.REQUESTER,
-        changeReason: '신청자 예약 변경으로 승인 대기 상태로 복귀',
-      },
     });
 
     await extendTokenExpiry({ reservationId, visitEndAt: input.visitEndAt }, tx);

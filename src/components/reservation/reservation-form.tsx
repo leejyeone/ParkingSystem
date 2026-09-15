@@ -305,6 +305,14 @@ export function ReservationForm({
         </div>
       )}
 
+      {mode === 'employee-proxy' && (
+        <div className="mb-4">
+          <Alert variant="info" title="방문객 개인정보 동의 확인이 필요합니다">
+            방문객에게 개인정보 수집·이용 목적을 안내하고 동의를 확인한 뒤 신청해 주세요.
+          </Alert>
+        </div>
+      )}
+
       {mode === 'visitor' ? (
         <div className="card">
           <div className="card-body space-y-3">
@@ -314,10 +322,7 @@ export function ReservationForm({
                 수정하러 가기 →
               </Link>
             </div>
-            <p className="field-hint">
-             기본 정보는 마이페이지에서
-              변경해 주세요.
-            </p>
+            <p className="field-hint">기본 정보는 마이페이지에서 변경해 주세요.</p>
             <dl>
               <Row term="회사명" desc={form.companyOrBranchName} />
               <Row term="성명" desc={form.requesterName} />
@@ -553,8 +558,8 @@ export function ReservationForm({
                     <strong>수집 항목</strong> : 방문 일정, 방문 목적
                   </p>
                   <p className="mt-2">
-                    <strong>수집 목적</strong> : 방문 차량 방문 예약 접수·승인, 주차면 배정, 방문 관련
-                    안내 메일 발송
+                    <strong>수집 목적</strong> : 방문 차량 방문 예약 접수·승인, 주차면 배정, 방문
+                    관련 안내 메일 발송
                   </p>
                   <p className="mt-2">
                     <strong>보유 기간</strong> : 이 방문 건은 방문 종료 후{' '}
@@ -564,15 +569,16 @@ export function ReservationForm({
               ) : (
                 <>
                   <p>
-                    <strong>수집 항목</strong> : 성명, 이메일, 차량번호, 소속(회사명/사업장), 방문 목적
+                    <strong>수집 항목</strong> : 성명, 이메일, 차량번호, 소속(회사명/사업장), 방문
+                    목적
                   </p>
                   <p className="mt-2">
-                    <strong>수집 목적</strong> : 방문 차량 방문 예약 접수·승인, 주차면 배정, 방문 관련
-                    안내 메일 발송
+                    <strong>수집 목적</strong> : 방문 차량 방문 예약 접수·승인, 주차면 배정, 방문
+                    관련 안내 메일 발송
                   </p>
                   <p className="mt-2">
-                    <strong>보유 기간</strong> : 방문 종료 후 {settings.personalDataRetentionDays}일간
-                    보관 후 파기
+                    <strong>보유 기간</strong> : 방문 종료 후 {settings.personalDataRetentionDays}
+                    일간 보관 후 파기
                   </p>
                 </>
               )}
@@ -611,11 +617,7 @@ export function ReservationForm({
       )}
 
       <div className="sticky-actions mt-4">
-        <button
-          type="submit"
-          className="btn btn-primary btn-lg w-full"
-          disabled={submitting}
-        >
+        <button type="submit" className="btn btn-primary btn-lg w-full" disabled={submitting}>
           {submitting ? '신청 중…' : '방문 신청하기'}
         </button>
       </div>

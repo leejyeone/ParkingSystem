@@ -48,61 +48,79 @@ export function ReservationAccessPanel({ token, initialReservation, settings }: 
             <StatusBadge status={reservation.displayStatus} />
           </div>
 
-          {reservation.reservationStatus === 'REJECTED' && reservation.rejectionReason && (
-            <div className="mt-4">
-              <Alert variant="error" title="반려 사유">
-                {reservation.rejectionReason}
-              </Alert>
-            </div>
-          )}
-
-          {reservation.reservationStatus === 'CANCELLED' && reservation.cancelReason && (
-            <div className="mt-4">
-              <Alert variant="warning" title="취소 사유">
-                {reservation.cancelReason}
-              </Alert>
-            </div>
-          )}
-
-          {reservation.isDoubleParking && (
-            <div className="mt-4">
-              <Alert variant="warning" title="이중주차 위치로 배정되었습니다">
-                <ul className="mt-1 list-disc space-y-1 pl-4">
-                  <li>앞 차량 출차를 위해 차량 이동 요청을 받으실 수 있습니다.</li>
-                  <li>차량 이동 요청은 현장 안내 방송 또는 안내 데스크를 통해 전달됩니다.</li>
-                  <li>기어는 중립(N), 주차 브레이크는 해제해 주세요.</li>
-                </ul>
-              </Alert>
-            </div>
-          )}
-
-          <dl className="mt-4">
-            <Row term="신청 구분" desc={reservation.requesterTypeLabel} />
-            <Row
-              term={reservation.requesterType === 'EMPLOYEE' ? '사업장' : '회사명'}
-              desc={reservation.companyOrBranchName}
+          {mode === 'edit' ? (
+            <EditForm
+              token={token}
+              reservation={reservation}
+              settings={settings}
+              onCancel={() => setMode('view')}
+              onSuccess={(updated) => {
+                setReservation(updated);
+                setMode('view');
+                setNotice('예약이 변경되었습니다.');
+              }}
             />
-            <Row term="성명" desc={reservation.requesterName} />
-            <Row term="이메일" desc={reservation.requesterEmail} />
-            <Row term="차량번호" desc={reservation.vehicleNo} />
-            <Row term="방문 시간" desc={reservation.visitRangeText} />
-            {settings.spaceAssignmentEnabled && (
-              <Row
-                term="배정 위치"
-                desc={
-                  reservation.assignedSpaceCode
-                    ? `${reservation.assignedSpaceCode}${reservation.isDoubleParking ? ' (이중주차)' : ''}`
-                    : '승인 후 배정됩니다'
-                }
-              />
-            )}
-            {reservation.visitPurpose && <Row term="방문 목적" desc={reservation.visitPurpose} />}
-            {reservation.requestMemo && <Row term="요청 메모" desc={reservation.requestMemo} />}
-            {/* 승인 대기 상태에서만 의미가 있다. 승인/반려/취소된 예약은 더 이상 수정 대상이 아니다. */}
-            {reservation.reservationStatus === 'REQUESTED' && (
-              <Row term="수정·취소 마감" desc={reservation.changeDeadlineText} />
-            )}
-          </dl>
+          ) : (
+            <>
+              {reservation.reservationStatus === 'REJECTED' && reservation.rejectionReason && (
+                <div className="mt-4">
+                  <Alert variant="error" title="반려 사유">
+                    {reservation.rejectionReason}
+                  </Alert>
+                </div>
+              )}
+
+              {reservation.reservationStatus === 'CANCELLED' && reservation.cancelReason && (
+                <div className="mt-4">
+                  <Alert variant="warning" title="취소 사유">
+                    {reservation.cancelReason}
+                  </Alert>
+                </div>
+              )}
+
+              {reservation.isDoubleParking && (
+                <div className="mt-4">
+                  <Alert variant="warning" title="이중주차 위치로 배정되었습니다">
+                    <ul className="mt-1 list-disc space-y-1 pl-4">
+                      <li>앞 차량 출차를 위해 차량 이동 요청을 받으실 수 있습니다.</li>
+                      <li>차량 이동 요청은 현장 안내 방송 또는 안내 데스크를 통해 전달됩니다.</li>
+                      <li>기어는 중립(N), 주차 브레이크는 해제해 주세요.</li>
+                    </ul>
+                  </Alert>
+                </div>
+              )}
+
+              <dl className="mt-4">
+                <Row term="신청 구분" desc={reservation.requesterTypeLabel} />
+                <Row
+                  term={reservation.requesterType === 'EMPLOYEE' ? '사업장' : '회사명'}
+                  desc={reservation.companyOrBranchName}
+                />
+                <Row term="성명" desc={reservation.requesterName} />
+                <Row term="이메일" desc={reservation.requesterEmail} />
+                <Row term="차량번호" desc={reservation.vehicleNo} />
+                <Row term="방문 시간" desc={reservation.visitRangeText} />
+                {settings.spaceAssignmentEnabled && (
+                  <Row
+                    term="배정 위치"
+                    desc={
+                      reservation.assignedSpaceCode
+                        ? `${reservation.assignedSpaceCode}${reservation.isDoubleParking ? ' (이중주차)' : ''}`
+                        : '승인 후 배정됩니다'
+                    }
+                  />
+                )}
+                {reservation.visitPurpose && (
+                  <Row term="방문 목적" desc={reservation.visitPurpose} />
+                )}
+                {reservation.requestMemo && <Row term="요청 메모" desc={reservation.requestMemo} />}
+                {/* 승인 대기 상태에서만 의미가 있다. 승인/반려/취소된 예약은 더 이상 수정 대상이 아니다. */}
+                {reservation.reservationStatus === 'REQUESTED' && (
+                  <Row term="수정·취소 마감" desc={reservation.changeDeadlineText} />
+                )}
+              </dl>
+            </>
+          )}
         </div>
       </section>
 
@@ -137,22 +155,6 @@ export function ReservationAccessPanel({ token, initialReservation, settings }: 
         </section>
       )}
 
-      {mode === 'edit' && (
-        <EditForm
-          token={token}
-          reservation={reservation}
-          settings={settings}
-          onCancel={() => setMode('view')}
-          onSuccess={(updated) => {
-            setReservation(updated);
-            setMode('view');
-            setNotice(
-              '예약이 변경되었습니다. 변경된 예약은 다시 관리자 승인을 받아야 하며, 기존 배정 위치는 해제되었습니다.',
-            );
-          }}
-        />
-      )}
-
       {mode === 'cancel' && (
         <CancelForm
           token={token}
@@ -165,7 +167,6 @@ export function ReservationAccessPanel({ token, initialReservation, settings }: 
           }}
         />
       )}
-
     </div>
   );
 }
@@ -256,130 +257,124 @@ function EditForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="card">
-      <div className="card-body space-y-5">
-        <h2 className="card-title">예약 수정</h2>
+    <form onSubmit={handleSubmit} noValidate className="mt-4 space-y-5">
+      <Alert variant="info" title="수정 시 유의사항">
+        이메일 주소는 변경할 수 없습니다.
+      </Alert>
 
-        <Alert variant="warning" title="수정 시 유의사항">
-          수정하면 예약 상태가 <strong>승인 대기</strong>로 되돌아갑니다.
-          {settings.spaceAssignmentEnabled ? ' 기존 배정 주차 위치가 해제됩니다.' : ''} 이메일
-          주소는 변경할 수 없습니다.
-        </Alert>
+      {formError && <Alert variant="error">{formError.message}</Alert>}
 
-        {formError && <Alert variant="error">{formError.message}</Alert>}
+      <FormField
+        label="회사명"
+        htmlFor="edit-company"
+        required
+        errors={fieldErrors.companyOrBranchName}
+      >
+        <input
+          id="edit-company"
+          className={inputClassName(Boolean(fieldErrors.companyOrBranchName))}
+          value={form.companyOrBranchName}
+          onChange={(event) => update('companyOrBranchName', event.target.value)}
+          maxLength={100}
+        />
+      </FormField>
 
-        <FormField
-          label="회사명"
-          htmlFor="edit-company"
-          required
-          errors={fieldErrors.companyOrBranchName}
+      <FormField label="성명" htmlFor="edit-name" required errors={fieldErrors.requesterName}>
+        <input
+          id="edit-name"
+          className={inputClassName(Boolean(fieldErrors.requesterName))}
+          value={form.requesterName}
+          onChange={(event) => update('requesterName', event.target.value)}
+          maxLength={50}
+        />
+      </FormField>
+
+      <FormField
+        label="차량번호"
+        htmlFor="edit-vehicle"
+        required
+        hint="공백과 하이픈은 자동으로 정리됩니다."
+        errors={fieldErrors.vehicleNo}
+      >
+        <input
+          id="edit-vehicle"
+          className={inputClassName(Boolean(fieldErrors.vehicleNo))}
+          value={form.vehicleNo}
+          onChange={handleVehicleNoChange}
+          maxLength={20}
+        />
+      </FormField>
+
+      <FormField
+        label="입차 예정 시간"
+        htmlFor="edit-start"
+        required
+        hint={`현재 시각 기준 ${settings.reservationMinLeadMinutes}분 이후로 선택해 주세요.`}
+        errors={fieldErrors.visitStartAt}
+      >
+        <input
+          id="edit-start"
+          type="datetime-local"
+          className={inputClassName(Boolean(fieldErrors.visitStartAt))}
+          value={form.visitStartAt}
+          onChange={(event) => update('visitStartAt', event.target.value)}
+        />
+      </FormField>
+
+      <FormField
+        label="출차 예정 시간"
+        htmlFor="edit-end"
+        required
+        hint={`같은 날짜 내에서 최대 ${settings.maxReservationHours}시간까지 신청할 수 있습니다.`}
+        errors={fieldErrors.visitEndAt}
+      >
+        <input
+          id="edit-end"
+          type="datetime-local"
+          className={inputClassName(Boolean(fieldErrors.visitEndAt))}
+          value={form.visitEndAt}
+          onChange={(event) => update('visitEndAt', event.target.value)}
+        />
+      </FormField>
+
+      <FormField
+        label="방문 목적"
+        htmlFor="edit-purpose"
+        required
+        errors={fieldErrors.visitPurpose}
+      >
+        <input
+          id="edit-purpose"
+          className={inputClassName(Boolean(fieldErrors.visitPurpose))}
+          value={form.visitPurpose}
+          onChange={(event) => update('visitPurpose', event.target.value)}
+          maxLength={200}
+        />
+      </FormField>
+
+      <FormField label="요청 메모" htmlFor="edit-memo" errors={fieldErrors.requestMemo}>
+        <textarea
+          id="edit-memo"
+          rows={3}
+          className={inputClassName(Boolean(fieldErrors.requestMemo))}
+          value={form.requestMemo}
+          onChange={(event) => update('requestMemo', event.target.value)}
+          maxLength={1000}
+        />
+      </FormField>
+
+      <div className="sticky-actions grid gap-2 sm:grid-cols-2">
+        <button type="submit" className="btn btn-primary" disabled={submitting}>
+          {submitting ? '저장 중…' : '수정 내용 저장'}
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={onCancel}
+          disabled={submitting}
         >
-          <input
-            id="edit-company"
-            className={inputClassName(Boolean(fieldErrors.companyOrBranchName))}
-            value={form.companyOrBranchName}
-            onChange={(event) => update('companyOrBranchName', event.target.value)}
-            maxLength={100}
-          />
-        </FormField>
-
-        <FormField label="성명" htmlFor="edit-name" required errors={fieldErrors.requesterName}>
-          <input
-            id="edit-name"
-            className={inputClassName(Boolean(fieldErrors.requesterName))}
-            value={form.requesterName}
-            onChange={(event) => update('requesterName', event.target.value)}
-            maxLength={50}
-          />
-        </FormField>
-
-        <FormField
-          label="차량번호"
-          htmlFor="edit-vehicle"
-          required
-          hint="공백과 하이픈은 자동으로 정리됩니다."
-          errors={fieldErrors.vehicleNo}
-        >
-          <input
-            id="edit-vehicle"
-            className={inputClassName(Boolean(fieldErrors.vehicleNo))}
-            value={form.vehicleNo}
-            onChange={handleVehicleNoChange}
-            maxLength={20}
-          />
-        </FormField>
-
-        <FormField
-          label="입차 예정 시간"
-          htmlFor="edit-start"
-          required
-          hint={`현재 시각 기준 ${settings.reservationMinLeadMinutes}분 이후로 선택해 주세요.`}
-          errors={fieldErrors.visitStartAt}
-        >
-          <input
-            id="edit-start"
-            type="datetime-local"
-            className={inputClassName(Boolean(fieldErrors.visitStartAt))}
-            value={form.visitStartAt}
-            onChange={(event) => update('visitStartAt', event.target.value)}
-          />
-        </FormField>
-
-        <FormField
-          label="출차 예정 시간"
-          htmlFor="edit-end"
-          required
-          hint={`같은 날짜 내에서 최대 ${settings.maxReservationHours}시간까지 신청할 수 있습니다.`}
-          errors={fieldErrors.visitEndAt}
-        >
-          <input
-            id="edit-end"
-            type="datetime-local"
-            className={inputClassName(Boolean(fieldErrors.visitEndAt))}
-            value={form.visitEndAt}
-            onChange={(event) => update('visitEndAt', event.target.value)}
-          />
-        </FormField>
-
-        <FormField
-          label="방문 목적"
-          htmlFor="edit-purpose"
-          required
-          errors={fieldErrors.visitPurpose}
-        >
-          <input
-            id="edit-purpose"
-            className={inputClassName(Boolean(fieldErrors.visitPurpose))}
-            value={form.visitPurpose}
-            onChange={(event) => update('visitPurpose', event.target.value)}
-            maxLength={200}
-          />
-        </FormField>
-
-        <FormField label="요청 메모" htmlFor="edit-memo" errors={fieldErrors.requestMemo}>
-          <textarea
-            id="edit-memo"
-            rows={3}
-            className={inputClassName(Boolean(fieldErrors.requestMemo))}
-            value={form.requestMemo}
-            onChange={(event) => update('requestMemo', event.target.value)}
-            maxLength={1000}
-          />
-        </FormField>
-
-        <div className="sticky-actions grid gap-2 sm:grid-cols-2">
-          <button type="submit" className="btn btn-primary" disabled={submitting}>
-            {submitting ? '저장 중…' : '수정 내용 저장'}
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={onCancel}
-            disabled={submitting}
-          >
-            되돌아가기
-          </button>
-        </div>
+          되돌아가기
+        </button>
       </div>
     </form>
   );

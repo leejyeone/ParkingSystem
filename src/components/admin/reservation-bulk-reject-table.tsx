@@ -40,11 +40,14 @@ type BulkRejectResult = {
 export function ReservationBulkRejectTable({
   items,
   basePath,
+  returnTo,
   totalCount,
   pendingCount,
 }: {
   items: BulkRejectableItem[];
   basePath: string;
+  /** 상세에서 뒤로가기를 누르면 돌아올 URL(지금 목록의 필터·페이지를 그대로 담은 값) */
+  returnTo: string;
   totalCount: number;
   /** 같은 검색 조건에서 아직 승인하지 않은 건수 */
   pendingCount: number;
@@ -56,6 +59,9 @@ export function ReservationBulkRejectTable({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<BulkRejectResult | null>(null);
+
+  const detailHref = (reservationId: number) =>
+    `${basePath}/${reservationId}?returnTo=${encodeURIComponent(returnTo)}`;
 
   const eligibleIds = items
     .filter((item) => item.reservationStatus === 'REQUESTED')
@@ -254,7 +260,7 @@ export function ReservationBulkRejectTable({
                         item.companyOrBranchName
                       ) : (
                         <Link
-                          href={`${basePath}/${item.reservationId}`}
+                          href={detailHref(item.reservationId)}
                           className="text-inherit no-underline focus-visible:underline"
                         >
                           {item.companyOrBranchName}
@@ -284,7 +290,7 @@ export function ReservationBulkRejectTable({
                 return (
                   <ClickableTableRow
                     key={item.reservationId}
-                    href={`${basePath}/${item.reservationId}`}
+                    href={detailHref(item.reservationId)}
                   >
                     {rowCells}
                   </ClickableTableRow>
