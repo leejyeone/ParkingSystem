@@ -63,7 +63,7 @@
 | 신청 경로      | 담당자 경유 이메일    | 방문객 회원가입 후 본인이 직접 신청하거나, 담당 직원이 로그인해 대신 신청 |
 | 등록 방식      | 차량 등록 담당자 수기 | 시스템 접수 후 관리자 승인                     |
 | 주차 위치 결정 | 현장 판단             | 관리자 배정 (주차 평면도에서 직접 선택 또는 빈 자리 자동 선택 후 확인) |
-| 안내           | 담당자 수동 회신      | 8종 이메일 자동 발송 (Gmail API)               |
+| 안내           | 담당자 수동 회신      | 방문 예약 8종 + 법인차량 신규신청 알림 등 이메일 자동 발송 (Gmail API) |
 | 현황 파악      | 없음                  | 날짜별 대시보드 / 상시 모니터용 주차 평면도 화면 |
 | 모바일         | 고려되지 않음         | 모바일 우선 반응형 (최소 360px)                |
 | 반복 방문      | 매번 같은 내용 재작성 | 회원가입 시 등록한 정보로 신청 폼 자동완성      |
@@ -126,9 +126,7 @@
 - 신청 폼에는 회원가입 때 등록한 회사명·성명·이메일·차량번호·당사 담당자가 자동으로
   채워지며, 신청 화면에서는 값을 고칠 수 없다(수정은 마이페이지에서만)
 - 신청 즉시 접수 확인 메일 수신 (예약번호 + 보안 조회 링크)
-- 예약 조회 경로 2가지
-  - **성명 + 차량번호 입력** (`/reservations/lookup`, AND 조건 검색 → 일치하는 예약 목록)
-  - 안내 메일의 **보안 토큰 링크** (`/r/<token>`)
+- 예약 조회는 안내 메일의 **보안 토큰 링크**(`/r/<token>`) 또는 로그인 후 **마이페이지**에서
 - **승인 대기(`REQUESTED`) 상태에서만** 신청자가 직접 예약 수정 / 취소 가능(그 안에서도
   방문 시작 60분 전까지). 관리자가 승인한 뒤에는 신청자가 직접 바꿀 수 없고, 변경이 필요하면
   담당자에게 문의해야 한다 — 이때는 관리자가 상세 화면에서 대신 수정하거나 취소한다(5절 참고)
@@ -161,6 +159,8 @@
 - "내 신청 내역"에서 본인 방문과 대리 신청을 구분해 확인, 차량번호·소속 사업장명 수정
 - 관리자가 등록한 **반복 예약(정기 주차 배정)** 이 있으면 본인 신청 내역에 **"반복" 태그**만
   표시(승인 생략 여부 등 내부 설정은 노출하지 않음)
+- **법인 공용 차량 운행 신청** — 행선지·사유·운행 시간을 입력해 신청, 관리자 승인 시 차량이
+  배정됨. 전화번호 등록 전에는 신청할 수 없다
 
 ### 관리자
 
@@ -183,12 +183,14 @@
 - **(시스템 관리자 전용)** 직원 계정 목록 조회, 카드 우상단 [직원 추가]로 개별 등록, 활성/비활성 전환
 - **(시스템 관리자 전용)** 이메일 발송 이력 조회 (실패 사유 포함) — 예약 목록과 동일한
   접이식 검색 조건
+- **법인 공용 차량 관리** (양쪽 권한 모두) — 차량 자산 등록/수정/비활성화, 운행 신청 승인/반려/
+  취소, 입출차 처리, 운행일지 주행거리 기록, 운행 대장 조회
 - 시스템 설정, 주차 구역·주차면, 알림 이메일 관리 (양쪽 권한 모두)
 - **(시스템 관리자 전용)** 관리자 계정 생성(권한을 시스템 관리자/주차 관리자 중 선택, 기본값
   주차 관리자)·수정·비활성화
   - 관리자 계정을 새로 만들면 그 이메일이 **알림 이메일 목록에 자동 등록**된다(신규 신청/승인
     알림 모두 켠 상태). 이미 등록된 이메일이면 기존 수신 설정은 건드리지 않는다.
-- 감사 로그 조회 (양쪽 권한 모두)
+- 개인정보 열람·상태 변경 이력은 감사 로그(DB)에 기록된다(화면 조회 기능은 없음, 19절 참고)
 
 ### 시스템
 
@@ -220,7 +222,7 @@
 
 ```
 회원가입(회사명·차량번호·당사 담당자 등록) → 로그인 → 방문 신청 → 접수 이메일 수신
-→ 성명·차량번호 입력(일치하는 예약 목록에서 선택) 또는 메일의 보안 링크로 예약 조회
+→ 메일의 보안 링크 또는 로그인 후 마이페이지에서 예약 조회
 → 승인 대기(REQUESTED) 상태에서만, 방문 시작 60분 전까지 수정 또는 취소
 → 승인 완료 후에는 직접 변경 불가 — 담당자에게 문의(관리자가 대신 수정/취소)
 ```
@@ -257,10 +259,8 @@
 | 얻는 것   | 신청 폼 자동완성, 마이페이지의 내 예약 목록                                   |
 | 권한      | 관리자 기능이나 타인의 예약에는 접근 불가. 승인 우선순위나 조회 범위 차이 없음 |
 
-> 회원은 **자기 계정으로 신청한 예약만** 목록에서 볼 수 있습니다.
-> 타인의 예약은 성명·차량번호를 알아도 마이페이지 목록에는 나타나지 않습니다(단, 비회원
-> 조회 화면에서 동일한 성명·차량번호로 검색하면 다른 사람도 볼 수 있습니다 — 아래 위험과
-> 완화책 참고).
+> 회원은 **자기 계정으로 신청한 예약만** 목록에서 볼 수 있습니다. 예약 조회는 안내 메일의
+> 보안 토큰 링크 또는 로그인 후 마이페이지로만 가능합니다(19절 참고).
 
 ### 3-4. 관리자
 
@@ -278,18 +278,18 @@
 - 주차 구역 / 주차면 관리
 - 관리자 알림 이메일 관리 (일반 예약 신규 신청/변경 알림 수신자)
 - 시스템 운영시간·정책 설정 (입·출차 관리 사용 여부 포함)
-- 감사 로그 조회
+- 법인 공용 차량 자산 관리, 운행 신청 승인/반려/취소/입출차 처리
+- 개인정보 열람·상태 변경 이력은 감사 로그(DB)에 기록됨(화면 조회 기능 없음, 19절 참고)
 
 **시스템 관리자 전용** ("시스템 관리" 메뉴)
 
 - 반복 예약(정기 주차 배정) 등록·조회·수정·삭제 (4-5절 참고)
 - 이메일 발송 이력 조회
-- 직원 계정 목록 조회, 개별 추가([직원 추가] 버튼), 활성/비활성 전환
+- 직원 계정 목록 조회, 개별 추가([직원 추가] 버튼), 활성/비활성 전환, 그룹웨어 명부 동기화
 - 관리자 계정 생성(권한을 시스템 관리자/주차 관리자 중 선택, 기본값 주차 관리자)·수정·비활성화
 
-반복 예약 시리즈가 생성/수정/제외/취소되면 안내 메일은 시스템 관리자(활성 계정)와
-해당 직원 본인에게만 발송됩니다 — 일반 예약 알림에 쓰는 관리자 알림 이메일 목록
-(`AdminNotificationEmail`, 주차 관리자 이메일도 섞여 있을 수 있음)은 거치지 않습니다.
+> 반복 예약 시리즈의 생성/수정/제외/취소는 **어떤 메일도 발송하지 않습니다.** 상태 로그와
+> 감사 로그로만 남습니다.
 
 ---
 
@@ -307,7 +307,7 @@ flowchart TD
     C --> D{관리자 승인 대기}
     D -->|승인| E[승인 이메일 수신<br/>배정 주차면 코드 안내<br/>당사 담당자도 참조로 수신]
     D -->|반려| F[반려 이메일 수신<br/>반려 사유 확인]
-    E --> G[예약 조회<br/>성명·차량번호 입력 또는 메일 링크]
+    E --> G[예약 조회<br/>메일 링크 또는 마이페이지]
     F --> G
     G --> H{방문 시작 60분 전?}
     H -->|이전| I[예약 수정 또는 취소 가능]
@@ -507,7 +507,7 @@ stateDiagram-v2
 | `NO_SHOW`   | 미방문                      | ✘           | ✘                |
 
 **입·출차 / 미방문 처리는 시스템 설정의 `ENTRY_EXIT_MANAGEMENT_ENABLED` 로 켜고 끕니다
-(기본값 `true` = 사용).** 예전에는 코드에 박힌 기능 플래그였지만, 현재는
+(기본값 `true` = 사용).**
 [`src/domain/system-settings.ts`](src/domain/system-settings.ts) 의 런타임 설정값이라 관리자가
 [시스템 설정] → [주차장 정보] 화면에서 재배포 없이 즉시 전환할 수 있습니다. 현장에서 입출차를
 확인할 수단(차단기 연동, 상주 인력 등)이 아직 없다면 꺼 두는 운영도 그대로 지원합니다. **끈
@@ -515,7 +515,6 @@ stateDiagram-v2
 
 - 예약 상세의 **[입·출차 처리] 영역이 나타나지 않습니다.**
 - `entry` / `exit` / `no-show` API 가 `ENTRY_EXIT_DISABLED` 로 거부됩니다.
-- 자동 NO_SHOW 배치(`/api/cron/auto-no-show`)가 아무것도 처리하지 않습니다.
 - 예약이 `PARKING` / `EXITED` / `NO_SHOW` 로 넘어가지 않으므로, 승인된 예약은
   방문 시간이 지나도 DB 에는 `APPROVED` 로 남습니다. 대신 아래의 **표시 전용 상태**로
   진행 상황을 나타냅니다.
@@ -631,6 +630,7 @@ PARKING   → EXITED
 
 ```
 1. 활성 상태(is_active = true)이고 구역(area)도 활성인 NORMAL 주차면을 우선 조회
+   — 법인 공용 차량이 고정 배정된(활성) 주차면은 이 시점에 후보에서 제외됨
 2. 해당 예약 시간대(+ 시스템 설정 `SPACE_BUFFER_MINUTES` 만큼의 버퍼)에 APPROVED / PARKING
    예약과 겹치지 않는 주차면만 후보로 사용
 3. 후보를 구역 표시 순서 → 주차면 코드(space_code) 오름차순으로 정렬해 첫 번째를 선택
@@ -698,6 +698,9 @@ AND existing.visit_end_at + buffer > new.visit_start_at
 | 관리자 인증 | ID/비밀번호 + HttpOnly 세션 쿠키(JOSE HS256 JWT)                                                                                   |
 | 비밀번호    | bcrypt (`bcryptjs`, cost 12)                                                                                                       |
 | Email       | **Gmail API** (`googleapis`, `gmail.send` scope) 기본, 사내 **SMTP**(`nodemailer`, 테스트 중) 대체 경로 — `EMAIL_PROVIDER` 로 전환 |
+| 메일 첨부   | `@resvg/resvg-js` — 배정 주차 위치 평면도를 PNG 로 렌더링해 메일에 인라인 첨부                                                     |
+| 그룹웨어 연동 | `mssql` — 사내 그룹웨어(유니포탈) MS SQL 읽기 전용 접속(직원 명부 동기화)                                                        |
+| 명부 가져오기 | `xlsx` — 직원 명부 엑셀/CSV 를 읽어 1회성 시드(`scripts/import-employees.ts`)                                                    |
 | Scheduler   | Route Handler + 외부 cron / 플랫폼 스케줄러                                                                                        |
 | Timezone    | Asia/Seoul (`date-fns`, `date-fns-tz`)                                                                                             |
 | Test        | Vitest 4, Testing Library, Playwright                                                                                              |
@@ -808,20 +811,20 @@ Seed 도 도면을 넣지 않으므로, 최초 설치 후 관리자가 직접 �
 ```
 SynopexParking/
 ├─ prisma/
-│  ├─ schema.prisma                  # 데이터 모델 (13개+ 테이블 + 로그인 시도 기록)
+│  ├─ schema.prisma                  # 데이터 모델 (17개 테이블 — 법인차량·반복예약 포함)
 │  ├─ seed.ts                        # Seed 데이터 (관리자/구역/주차면/설정/알림 이메일)
 │  └─ migrations/                    # 여러 개의 순차 마이그레이션 (12-1 참고 — 배포 후에는 절대 합치지 않음)
 ├─ prisma.config.ts                  # Prisma CLI 설정 (schema 경로, seed 명령)
 ├─ scripts/
 │  ├─ import-employees.ts            # 직원 명부 엑셀/CSV 를 employee_users 로 1회성 시드
-│  └─ import-operators.ts            # 실제 관리자 계정·알림 이메일을 로컬 JSON 으로 시드(12-4 참고)
+│  ├─ import-operators.ts            # 실제 관리자 계정·알림 이메일을 로컬 JSON 으로 시드(12-4 참고)
+│  └─ generate-parking-map-assets.ts # 주차 위치 안내 PNG 전체 사전 렌더링 (`npm run build`의 prebuild 훅)
 ├─ src/
 │  ├─ instrumentation.ts             # 서버 기동 훅 (내장 스케줄러 시작, 17절 참고)
 │  ├─ proxy.ts                       # 관리자/회원/직원 화면 접근 1차 가드 (Next 16 proxy 규약)
 │  ├─ app/
 │  │  ├─ layout.tsx  globals.css  page.tsx        # 공통 레이아웃 / 디자인 시스템 / 메인
 │  │  ├─ reservations/new/page.tsx                # 방문 신청 화면 (회원가입·로그인 필수, 등록 정보 자동완성)
-│  │  ├─ reservations/lookup/page.tsx             # 성명·차량번호로 예약 조회
 │  │  ├─ r/[token]/page.tsx                       # 보안 토큰 기반 예약 조회/수정/취소
 │  │  ├─ login/  signup/  mypage/                 # 회원 로그인 / 가입 / 마이페이지
 │  │  ├─ employee/
@@ -834,16 +837,17 @@ SynopexParking/
 │  │  │  ├─ parking-map/page.tsx                  # 주차 평면도 (상시 모니터용, 대시보드와 분리된 별도 메뉴)
 │  │  │  ├─ reservations/page.tsx  [id]/page.tsx  # 예약 목록 / 상세
 │  │  │  ├─ recurring-reservations/                # 반복 예약(정기 주차 배정) 목록/등록/상세/수정 (4-5, 18절 참고)
+│  │  │  ├─ company-vehicles/                     # 법인차량 관리(자산) / trips(신청내역) / log(운행 대장)
 │  │  │  ├─ settings/                             # 시스템 설정 (사이드바 하위 메뉴로 분리된 라우트)
 │  │  │  │  ├─ page.tsx                           #   주차장 정보
 │  │  │  │  └─ areas-spaces/page.tsx              #   구역·주차면
 │  │  │  ├─ users/                                # 사용자 관리 (공용 레이아웃 + 하위 메뉴)
 │  │  │  │  ├─ layout.tsx                         #   가드 + 공용 헤더
 │  │  │  │  ├─ employees/page.tsx                 #   등록 직원 관리(계정 목록 · 활성/비활성 전환)
-│  │  │  │  ├─ admins/page.tsx                    #   관리자 계정
+│  │  │  │  ├─ members/page.tsx                   #   방문객 회원 계정 관리
+│  │  │  │  ├─ admins/page.tsx                    #   관리자 계정 (사이드바에서는 "시스템 관리" 하위)
 │  │  │  │  └─ notifications/page.tsx             #   관리자 이메일
-│  │  │  ├─ email-logs/page.tsx                   # 이메일 발송 이력 (사이드바에서는 "시스템 설정" 하위)
-│  │  │  └─ audit-logs/page.tsx                   # 감사 로그
+│  │  │  └─ email-logs/page.tsx                   # 이메일 발송 이력 (사이드바에서는 "시스템 설정" 하위)
 │  │  └─ api/                                     # Route Handlers (공개/관리자/cron)
 │  ├─ components/
 │  │  └─ reservation/  user/  employee/  admin/  ui/  # 화면 컴포넌트
@@ -854,10 +858,16 @@ SynopexParking/
 │  │     # admin/parking-space-picker.tsx : 주차 평면도에서 클릭으로 주차면을 고르는 선택 UI
 │  │     # admin/recurring-schedule-form.tsx, recurring-schedule-edit-form.tsx,
 │  │     #   recurring-schedule-occurrence-table.tsx : 반복 예약 등록/수정/상세 UI
+│  │     # admin/company-vehicle-section.tsx, company-vehicle-settings-form.tsx,
+│  │     #   company-vehicle-trip-action-panel.tsx, company-vehicle-trip-detail-cards.tsx :
+│  │     #   법인차량 자산·운행 신청 관리 UI
 │  ├─ domain/                                     # 순수 비즈니스 규칙 (DB 비의존)
 │  │  ├─ reservation-rules.ts                     #   60분 규칙, 운영시간, 수정 가능 시간
 │  │  ├─ reservation-status.ts                    #   상태 전이 규칙
 │  │  ├─ time-overlap.ts                          #   시간 중복 판정
+│  │  ├─ company-vehicle-rules.ts                 #   법인차량 운행시간/최대 사용시간 규칙
+│  │  ├─ recurring-schedule-rules.ts              #   반복 예약 최대 기간(일) 상수
+│  │  ├─ parking-map-layout.ts                    #   주차 평면도 좌표/도면 데이터
 │  │  └─ system-settings.ts                       #   설정 키/기본값 (입·출차 관리 on/off 포함)
 │  ├─ lib/
 │  │  ├─ email/                                   # 이메일 어댑터 계층
@@ -867,7 +877,8 @@ SynopexParking/
 │  │  │  ├─ mock-email-provider.ts                #   Mock / Log 공급자 (테스트·개발)
 │  │  │  ├─ file-email-provider.ts                #   .mail-outbox 저장 (E2E·로컬 확인)
 │  │  │  ├─ email-provider-factory.ts             #   EMAIL_PROVIDER 로 선택
-│  │  │  ├─ email-template-service.ts             #   예약 8종 + 반복 예약 시리즈 4종 메일 템플릿
+│  │  │  ├─ email-template-service.ts             #   예약 8종 + 반복 예약 4종 + 법인차량 신규신청 등 메일 템플릿
+│  │  │  ├─ parking-map-image.ts                  #   배정 주차 위치 평면도 PNG 첨부 렌더링(resvg)
 │  │  │  └─ email-service.ts                      #   발송 + email_send_logs 기록/멱등성
 │  │  ├─ validation/                              # Zod 스키마 (한국어 오류 메시지)
 │  │  │  └─ recurring-reservation-schema.ts       #   반복 예약 등록/수정 스키마
@@ -875,6 +886,7 @@ SynopexParking/
 │  │  ├─ tokens.ts  password.ts                   # 예약 토큰 해시 / 비밀번호 해시
 │  │  ├─ session.ts  user-session.ts              # 관리자 세션 / 회원 세션 (typ 로 구분)
 │  │  ├─ employee-session.ts  employee-page-guard.ts  # 직원 세션 / `/employee` 접근 가드
+│  │  ├─ map-image.ts                             # 주차 구역 도면 이미지 업로드 허용 타입/크기 검증
 │  │  ├─ api-response.ts  errors.ts  logger.ts    # 응답 포맷 / 오류 / 비식별 로거
 │  │  └─ prisma.ts  rate-limit.ts …
 │  └─ services/                                   # 도메인 서비스 (DB 트랜잭션 포함)
@@ -882,15 +894,18 @@ SynopexParking/
 │     ├─ recurring-reservation-service.ts         #   반복 예약 시리즈 생성/수정/삭제/개별 날짜 제외
 │     ├─ space-assignment-service.ts              #   빈 주차면 선택·조회
 │     ├─ reservation-access-service.ts            #   예약 접근 토큰 발급/검증
-│     ├─ reservation-lookup-service.ts            #   성명·차량번호 조회 → 목록 → 단기 토큰 발급
+│     ├─ reservation-lookup-service.ts            #   로그인 회원/직원 소유 예약의 접근 토큰 발급(마이페이지 진입용)
+│     ├─ company-vehicle-service.ts               #   법인 공용 차량 자산 등록/수정/활성화 전환
+│     ├─ company-vehicle-trip-service.ts          #   법인차량 운행 신청/승인/반려/취소/입출차/사후 정정
 │     ├─ admin-auth-service.ts                    #   관리자 로그인/잠금/권한 확인
 │     ├─ user-auth-service.ts                     #   회원 가입/로그인/프로필
 │     ├─ employee-auth-service.ts                 #   직원(사번) 로그인/세션 발급
 │     ├─ employee-user-service.ts                 #   관리자용 직원 계정 조회/개별 생성/활성화 전환
 │     ├─ employee-directory-service.ts            #   "당사 담당자" 이름+전화번호 검증(verifyHostEmployee) · 관리자 전용 검색 · 실존 검증
-│     ├─ exit-reminder-service.ts                 #   출차 알림 / 자동 NO_SHOW
+│     ├─ uniportal-sync-service.ts                #   그룹웨어(유니포탈) 직원 명부 동기화
+│     ├─ exit-reminder-service.ts                 #   출차 알림 / 반복 예약 입출차 자동 처리
 │     ├─ entry-reminder-service.ts                #   입차 예정 알림(당사 담당자)
-│     └─ audit-service.ts  dashboard-service.ts …
+│     └─ audit-service.ts  dashboard-service.ts  settings-service.ts …
 ├─ tests/
 │  ├─ unit/                                       # 단위 테스트 (DB 불필요)
 │  ├─ ui/                                         # 컴포넌트 테스트 (jsdom)
@@ -1244,6 +1259,9 @@ npx tsx scripts/import-operators.ts <JSON 경로>
 | `recurring_reservation_schedules` | 반복 예약(정기 주차 배정) 시리즈 — 기간·요일·시간대·승인/메일 생략 설정 (4-5, 18절 참고)                                         |
 | `reservation_access_tokens`       | 예약 조회 토큰 **해시만** 저장                                                                                                   |
 | `parking_reservation_status_logs` | 상태 변경 이력                                                                                                                   |
+| `company_vehicles`                | 법인 공용 차량 자산 (차량번호·차종·고정 배정 주차면·활성 여부)                                                                   |
+| `company_vehicle_trips`           | 법인차량 운행 신청 (신청→승인/반려→입출차, 방문 예약과 같은 상태값 재사용)                                                       |
+| `company_vehicle_trip_status_logs`| 법인차량 운행 신청 상태 변경 이력                                                                                                |
 | `admin_notification_emails`       | 관리자 알림 수신자 및 수신 항목                                                                                                  |
 | `email_send_logs`                 | 이메일 발송 이력 (+ 멱등성 키)                                                                                                   |
 | `audit_logs`                      | 감사 로그 (개인정보 열람 포함)                                                                                                   |
@@ -1258,8 +1276,10 @@ npx tsx scripts/import-operators.ts <JSON 경로>
 - 회원 로그인 시도는 별도 로그 테이블 없이 계정의 `login_fail_count`/`locked_until` 과
   IP 레이트 리밋으로 처리합니다.
 
-> **만들지 않는 테이블**: `vehicles`.
-> 차량번호는 `parking_reservations.vehicle_no`에 정규화되어 직접 저장됩니다.
+> **방문객 차량은 별도 테이블을 만들지 않습니다.** 차량번호는 `parking_reservations.vehicle_no`에
+> 정규화되어 직접 저장됩니다(단, **법인 소유 차량은 다릅니다** — `company_vehicles`가 실제
+> 차량 자산 테이블로 존재합니다. 회사가 보유·관리하는 고정 자산이라 방문객 차량번호처럼
+> 예약마다 흩어져 저장하면 안 되기 때문입니다).
 > `parking_reservations.visitor_user_id`는 **방문객 회원이 로그인 상태로 본인 명의로 신청한
 > 경우에만** 채워지며, 비로그인/직원 신청은 `NULL`입니다.
 > `parking_reservations.employee_user_id`는 **직원이 관여한 예약**(본인 방문 또는 담당
@@ -1342,7 +1362,7 @@ https://accounts.google.com/o/oauth2/v2/auth
 
 | Scope                                        | 권한           | 사용처             |
 | -------------------------------------------- | -------------- | ------------------ |
-| `https://www.googleapis.com/auth/gmail.send` | 메일 발송 전용 | 8종 알림 메일 발송 |
+| `https://www.googleapis.com/auth/gmail.send` | 메일 발송 전용 | 방문 예약 8종 + 법인차량 신규신청 등 알림 메일 발송 |
 
 메일 **읽기·삭제·수정 권한은 요청하지 않습니다.** 최소 권한 원칙에 따라 `gmail.send`만 사용하세요.
 
@@ -1518,6 +1538,24 @@ Gmail 을 제거할 수 있다.
 | `SEED_ADMIN_NOTIFICATION_EMAILS`       | 관리자 알림 수신 이메일 (쉼표 구분)                                                                                              |
 | `OPERATOR_IMPORT_DEFAULT_PASSWORD`     | `scripts/import-operators.ts`로 신규 관리자 계정 생성 시 쓰는 임시 비밀번호 — **반드시 변경** (12-4절 "필수 값 부트스트랩" 참고) |
 
+### 그룹웨어(유니포탈) 연동 (선택)
+
+관리자 화면 [등록 직원 관리] → [그룹웨어 명부 갱신]이 쓰는 **읽기 전용** 접속 정보입니다.
+값이 하나라도 비어 있으면 그 기능 자체가 화면에 나타나지 않습니다(개발 환경에서는 비워 둬도
+됩니다). 조회만 하며, 그룹웨어 DB 에는 절대 쓰지 않습니다(사번은 결재·근태 등 그룹웨어
+전반이 쓰는 원본 값이라 주차 시스템이 고치면 추적이 불가능해집니다).
+
+| 변수                       | 기본값     | 설명                                                       |
+| -------------------------- | ---------- | ------------------------------------------------------------ |
+| `UNIPORTAL_DB_HOST`        | (없음)     | 그룹웨어 MS SQL 서버 호스트                                 |
+| `UNIPORTAL_DB_PORT`        | `1433`     | 포트                                                        |
+| `UNIPORTAL_DB_NAME`        | (없음)     | 데이터베이스명                                              |
+| `UNIPORTAL_DB_USER`        | (없음)     | 읽기 전용 계정                                              |
+| `UNIPORTAL_DB_PASSWORD`    | (없음)     | 비밀번호                                                    |
+| `UNIPORTAL_DB_ENCRYPT`     | `false`    | 구형 사내 서버라 비암호화 연결(기존 ASP 연동과 동일 조건)   |
+| `UNIPORTAL_DB_TRUST_CERT`  | `true`     | 자체 서명 인증서 신뢰 여부                                  |
+| `UNIPORTAL_DB_TIMEOUT_MS`  | `15000`    | 연결 타임아웃(ms)                                           |
+
 ---
 
 ## 15. 관리자 초기 계정 및 비밀번호 변경 방법
@@ -1539,7 +1577,7 @@ Gmail 을 제거할 수 있다.
 ### 비밀번호 변경 절차
 
 1. <http://localhost:3000/admin/login> 에서 초기 계정으로 로그인
-2. 좌측 사이드바 **[사용자 관리] → [관리자 계정]**
+2. 좌측 사이드바 **[시스템 관리] → [관리자 계정]**
 3. 실제 담당자 계정을 새로 생성
 4. 새 계정으로 다시 로그인한 뒤, 초기 `admin` 계정을 **비활성화**
 
@@ -1660,8 +1698,6 @@ npm run test:integration
 | 16  | 회원 로그인 실패 5회 시 계정 잠금                                                       |
 | 17  | 내 정보 수정 결과가 자동완성 원본에 반영                                                |
 | 18  | 로그인 회원의 예약만 내 예약 목록에 표시                                                |
-| 19  | 성명·차량번호 AND 조건으로 조회 성공 (단기 토큰 발급 확인)                              |
-| 20  | 성명·차량번호가 그 예약과 불일치하면 토큰 미발급                                        |
 
 ### 16-3. E2E 테스트
 
@@ -1699,9 +1735,8 @@ npx playwright test --ui
 - 방문객 예약 신청 → 관리자 로그인 → 승인 및 주차면 배정 → 상세 확인
 - 이메일 링크로 예약 조회 → **승인 대기 상태에서 신청자 수정** → 관리자 승인
   → 승인 후에는 신청자 수정 버튼이 사라지고 **관리자가 상세 화면에서 수정**
-- 성명·차량번호로 조회 → 목록에서 선택 → 수정
 - 회원가입 → 신청 폼 자동완성 → 신청 → 마이페이지 내 예약 목록
-- 미인증 접근 차단(관리자/회원 각각의 로그인 페이지로 이동), 잘못된 토큰·불일치 성명/차량번호 차단
+- 미인증 접근 차단(관리자/회원 각각의 로그인 페이지로 이동), 잘못된 토큰 차단
 
 ---
 
@@ -1821,17 +1856,6 @@ curl -X POST http://localhost:3000/api/cron/exit-reminders \
 # → {"success":true,"data":{"targetCount":1,"sentCount":1,"skippedCount":0,"failedCount":0}}
 ```
 
-### 자동 NO_SHOW 처리 (선택)
-
-예약 종료 후에도 입차 기록이 없는 `APPROVED` 예약을 자동으로 `NO_SHOW` 처리하는 작업입니다.
-**MVP에서는 스케줄에 등록하지 않는 것을 기본**으로 하며(관리자가 화면에서 직접 처리),
-필요할 때 cron에 추가하면 됩니다.
-
-```
-POST /api/cron/auto-no-show?graceMinutes=30
-Authorization: Bearer <CRON_SECRET>
-```
-
 ### 반복 예약 입출차 자동 처리
 
 반복 예약(정기 주차 배정) 시리즈마다 "입출차 자동 처리" 옵션을 켤 수 있습니다. 켜져 있으면
@@ -1888,8 +1912,6 @@ Authorization: Bearer <CRON_SECRET>
 
 | 메서드 | 경로                                      | 설명                                               |
 | ------ | ----------------------------------------- | -------------------------------------------------- |
-| `POST` | `/api/reservations/lookup`                | 성명+차량번호(AND) 로 예약 목록 조회               |
-| `POST` | `/api/reservations/lookup/access`         | 목록에서 고른 예약을 재검증 후 단기 접근 경로 발급 |
 | `GET`  | `/api/reservations/access/[token]`        | 보안 토큰 기반 예약 조회                           |
 | `PUT`  | `/api/reservations/access/[token]`        | 보안 토큰 기반 예약 수정                           |
 | `POST` | `/api/reservations/access/[token]/cancel` | 보안 토큰 기반 예약 취소                           |
@@ -1897,14 +1919,9 @@ Authorization: Bearer <CRON_SECRET>
 
 > `POST /api/reservations`(방문 예약 신청)는 로그인 필수(회원 API)이므로 이 표에는 없습니다.
 > `POST /api/employees/search`(이름/부서 부분일치 검색)는 명부 노출 위험 때문에 관리자
-> 전용으로 바뀌었습니다 — 아래 "관리자 API" 참고.
-
-`POST /api/reservations/lookup` 은 성명·차량번호가 URL·서버 로그·Referer 에 남지 않도록 GET 대신
-POST 를 사용하고, 일치하는 예약 목록(`reservationId`(내부 식별용, 화면에 노출하지 않음), 방문 일정, 상태)을 돌려줍니다.
-이 응답만으로는 상세에 접근할 수 없습니다 — 신청자가 목록에서 하나를 고르면
-`POST /api/reservations/lookup/access` 가 `reservationId` 와 성명·차량번호를 **다시** 검증해
-`{ "accessPath": "/r/<token>" }` 를 돌려주고, 화면은 이 경로로 이동해 기존 토큰 기반
-조회·수정·취소 흐름을 그대로 사용합니다.
+> 전용입니다 — 아래 "관리자 API" 참고.
+> 예약 조회는 메일로 받은 토큰 링크(`/api/reservations/access/[token]`)나 로그인 후
+> [내 예약 조회](#) 화면으로만 가능합니다.
 
 ### 회원 API (방문 신청에 로그인 필수)
 
@@ -1920,8 +1937,7 @@ POST 를 사용하고, 일치하는 예약 목록(`reservationId`(내부 식별�
 
 > 내 예약 목록은 별도 API 없이 마이페이지(서버 컴포넌트)에서
 > [`listReservationsForUser()`](src/services/reservation-service.ts) 를 직접 호출합니다
-> (다른 관리자 목록 화면과 동일한 패턴 — 과거에 있던 `GET /api/my/reservations` 는
-> 제거되었습니다).
+> (다른 관리자 목록 화면과 동일한 패턴).
 
 ### 직원 API (`/employee`, 로그인 필수)
 
@@ -1983,7 +1999,12 @@ POST 를 사용하고, 일치하는 예약 목록(`reservationId`(내부 식별�
 | `POST`   | `/api/admin/employees`                           | 시스템 관리자 | 직원 계정 개별 추가 (사번·성명·이메일·소속 부서 필수, 저장 즉시 사번 로그인 가능) |
 | `GET`    | `/api/admin/employees/[id]`                      | 시스템 관리자 | 직원 성명·이메일·차량번호 조회 (반복 예약 등록 폼 자동완성용)                     |
 | `PUT`    | `/api/admin/employees/[id]`                      | 시스템 관리자 | 직원 계정 활성·비활성 전환                                                        |
-| `POST`   | `/api/admin/employees/bulk-status`               | 시스템 관리자 | 선택한 직원 계정 일괄 활성화/비활성화                                             |
+| `POST`   | `/api/admin/employees/bulk-status`                | 시스템 관리자 | 선택한 직원 계정 일괄 활성화/비활성화                                             |
+| `POST`   | `/api/admin/employees/sync`                      | 시스템 관리자 | 그룹웨어(유니포탈) 명부 동기화 미리보기/반영 (`UNIPORTAL_DB_*` 설정 필요, 14절 참고) |
+| `GET`    | `/api/admin/site-users`                          | 관리자        | 방문객 회원 계정 목록                                                             |
+| `PUT`    | `/api/admin/site-users/[id]`                     | 관리자        | 회원 계정 활성·비활성 전환                                                        |
+| `POST`   | `/api/admin/site-users/bulk-status`               | 관리자        | 선택한 회원 계정 일괄 활성화/비활성화                                             |
+| `POST`   | `/api/admin/site-users/[id]/reset-password`      | 관리자        | 회원 비밀번호 초기화                                                              |
 | `GET`    | `/api/admin/email-logs`                          | 시스템 관리자 | 이메일 발송 이력                                                                  |
 | `POST`   | `/api/admin/email-logs/[id]/resend`              | 시스템 관리자 | 발송 실패 건 원문 그대로 재발송                                                   |
 
@@ -1992,11 +2013,9 @@ POST 를 사용하고, 일치하는 예약 목록(`reservationId`(내부 식별�
 > 관리자만 접근할 수 있고, 위 표에 별도 표기가 없는 나머지 항목은 두 역할 모두
 > 접근할 수 있습니다.
 >
-> 대시보드·주차 평면도·감사 로그는 별도 API 없이 관리자 페이지(서버 컴포넌트)에서
-> [`dashboard-service.ts`](src/services/dashboard-service.ts)·
-> [`log-query-service.ts`](src/services/log-query-service.ts) 를 직접 호출합니다(다른 관리자
-> 목록/상세 화면과 동일한 패턴 — 과거에 있던 `GET /api/admin/dashboard`,
-> `GET /api/admin/audit-logs` 는 제거되었습니다).
+> 대시보드·주차 평면도는 별도 API 없이 관리자 페이지(서버 컴포넌트)에서
+> [`dashboard-service.ts`](src/services/dashboard-service.ts) 를 직접 호출합니다(다른 관리자
+> 목록/상세 화면과 동일한 패턴). 감사 로그는 기록만 되고 조회 화면·API는 없습니다(19절 참고).
 
 ### 반복 예약(정기 주차 배정) 관리 API
 
@@ -2013,13 +2032,35 @@ POST 를 사용하고, 일치하는 예약 목록(`reservationId`(내부 식별�
 > [`recurring-reservation-service.ts`](src/services/recurring-reservation-service.ts) 를 직접
 > 호출합니다(다른 관리자 목록/상세 화면과 동일한 패턴).
 
+### 법인차량 API
+
+법인 공용 차량 자산 관리는 관리자 전용(양쪽 역할 모두 접근 가능), 운행 신청은 직원이
+직접 올리고 관리자가 승인/처리합니다.
+
+| 메서드   | 경로                                              | 권한   | 설명                                                        |
+| -------- | -------------------------------------------------- | ------ | ------------------------------------------------------------- |
+| `GET`    | `/api/admin/company-vehicles`                     | 관리자 | 법인차량 자산 목록                                           |
+| `POST`   | `/api/admin/company-vehicles`                     | 관리자 | 법인차량 등록                                                |
+| `PATCH`  | `/api/admin/company-vehicles/[id]`                | 관리자 | 법인차량 정보 수정·활성/비활성 전환                          |
+| `DELETE` | `/api/admin/company-vehicles/[id]`                | 관리자 | 법인차량 삭제                                                |
+| `GET`    | `/api/admin/company-vehicle-trips`                | 관리자 | 운행 신청 목록 (`?vehicleId=`로 특정 차량만 필터)             |
+| `GET`    | `/api/admin/company-vehicle-trips/[id]`           | 관리자 | 운행 신청 상세                                               |
+| `PATCH`  | `/api/admin/company-vehicle-trips/[id]`           | 관리자 | 신청 내용·배정 차량·실제 입출차 시각 사후 정정               |
+| `POST`   | `/api/admin/company-vehicle-trips/[id]/approve`   | 관리자 | 승인 + 차량 배정                                              |
+| `POST`   | `/api/admin/company-vehicle-trips/[id]/reject`    | 관리자 | 반려                                                          |
+| `POST`   | `/api/admin/company-vehicle-trips/[id]/cancel`    | 관리자 | 승인 완료 신청 취소 (배정 차량 해제)                          |
+| `POST`   | `/api/admin/company-vehicle-trips/[id]/entry`     | 관리자 | 출차 처리 (법인차량은 방문 예약과 입출차 방향이 반대)         |
+| `POST`   | `/api/admin/company-vehicle-trips/[id]/exit`      | 관리자 | 입차 처리                                                     |
+| `POST`   | `/api/admin/company-vehicle-trips/[id]/mileage`   | 관리자 | 운행일지 주행거리(계기판/수동 입력) 기록                      |
+| `POST`   | `/api/company-vehicle-trips`                      | 직원   | 법인차량 운행 신청 (전화번호 등록 필수)                        |
+| `POST`   | `/api/company-vehicle-trips/[id]/cancel`          | 직원   | 본인 신청 취소 (승인 대기 상태에서만)                          |
+
 ### 스케줄러 API
 
 | 메서드       | 경로                          | 인증                   |
 | ------------ | ----------------------------- | ---------------------- |
 | `POST`/`GET` | `/api/cron/exit-reminders`    | `Bearer <CRON_SECRET>` |
 | `POST`/`GET` | `/api/cron/entry-reminders`   | `Bearer <CRON_SECRET>` |
-| `POST`       | `/api/cron/auto-no-show`      | `Bearer <CRON_SECRET>` |
 | `POST`/`GET` | `/api/cron/auto-entry-exit`   | `Bearer <CRON_SECRET>` |
 | `POST`/`GET` | `/api/cron/audit-log-cleanup` | `Bearer <CRON_SECRET>` |
 
@@ -2091,8 +2132,6 @@ POST 를 사용하고, 일치하는 예약 목록(`reservationId`(내부 식별�
 > **이중주차 안내는 승인 메일에 합쳐 보냅니다.**
 > 배정된 주차면이 `DOUBLE` 이면 승인 메일의 제목·본문이 이중주차용으로 바뀌고
 > 차량 이동 안내가 유의사항 맨 앞에 들어갑니다. 발송은 별도 메일 없이 **한 통**입니다.
-> (과거에는 `DOUBLE_PARKING_NOTICE` 라는 별도 이메일 종류가 있었으나, 이 안내로 통합되며
-> `EmailType` enum에서도 완전히 제거되었습니다.)
 
 모든 메일은 **HTML과 Text 본문을 함께** 제공합니다. HTML 본문 상단에는 회사 로고
 (`public/synopex-logo.png`, `APP_BASE_URL` 기준 절대 URL로 삽입)가 표시됩니다.
@@ -2108,7 +2147,7 @@ POST 를 사용하고, 일치하는 예약 목록(`reservationId`(내부 식별�
 - 세션 쿠키: `HttpOnly`, `SameSite=Lax`, 운영에서는 `Secure`(HTTPS 전제), 만료 8시간(설정 가능).
 - 존재하지 않는 계정도 더미 해시로 비교해 **응답 시간 차이로 계정 존재 여부가 노출되지 않습니다.**
 - 로그인 실패 5회 → 계정 10분 잠금 (관리자·회원 동일). 관리자 시도는 `admin_login_attempts`에 기록됩니다.
-- IP 기준 레이트 리밋을 로그인·가입·예약 신청·성명·차량번호 조회·토큰 조회에 적용합니다.
+- IP 기준 레이트 리밋을 로그인·가입·예약 신청·토큰 조회에 적용합니다.
 - 미인증 접근은 `proxy`가 로그인 페이지로 리다이렉트하고, 각 페이지/Route Handler에서
   `requireActiveAdmin()` / `requireActiveUser()`로 **다시 검증**합니다(세션 발급 후 비활성화된 계정 차단).
 
@@ -2124,49 +2163,18 @@ POST 를 사용하고, 일치하는 예약 목록(`reservationId`(내부 식별�
 
 ### 예약 조회 경로와 접근 토큰
 
-예약 조회 경로는 두 가지이며, **둘 다 최종적으로는 같은 보안 토큰 화면(`/r/<token>`)으로 수렴**합니다.
+예약 조회는 안내 메일에 담긴 보안 토큰 링크(`/r/<token>`) 또는 로그인 후 내 예약 목록으로만
+가능합니다. **토큰을 아는 사람만 조회할 수 있으며**, 성명·차량번호 같은 개인정보만으로
+타인의 예약을 조회하는 경로는 없습니다.
 
-| 경로               | 토큰 발급 시점                                      | 토큰 유효시간   |
-| ------------------ | --------------------------------------------------- | --------------- |
-| 안내 메일 링크     | 메일 발송 시                                        | 방문 종료 + 7일 |
-| 성명·차량번호 입력 | 목록에서 예약을 고르고 성명·차량번호 재검증 통과 시 | **2시간**       |
+| 경로           | 토큰 발급 시점 | 토큰 유효시간   |
+| -------------- | -------------- | --------------- |
+| 안내 메일 링크 | 메일 발송 시   | 방문 종료 + 7일 |
 
 - 토큰은 256비트 난수(base64url)이며, DB에는 `HMAC-SHA256(RESERVATION_TOKEN_SECRET, 원본)` **해시만** 저장합니다.
   단순 SHA-256이 아닌 HMAC을 쓰는 이유는, DB가 유출되어도 서버 비밀키 없이는 오프라인 대입이 불가능하기 때문입니다.
 - 토큰 1개는 **예약 1건**에만 매핑되며, 만료·비활성화 시 즉시 무효화됩니다.
 - 존재하지 않는 토큰과 만료된 토큰의 **오류 메시지가 동일**해 열거 공격 단서를 주지 않습니다.
-
-성명·차량번호 조회는 두 단계로 나뉩니다.
-
-1. `POST /api/reservations/lookup` — 성명 + 차량번호(**AND** 조건)로 일치하는 예약을 최대 20건
-   찾아 `reservationId`(내부 식별용, 화면에 노출하지 않음), 방문 일정, 상태만 돌려줍니다. **이 시점에는 토큰을
-   발급하지 않습니다.**
-2. `POST /api/reservations/lookup/access` — 목록에서 고른 `reservationId`를 성명·차량번호와
-   함께 다시 보내면, 그 예약과 실제로 일치하는지 **한 번 더 검증한 뒤** 토큰을 내줍니다. 1단계
-   응답의 `reservationId`를 다른 값으로 바꿔 보내는 시도를 막기 위한 재검증입니다.
-
-#### ⚠ 성명·차량번호만으로 조회할 때의 위험과 완화책
-
-과거에는 예약번호(`PK-YYYYMMDD-XXXXXX`, 혼동 문자를 제외한 32자 알파벳 6자리 · 약 2^30 조합) 하나로
-조회했습니다. 지금은 예약번호를 몰라도 조회할 수 있도록 **성명 + 차량번호(AND)** 로 바꿨는데, 이
-조합은 예약번호보다 **엔트로피가 낮고 추측하기 쉽습니다** — 차량번호는 주차장에 세워진 차만 봐도
-알 수 있고, 같은 방문객이 여러 번 방문했다면 성명도 알려져 있을 수 있습니다. 즉 **성명·차량번호를
-아는(또는 맞힌) 사람은 그 조합으로 신청된 예약의 방문 일정·상태를 볼 수 있고**, 조회 목록에서
-골라 들어가면 이메일 등 상세 개인정보까지 열람할 수 있습니다. 이를 감수하는 대신 아래를
-적용했습니다.
-
-- `POST /api/reservations/lookup` 에 **IP당 10회 / 10분**, `POST /api/reservations/lookup/access` 에
-  **IP당 20회 / 10분** 레이트 리밋 (대입 방어의 핵심)
-- 목록 조회 자체는 토큰을 주지 않고, 상세 접근 직전에 성명·차량번호를 **한 번 더 재검증**
-- 목록 결과를 최근 방문 **최대 20건**으로 제한 (한 조합으로 과거 이력 전체가 쏟아지지 않도록)
-- 조회로 발급되는 토큰의 **유효시간을 2시간으로 제한** (링크가 유출돼도 노출 창이 짧음)
-- 성명·차량번호는 URL이 아닌 **POST 본문**으로 전송 (서버 로그·Referer·브라우저 기록에 남지 않음)
-
-> 더 강한 보호가 필요하면 성명·차량번호에 **이메일 등 3번째 식별자**를 추가하도록
-> `reservationLookupSchema`와 `lookupByNameAndVehicle()` 를 확장하거나, 목록에 보여주는 항목을
-> 더 줄이는 방법을 고려하세요.
-> 여러 인스턴스로 운영한다면 레이트 리밋을 Redis 등 공유 저장소 기반으로 반드시 교체하세요
-> (현재는 프로세스 단위 in-memory 구현이라 인스턴스 수만큼 시도 횟수가 늘어납니다).
 
 #### 토큰 정책: 조회/수정/취소에 동일 토큰 사용
 
@@ -2182,10 +2190,9 @@ POST 를 사용하고, 일치하는 예약 목록(`reservationId`(내부 식별�
 - **링크가 포함된 메일을 보낼 때마다 새 토큰을 발급**합니다(원본을 저장하지 않으므로 재사용 불가).
   이전 토큰은 만료 전까지 유효하게 두어 과거 메일의 링크도 계속 동작합니다.
 
-> 토큰 용도를 구분하는 `token_type`(`VIEW`/`EDIT`/`CANCEL`)과 사용 이력 `last_used_at` 컬럼이
-> 있었지만 제거했습니다. `token_type`은 항상 `VIEW` 하나만 만들어졌고, `last_used_at`은
-> 기록만 하고 읽는 곳이 없어 예약 조회 때마다 쓸모없는 UPDATE 가 나갔습니다.
-> 용도 분리가 필요해지면 그때 컬럼을 추가하는 편이 낫습니다.
+> 토큰에는 용도 구분 컬럼이나 사용 이력 컬럼을 두지 않습니다 — 조회·수정·취소 모두 같은
+> 토큰 하나로 처리되므로 용도를 나눌 필요가 없고, 사용 이력은 읽는 곳이 없으면 예약 조회
+> 때마다 쓸모없는 쓰기만 늘립니다.
 
 ### 개인정보 보호
 
@@ -2211,11 +2218,14 @@ POST 를 사용하고, 일치하는 예약 목록(`reservationId`(내부 식별�
 이 시스템은 마스킹 없이 성명·이메일·차량번호를 표시하므로, **화면 열람 = 개인정보 원문 접근**입니다.
 따라서 변경 행위뿐 아니라 **조회 행위도 반드시 기록**합니다.
 
+> 감사 로그는 `audit_logs` 테이블에 기록만 되며, 관리자 화면에서 열람하는 조회 UI는 없습니다.
+> 필요하면 `audit_logs` 테이블을 DB 클라이언트로 직접 조회하세요.
+
 **기록 대상** — [`src/services/audit-service.ts`](src/services/audit-service.ts) `AUDIT_ACTIONS`
 
 | 구분          | 액션                                                                                                                                                        |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 열람          | 예약 목록 조회 / 예약 상세 개인정보 조회 / 감사 로그 열람                                                                                                   |
+| 열람          | 예약 목록 조회 / 예약 상세 개인정보 조회                                                                                                                    |
 | 예약 상태변경 | 예약 내용 수정 / 승인 / 반려 / 취소(관리자, `APPROVED` 만) / 주차 위치 변경 / 입차 / 출차 / 미방문 처리                                                     |
 | 설정·계정     | 관리자 알림 이메일 변경 / 주차면 생성·수정·비활성화·삭제 / 주차 구역 생성·수정 / 시스템 설정 변경 / 관리자 계정 생성·수정·비활성화 / 관리자 로그인·로그아웃 |
 
@@ -2223,12 +2233,7 @@ POST 를 사용하고, 일치하는 예약 목록(`reservationId`(내부 식별�
 새로고침·페이지 이동마다 행이 쌓이면 감사 로그가 조회 기록으로 도배되어 오히려 점검이 어려워지기
 때문입니다. 상태를 바꾸는 행위는 **절대 묶지 않습니다**.
 
-**화면 기본 필터.** 감사 로그 화면(`log-query-service.ts`)은 **개인정보 열람 기록을 기본으로
-제외**하고 변경 이력만 보여줍니다. `열람 기록 포함` 체크박스(쿼리 `includeViews=1`)로 함께 볼 수
-있습니다. 기록이 조용히 사라지는 일이 없도록, 제외된 건수는 목록 상단에 항상 표시됩니다.
-(제외는 **표시상의 필터일 뿐이며 저장은 그대로 이루어집니다.**)
-
-**접속지 IP.** `audit_logs.ip_address` 에 기록하며 감사 로그 화면의 `IP` 열에 표시합니다.
+**접속지 IP.** `audit_logs.ip_address` 에 기록합니다.
 
 IP 는 요청 헤더에서 읽습니다(`X-Forwarded-For`, `X-Real-IP`, `CF-Connecting-IP`,
 `X-Vercel-Forwarded-For`, `X-Client-IP`, RFC 7239 `Forwarded` 순).
@@ -2287,9 +2292,6 @@ proxy_set_header X-Forwarded-For  $proxy_add_x_forwarded_for;
 - [ ] **리버스 프록시가 `X-Forwarded-For` / `X-Real-IP`를 넣는지 확인** —
       없으면 감사 로그에 프록시 IP만 남고 실제 방문자 IP를 못 남깁니다 (19절 참고)
 - [ ] `EMAIL_PROVIDER`가 `file`/`log`/`mock`이 아닌지, `ALLOW_FILE_EMAIL_PROVIDER`가 비어 있는지 확인
-- [ ] **성명·차량번호 조회 정책 확인** — 성명·차량번호(AND 조건)만으로 신청자 정보가
-      조회된다는 점을 개인정보 담당 부서와 합의했는지, 레이트 리밋이 실제로 동작하는지 확인
-      (19절 참고)
 - [ ] 마스킹이 없으므로 관리자 계정 발급 범위를 실제 담당자로 최소화
 
 ### 권장
@@ -2317,7 +2319,6 @@ proxy_set_header X-Forwarded-For  $proxy_add_x_forwarded_for;
 
 | 우선순위 | 항목                        | 설명                                                                                          |
 | -------- | --------------------------- | --------------------------------------------------------------------------------------------- |
-| 높음     | 자동 NO_SHOW 스케줄링       | `/api/cron/auto-no-show`를 정식 운영 스케줄에 편입                                            |
 | 높음     | 이메일 재발송 배치          | `email_send_logs`의 `FAILED` 건을 백오프 재시도                                               |
 | 높음     | 분산 레이트 리밋            | in-memory → Redis 등 공유 저장소                                                              |
 | 중간     | 관리자 대시보드 통계 확장   | 주간/월간 이용률, 부서별·사업장별 통계, NO_SHOW 비율                                          |
@@ -2328,7 +2329,6 @@ proxy_set_header X-Forwarded-For  $proxy_add_x_forwarded_for;
 | 낮음     | 차량 번호판 인식(LPR) 연동  | 입출차 자동 기록                                                                              |
 | 높음     | 회원 비밀번호 재설정        | 이메일 인증 링크 기반 재설정 (현재는 관리자 문의 또는 DB 조치 필요)                           |
 | 중간     | 회원 이메일 인증            | 가입 시 소유 확인 메일 발송 후 활성화                                                         |
-| 중간     | 예약 조회 3차 인증          | 성명·차량번호 + 이메일 조합으로 강화 (`lookupByNameAndVehicle` 확장)                          |
 | 낮음     | 사내 SSO 연동               | 관리자·회원 로그인에 사내 계정 연동 (비로그인 신청은 계속 유지)                               |
 | 낮음     | 다국어 지원                 | 영문 UI/메일 템플릿                                                                           |
 
