@@ -15,8 +15,6 @@ export const MAP_IMAGE_MIME_TYPES = [
   'image/svg+xml',
 ] as const;
 
-export const MAP_IMAGE_ACCEPT = MAP_IMAGE_MIME_TYPES.join(',');
-
 export function isAllowedMapImageType(mimeType: string): boolean {
   return (MAP_IMAGE_MIME_TYPES as readonly string[]).includes(mimeType);
 }
@@ -27,13 +25,4 @@ export function mapImageTypeMessage(): string {
 
 export function mapImageSizeMessage(): string {
   return `도면 파일은 ${Math.round(MAP_IMAGE_MAX_BYTES / 1024 / 1024)}MB 이하만 올릴 수 있습니다.`;
-}
-
-/**
- * 도면 이미지를 내려주는 경로.
- * updatedAt 을 쿼리에 붙여 도면을 바꿨을 때 브라우저 캐시가 남지 않게 한다.
- */
-export function buildMapImageUrl(areaId: number, updatedAt: Date | null): string {
-  const version = updatedAt ? updatedAt.getTime() : 0;
-  return `/api/admin/parking-areas/${areaId}/map?v=${version}`;
 }

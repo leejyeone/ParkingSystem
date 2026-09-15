@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { FormField, inputClassName } from '@/components/ui/form-field';
+import { MAX_SCHEDULE_DAYS } from '@/domain/recurring-schedule-rules';
 import { apiRequest } from '@/lib/client/api-client';
 
 const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -203,7 +204,7 @@ export function RecurringScheduleEditForm({
                 className={inputClassName(Boolean(fieldErrors.endDate))}
                 value={endDate}
                 min={startDate || undefined}
-                max={startDate ? addDays(startDate, 30) : undefined}
+                max={startDate ? addDays(startDate, MAX_SCHEDULE_DAYS - 1) : undefined}
                 onChange={(event) => setEndDate(event.target.value)}
               />
             </FormField>

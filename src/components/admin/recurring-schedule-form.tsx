@@ -9,6 +9,7 @@ import {
 } from '@/components/reservation/employee-search-select';
 import { Alert } from '@/components/ui/alert';
 import { FormField, inputClassName } from '@/components/ui/form-field';
+import { MAX_SCHEDULE_DAYS } from '@/domain/recurring-schedule-rules';
 import { apiRequest } from '@/lib/client/api-client';
 import { normalizeVehicleNo } from '@/lib/vehicle';
 
@@ -25,9 +26,6 @@ type EmployeeProfile = {
 const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 /** 평일(월~금)만 기본으로 켜 둔다 — 가장 흔한 사용 패턴이다. */
 const DEFAULT_WEEKDAYS = [false, true, true, true, true, true, false];
-
-/** 반복 예약 최대 기한(1개월 = 31일). 종료일 입력의 `max` 속성을 계산하는 데 쓴다. */
-const MAX_SCHEDULE_DAYS = 31;
 
 function addDays(dateStr: string, days: number): string {
   const [y, m, d] = dateStr.split('-').map(Number);

@@ -7,6 +7,7 @@ import {
   ReservationStatus,
 } from '@prisma/client';
 
+import { MAX_SCHEDULE_DAYS } from '@/domain/recurring-schedule-rules';
 import { checkOperatingHours, checkVisitRange } from '@/domain/reservation-rules';
 import { assertTransition } from '@/domain/reservation-status';
 import { formatKstDate, zonedInputToUtc } from '@/lib/datetime';
@@ -34,9 +35,6 @@ import { findConflictingReservation } from '@/services/space-assignment-service'
  * 행에 대해 reservation-service.ts 의 기존 로직을 그대로 쓴다 — 이 서비스는 시리즈
  * 생성/조회/개별 날짜 제외/전체 취소만 다룬다.
  */
-
-/** 한 시리즈가 커버할 수 있는 최대 기간(일) = 1개월. 종료일은 항상 이 안에 들어야 한다. */
-const MAX_SCHEDULE_DAYS = 31;
 
 const RECURRING_OCCURRENCE_WITH_SPACES = {
   assignedSpace: { select: { spaceId: true, spaceCode: true, spaceType: true } },

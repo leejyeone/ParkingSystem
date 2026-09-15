@@ -19,6 +19,13 @@ import { getSystemSettings } from '@/services/settings-service';
  * 상태 로그·감사 로그 패턴은 방문 예약과 동일하게 재사용한다.
  */
 
+/** 차량 배정이 의미를 갖는(승인 절차를 거친) 상태. */
+const VEHICLE_ASSIGNABLE_STATUSES: ReservationStatus[] = [
+  ReservationStatus.APPROVED,
+  ReservationStatus.PARKING,
+  ReservationStatus.EXITED,
+];
+
 const TRIP_DETAIL_INCLUDE = {
   employee: { select: { employeeUserId: true, name: true, email: true, departmentName: true } },
   assignedVehicle: { select: { vehicleId: true, vehicleNo: true } },
@@ -481,10 +488,31 @@ export async function updateCompanyVehicleTripDetails(
       }
     }
 
-    if (
-      params.assignedVehicleId !== null &&
-      params.assignedVehicleId !== current.assignedVehicleId
-    ) {
+    const vehicleChanged = params.assignedVehicleId !== current.assignedVehicleId;
+    const timeChanged =
+      params.requestStartAt.getTime() !== current.requestStartAt.getTime() ||
+      params.requestEndAt.getTime() !== current.requestEndAt.getTime();
+
+    if (params.assignedVehicleId !== null && (vehicleChanged || timeChanged)) {
+      // 차량 배정은 승인 절차를 거친 상태(APPROVED/PARKING/EXITED)에서만 의미가 있다 —
+      // REQUESTED/REJECTED/CANCELLED 건에 이 경로로 차량을 억지로 넣으면 승인을 거치지
+      // 않은 배정이 생긴다. changeAssignedSpace(방문 예약의 주차면 재배정)가 상태를
+      // 제한하는 것과 같은 이유다.
+      if (!VEHICLE_ASSIGNABLE_STATUSES.includes(current.tripStatus)) {
+        throw new ConflictError(
+          '승인 완료 이후(승인/입차/입출차 완료) 상태의 신청만 배정 차량을 변경할 수 있습니다.',
+          'VEHICLE_CHANGE_NOT_ALLOWED',
+        );
+      }
+
+      // approveCompanyVehicleTrip과 동일하게 차량 행을 먼저 잠근다 — 잠그지 않으면 두
+      // 관리자가 거의 동시에 같은 차량을 서로 다른(겹치는) 시간대로 재배정할 때 서로의
+      // 커밋 전 상태를 못 보고 둘 다 findConflictingTrip을 통과해, 한 차량이 겹치는
+      // 시간대에 이중 배정될 수 있다. 차량은 그대로 두고 시간만 바꾼 경우도 같은 문제가
+      // 생길 수 있어(다른 트립이 새 시간대를 먼저 차지했을 수 있음) 차량 변경 여부와
+      // 무관하게 시간이 바뀌면 항상 다시 검증한다.
+      await tx.$queryRaw`SELECT vehicle_id FROM company_vehicles WHERE vehicle_id = ${params.assignedVehicleId} FOR UPDATE`;
+
       const vehicle = await tx.companyVehicle.findFirst({
         where: { vehicleId: params.assignedVehicleId, isActive: true },
         select: { vehicleId: true },

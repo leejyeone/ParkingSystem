@@ -124,56 +124,6 @@ export async function runExitReminderJob(now: Date = new Date()): Promise<ExitRe
 }
 
 /**
- * 예약 종료 시간이 지났는데도 입차하지 않은 APPROVED 예약을 NO_SHOW 로 전환한다.
- *
- * MVP 에서는 자동 실행하지 않으며(관리자가 화면에서 직접 처리),
- * 추후 스케줄러에서 호출만 하면 되도록 서비스 함수로 분리해 둔다.
- */
-export async function runAutoNoShowJob(
-  now: Date = new Date(),
-  graceMinutes = 30,
-): Promise<{ processedCount: number }> {
-  // 입·출차 관리를 쓰지 않는 동안에는 입차 기록이 없는 것이 정상이므로 자동 처리하지 않는다.
-  const settings = await getSystemSettings();
-  if (!settings.entryExitManagementEnabled) {
-    logger.info('입·출차 관리가 비활성화되어 자동 NO_SHOW 처리를 건너뜁니다.');
-    return { processedCount: 0 };
-  }
-
-  const threshold = new Date(now.getTime() - graceMinutes * 60_000);
-
-  const targets = await prisma.parkingReservation.findMany({
-    where: {
-      reservationStatus: ReservationStatus.APPROVED,
-      visitEndAt: { lt: threshold },
-      actualEntryAt: null,
-    },
-    select: { reservationId: true },
-  });
-
-  for (const target of targets) {
-    await prisma.$transaction(async (tx) => {
-      await tx.parkingReservation.update({
-        where: { reservationId: target.reservationId },
-        data: { reservationStatus: ReservationStatus.NO_SHOW, assignedSpaceId: null },
-      });
-      await tx.parkingReservationStatusLog.create({
-        data: {
-          reservationId: target.reservationId,
-          previousStatus: ReservationStatus.APPROVED,
-          currentStatus: ReservationStatus.NO_SHOW,
-          changedByType: ChangedByType.SYSTEM,
-          changeReason: `예약 종료 후 ${graceMinutes}분간 입차 기록 없음(자동 처리)`,
-        },
-      });
-    });
-  }
-
-  logger.info('자동 NO_SHOW 처리 완료', { processedCount: targets.length });
-  return { processedCount: targets.length };
-}
-
-/**
  * 반복 예약 시리즈에서 "입출차 자동 처리"(autoEntryExitEnabled)를 켠 occurrence 를
  * 예정 시각(visitStartAt/visitEndAt)에 맞춰 자동으로 입차/출차 처리한다.
  *
