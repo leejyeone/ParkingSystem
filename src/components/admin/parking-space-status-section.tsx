@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 import { formatKstTime } from '@/lib/datetime';
 import type { SpaceOccupancyStatus, SpaceStatusRow } from '@/services/dashboard-service';
-import { CompanyVehicleBadge, SpaceTypeBadge, StatusBadge } from '@/components/ui/status-badge';
+import { CompanyVehicleBadge, SpaceTypeBadge } from '@/components/ui/status-badge';
 
 const SPACE_STATUS_LABEL: Record<SpaceOccupancyStatus, string> = {
   EMPTY: '비어 있음',
@@ -130,7 +130,11 @@ function SpaceRow({ space, nowMs }: { space: SpaceStatusRow; nowMs: number }) {
                 >
                   {formatKstTime(trip.requestStartAt)} ~ {formatKstTime(trip.requestEndAt)}
                 </Link>
-                <StatusBadge status={trip.tripStatus} />
+                {trip.tripStatus === 'PARKING' && (
+                  <span className={`badge ${SPACE_STATUS_CLASS.IN_USE}`}>
+                    {SPACE_STATUS_LABEL.IN_USE}
+                  </span>
+                )}
               </li>
             ))}
           </ul>

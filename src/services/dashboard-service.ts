@@ -295,8 +295,11 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
   }
   const areas = [...areaMap.values()];
 
-  // 사용량 집계는 실제로 쓸 수 있는(활성) 주차면만 센다.
-  const activeSpaces = spaceRows.filter((row) => row.isActive);
+  // 사용량 집계는 실제로 쓸 수 있는(활성) 주차면만 센다. 법인차량이 배정된 자리는 다른 차가
+  // 절대 못 쓰므로(방문 예약이 잡히지 않아 status 가 항상 EMPTY) — 다른 차가 쓸 수 있는
+  // 여유 자리가 아니라 "사용 불가"에 가깝다. 주차 평면도 범례가 이미 같은 원칙으로 법인차량
+  // 자리를 사용가능/예약·사용중/비활성 어디에도 넣지 않는 것과 맞춰, 여기서도 아예 뺀다.
+  const activeSpaces = spaceRows.filter((row) => row.isActive && !row.companyVehicle);
   const normalSpaces = activeSpaces.filter((row) => row.spaceType === SpaceType.NORMAL);
   const doubleSpaces = activeSpaces.filter((row) => row.spaceType === SpaceType.DOUBLE);
 
