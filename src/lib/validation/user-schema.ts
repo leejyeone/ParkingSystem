@@ -72,14 +72,3 @@ export const siteUserBulkStatusSchema = z.object({
     .enum(AccountStatus)
     .refine((value) => value !== AccountStatus.LOCKED, '활성 또는 비활성만 선택할 수 있습니다.'),
 });
-
-export const reservationLookupSchema = z.object({
-  requesterName: requiredText(50, '성명'),
-  vehicleNo: vehicleNoSchema,
-});
-
-export const reservationLookupAccessSchema = z.object({
-  reservationId: z.coerce.number().int().positive('예약을 다시 선택해 주세요.'),
-  requesterName: requiredText(50, '성명'),
-  vehicleNo: vehicleNoSchema,
-});

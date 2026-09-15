@@ -46,8 +46,6 @@ export const createRecurringScheduleSchema = z
     path: ['dailyEndTime'],
   });
 
-export type CreateRecurringSchedulePayload = z.infer<typeof createRecurringScheduleSchema>;
-
 /** 반복 일정(요일·시간·기간) 수정. 대상 직원·주차면은 바꿀 수 없다. */
 export const updateRecurringScheduleSchema = z
   .object(schedulePatternFields)
@@ -55,8 +53,6 @@ export const updateRecurringScheduleSchema = z
     error: '종료 시간은 시작 시간보다 늦어야 합니다.',
     path: ['dailyEndTime'],
   });
-
-export type UpdateRecurringSchedulePayload = z.infer<typeof updateRecurringScheduleSchema>;
 
 /** 반복 예약 시리즈 중 특정 날짜(occurrence) 하나를 제외(취소)한다. */
 export const skipRecurringOccurrenceSchema = z.object({

@@ -316,16 +316,3 @@ export const emailLogQuerySchema = z.object({
   page: pageSchema,
   pageSize: pageSizeSchema,
 });
-
-export const auditLogQuerySchema = z.object({
-  actionType: z.string().trim().max(50).optional(),
-  targetType: z.string().trim().max(50).optional(),
-  actorAdminId: z.coerce.number().int().positive().optional(),
-  /**
-   * 개인정보 열람 계열 액션은 건수가 많아 기본으로 제외한다.
-   * '1' 을 주면 함께 조회한다.
-   */
-  includeViews: z.literal('1').optional(),
-  page: pageSchema,
-  pageSize: pageSizeSchema,
-});

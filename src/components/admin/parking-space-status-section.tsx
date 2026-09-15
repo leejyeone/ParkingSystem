@@ -4,14 +4,12 @@ import { formatKstTime } from '@/lib/datetime';
 import type { SpaceOccupancyStatus, SpaceStatusRow } from '@/services/dashboard-service';
 import { CompanyVehicleBadge, SpaceTypeBadge } from '@/components/ui/status-badge';
 
-const SPACE_STATUS_LABEL: Record<SpaceOccupancyStatus, string> = {
-  EMPTY: '비어 있음',
+const SPACE_STATUS_LABEL: Record<Exclude<SpaceOccupancyStatus, 'EMPTY'>, string> = {
   RESERVED: '예약',
   IN_USE: '사용 중',
 };
 
-const SPACE_STATUS_CLASS: Record<SpaceOccupancyStatus, string> = {
-  EMPTY: 'bg-surface-hover text-ink-faint',
+const SPACE_STATUS_CLASS: Record<Exclude<SpaceOccupancyStatus, 'EMPTY'>, string> = {
   RESERVED: 'bg-amber-100 text-amber-800',
   IN_USE: 'bg-emerald-100 text-emerald-800',
 };

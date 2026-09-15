@@ -28,8 +28,6 @@ export const createReservationSchema = z.object({
     .refine((value) => value === true, '보안서약서에 동의해 주세요.'),
 });
 
-export type CreateReservationPayload = z.infer<typeof createReservationSchema>;
-
 /**
  * 직원 본인 방문 신청 (로그인 필수). requesterType=EMPLOYEE 고정, 동의 카드 없음.
  * 소속 사업장명은 직원 명부에 없는 값이라 마이페이지에서 자동완성되지 않으면 직접 입력해야
@@ -45,8 +43,6 @@ export const createEmployeeReservationSchema = z.object({
   visitStartAt: zonedDateTimeSchema,
   visitEndAt: zonedDateTimeSchema,
 });
-
-export type CreateEmployeeReservationPayload = z.infer<typeof createEmployeeReservationSchema>;
 
 /**
  * 직원의 방문객 대리 신청 (로그인 필수). requesterType=VISITOR 고정.
@@ -70,10 +66,6 @@ export const createEmployeeProxyReservationSchema = z.object({
     .refine((value) => value === true, '방문객 보안서약서 동의 확인이 필요합니다.'),
 });
 
-export type CreateEmployeeProxyReservationPayload = z.infer<
-  typeof createEmployeeProxyReservationSchema
->;
-
 /**
  * 신청자 수정 스키마.
  * 이메일은 본인 확인의 기준이자 토큰 발송지이므로 수정 대상에서 제외한다.
@@ -88,8 +80,6 @@ export const updateReservationSchema = z.object({
   visitStartAt: zonedDateTimeSchema,
   visitEndAt: zonedDateTimeSchema,
 });
-
-export type UpdateReservationPayload = z.infer<typeof updateReservationSchema>;
 
 export const cancelReservationSchema = z.object({
   cancelReason: requiredText(500, '취소 사유'),
