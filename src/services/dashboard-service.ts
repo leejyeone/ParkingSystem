@@ -65,6 +65,18 @@ export type SpaceStatusRow = {
 
 export type HourlyUsage = { hour: number; usedCount: number };
 
+/** 대시보드 "법인차량 승인 대기 목록" 카드용 — 날짜와 무관한 전체 대기 신청 한 건. */
+export type PendingCompanyVehicleTripItem = {
+  tripId: number;
+  tripNo: string | null;
+  destination: string;
+  reason: string;
+  requesterName: string;
+  departmentName: string;
+  requestStartAt: Date;
+  requestEndAt: Date;
+};
+
 export type DashboardData = {
   date: string;
   /** 주차면 배정 기능 사용 여부. false 면 화면에서 주차면 관련 영역을 감춘다. */
@@ -89,6 +101,8 @@ export type DashboardData = {
   failedEmailCount: number;
   /** 승인 대기 중인 법인차량 신청 건수(날짜 무관, 전체). */
   companyVehiclePendingCount: number;
+  /** 승인 대기 중인 법인차량 신청 목록(날짜 무관, 전체, 운행 예정 임박순). */
+  companyVehiclePendingTrips: PendingCompanyVehicleTripItem[];
   spaces: SpaceStatusRow[];
   /** 구역별로 묶은 주차면 현황. 대시보드 평면도 카드의 층 탭에서 쓴다. */
   areas: { areaId: number; areaCode: string; areaName: string; spaces: SpaceStatusRow[] }[];
@@ -117,7 +131,7 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
     pendingReservations,
     pendingTotalCount,
     failedEmailCount,
-    companyVehiclePendingCount,
+    companyVehiclePendingTrips,
   ] = await Promise.all([
       prisma.parkingSpace.findMany({
         // 비활성 주차면도 도면에 회색으로 표시해야 하므로 함께 가져온다.
@@ -190,9 +204,13 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
       }),
       // 날짜 필터 없이, 아직 해결되지 않은 발송 실패 건수를 센다.
       countUnresolvedFailedEmails(),
-      // 날짜 필터 없이 전체 법인차량 승인 대기 건수를 센다.
-      prisma.companyVehicleTrip.count({
+      // 날짜 필터 없이 전체 법인차량 승인 대기 목록을 가져온다(대시보드 목록 카드용).
+      // 처리 큐이므로 운행 예정 시각이 임박한 순으로 — 방문 예약 "승인 대기 목록"
+      // (visitStartAt asc)과 같은 원칙.
+      prisma.companyVehicleTrip.findMany({
         where: { tripStatus: ReservationStatus.REQUESTED },
+        include: { employee: { select: { name: true, departmentName: true } } },
+        orderBy: { requestStartAt: 'asc' },
       }),
     ]);
 
@@ -332,7 +350,17 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
     pendingCount: pendingReservations.length,
     pendingTotalCount,
     failedEmailCount,
-    companyVehiclePendingCount,
+    companyVehiclePendingCount: companyVehiclePendingTrips.length,
+    companyVehiclePendingTrips: companyVehiclePendingTrips.map((trip) => ({
+      tripId: trip.tripId,
+      tripNo: trip.tripNo,
+      destination: trip.destination,
+      reason: trip.reason,
+      requesterName: trip.employee.name,
+      departmentName: trip.employee.departmentName,
+      requestStartAt: trip.requestStartAt,
+      requestEndAt: trip.requestEndAt,
+    })),
     spaces: spaceRows,
     areas,
     pendingReservations: pendingReservations.map((r) =>

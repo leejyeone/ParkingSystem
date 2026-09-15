@@ -7,7 +7,13 @@ import { ParkingFloorTabs } from '@/components/admin/parking-floor-tabs';
 import { ParkingSpaceStatusSection } from '@/components/admin/parking-space-status-section';
 import { Alert } from '@/components/ui/alert';
 import { requireAdminPage } from '@/lib/admin-page-guard';
-import { formatKstTime, kstWeekdayLabel, shiftKstDateString, todayKstDateString } from '@/lib/datetime';
+import {
+  formatKstRange,
+  formatKstTime,
+  kstWeekdayLabel,
+  shiftKstDateString,
+  todayKstDateString,
+} from '@/lib/datetime';
 import { getDashboardData } from '@/services/dashboard-service';
 
 export const dynamic = 'force-dynamic';
@@ -121,7 +127,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
           </>
         )}
         <StatCard
-          label="승인 대기"
+          label="방문 예약 승인 대기"
           value={`${dashboard.pendingCount} 건`}
           tone="amber"
           hint={`전체 ${dashboard.pendingTotalCount} 건`}
@@ -141,23 +147,11 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
         </Alert>
       )}
 
-      {dashboard.companyVehiclePendingCount > 0 && (
-        <Alert variant="warning">
-          <Link
-            href="/admin/company-vehicles/trips?status=REQUESTED"
-            className="font-bold hover:underline"
-          >
-            법인차량 신청 대기가 {dashboard.companyVehiclePendingCount}건 있습니다. 눌러서
-            확인하세요.
-          </Link>
-        </Alert>
-      )}
-
       <section className="card">
         <div className="card-body">
           <div className="flex items-center justify-between">
             <h2 className="card-title">
-              승인 대기 목록
+              방문 예약 승인 대기 목록
               <span className="text-ink-faint ml-2 text-xs font-bold">
                 이 날짜 {dashboard.pendingCount}건 / 전체 {dashboard.pendingTotalCount}건
               </span>
@@ -228,6 +222,69 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
         </div>
       </section>
 
+      <section className="card">
+        <div className="card-body">
+          <div className="flex items-center justify-between">
+            <h2 className="card-title">
+              법인차량 승인 대기 목록
+              <span className="text-ink-faint ml-2 text-xs font-bold">
+                전체 {dashboard.companyVehiclePendingCount}건
+              </span>
+            </h2>
+            <Link
+              href="/admin/company-vehicles/trips?status=REQUESTED"
+              className="text-brand-700 text-sm font-bold"
+            >
+              전체 보기 →
+            </Link>
+          </div>
+
+          {dashboard.companyVehiclePendingTrips.length === 0 ? (
+            <p className="text-ink-faint mt-4 text-sm">승인 대기 중인 법인차량 신청이 없습니다.</p>
+          ) : (
+            <>
+              <p className="field-hint mt-2">행을 누르면 처리 화면으로 이동합니다.</p>
+              <div className="table-scroll mt-2">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>운행 시간</th>
+                      <th>신청 직원</th>
+                      <th>행선지</th>
+                      <th>사유</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dashboard.companyVehiclePendingTrips.map((trip) => (
+                      <ClickableTableRow
+                        key={trip.tripId}
+                        href={`/admin/company-vehicles/trips/${trip.tripId}`}
+                      >
+                        <td className="whitespace-nowrap">
+                          {/* 키보드 이동과 새 탭 열기를 위해 실제 링크를 둔다. */}
+                          <Link
+                            href={`/admin/company-vehicles/trips/${trip.tripId}`}
+                            className="text-brand-700 font-bold hover:underline"
+                          >
+                            {formatKstRange(trip.requestStartAt, trip.requestEndAt)}
+                          </Link>
+                        </td>
+                        <td>
+                          {trip.requesterName} ({trip.departmentName})
+                        </td>
+                        <td>{trip.destination}</td>
+                        <td className="max-w-[12rem] truncate" title={trip.reason}>
+                          {trip.reason}
+                        </td>
+                      </ClickableTableRow>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      </section>
 
       {showSpace && (
         <section className="card">

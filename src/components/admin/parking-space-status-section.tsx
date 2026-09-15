@@ -138,10 +138,8 @@ function SpaceRow({ space, nowMs }: { space: SpaceStatusRow; nowMs: number }) {
               </li>
             ))}
           </ul>
-        ) : space.companyVehicle ? (
-          <span className="badge bg-violet-100 text-violet-800">법인차량 배정</span>
         ) : (
-          <span className={`badge ${SPACE_STATUS_CLASS.EMPTY}`}>{SPACE_STATUS_LABEL.EMPTY}</span>
+          <span className="text-ink-faint text-xs">-</span>
         )}
       </td>
       <td>
@@ -161,13 +159,13 @@ function SpaceRow({ space, nowMs }: { space: SpaceStatusRow; nowMs: number }) {
         ) : hasCompanyVehicleTrips ? (
           <ul className="space-y-1">
             {space.companyVehicleTrips.map((trip) => (
-              <li key={trip.tripId} className="font-mono text-xs font-bold text-violet-800">
+              <li key={trip.tripId} className="font-mono text-xs font-bold text-brand-700">
                 {space.companyVehicle?.vehicleNo}
               </li>
             ))}
           </ul>
         ) : space.companyVehicle ? (
-          <span className="font-mono text-xs font-bold text-violet-800">
+          <span className="font-mono text-xs font-bold text-brand-700">
             {space.companyVehicle.vehicleNo}
           </span>
         ) : (

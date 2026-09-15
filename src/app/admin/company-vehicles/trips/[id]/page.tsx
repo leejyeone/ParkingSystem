@@ -110,7 +110,7 @@ export default async function CompanyVehicleTripDetailPage({ params, searchParam
             vehicles={vehicles}
             readOnly={{
               visitRangeText: formatKstRange(trip.requestStartAt, trip.requestEndAt),
-              assignedVehicleText: trip.assignedVehicle?.vehicleNo ?? '미배정',
+              assignedVehicleText: trip.assignedVehicle?.vehicleNo ?? '-',
               actualEntryText: trip.actualEntryAt ? formatKstDateTime(trip.actualEntryAt) : '-',
               actualExitText: trip.actualExitAt ? formatKstDateTime(trip.actualExitAt) : '-',
               rejectionReason: trip.rejectionReason,

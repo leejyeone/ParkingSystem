@@ -159,7 +159,7 @@ function tripToItem(trip: {
     kindLabel: KIND_LABEL.COMPANY_VEHICLE,
     no: trip.tripNo ?? `#${trip.tripId}`,
     requesterName: trip.employee.name,
-    vehicleNo: trip.assignedVehicle?.vehicleNo ?? '미배정',
+    vehicleNo: trip.assignedVehicle?.vehicleNo ?? '-',
     dateRangeText: formatKstRange(trip.requestStartAt, trip.requestEndAt),
     startAtText: formatKstDateTime(trip.requestStartAt),
     purpose: trip.reason,
