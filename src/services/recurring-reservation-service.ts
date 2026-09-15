@@ -40,7 +40,7 @@ const MAX_SCHEDULE_DAYS = 31;
 
 const RECURRING_OCCURRENCE_WITH_SPACES = {
   assignedSpace: { select: { spaceId: true, spaceCode: true, spaceType: true } },
-  employeeUser: { select: { name: true, email: true, departmentName: true } },
+  employeeUser: { select: { name: true, email: true, departmentName: true, deletedAt: true } },
   recurringSchedule: { select: { scheduleId: true } },
 } satisfies Prisma.ParkingReservationInclude;
 

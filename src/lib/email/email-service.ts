@@ -285,7 +285,7 @@ type AdminRecipientFlag = 'receiveNewRequest' | 'receiveChangeAlert';
 /** 활성화된 관리자 알림 수신자 목록 */
 export async function getAdminRecipients(flag: AdminRecipientFlag): Promise<string[]> {
   const rows = await prisma.adminNotificationEmail.findMany({
-    where: { isActive: true, [flag]: true },
+    where: { isActive: true, deletedAt: null, [flag]: true },
     select: { email: true },
     orderBy: { notificationEmailId: 'asc' },
   });

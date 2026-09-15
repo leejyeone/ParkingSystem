@@ -71,7 +71,7 @@ const ACTIVE_STATUSES: ReservationStatus[] = [
 
 const RESERVATION_WITH_SPACES = {
   assignedSpace: { select: { spaceId: true, spaceCode: true, spaceType: true } },
-  employeeUser: { select: { name: true, email: true } },
+  employeeUser: { select: { name: true, email: true, deletedAt: true } },
   recurringSchedule: { select: { scheduleId: true } },
 } satisfies Prisma.ParkingReservationInclude;
 
@@ -102,7 +102,12 @@ function toReservationForEmail(reservation: ReservationWithSpaces): ReservationF
           spaceType: reservation.assignedSpace.spaceType,
         }
       : null,
-    hostEmployee: reservation.employeeUser,
+    // 담당 직원이 그 사이 소프트 삭제됐으면 담당자 없는 예약과 동일하게 취급한다 —
+    // 삭제된 직원에게 계속 메일이 나가면 안 된다.
+    hostEmployee:
+      reservation.employeeUser && !reservation.employeeUser.deletedAt
+        ? reservation.employeeUser
+        : null,
   };
 }
 
@@ -1825,7 +1830,7 @@ export async function getReservationDetailForAdmin(
   actor: AdminActionContext,
 ): Promise<
   ReservationWithSpaces & {
-    employeeUser: { employeeUserId: number; name: string; email: string } | null;
+    employeeUser: { employeeUserId: number; name: string; email: string; deletedAt: Date | null } | null;
     statusLogs: {
       statusLogId: number;
       previousStatus: ReservationStatus | null;
@@ -1841,7 +1846,7 @@ export async function getReservationDetailForAdmin(
     where: { reservationId },
     include: {
       ...RESERVATION_WITH_SPACES,
-      employeeUser: { select: { employeeUserId: true, name: true, email: true } },
+      employeeUser: { select: { employeeUserId: true, name: true, email: true, deletedAt: true } },
       statusLogs: {
         orderBy: { createdAt: 'asc' },
         include: { changedByAdmin: { select: { adminName: true } } },

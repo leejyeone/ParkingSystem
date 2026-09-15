@@ -206,7 +206,7 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
         where: { reservationStatus: ReservationStatus.REQUESTED, ...buildOverlapWhere(start, end) },
         include: {
           assignedSpace: { select: { spaceId: true, spaceCode: true, spaceType: true } },
-          employeeUser: { select: { name: true, email: true, departmentName: true } },
+          employeeUser: { select: { name: true, email: true, departmentName: true, deletedAt: true } },
           recurringSchedule: { select: { scheduleId: true } },
         },
         orderBy: [{ visitStartAt: 'asc' }, { reservationId: 'asc' }],

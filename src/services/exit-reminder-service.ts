@@ -49,7 +49,7 @@ export async function findExitReminderTargets(
     },
     include: {
       assignedSpace: { select: { spaceCode: true, spaceType: true } },
-      employeeUser: { select: { name: true, email: true } },
+      employeeUser: { select: { name: true, email: true, deletedAt: true } },
       // 현재 출차 예정 시각 기준으로 이미 보냈는지 판단하려면 키를 봐야 한다.
       emailLogs: {
         where: { emailType: EmailType.EXIT_REMINDER, sendStatus: EmailSendStatus.SUCCESS },
@@ -71,7 +71,11 @@ export async function findExitReminderTargets(
       visitStartAt: reservation.visitStartAt,
       visitEndAt: reservation.visitEndAt,
       assignedSpace: reservation.assignedSpace,
-      hostEmployee: reservation.employeeUser,
+      // 담당 직원이 그 사이 소프트 삭제됐으면 담당자 없는 예약과 동일하게 취급한다.
+      hostEmployee:
+        reservation.employeeUser && !reservation.employeeUser.deletedAt
+          ? reservation.employeeUser
+          : null,
       emailLogs: reservation.emailLogs,
     }))
     .filter((reservation) => {

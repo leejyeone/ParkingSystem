@@ -46,7 +46,7 @@ export async function findEntryReminderTargets(
     },
     include: {
       assignedSpace: { select: { spaceCode: true, spaceType: true } },
-      employeeUser: { select: { name: true, email: true } },
+      employeeUser: { select: { name: true, email: true, deletedAt: true } },
       emailLogs: {
         where: { emailType: EmailType.ENTRY_REMINDER, sendStatus: EmailSendStatus.SUCCESS },
         select: { dedupeKey: true },
@@ -56,6 +56,15 @@ export async function findEntryReminderTargets(
   });
 
   return reservations
+    // 담당 직원이 그 사이 소프트 삭제됐으면 담당자 없는 예약과 동일하게 취급한다 —
+    // 아래 필터가 자연스럽게 대상에서 뺀다.
+    .map((reservation) => ({
+      ...reservation,
+      employeeUser:
+        reservation.employeeUser && !reservation.employeeUser.deletedAt
+          ? reservation.employeeUser
+          : null,
+    }))
     .filter((reservation) => reservation.employeeUser !== null)
     .filter((reservation) => {
       const key = buildEntryReminderDedupeKey(reservation.reservationId, reservation.visitStartAt);
