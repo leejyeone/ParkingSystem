@@ -214,6 +214,7 @@ export default async function AdminReservationDetailPage({ params, searchParams 
         <div className="min-w-0">
           <ReservationActionPanel
             reservationId={reservation.reservationId}
+            reservationNo={reservation.reservationNo}
             reservationStatus={reservation.reservationStatus}
             defaultSpaceId={defaultSpace?.spaceId ?? null}
             assignedSpaceId={reservation.assignedSpaceId}

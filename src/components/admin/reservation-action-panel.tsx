@@ -24,6 +24,8 @@ type SpaceOption = {
 
 type Props = {
   reservationId: number;
+  /** 승인/반려/취소 완료 안내에 표시할 예약번호 */
+  reservationNo: string;
   reservationStatus: string;
   /** 화면 진입 시점에 고른 기본 배정 위치. 드롭다운의 초기값으로만 쓴다. */
   defaultSpaceId: number | null;
@@ -39,6 +41,7 @@ type Props = {
 
 export function ReservationActionPanel({
   reservationId,
+  reservationNo,
   reservationStatus,
   defaultSpaceId,
   assignedSpaceId,
@@ -415,7 +418,9 @@ export function ReservationActionPanel({
                               ? Number(selectedSpaceId)
                               : null,
                         },
-                        { redirectTo: '/admin' },
+                        {
+                          redirectTo: `/admin/reservations?status=REQUESTED&approved=${encodeURIComponent(reservationNo)}`,
+                        },
                       )
                     }
                   >
@@ -473,7 +478,9 @@ export function ReservationActionPanel({
                     `/api/admin/reservations/${reservationId}/reject`,
                     'POST',
                     { rejectionReason },
-                    { redirectTo: '/admin' },
+                    {
+                      redirectTo: `/admin/reservations?status=REQUESTED&rejected=${encodeURIComponent(reservationNo)}`,
+                    },
                   )
                 }
               >
@@ -518,7 +525,9 @@ export function ReservationActionPanel({
                   `/api/admin/reservations/${reservationId}/cancel`,
                   'POST',
                   { cancelReason },
-                  { redirectTo: '/admin' },
+                  {
+                    redirectTo: `/admin/reservations?status=APPROVED&cancelled=${encodeURIComponent(reservationNo)}`,
+                  },
                 )
               }
             >
