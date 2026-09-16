@@ -51,7 +51,8 @@ export function UserDeleteAccountPanel() {
       <div className="card-body space-y-3">
         <h2 className="card-title">회원 탈퇴</h2>
         <p className="field-hint">
-          신청하신 방문 예약 기록은 삭제되지 않습니다.
+          탈퇴 시 이메일, 성명, 회사명, 차량번호는 즉시 삭제됩니다. 이미
+          신청하신 방문 예약 기록에서는 삭제되지 않습니다.
         </p>
 
         {!confirming ? (
