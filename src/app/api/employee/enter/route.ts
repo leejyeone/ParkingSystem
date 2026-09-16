@@ -3,7 +3,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { safeEmployeeRedirect } from '@/lib/employee-page-guard';
-import { getEmployeeEntryKey } from '@/lib/env';
+import { getAppBaseUrl, getEmployeeEntryKey } from '@/lib/env';
 import { setEmployeeSessionCookie } from '@/lib/employee-session';
 import { getRequestContext } from '@/lib/request-context';
 import { consumeRateLimit } from '@/lib/rate-limit';
@@ -58,9 +58,9 @@ export async function GET(request: NextRequest) {
 
     await setEmployeeSessionCookie(session);
 
-    return NextResponse.redirect(new URL(redirectTo, request.url));
+    return NextResponse.redirect(new URL(redirectTo, getAppBaseUrl()));
   } catch {
-    return NextResponse.redirect(new URL('/employee/login?error=not_found', request.url));
+    return NextResponse.redirect(new URL('/employee/login?error=not_found', getAppBaseUrl()));
   }
 }
 

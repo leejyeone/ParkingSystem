@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
+import { getAppBaseUrl } from '@/lib/env';
 import {
   ADMIN_SESSION_COOKIE,
   EMPLOYEE_SESSION_COOKIE,
@@ -26,7 +27,7 @@ export default function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
   function redirectToLogin(loginPath: string) {
-    const loginUrl = new URL(loginPath, request.url);
+    const loginUrl = new URL(loginPath, getAppBaseUrl());
     loginUrl.searchParams.set('redirect', `${pathname}${search}`);
     return NextResponse.redirect(loginUrl);
   }

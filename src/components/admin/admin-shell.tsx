@@ -144,8 +144,14 @@ export function AdminShell({ adminName, role, children }: Props) {
 
   async function handleLogout() {
     setLoggingOut(true);
-    await apiRequest('/api/admin/auth/logout', { method: 'POST' });
-    router.replace('/admin/login');
+    // 직원 세션(그룹웨어 SSO)으로 들어온 경우 로그아웃 후 직원 홈으로 돌아간다 —
+    // 쓰지도 않는 ID/비밀번호 로그인 화면을 보여주지 않기 위함이다(admin-auth-service.ts
+    // logout 라우트 주석 참고). ID/비밀번호로 직접 들어온 경우는 기존과 동일하게
+    // 관리자 로그인 화면으로 돌아간다.
+    const response = await apiRequest<{ redirectTo: string }>('/api/admin/auth/logout', {
+      method: 'POST',
+    });
+    router.replace(response.ok ? response.data.redirectTo : '/admin/login');
     router.refresh();
   }
 

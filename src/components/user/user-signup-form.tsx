@@ -83,8 +83,7 @@ export function UserSignUpForm() {
     );
 
     if (response.ok) {
-      // 가입 목적이 방문 신청이므로, 가입 완료 후 바로 신청 폼으로 보낸다.
-      router.replace('/reservations/new');
+      router.replace('/');
       router.refresh();
       return;
     }

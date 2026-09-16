@@ -161,7 +161,6 @@ export function ReservationAccessPanel({ token, initialReservation, settings }: 
       {mode === 'cancel' && (
         <CancelForm
           token={token}
-          spaceAssignmentEnabled={settings.spaceAssignmentEnabled}
           onBack={() => setMode('view')}
           onSuccess={(updated) => {
             setReservation(updated);
@@ -385,12 +384,10 @@ function EditForm({
 
 function CancelForm({
   token,
-  spaceAssignmentEnabled,
   onBack,
   onSuccess,
 }: {
   token: string;
-  spaceAssignmentEnabled: boolean;
   onBack: () => void;
   onSuccess: (updated: RequesterReservationView) => void;
 }) {
@@ -434,10 +431,7 @@ function CancelForm({
       <div className="card-body space-y-4">
         <h2 className="card-title">예약 취소</h2>
         <Alert variant="warning">
-          {spaceAssignmentEnabled
-            ? '취소하면 배정된 주차 위치가 해제되며 되돌릴 수 없습니다.'
-            : '취소하면 되돌릴 수 없습니다.'}{' '}
-          다시 방문하시려면 새로 신청해 주세요.
+          취소하면 되돌릴 수 없습니다. 다시 방문하시려면 새로 신청해 주세요.
         </Alert>
 
         {formError && <Alert variant="error">{formError.message}</Alert>}

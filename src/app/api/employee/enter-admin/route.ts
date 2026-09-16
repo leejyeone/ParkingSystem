@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
+import { getAppBaseUrl } from '@/lib/env';
 import { getRequestContext } from '@/lib/request-context';
 import { consumeRateLimit } from '@/lib/rate-limit';
 import { setAdminSessionCookie } from '@/lib/session';
@@ -31,8 +32,8 @@ export async function GET(request: NextRequest) {
     const adminSession = await loginAdminViaEmployeeSso(employeeSession.email, context);
     await setAdminSessionCookie(adminSession);
 
-    return NextResponse.redirect(new URL('/admin', request.url));
+    return NextResponse.redirect(new URL('/admin', getAppBaseUrl()));
   } catch {
-    return NextResponse.redirect(new URL('/employee?error=admin_sso_failed', request.url));
+    return NextResponse.redirect(new URL('/employee?error=admin_sso_failed', getAppBaseUrl()));
   }
 }

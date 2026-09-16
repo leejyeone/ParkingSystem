@@ -225,8 +225,9 @@ type Props =
     }
   /**
    * 신청자 화면: 배정된 한 면만 강조하고 나머지는 회색으로 둔다. 도면은 코드로 자동 탐지한다.
-   * 관리자가 다른 사람의 예약을 보는 화면 등에서는 "내 주차 위치"라는 문구가 맞지 않으므로
-   * `highlightLabel`로 범례 문구를 바꿀 수 있다(기본값은 "내 주차 위치 {code}").
+   * 기본 범례 문구는 "배정된 주차 위치 {code}" — 방문객 본인 신청 건을 담당자 직원이 조회할
+   * 때도 그대로 쓸 수 있도록 "내"처럼 조회자를 특정하는 표현은 넣지 않는다. 다른 문구가
+   * 필요하면 `highlightLabel`로 바꿀 수 있다.
    */
   | {
       spaces?: undefined;
@@ -335,7 +336,7 @@ export function ParkingMap({
         {mode === 'requester' ? (
           <Legend
             color={MINE}
-            label={highlightLabel ?? `내 주차 위치 ${highlightCode}`}
+            label={highlightLabel ?? `배정된 주차 위치 ${highlightCode}`}
             large={isMaximized}
           />
         ) : mode === 'select' ? (
