@@ -1,4 +1,11 @@
-import { EmailSendStatus, EmailType, Prisma, RequesterType, SpaceType } from '@prisma/client';
+import {
+  EmailAudience,
+  EmailSendStatus,
+  EmailType,
+  Prisma,
+  RequesterType,
+  SpaceType,
+} from '@prisma/client';
 
 import { getAppBaseUrl } from '@/lib/env';
 import { getEmailProvider } from '@/lib/email/email-provider-factory';
@@ -97,13 +104,18 @@ export type EmailDispatchResult = {
  */
 export async function sendEmailWithLog(params: {
   reservationId: number | null;
+  /** 법인차량 운행 신청 관련 메일이면 채운다(reservationId 와 동시에 채우지 않는다). */
+  companyVehicleTripId?: number | null;
   emailType: EmailType;
+  /** 이 메일을 받는 사람의 역할 — 발송 이력 화면의 "대상" 컬럼에 쓴다. */
+  audience: EmailAudience;
   to: string;
   rendered: RenderedEmail;
   /** dedupe 대상 메일에서 "이 회차" 를 구분하는 값. 지정하지 않으면 예약당 1회가 된다. */
   dedupeOccurrence?: string | number;
 }): Promise<EmailDispatchResult> {
-  const { reservationId, emailType, to, rendered, dedupeOccurrence } = params;
+  const { reservationId, companyVehicleTripId, emailType, audience, to, rendered, dedupeOccurrence } =
+    params;
 
   const dedupeKey =
     reservationId !== null && requiresDedupe(emailType)
@@ -115,7 +127,9 @@ export async function sendEmailWithLog(params: {
     const created = await prisma.emailSendLog.create({
       data: {
         reservationId,
+        companyVehicleTripId: companyVehicleTripId ?? null,
         emailType,
+        audience,
         recipientEmail: to,
         subject: rendered.subject.slice(0, 300),
         bodyHtml: rendered.html,
@@ -243,6 +257,22 @@ export function requesterMailRecipients(reservation: ReservationForEmail): strin
   return recipients;
 }
 
+/** 신청자 본인이 받는 메일의 대상 구분 — 직원 본인 방문이면 직원, 그 외엔 방문객. */
+function requesterAudience(reservation: ReservationForEmail): EmailAudience {
+  return reservation.requesterType === RequesterType.EMPLOYEE
+    ? EmailAudience.EMPLOYEE
+    : EmailAudience.VISITOR;
+}
+
+/** 이 수신 주소가 신청자 본인이 아니라 당사 담당자(참조)로 받는 것인지. */
+function isHostRecipientEmail(reservation: ReservationForEmail, to: string): boolean {
+  return Boolean(
+    reservation.hostEmployee &&
+      to === reservation.hostEmployee.email &&
+      to !== reservation.requesterEmail,
+  );
+}
+
 /**
  * 신청자 + 당사 담당자에게 발송하되, 담당자는 신청 경로(자가신청/대리신청)와 무관하게
  * 항상 담당자 시점 문구(`recipientRole: 'hostEmployee'`)로 별도 렌더링해서 받는다.
@@ -259,19 +289,16 @@ async function sendToRequesterAndHost(
     : null;
 
   return Promise.all(
-    requesterMailRecipients(reservation).map((to) =>
-      sendEmailWithLog({
+    requesterMailRecipients(reservation).map((to) => {
+      const toHost = hostRendered && isHostRecipientEmail(reservation, to);
+      return sendEmailWithLog({
         reservationId: reservation.reservationId,
         emailType,
+        audience: toHost ? EmailAudience.EMPLOYEE : requesterAudience(reservation),
         to,
-        rendered:
-          hostRendered &&
-          to === reservation.hostEmployee?.email &&
-          to !== reservation.requesterEmail
-            ? hostRendered
-            : requesterRendered,
-      }),
-    ),
+        rendered: toHost ? hostRendered : requesterRendered,
+      });
+    }),
   );
 }
 
@@ -331,6 +358,7 @@ export async function sendNewRequestToAdminEmails(
       sendEmailWithLog({
         reservationId: reservation.reservationId,
         emailType: EmailType.NEW_REQUEST_TO_ADMIN,
+        audience: EmailAudience.ADMIN,
         to,
         rendered,
       }),
@@ -409,6 +437,7 @@ export async function sendCancelledEmails(
         sendEmailWithLog({
           reservationId: reservation.reservationId,
           emailType: EmailType.CANCELLED,
+          audience: EmailAudience.ADMIN,
           to,
           rendered: adminRendered,
         }),
@@ -429,21 +458,18 @@ export async function sendExitReminderEmail(
     : null;
 
   return Promise.all(
-    requesterMailRecipients(reservation).map((to) =>
-      sendEmailWithLog({
+    requesterMailRecipients(reservation).map((to) => {
+      const toHost = hostRendered && isHostRecipientEmail(reservation, to);
+      return sendEmailWithLog({
         reservationId: reservation.reservationId,
         emailType: EmailType.EXIT_REMINDER,
+        audience: toHost ? EmailAudience.EMPLOYEE : requesterAudience(reservation),
         to,
-        rendered:
-          hostRendered &&
-          to === reservation.hostEmployee?.email &&
-          to !== reservation.requesterEmail
-            ? hostRendered
-            : requesterRendered,
+        rendered: toHost ? hostRendered : requesterRendered,
         // 수신자별로 갈라야 신청자/담당자 중 한쪽만 이미 보냈어도 나머지가 정상 발송된다.
         dedupeOccurrence: `${reservation.visitEndAt.toISOString().slice(0, 16)}:${to}`,
-      }),
-    ),
+      });
+    }),
   );
 }
 
@@ -470,6 +496,7 @@ export async function sendEntryReminderEmail(
   return sendEmailWithLog({
     reservationId: reservation.reservationId,
     emailType: EmailType.ENTRY_REMINDER,
+    audience: EmailAudience.EMPLOYEE,
     to: reservation.hostEmployee.email,
     rendered,
     dedupeOccurrence: reservation.visitStartAt.toISOString().slice(0, 16),
@@ -507,7 +534,9 @@ export async function sendNewVehicleTripRequestToAdminEmails(
     recipients.map((to) =>
       sendEmailWithLog({
         reservationId: null,
+        companyVehicleTripId: trip.tripId,
         emailType: EmailType.NEW_VEHICLE_TRIP_TO_ADMIN,
+        audience: EmailAudience.ADMIN,
         to,
         rendered,
       }),
@@ -530,7 +559,9 @@ async function sendVehicleTripStatusEmail(
   });
   return sendEmailWithLog({
     reservationId: null,
+    companyVehicleTripId: trip.tripId,
     emailType,
+    audience: EmailAudience.EMPLOYEE,
     to: trip.employeeEmail,
     rendered,
   });

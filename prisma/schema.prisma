@@ -97,6 +97,15 @@ enum EmailType {
   VEHICLE_TRIP_CANCELLED
 }
 
+/// 이메일을 받는 사람의 역할 — 이메일 발송 이력 화면의 "대상" 컬럼에 쓴다.
+/// 같은 EmailType이라도 수신자가 신청자(직원/방문객)인지 당사 담당자(직원)인지
+/// 관리자인지가 달라질 수 있어(예: REQUEST_RECEIVED) emailType만으로는 알 수 없다.
+enum EmailAudience {
+  EMPLOYEE
+  VISITOR
+  ADMIN
+}
+
 /// 반복 예약(정기 주차 배정) 시리즈 상태
 enum RecurringScheduleStatus {
   ACTIVE
@@ -485,6 +494,7 @@ model CompanyVehicleTrip {
   approvalAdmin   AdminUser?      @relation(fields: [approvalAdminId], references: [adminUserId], onDelete: SetNull)
 
   statusLogs CompanyVehicleTripStatusLog[]
+  emailLogs  EmailSendLog[]
 
   @@index([tripStatus, requestStartAt], map: "idx_company_vehicle_trips_status_start")
   @@index([assignedVehicleId, requestStartAt, requestEndAt], map: "idx_company_vehicle_trips_vehicle_range")
@@ -605,7 +615,12 @@ model AdminNotificationEmail {
 model EmailSendLog {
   emailLogId        Int             @id @default(autoincrement()) @map("email_log_id")
   reservationId     Int?            @map("reservation_id")
+  /// 법인차량 운행 신청 관련 메일이면 채운다(reservationId 와 동시에 채워지지 않는다).
+  companyVehicleTripId Int?         @map("company_vehicle_trip_id")
   emailType         EmailType       @map("email_type")
+  /// 이 메일을 받은 사람의 역할. 이 컬럼이 생기기 전 발송분은 NULL이라 "대상" 컬럼에
+  /// "-"로 표시된다.
+  audience          EmailAudience?  @map("audience")
   recipientEmail    String          @map("recipient_email") @db.VarChar(255)
   subject           String          @db.VarChar(300)
   /// 실제 발송한 HTML 본문. 실패 건 재발송 시 원문 그대로 다시 보내는 데 쓴다.
@@ -635,9 +650,11 @@ model EmailSendLog {
   resendOf      EmailSendLog?  @relation("EmailResend", fields: [resendOfLogId], references: [emailLogId], onDelete: SetNull)
   resends       EmailSendLog[] @relation("EmailResend")
 
-  reservation ParkingReservation? @relation(fields: [reservationId], references: [reservationId], onDelete: SetNull)
+  reservation        ParkingReservation? @relation(fields: [reservationId], references: [reservationId], onDelete: SetNull)
+  companyVehicleTrip CompanyVehicleTrip? @relation(fields: [companyVehicleTripId], references: [tripId], onDelete: SetNull)
 
   @@index([reservationId, emailType, sendStatus], map: "idx_email_logs_reservation_type_status")
+  @@index([companyVehicleTripId], map: "idx_email_logs_company_vehicle_trip")
   @@index([sendStatus, requestedAt], map: "idx_email_logs_status_requested")
   @@index([resendOfLogId], map: "idx_email_logs_resend_of")
   @@map("email_send_logs")

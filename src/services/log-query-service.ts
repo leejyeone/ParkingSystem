@@ -26,8 +26,15 @@ export async function listEmailLogs(filter: EmailLogFilter) {
   const where: Prisma.EmailSendLogWhereInput = {
     ...(filter.emailType ? { emailType: filter.emailType } : {}),
     ...(filter.sendStatus ? { sendStatus: filter.sendStatus } : {}),
+    // 방문 예약 예약번호와 법인차량 신청번호가 화면에서 같은 칸/같은 검색창에 함께
+    // 나오므로, 검색도 둘 다 대상으로 한다.
     ...(filter.reservationNo
-      ? { reservation: { reservationNo: { contains: filter.reservationNo } } }
+      ? {
+          OR: [
+            { reservation: { reservationNo: { contains: filter.reservationNo } } },
+            { companyVehicleTrip: { tripNo: { contains: filter.reservationNo } } },
+          ],
+        }
       : {}),
   };
 
@@ -41,6 +48,7 @@ export async function listEmailLogs(filter: EmailLogFilter) {
       select: {
         emailLogId: true,
         emailType: true,
+        audience: true,
         recipientEmail: true,
         subject: true,
         sendStatus: true,
@@ -52,6 +60,7 @@ export async function listEmailLogs(filter: EmailLogFilter) {
         requestedAt: true,
         sentAt: true,
         reservation: { select: { reservationId: true, reservationNo: true } },
+        companyVehicleTrip: { select: { tripId: true, tripNo: true } },
       },
     }),
   ]);
@@ -142,7 +151,9 @@ export async function resendFailedEmail(
   const attempt = await prisma.emailSendLog.create({
     data: {
       reservationId: log.reservationId,
+      companyVehicleTripId: log.companyVehicleTripId,
       emailType: log.emailType,
+      audience: log.audience,
       recipientEmail: log.recipientEmail,
       subject: log.subject,
       bodyHtml: log.bodyHtml,

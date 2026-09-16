@@ -1,4 +1,4 @@
-import { EmailSendStatus, EmailType } from '@prisma/client';
+import { EmailAudience, EmailSendStatus, EmailType } from '@prisma/client';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
@@ -14,25 +14,37 @@ export const metadata: Metadata = { title: '이메일 발송 이력' };
 
 const BASE_PATH = '/admin/email-logs';
 
+/**
+ * "{구분} {동작}" 패턴으로 통일한다. 같은 사건을 수신자만 다르게(신청자/담당자
+ * vs 관리자) 보내는 종류는 라벨을 일부러 같게 둔다 — "대상" 컬럼이 그 차이를
+ * 보여주므로 종류 라벨까지 나눌 필요가 없다.
+ */
 const EMAIL_TYPE_LABEL: Record<EmailType, string> = {
-  REQUEST_RECEIVED: '신청 접수',
-  NEW_REQUEST_TO_ADMIN: '관리자 신규',
-  APPROVED: '승인',
-  REJECTED: '반려',
-  UPDATED: '변경',
-  CANCELLED: '취소',
-  EXIT_REMINDER: '출차 예정',
-  ENTRY_REMINDER: '입차 예정(담당자)',
-  RECURRING_SCHEDULE_CREATED: '반복 예약 등록',
-  RECURRING_SCHEDULE_UPDATED: '반복 예약 수정',
-  RECURRING_OCCURRENCE_SKIPPED: '반복 예약 날짜 제외',
-  RECURRING_SCHEDULE_CANCELLED: '반복 예약 삭제',
-  HOST_EMPLOYEE_CHANGED: '담당자 변경',
-  NEW_VEHICLE_TRIP_TO_ADMIN: '법인차량 관리자 신규',
-  VEHICLE_TRIP_REQUEST_RECEIVED: '법인차량 신청 접수',
+  REQUEST_RECEIVED: '방문 신규',
+  NEW_REQUEST_TO_ADMIN: '방문 신규',
+  APPROVED: '방문 승인',
+  REJECTED: '방문 반려',
+  UPDATED: '방문 변경',
+  CANCELLED: '방문 취소',
+  EXIT_REMINDER: '방문 출차 예정',
+  ENTRY_REMINDER: '방문 입차 예정',
+  RECURRING_SCHEDULE_CREATED: '반복예약 등록',
+  RECURRING_SCHEDULE_UPDATED: '반복예약 변경',
+  RECURRING_OCCURRENCE_SKIPPED: '반복예약 제외',
+  RECURRING_SCHEDULE_CANCELLED: '반복예약 취소',
+  HOST_EMPLOYEE_CHANGED: '방문 담당자 변경',
+  NEW_VEHICLE_TRIP_TO_ADMIN: '법인차량 신규',
+  VEHICLE_TRIP_REQUEST_RECEIVED: '법인차량 신규',
   VEHICLE_TRIP_APPROVED: '법인차량 승인',
   VEHICLE_TRIP_REJECTED: '법인차량 반려',
   VEHICLE_TRIP_CANCELLED: '법인차량 취소',
+};
+
+/** 이 컬럼이 생기기 전 발송분(과거 데이터)은 null이라 "-"로 표시한다. */
+const AUDIENCE_LABEL: Record<EmailAudience, string> = {
+  EMPLOYEE: '직원',
+  VISITOR: '방문객',
+  ADMIN: '관리자',
 };
 
 const STATUS_LABEL: Record<EmailSendStatus, string> = {
@@ -124,8 +136,7 @@ export default async function AdminEmailLogsPage({ searchParams }: PageProps) {
       <div>
         <h1 className="text-ink text-xl font-black sm:text-2xl">이메일 발송 이력</h1>
         <p className="text-ink-muted mt-1 text-sm">
-          이메일 발송 실패 시 실패 사유를 이 화면에서 확인할 수 있습니다. 수신자 주소는
-          마스킹됩니다.
+          이메일 발송 실패 시 실패 사유를 이 화면에서 확인할 수 있습니다.
         </p>
       </div>
 
@@ -195,6 +206,7 @@ export default async function AdminEmailLogsPage({ searchParams }: PageProps) {
               <thead>
                 <tr>
                   <th>요청 일시</th>
+                  <th>대상</th>
                   <th>종류</th>
                   <th>예약번호</th>
                   <th>수신자</th>
@@ -210,6 +222,9 @@ export default async function AdminEmailLogsPage({ searchParams }: PageProps) {
                     <td className="text-xs whitespace-nowrap">
                       {formatKstDateTime(log.requestedAt)}
                     </td>
+                    <td className="text-xs">
+                      {log.audience ? AUDIENCE_LABEL[log.audience] : '-'}
+                    </td>
                     <td className="text-xs">{EMAIL_TYPE_LABEL[log.emailType]}</td>
                     <td className="font-mono text-xs">
                       {log.reservation ? (
@@ -218,6 +233,13 @@ export default async function AdminEmailLogsPage({ searchParams }: PageProps) {
                           className="text-brand-700"
                         >
                           {log.reservation.reservationNo}
+                        </Link>
+                      ) : log.companyVehicleTrip ? (
+                        <Link
+                          href={`/admin/company-vehicles/trips/${log.companyVehicleTrip.tripId}`}
+                          className="text-brand-700"
+                        >
+                          {log.companyVehicleTrip.tripNo ?? `#${log.companyVehicleTrip.tripId}`}
                         </Link>
                       ) : (
                         '-'
@@ -254,7 +276,7 @@ export default async function AdminEmailLogsPage({ searchParams }: PageProps) {
                 ))}
                 {result.items.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="text-ink-faint py-6 text-center text-sm">
+                    <td colSpan={9} className="text-ink-faint py-6 text-center text-sm">
                       발송 이력이 없습니다.
                     </td>
                   </tr>
