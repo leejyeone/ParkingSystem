@@ -70,9 +70,9 @@ export default async function EmployeeHomePage() {
                 <thead>
                   <tr>
                     <th>구분</th>
+                    <th>방문일시</th>
                     <th className="w-16">성명</th>
                     <th>차량번호</th>
-                    <th>방문일시</th>
                     <th>목적</th>
                     <th>상태</th>
                   </tr>
@@ -81,9 +81,9 @@ export default async function EmployeeHomePage() {
                   {recentActivity.map((item) => (
                     <ClickableTableRow key={`${item.kind}-${item.id}`} href={item.href}>
                       <td className="text-xs whitespace-nowrap">{item.kindLabel}</td>
+                      <td className="text-xs whitespace-nowrap">{item.startAtText}</td>
                       <td className="text-xs whitespace-nowrap">{item.requesterName}</td>
                       <td className="font-mono text-xs whitespace-nowrap">{item.vehicleNo}</td>
-                      <td className="text-xs whitespace-nowrap">{item.startAtText}</td>
                       <td className="max-w-[10rem] truncate text-xs" title={item.purpose}>
                         {item.purpose}
                       </td>

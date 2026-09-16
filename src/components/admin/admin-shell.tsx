@@ -292,9 +292,6 @@ export function AdminShell({ adminName, role, children }: Props) {
             >
               <HamburgerIcon />
             </button>
-            <Link href="/admin" className="text-ink text-lg font-black">
-              시스템 관리
-            </Link>
           </div>
 
           {/* lg 이상에서는 왼쪽이 비므로, 오른쪽 그룹이 항상 오른쪽 끝에 붙도록 spacer 를 둔다. */}

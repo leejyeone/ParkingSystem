@@ -224,8 +224,8 @@ export default async function EmployeeReservationsPage({ searchParams }: PagePro
                       <tr>
                         <th>구분</th>
                         <th>예약번호</th>
-                        <th>성명</th>
-                        <th>차량번호</th>
+                        <th className="min-w-16">성명</th>
+                        <th className="min-w-24">차량번호</th>
                         <th>일시</th>
                         <th>목적</th>
                         <th>상태</th>
@@ -235,7 +235,7 @@ export default async function EmployeeReservationsPage({ searchParams }: PagePro
                       {result.items.map((item) => (
                         <ClickableTableRow key={`${item.kind}-${item.id}`} href={item.href}>
                           <td className="text-xs whitespace-nowrap">{item.kindLabel}</td>
-                          <td className="font-mono text-xs">{item.no}</td>
+                          <td className="font-mono text-xs">{item.no.slice(-6)}</td>
                           <td className="text-xs">{item.requesterName}</td>
                           <td className="font-mono text-xs">{item.vehicleNo}</td>
                           <td className="text-xs whitespace-nowrap">{item.dateRangeText}</td>

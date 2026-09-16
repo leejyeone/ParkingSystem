@@ -151,10 +151,12 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
         <div className="card-body">
           <div className="flex items-center justify-between">
             <h2 className="card-title">
-              방문 예약 승인 대기 목록
-              <span className="text-ink-faint ml-2 text-xs font-bold">
-                이 날짜 {dashboard.pendingCount}건 / 전체 {dashboard.pendingTotalCount}건
-              </span>
+              방문 예약 승인 대기
+              {(dashboard.pendingCount > 0 || dashboard.pendingTotalCount > 0) && (
+                <span className="text-ink-faint ml-2 text-xs font-bold">
+                  {dashboard.pendingCount}/{dashboard.pendingTotalCount}건
+                </span>
+              )}
             </h2>
             <Link
               href="/admin/reservations?status=REQUESTED"
@@ -184,13 +186,14 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
             <>
               <p className="field-hint mt-2">행을 누르면 처리 화면으로 이동합니다.</p>
               <div className="table-scroll mt-2">
-                <table className="data-table">
+                <table className="data-table table-fixed">
                   <thead>
                     <tr>
-                      <th>방문 시간</th>
-                      <th>회사명/사업장</th>
-                      <th>신청자</th>
-                      <th>차량번호</th>
+                      <th className="w-28">방문 시간</th>
+                      <th className="w-28">회사명/사업장</th>
+                      <th className="w-28">신청자</th>
+                      <th className="w-28">차량번호</th>
+                      <th>방문 목적</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -212,6 +215,9 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
                         <td>{reservation.companyOrBranchName}</td>
                         <td>{reservation.requesterName}</td>
                         <td className="font-mono text-xs">{reservation.vehicleNo}</td>
+                        <td className="max-w-xs truncate" title={reservation.visitPurpose ?? ''}>
+                          {reservation.visitPurpose ?? '-'}
+                        </td>
                       </ClickableTableRow>
                     ))}
                   </tbody>
@@ -226,10 +232,14 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
         <div className="card-body">
           <div className="flex items-center justify-between">
             <h2 className="card-title">
-              법인차량 승인 대기 목록
-              <span className="text-ink-faint ml-2 text-xs font-bold">
-                전체 {dashboard.companyVehiclePendingCount}건
-              </span>
+              법인차량 승인 대기
+              {(dashboard.companyVehiclePendingCount > 0 ||
+                dashboard.companyVehiclePendingTotalCount > 0) && (
+                <span className="text-ink-faint ml-2 text-xs font-bold">
+                  {dashboard.companyVehiclePendingCount}/{dashboard.companyVehiclePendingTotalCount}
+                  건
+                </span>
+              )}
             </h2>
             <Link
               href="/admin/company-vehicles/trips?status=REQUESTED"
@@ -240,7 +250,21 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
           </div>
 
           {dashboard.companyVehiclePendingTrips.length === 0 ? (
-            <p className="text-ink-faint mt-4 text-sm">승인 대기 중인 법인차량 신청이 없습니다.</p>
+            <p className="text-ink-faint mt-4 text-sm">
+              이 날짜에는 승인 대기 중인 법인차량 신청이 없습니다.
+              {dashboard.companyVehiclePendingTotalCount > 0 ? (
+                <>
+                  {' '}
+                  다른 날짜에 {dashboard.companyVehiclePendingTotalCount}건이 대기 중입니다.{' '}
+                  <Link
+                    href="/admin/company-vehicles/trips?status=REQUESTED"
+                    className="text-brand-700 font-bold"
+                  >
+                    전체 보기
+                  </Link>
+                </>
+              ) : null}
+            </p>
           ) : (
             <>
               <p className="field-hint mt-2">행을 누르면 처리 화면으로 이동합니다.</p>
@@ -248,8 +272,8 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
                 <table className="data-table table-fixed">
                   <thead>
                     <tr>
-                      <th className="w-60">운행 시간</th>
-                      <th className="w-60">신청 직원</th>
+                      <th className="w-48">운행 시간</th>
+                      <th className="w-64">신청 직원</th>
                       <th className="w-28">행선지</th>
                       <th>사유</th>
                     </tr>
@@ -260,7 +284,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
                         key={trip.tripId}
                         href={`/admin/company-vehicles/trips/${trip.tripId}`}
                       >
-                        <td>
+                        <td className="whitespace-nowrap">
                           {/* 키보드 이동과 새 탭 열기를 위해 실제 링크를 둔다. */}
                           <Link
                             href={`/admin/company-vehicles/trips/${trip.tripId}`}

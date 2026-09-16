@@ -1534,6 +1534,7 @@ export type ReservationListItem = {
   requesterName: string;
   requesterEmail: string;
   vehicleNo: string;
+  visitPurpose: string | null;
   visitStartAt: Date;
   visitEndAt: Date;
   assignedSpaceCode: string | null;
@@ -1690,6 +1691,7 @@ export function toReservationListItem(
     requesterName: reservation.requesterName,
     requesterEmail: reservation.requesterEmail,
     vehicleNo: reservation.vehicleNo,
+    visitPurpose: reservation.visitPurpose,
     visitStartAt: reservation.visitStartAt,
     visitEndAt: reservation.visitEndAt,
     assignedSpaceCode: reservation.assignedSpace?.spaceCode ?? null,

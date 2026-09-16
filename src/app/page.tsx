@@ -127,11 +127,10 @@ export default async function HomePage({ searchParams }: PageProps) {
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>회사명</th>
+                      <th>방문일시</th>
                       <th>성명</th>
                       <th>차량번호</th>
                       <th>담당자</th>
-                      <th>방문일시</th>
                       <th>상태</th>
                     </tr>
                   </thead>
@@ -141,16 +140,15 @@ export default async function HomePage({ searchParams }: PageProps) {
                         key={reservation.reservationId}
                         href={`/mypage/reservations/${reservation.reservationId}`}
                       >
-                        <td className="text-xs">{reservation.companyOrBranchName}</td>
+                        <td className="text-xs whitespace-nowrap">
+                          {formatKstDateTime(reservation.visitStartAt)}
+                        </td>
                         <td className="text-xs">{reservation.requesterName}</td>
                         <td className="font-mono text-xs whitespace-nowrap">
                           {reservation.vehicleNo}
                         </td>
                         <td className="text-xs whitespace-nowrap">
                           {reservation.employeeUserName ?? '-'}
-                        </td>
-                        <td className="text-xs whitespace-nowrap">
-                          {formatKstDateTime(reservation.visitStartAt)}
                         </td>
                         <td>
                           <StatusBadge status={reservation.displayStatus} />
@@ -179,7 +177,7 @@ export default async function HomePage({ searchParams }: PageProps) {
             </li>
             <li>
               {settings.spaceAssignmentEnabled
-                ? '• 주차 위치는 관리자가 배정합니다. 직접 선택할 수 없습니다.'
+                ? '• 주차 위치는 관리자가 배정합니다.'
                 : '• 주차 위치는 지정되지 않습니다. 승인 후 현장 안내에 따라 주차해 주세요.'}
             </li>
             <li>• 신청 결과는 입력하신 이메일로도 발송됩니다.</li>

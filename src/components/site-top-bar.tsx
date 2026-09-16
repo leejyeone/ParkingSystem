@@ -44,7 +44,9 @@ export function SiteTopBar({ session }: { session: TopBarSession }) {
               priority
             />
           </span>
-          <span className="text-base font-black whitespace-nowrap sm:text-lg">시노펙스 방문 예약</span>
+          <span className="hidden text-base font-black whitespace-nowrap sm:inline sm:text-lg">
+            시노펙스 방문 예약
+          </span>
         </Link>
         <div className="flex items-center gap-2">
           {session.kind === 'employee' && (

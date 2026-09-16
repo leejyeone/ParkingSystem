@@ -67,7 +67,7 @@ export type SpaceStatusRow = {
 
 export type HourlyUsage = { hour: number; usedCount: number };
 
-/** 대시보드 "법인차량 승인 대기 목록" 카드용 — 날짜와 무관한 전체 대기 신청 한 건. */
+/** 대시보드 "법인차량 승인 대기" 카드용 — 선택한 날짜에 걸치는 대기 신청 한 건. */
 export type PendingCompanyVehicleTripItem = {
   tripId: number;
   tripNo: string | null;
@@ -101,9 +101,11 @@ export type DashboardData = {
   pendingTotalCount: number;
   /** 발송 실패한 이메일 건수(날짜 무관, 전체). 신청자에게 안내 메일이 못 갔을 수 있어 경고로 띄운다. */
   failedEmailCount: number;
-  /** 승인 대기 중인 법인차량 신청 건수(날짜 무관, 전체). */
+  /** 선택한 날짜에 걸치는 승인 대기 중인 법인차량 신청 건수. */
   companyVehiclePendingCount: number;
-  /** 승인 대기 중인 법인차량 신청 목록(날짜 무관, 전체, 운행 예정 임박순). */
+  /** 날짜와 무관한 전체 법인차량 승인 대기 건수. 다른 날짜 신청을 놓치지 않도록 함께 보여준다. */
+  companyVehiclePendingTotalCount: number;
+  /** 선택한 날짜에 걸치는 승인 대기 중인 법인차량 신청 목록(운행 예정 임박순). */
   companyVehiclePendingTrips: PendingCompanyVehicleTripItem[];
   /**
    * 오늘 접수된 신규 신청 건수(방문 예약 + 법인차량, 반복 예약의 개별 일정 제외).
@@ -142,6 +144,7 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
     pendingTotalCount,
     failedEmailCount,
     companyVehiclePendingTrips,
+    companyVehiclePendingTotalCount,
     todayNewReservationCount,
     todayNewCompanyVehicleTripCount,
   ] = await Promise.all([
@@ -217,13 +220,21 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
       }),
       // 날짜 필터 없이, 아직 해결되지 않은 발송 실패 건수를 센다.
       countUnresolvedFailedEmails(),
-      // 날짜 필터 없이 전체 법인차량 승인 대기 목록을 가져온다(대시보드 목록 카드용).
-      // 처리 큐이므로 운행 예정 시각이 임박한 순으로 — 방문 예약 "승인 대기 목록"
+      // 선택한 날짜에 걸치는 법인차량 승인 대기 목록을 가져온다(대시보드 카드용).
+      // 처리 큐이므로 운행 예정 시각이 임박한 순으로 — 방문 예약 "승인 대기"
       // (visitStartAt asc)과 같은 원칙.
       prisma.companyVehicleTrip.findMany({
-        where: { tripStatus: ReservationStatus.REQUESTED },
+        where: {
+          tripStatus: ReservationStatus.REQUESTED,
+          requestStartAt: { lt: end },
+          requestEndAt: { gt: start },
+        },
         include: { employee: { select: { name: true, departmentName: true } } },
         orderBy: { requestStartAt: 'asc' },
+      }),
+      // 날짜 필터 없이 전체 법인차량 승인 대기 건수를 센다.
+      prisma.companyVehicleTrip.count({
+        where: { tripStatus: ReservationStatus.REQUESTED },
       }),
       // 오늘 접수된(생성된) 방문 예약 건수 — 반복 예약에서 매번 새로 생기는 개별 일정은
       // 신규 "신청"이 아니라 기존 시리즈의 결과물이므로 제외한다.
@@ -378,6 +389,7 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
     failedEmailCount,
     todayNewRequestCount: todayNewReservationCount + todayNewCompanyVehicleTripCount,
     companyVehiclePendingCount: companyVehiclePendingTrips.length,
+    companyVehiclePendingTotalCount,
     companyVehiclePendingTrips: companyVehiclePendingTrips.map((trip) => ({
       tripId: trip.tripId,
       tripNo: trip.tripNo,
