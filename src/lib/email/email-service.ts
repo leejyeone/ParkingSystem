@@ -6,10 +6,12 @@ import { EmailSendError } from '@/lib/email/email-provider';
 import { serializeAttachments } from '@/lib/email/email-attachments';
 import {
   renderCompanyVehicleTripEmail,
+  renderCompanyVehicleTripStatusEmail,
   renderReservationEmail,
   type ReservationEmailData,
   type ReservationEmailType,
   type RenderedEmail,
+  type VehicleTripEmailType,
 } from '@/lib/email/email-template-service';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
@@ -281,6 +283,10 @@ export function buildAdminVehicleTripDetailUrl(tripId: number): string {
   return `${getAppBaseUrl()}/admin/company-vehicles/trips/${tripId}`;
 }
 
+export function buildEmployeeVehicleTripDetailUrl(tripId: number): string {
+  return `${getAppBaseUrl()}/employee/company-vehicle/trips/${tripId}`;
+}
+
 export function buildAccessUrl(rawToken: string): string {
   return buildReservationAccessUrl(getAppBaseUrl(), rawToken);
 }
@@ -478,11 +484,14 @@ export type CompanyVehicleTripForEmail = {
   tripId: number;
   tripNo: string;
   employeeName: string;
+  employeeEmail: string;
   departmentName: string;
   destination: string;
   reason: string;
   requestStartAt: Date;
   requestEndAt: Date;
+  rejectionReason?: string | null;
+  cancelReason?: string | null;
 };
 
 /** 법인차량 신규 운행 신청 알림 (관리자). 방문 예약의 `receiveNewRequest` 플래그를 공유한다. */
@@ -504,6 +513,55 @@ export async function sendNewVehicleTripRequestToAdminEmails(
       }),
     ),
   );
+}
+
+/**
+ * 법인차량 신청 직원에게 보내는 상태 변경 메일 4종의 공통 발송 로직.
+ * 법인차량 신청은 방문 예약과 달리 "당사 담당자" 개념이 없어(신청 직원 본인의
+ * 운행이므로) 수신자가 항상 하나(`trip.employeeEmail`)뿐이다.
+ */
+async function sendVehicleTripStatusEmail(
+  emailType: VehicleTripEmailType,
+  trip: CompanyVehicleTripForEmail,
+): Promise<EmailDispatchResult> {
+  const rendered = renderCompanyVehicleTripStatusEmail(emailType, {
+    ...trip,
+    employeeDetailUrl: buildEmployeeVehicleTripDetailUrl(trip.tripId),
+  });
+  return sendEmailWithLog({
+    reservationId: null,
+    emailType,
+    to: trip.employeeEmail,
+    rendered,
+  });
+}
+
+/** 법인차량 운행 신청 접수 안내 (신청 직원 본인) */
+export async function sendVehicleTripRequestReceivedEmail(
+  trip: CompanyVehicleTripForEmail,
+): Promise<EmailDispatchResult> {
+  return sendVehicleTripStatusEmail(EmailType.VEHICLE_TRIP_REQUEST_RECEIVED, trip);
+}
+
+/** 법인차량 운행 신청 승인 안내 (신청 직원 본인) */
+export async function sendVehicleTripApprovedEmail(
+  trip: CompanyVehicleTripForEmail,
+): Promise<EmailDispatchResult> {
+  return sendVehicleTripStatusEmail(EmailType.VEHICLE_TRIP_APPROVED, trip);
+}
+
+/** 법인차량 운행 신청 반려 안내 (신청 직원 본인) */
+export async function sendVehicleTripRejectedEmail(
+  trip: CompanyVehicleTripForEmail,
+): Promise<EmailDispatchResult> {
+  return sendVehicleTripStatusEmail(EmailType.VEHICLE_TRIP_REJECTED, trip);
+}
+
+/** 법인차량 운행 신청 취소 안내 (신청 직원 본인) */
+export async function sendVehicleTripCancelledEmail(
+  trip: CompanyVehicleTripForEmail,
+): Promise<EmailDispatchResult> {
+  return sendVehicleTripStatusEmail(EmailType.VEHICLE_TRIP_CANCELLED, trip);
 }
 
 /**

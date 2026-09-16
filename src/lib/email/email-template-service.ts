@@ -269,8 +269,13 @@ export type ReservationEmailType = Exclude<
   | 'RECURRING_SCHEDULE_CANCELLED'
   // 담당자 재지정 기능 자체를 되돌리면서 더 이상 발송하지 않는다(enum 값은 DB 호환을 위해 유지).
   | 'HOST_EMPLOYEE_CHANGED'
-  // 방문 예약이 아니라 법인차량 운행 신청 메일이라 별도 함수(renderCompanyVehicleTripEmail)로 렌더링한다.
+  // 방문 예약이 아니라 법인차량 운행 신청 메일이라 별도 함수(renderCompanyVehicleTripEmail /
+  // renderCompanyVehicleTripStatusEmail)로 렌더링한다.
   | 'NEW_VEHICLE_TRIP_TO_ADMIN'
+  | 'VEHICLE_TRIP_REQUEST_RECEIVED'
+  | 'VEHICLE_TRIP_APPROVED'
+  | 'VEHICLE_TRIP_REJECTED'
+  | 'VEHICLE_TRIP_CANCELLED'
 >;
 
 /**
@@ -574,10 +579,133 @@ export type CompanyVehicleTripEmailData = {
   adminDetailUrl: string;
 };
 
-/** 법인차량 신규 운행 신청 알림 (관리자 전용, NEW_REQUEST_TO_ADMIN과 같은 톤) */
+/** 신청 직원 본인이 받는 법인차량 상태 변경 메일 4종. */
+export type VehicleTripEmailType = Extract<
+  EmailType,
+  | 'VEHICLE_TRIP_REQUEST_RECEIVED'
+  | 'VEHICLE_TRIP_APPROVED'
+  | 'VEHICLE_TRIP_REJECTED'
+  | 'VEHICLE_TRIP_CANCELLED'
+>;
+
+export type VehicleTripStatusEmailData = {
+  tripId: number;
+  tripNo: string;
+  employeeName: string;
+  employeeEmail: string;
+  departmentName: string;
+  destination: string;
+  reason: string;
+  requestStartAt: Date;
+  requestEndAt: Date;
+  rejectionReason?: string | null;
+  cancelReason?: string | null;
+  employeeDetailUrl: string;
+};
+
+function vehicleTripBaseRows(data: VehicleTripStatusEmailData): Row[] {
+  return [
+    { label: '신청번호', value: data.tripNo },
+    { label: '신청 직원', value: `${data.employeeName} (${data.departmentName})` },
+    { label: '행선지', value: data.destination },
+    { label: '운행 목적', value: data.reason },
+    { label: '운행 요청 시간', value: formatKstRange(data.requestStartAt, data.requestEndAt) },
+  ];
+}
+
+/** 법인차량 운행 신청 상태 변경 메일 (신청 직원 본인 전용) */
+export function renderCompanyVehicleTripStatusEmail(
+  emailType: VehicleTripEmailType,
+  data: VehicleTripStatusEmailData,
+): RenderedEmail {
+  const rows = vehicleTripBaseRows(data);
+
+  switch (emailType) {
+    case EmailType.VEHICLE_TRIP_REQUEST_RECEIVED: {
+      const params = {
+        title: '법인차량 운행 신청이 접수되었습니다',
+        lead: `${data.employeeName}님, 법인차량 운행 신청이 정상 접수되었습니다. 현재 상태는 "승인 대기" 입니다.`,
+        rows: [...rows, { label: '신청 상태', value: '승인 대기' }],
+        notices: ['아직 승인 전 상태이며, 관리자 승인 후 배정 차량이 안내됩니다.'],
+        buttonLabel: '내 신청 조회하기',
+        buttonUrl: data.employeeDetailUrl,
+      };
+      return {
+        subject: '[시노펙스] 법인차량 운행 신청이 접수되었습니다',
+        html: renderHtmlLayout(params),
+        text: renderTextLayout(params),
+      };
+    }
+
+    case EmailType.VEHICLE_TRIP_APPROVED: {
+      const params = {
+        title: '법인차량 운행 신청이 승인되었습니다',
+        lead: `${data.employeeName}님, 신청하신 법인차량 운행이 승인되었습니다.`,
+        rows: [...rows, { label: '신청 상태', value: '승인 완료' }],
+        notices: [
+          '운행 시 배정된 차량과 운행 정보가 일치해야 합니다.',
+          '승인 완료된 신청은 직접 수정·취소할 수 없습니다. 변경이 필요하면 차량 관리 담당자에게 문의해 주세요.',
+        ],
+        buttonLabel: '내 신청 조회하기',
+        buttonUrl: data.employeeDetailUrl,
+      };
+      return {
+        subject: '[시노펙스] 법인차량 운행 신청이 승인되었습니다',
+        html: renderHtmlLayout(params),
+        text: renderTextLayout(params),
+      };
+    }
+
+    case EmailType.VEHICLE_TRIP_REJECTED: {
+      const params = {
+        title: '법인차량 운행 신청이 반려되었습니다',
+        lead: `${data.employeeName}님, 신청하신 법인차량 운행이 반려되었습니다.`,
+        rows: [
+          ...rows,
+          { label: '반려 사유', value: data.rejectionReason ?? '사유 미기재' },
+          { label: '신청 상태', value: '반려' },
+        ],
+        notices: [
+          '운행 일정 조정이 필요하시면 새로 운행 신청을 등록해 주세요.',
+          '자세한 사항은 차량 관리 담당자에게 문의해 주세요.',
+        ],
+      };
+      return {
+        subject: '[시노펙스] 법인차량 운행 신청이 반려되었습니다',
+        html: renderHtmlLayout(params),
+        text: renderTextLayout(params),
+      };
+    }
+
+    case EmailType.VEHICLE_TRIP_CANCELLED: {
+      const params = {
+        title: '법인차량 운행 신청이 취소되었습니다',
+        lead: `${data.employeeName}님, 신청하신 법인차량 운행이 취소 처리되었습니다.`,
+        rows: [
+          ...rows,
+          { label: '취소 사유', value: data.cancelReason ?? '사유 미기재' },
+          { label: '신청 상태', value: '취소' },
+        ],
+        notices: ['다시 운행이 필요하시면 새로 운행 신청을 등록해 주세요.'],
+      };
+      return {
+        subject: '[시노펙스] 법인차량 운행 신청이 취소되었습니다',
+        html: renderHtmlLayout(params),
+        text: renderTextLayout(params),
+      };
+    }
+
+    default: {
+      const exhaustive: never = emailType;
+      throw new Error(`알 수 없는 법인차량 메일 종류: ${exhaustive}`);
+    }
+  }
+}
+
+/** 신규 법인차량 운행 신청 알림 (관리자 전용, NEW_REQUEST_TO_ADMIN과 같은 톤) */
 export function renderCompanyVehicleTripEmail(data: CompanyVehicleTripEmailData): RenderedEmail {
   const params = {
-    title: '법인차량 신규 운행 신청이 접수되었습니다',
+    title: '신규 법인차량 운행 신청이 접수되었습니다',
     lead: '승인 대기 중인 법인차량 운행 신청이 있습니다. 관리자 화면에서 확인 후 승인 또는 반려해 주세요.',
     rows: [
       { label: '신청번호', value: data.tripNo },
@@ -594,7 +722,7 @@ export function renderCompanyVehicleTripEmail(data: CompanyVehicleTripEmailData)
     footerNote: '본 메일은 관리자 알림 수신자에게 발송됩니다.',
   };
   return {
-    subject: `[시노펙스][승인요청] 법인차량 신규 운행 신청`,
+    subject: `[시노펙스][승인요청] 신규 법인차량 운행 신청`,
     html: renderHtmlLayout(params),
     text: renderTextLayout(params),
   };

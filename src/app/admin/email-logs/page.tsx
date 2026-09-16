@@ -29,6 +29,10 @@ const EMAIL_TYPE_LABEL: Record<EmailType, string> = {
   RECURRING_SCHEDULE_CANCELLED: '반복 예약 삭제',
   HOST_EMPLOYEE_CHANGED: '담당자 변경',
   NEW_VEHICLE_TRIP_TO_ADMIN: '법인차량 관리자 신규',
+  VEHICLE_TRIP_REQUEST_RECEIVED: '법인차량 신청 접수',
+  VEHICLE_TRIP_APPROVED: '법인차량 승인',
+  VEHICLE_TRIP_REJECTED: '법인차량 반려',
+  VEHICLE_TRIP_CANCELLED: '법인차량 취소',
 };
 
 const STATUS_LABEL: Record<EmailSendStatus, string> = {

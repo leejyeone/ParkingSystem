@@ -40,7 +40,13 @@ export type EditableFields = {
   manualDistanceKm: string;
 };
 
-export type VehicleOption = { vehicleId: number; vehicleNo: string; isActive: boolean };
+export type VehicleOption = {
+  vehicleId: number;
+  vehicleNo: string;
+  isActive: boolean;
+  /** 이 신청의 운행 시간대에 다른 신청과 겹치지 않아 배정 가능한지. */
+  available: boolean;
+};
 
 type SaveState = {
   pending: boolean;
@@ -328,16 +334,24 @@ export function CompanyVehicleTripScheduleCard({
     initial,
   );
 
-  // 이미 배정된 차량이 비활성화돼 목록에서 빠졌더라도, 편집 시 선택값이 사라지지
-  // 않도록 목록에 끼워 넣는다.
-  const vehicleOptions =
-    initial.assignedVehicleId !== null &&
-    !vehicles.some((vehicle) => vehicle.vehicleId === initial.assignedVehicleId)
-      ? [
-          ...vehicles,
-          { vehicleId: initial.assignedVehicleId, vehicleNo: readOnly.assignedVehicleText, isActive: false },
-        ]
-      : vehicles;
+  // 이미 배정된 차량이 비활성화되거나(목록에서 빠짐) 시간대가 겹쳐 배정 불가로
+  // 바뀌었더라도, 편집 시 현재 선택값이 사라지지 않도록 목록에 남겨 둔다. 그 외
+  // 배정 불가(다른 신청과 시간 겹침) 차량은 아예 선택지에서 뺀다.
+  const vehicleOptions = vehicles
+    .filter((vehicle) => vehicle.available || vehicle.vehicleId === initial.assignedVehicleId)
+    .concat(
+      initial.assignedVehicleId !== null &&
+        !vehicles.some((vehicle) => vehicle.vehicleId === initial.assignedVehicleId)
+        ? [
+            {
+              vehicleId: initial.assignedVehicleId,
+              vehicleNo: readOnly.assignedVehicleText,
+              isActive: false,
+              available: true,
+            },
+          ]
+        : [],
+    );
 
   return (
     <CardShell
@@ -434,7 +448,7 @@ export function CompanyVehicleTripScheduleCard({
               {vehicleOptions.map((vehicle) => (
                 <option key={vehicle.vehicleId} value={vehicle.vehicleId}>
                   {vehicle.vehicleNo}
-                  {!vehicle.isActive ? ' (비활성)' : ''}
+                  {!vehicle.isActive ? ' (비활성)' : !vehicle.available ? ' (배정 불가)' : ''}
                 </option>
               ))}
             </select>

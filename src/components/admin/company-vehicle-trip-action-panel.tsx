@@ -9,7 +9,13 @@ import { apiRequest } from '@/lib/client/api-client';
 import { utcToZonedInput } from '@/lib/datetime';
 import { useDismissOnInteraction } from '@/lib/hooks/use-dismiss-on-interaction';
 
-type VehicleOption = { vehicleId: number; vehicleNo: string; isActive: boolean };
+type VehicleOption = {
+  vehicleId: number;
+  vehicleNo: string;
+  isActive: boolean;
+  /** 이 신청의 운행 시간대에 다른 신청과 겹치지 않아 배정 가능한지. */
+  available: boolean;
+};
 
 type Props = {
   tripId: number;
@@ -26,7 +32,7 @@ export function CompanyVehicleTripActionPanel({
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const activeVehicles = vehicles.filter((vehicle) => vehicle.isActive);
+  const activeVehicles = vehicles.filter((vehicle) => vehicle.isActive && vehicle.available);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>(
     String(activeVehicles[0]?.vehicleId ?? ''),
   );
@@ -72,6 +78,10 @@ export function CompanyVehicleTripActionPanel({
       if (opts?.appendQuery) {
         const params = new URLSearchParams(searchParams.toString());
         for (const [key, value] of Object.entries(opts.appendQuery)) params.set(key, value);
+        // 쿼리만 바뀐 URL의 새 캐시 항목을 만드는 것과 별개로, 쿼리 없는 원래 상세 페이지
+        // URL의 라우터 캐시도 갱신해야 한다 — 안 그러면 계기판 입력 후 목록으로 나갔다가
+        // 다시 들어왔을 때 이 캐시가 처리 이전 상태로 남아 있을 수 있다.
+        router.refresh();
         router.replace(`?${params.toString()}`);
       } else {
         router.refresh();
@@ -224,7 +234,7 @@ export function CompanyVehicleTripActionPanel({
                     'approve',
                     `/api/admin/company-vehicle-trips/${tripId}/approve`,
                     { vehicleId: Number(selectedVehicleId) },
-                    { redirectTo: '/admin/company-vehicles/trips' },
+                    { redirectTo: '/admin' },
                   )
                 }
               >
@@ -264,7 +274,7 @@ export function CompanyVehicleTripActionPanel({
                     'reject',
                     `/api/admin/company-vehicle-trips/${tripId}/reject`,
                     { rejectionReason },
-                    { redirectTo: '/admin/company-vehicles/trips' },
+                    { redirectTo: '/admin' },
                   )
                 }
               >
@@ -307,7 +317,7 @@ export function CompanyVehicleTripActionPanel({
                   'cancel',
                   `/api/admin/company-vehicle-trips/${tripId}/cancel`,
                   { cancelReason },
-                  { redirectTo: '/admin/company-vehicles/trips' },
+                  { redirectTo: '/admin' },
                 )
               }
             >

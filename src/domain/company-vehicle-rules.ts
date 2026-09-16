@@ -1,5 +1,6 @@
 import { formatKstDate, kstMinutesOfDay, parseTimeOfDayToMinutes } from '@/lib/datetime';
 import { ValidationError, type FieldErrors } from '@/lib/errors';
+import { checkMinimumLeadTime } from '@/domain/reservation-rules';
 import type { SystemSettingsValues } from '@/domain/system-settings';
 
 /**
@@ -72,4 +73,28 @@ export function assertCompanyVehicleTripTiming(params: {
   if (Object.keys(fieldErrors).length > 0) {
     throw new ValidationError('운행 요청 시간을 다시 확인해 주세요.', fieldErrors);
   }
+}
+
+/**
+ * 신규 신청 시 공통 시간 규칙 검증. 방문 예약과 동일하게 최소 사전 신청 시간
+ * (`reservationMinLeadMinutes`)까지 함께 본다 — 관리자 수정(`assertCompanyVehicleTripTiming`)은
+ * 방문 예약의 관리자 수정과 마찬가지로 이 리드타임 검증을 받지 않는다.
+ */
+export function assertCompanyVehicleTripCreateTiming(params: {
+  requestStartAt: Date;
+  requestEndAt: Date;
+  now: Date;
+  settings: SystemSettingsValues;
+}): void {
+  const { requestStartAt, now, settings } = params;
+  const fieldErrors: FieldErrors = {};
+
+  const leadError = checkMinimumLeadTime(requestStartAt, now, settings.reservationMinLeadMinutes);
+  if (leadError) (fieldErrors.requestStartAt ??= []).push(leadError);
+
+  if (Object.keys(fieldErrors).length > 0) {
+    throw new ValidationError('운행 요청 시간을 다시 확인해 주세요.', fieldErrors);
+  }
+
+  assertCompanyVehicleTripTiming(params);
 }

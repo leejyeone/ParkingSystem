@@ -15,7 +15,10 @@ import { formatKstDateTime, formatKstRange, utcToZonedInput } from '@/lib/dateti
 import { NotFoundError } from '@/lib/errors';
 import { parseNumericId } from '@/lib/api-helpers';
 import { listCompanyVehicles } from '@/services/company-vehicle-service';
-import { getCompanyVehicleTripDetail } from '@/services/company-vehicle-trip-service';
+import {
+  findConflictingVehicleIds,
+  getCompanyVehicleTripDetail,
+} from '@/services/company-vehicle-trip-service';
 import { getSystemSettings } from '@/services/settings-service';
 
 export const dynamic = 'force-dynamic';
@@ -57,7 +60,19 @@ export default async function CompanyVehicleTripDetailPage({ params, searchParam
     throw error;
   }
 
-  const [vehicles, settings] = await Promise.all([listCompanyVehicles(), getSystemSettings()]);
+  const [vehicles, conflictingVehicleIds, settings] = await Promise.all([
+    listCompanyVehicles(),
+    findConflictingVehicleIds({
+      requestStartAt: trip.requestStartAt,
+      requestEndAt: trip.requestEndAt,
+      excludeTripId: trip.tripId,
+    }),
+    getSystemSettings(),
+  ]);
+  const vehiclesWithAvailability = vehicles.map((vehicle) => ({
+    ...vehicle,
+    available: !conflictingVehicleIds.has(vehicle.vehicleId),
+  }));
 
   // 종료된 신청(반려/취소/출차/미방문)도 관리자가 내용을 정정할 수 있다 — 방문 예약
   // 상세와 같은 기준. 법인차량은 애초에 이 수정으로 이메일을 보내지 않는다.
@@ -108,7 +123,7 @@ export default async function CompanyVehicleTripDetailPage({ params, searchParam
             tripId={trip.tripId}
             editable={editable}
             initial={editableFields}
-            vehicles={vehicles}
+            vehicles={vehiclesWithAvailability}
             readOnly={{
               visitRangeText: formatKstRange(trip.requestStartAt, trip.requestEndAt),
               assignedVehicleText: trip.assignedVehicle?.vehicleNo ?? '-',
@@ -124,7 +139,7 @@ export default async function CompanyVehicleTripDetailPage({ params, searchParam
           <CompanyVehicleTripActionPanel
             tripId={trip.tripId}
             tripStatus={trip.tripStatus}
-            vehicles={vehicles}
+            vehicles={vehiclesWithAvailability}
             entryExitManagementEnabled={settings.entryExitManagementEnabled}
           />
 

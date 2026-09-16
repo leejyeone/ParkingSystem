@@ -1,9 +1,20 @@
 import { AccountStatus, ChangedByType, Prisma, ReservationStatus } from '@prisma/client';
 
-import { assertCompanyVehicleTripTiming } from '@/domain/company-vehicle-rules';
+import {
+  assertCompanyVehicleTripCreateTiming,
+  assertCompanyVehicleTripTiming,
+} from '@/domain/company-vehicle-rules';
 import { assertTransition } from '@/domain/reservation-status';
 import { todayKstDateString } from '@/lib/datetime';
-import { dispatchQuietly, sendNewVehicleTripRequestToAdminEmails } from '@/lib/email/email-service';
+import {
+  dispatchQuietly,
+  sendNewVehicleTripRequestToAdminEmails,
+  sendVehicleTripApprovedEmail,
+  sendVehicleTripCancelledEmail,
+  sendVehicleTripRejectedEmail,
+  sendVehicleTripRequestReceivedEmail,
+  type CompanyVehicleTripForEmail,
+} from '@/lib/email/email-service';
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/errors';
 import { prisma } from '@/lib/prisma';
 import type { RequestContext } from '@/lib/request-context';
@@ -41,6 +52,23 @@ export type CompanyVehicleTripDetail = Prisma.CompanyVehicleTripGetPayload<{
 }>;
 
 type AdminActionContext = { adminUserId: number; requestContext?: RequestContext };
+
+/** 상태 변경 메일 발송용 필드 매핑 (`toReservationForEmail`과 같은 역할). */
+function toVehicleTripForEmail(trip: CompanyVehicleTripDetail): CompanyVehicleTripForEmail {
+  return {
+    tripId: trip.tripId,
+    tripNo: trip.tripNo ?? `#${trip.tripId}`,
+    employeeName: trip.employee.name,
+    employeeEmail: trip.employee.email,
+    departmentName: trip.employee.departmentName,
+    destination: trip.destination,
+    reason: trip.reason,
+    requestStartAt: trip.requestStartAt,
+    requestEndAt: trip.requestEndAt,
+    rejectionReason: trip.rejectionReason,
+    cancelReason: trip.cancelReason,
+  };
+}
 
 export type CompanyVehicleTripListFilter = {
   vehicleId?: number;
@@ -162,9 +190,11 @@ export async function createCompanyVehicleTrip(
   employeeUserId: number,
 ) {
   const settings = await getSystemSettings();
-  assertCompanyVehicleTripTiming({
+  const now = new Date();
+  assertCompanyVehicleTripCreateTiming({
     requestStartAt: input.requestStartAt,
     requestEndAt: input.requestEndAt,
+    now,
     settings,
   });
 
@@ -179,7 +209,7 @@ export async function createCompanyVehicleTrip(
         requestEndAt: input.requestEndAt,
         tripStatus: ReservationStatus.REQUESTED,
       },
-      include: { employee: { select: { name: true, departmentName: true } } },
+      include: { employee: { select: { name: true, email: true, departmentName: true } } },
     }),
   );
 
@@ -188,6 +218,21 @@ export async function createCompanyVehicleTrip(
       tripId: created.tripId,
       tripNo: created.tripNo ?? `#${created.tripId}`,
       employeeName: created.employee.name,
+      employeeEmail: created.employee.email,
+      departmentName: created.employee.departmentName,
+      destination: created.destination,
+      reason: created.reason,
+      requestStartAt: created.requestStartAt,
+      requestEndAt: created.requestEndAt,
+    }),
+  );
+
+  dispatchQuietly(() =>
+    sendVehicleTripRequestReceivedEmail({
+      tripId: created.tripId,
+      tripNo: created.tripNo ?? `#${created.tripId}`,
+      employeeName: created.employee.name,
+      employeeEmail: created.employee.email,
       departmentName: created.employee.departmentName,
       destination: created.destination,
       reason: created.reason,
@@ -214,6 +259,30 @@ async function findConflictingTrip(
     },
     select: { tripId: true },
   });
+}
+
+/**
+ * 주어진 시간대와 겹치는(APPROVED/PARKING) 트립에 배정된 차량 ID 전체.
+ * 관리자 상세의 차량 배정 드롭다운에서 "이 시간대엔 배정 불가"를 표시하는 데 쓴다.
+ * 단일 차량만 보는 `findConflictingTrip`(승인/수정 트랜잭션의 최종 확인용)과 달리
+ * 배치 조회용이며, 잠금(FOR UPDATE) 없이 읽기 전용으로만 쓴다.
+ */
+export async function findConflictingVehicleIds(params: {
+  requestStartAt: Date;
+  requestEndAt: Date;
+  excludeTripId?: number;
+}): Promise<Set<number>> {
+  const rows = await prisma.companyVehicleTrip.findMany({
+    where: {
+      assignedVehicleId: { not: null },
+      tripStatus: { in: [ReservationStatus.APPROVED, ReservationStatus.PARKING] },
+      requestStartAt: { lt: params.requestEndAt },
+      requestEndAt: { gt: params.requestStartAt },
+      ...(params.excludeTripId ? { tripId: { not: params.excludeTripId } } : {}),
+    },
+    select: { assignedVehicleId: true },
+  });
+  return new Set(rows.map((row) => row.assignedVehicleId).filter((id): id is number => id !== null));
 }
 
 /** 승인 + 차량 배정. 겹치는 시간대에 이미 배정된 차량이면 거부한다. */
@@ -283,6 +352,8 @@ export async function approveCompanyVehicleTrip(
     context: params.requestContext,
   });
 
+  dispatchQuietly(() => sendVehicleTripApprovedEmail(toVehicleTripForEmail(approved)));
+
   return approved;
 }
 
@@ -328,6 +399,8 @@ export async function rejectCompanyVehicleTrip(
     context: params.requestContext,
   });
 
+  dispatchQuietly(() => sendVehicleTripRejectedEmail(toVehicleTripForEmail(rejected)));
+
   return rejected;
 }
 
@@ -372,6 +445,8 @@ export async function cancelCompanyVehicleTripByAdmin(
     context: params.requestContext,
   });
 
+  dispatchQuietly(() => sendVehicleTripCancelledEmail(toVehicleTripForEmail(cancelled)));
+
   return cancelled;
 }
 
@@ -385,7 +460,7 @@ export async function cancelCompanyVehicleTripByRequester(params: {
   employeeUserId: number;
   cancelReason: string;
 }): Promise<CompanyVehicleTripDetail> {
-  return prisma.$transaction(async (tx) => {
+  const cancelled = await prisma.$transaction(async (tx) => {
     const current = await loadTripOrThrow(params.tripId, tx);
     if (current.employeeUserId !== params.employeeUserId) {
       // 남의 신청 ID 를 넣은 경우도 "없음"으로 동일하게 처리한다.
@@ -421,6 +496,10 @@ export async function cancelCompanyVehicleTripByRequester(params: {
 
     return result;
   });
+
+  dispatchQuietly(() => sendVehicleTripCancelledEmail(toVehicleTripForEmail(cancelled)));
+
+  return cancelled;
 }
 
 /**
