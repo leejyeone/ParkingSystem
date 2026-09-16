@@ -1,4 +1,4 @@
-import { RequesterType, ReservationStatus } from '@prisma/client';
+import { ReservationStatus } from '@prisma/client';
 
 import { InvalidStateTransitionError } from '@/lib/errors';
 

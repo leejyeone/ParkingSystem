@@ -23,7 +23,7 @@ export const metadata: Metadata = { title: '대시보드' };
 type PageProps = { searchParams: Promise<{ date?: string; error?: string }> };
 
 export default async function AdminDashboardPage({ searchParams }: PageProps) {
-  const session = await requireAdminPage('/admin');
+  await requireAdminPage('/admin');
   const { date: dateParam, error } = await searchParams;
 
   const today = todayKstDateString();
@@ -32,7 +32,6 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
   // "입차 예정" 배지 판정(예정 시간이 지났는데 아직 입차 처리 전인지)에 쓴다.
   const nowMs = dashboard.nowMs;
 
-  const maxHourlyUsage = Math.max(1, ...dashboard.hourlyUsage.map((slot) => slot.usedCount));
   const showSpace = dashboard.spaceAssignmentEnabled;
   const showDoubleParking = showSpace && dashboard.doubleParkingEnabled;
   // 도면(주차 평면도)에는 비활성 주차면도 회색으로 표시해야 하지만, 아래 표는 실제 배정 가능한

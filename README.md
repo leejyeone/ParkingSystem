@@ -1653,6 +1653,8 @@ npm run test:coverage    # 커버리지 리포트 (coverage/index.html)
 | 17  | 타임존 변환 (KST ↔ UTC)                  | `tests/unit/datetime.test.ts`           |
 | 18  | 시스템 설정 값 변환·기본값 대체          | `tests/unit/system-settings.test.ts`    |
 | 19  | 주차면 버퍼 시간 겹침 판정 (경계값 포함) | `tests/unit/time-overlap.test.ts`       |
+| 20  | 법인차량 운행 신청 가능 시간대·1회 최대 사용 시간 검증 | `tests/unit/company-vehicle-rules.test.ts` |
+| 21  | 법인차량 신규 신청 최소 사전 신청 시간(60분) 검증 | `tests/unit/company-vehicle-rules.test.ts` |
 
 ### 16-2. 통합 테스트 DB 구성
 
@@ -1698,6 +1700,9 @@ npm run test:integration
 | 16  | 회원 로그인 실패 5회 시 계정 잠금                                                       |
 | 17  | 내 정보 수정 결과가 자동완성 원본에 반영                                                |
 | 18  | 로그인 회원의 예약만 내 예약 목록에 표시                                                |
+| 19  | 법인차량 신청 → 승인(차량 배정) → 입차 → 출차, 시간대 겹침 시 재배정 거부               |
+| 20  | 법인차량 신청/승인/반려/취소 단계별 신청 직원 대상 메일 발송 확인                        |
+| 21  | 법인차량 배정 가능 차량 필터링(`findConflictingVehicleIds`) 겹침/제외 판정              |
 
 ### 16-3. E2E 테스트
 
@@ -2085,6 +2090,27 @@ Authorization: Bearer <CRON_SECRET>
 | 10  | `RECURRING_SCHEDULE_UPDATED`   | 대상 직원 + 시스템 관리자 | 변경된 기간·요일·시간대, 정리/재생성 건수   |
 | 11  | `RECURRING_OCCURRENCE_SKIPPED` | 대상 직원 + 시스템 관리자 | 제외된 날짜, 사유                           |
 | 12  | `RECURRING_SCHEDULE_CANCELLED` | 대상 직원 + 시스템 관리자 | 삭제 사실 안내 (남은 예정 방문도 함께 취소) |
+
+**법인차량 운행 신청 전용 — 방문 예약과 별개 종류, 신청 직원에게만 발송(당사 담당자 개념 없음)**
+
+| #   | 종류                          | 수신자              | 주요 내용                                   |
+| --- | ----------------------------- | -------------------- | -------------------------------------------- |
+| 13  | `NEW_VEHICLE_TRIP_TO_ADMIN`   | 관리자 알림 수신자   | 신청 직원, 운행 시간, 행선지, 관리자 상세 링크 |
+| 14  | `VEHICLE_TRIP_REQUEST_RECEIVED` | 신청 직원           | 운행 일정, 승인 대기, 조회 링크              |
+| 15  | `VEHICLE_TRIP_APPROVED`       | 신청 직원            | 운행 시간, 배정 차량, 유의사항               |
+| 16  | `VEHICLE_TRIP_REJECTED`       | 신청 직원            | 반려 사유                                    |
+| 17  | `VEHICLE_TRIP_CANCELLED`      | 신청 직원            | 취소 처리 결과 (관리자 취소 · 본인 취소 모두)|
+
+> **법인차량 신청도 방문 예약과 동일한 최소 사전 신청 시간(`reservationMinLeadMinutes`,
+> 기본 60분)이 적용됩니다.** 관리자가 상세 화면에서 시간을 직접 수정하는 경로는 방문 예약의
+> 관리자 수정과 마찬가지로 이 리드타임 검증을 받지 않습니다
+> ([`assertCompanyVehicleTripCreateTiming`](src/domain/company-vehicle-rules.ts)).
+
+> 관리자가 법인차량 상세에서 차량을 배정할 때 드롭다운에는 **해당 운행 시간대에 이미
+> 배정된 차량이 걸러진** 목록이 표시됩니다
+> ([`findConflictingVehicleIds()`](src/services/company-vehicle-trip-service.ts)). 실제 배정
+> 확정 시에는 동시 승인 경합 방지를 위해 별도로 다시 검증합니다(6절 "동시 승인 경합 방지"와
+> 동일한 방식).
 
 > **반복 예약 메일의 "시스템 관리자" 수신자는 관리자 알림 이메일 목록(`admin_notification_emails`)과
 > 다릅니다.** 그 목록은 일반 주차 관리자(`PARKING_ADMIN`)까지 포함해 신규 신청·취소 알림을
