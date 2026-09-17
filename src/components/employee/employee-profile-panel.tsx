@@ -158,7 +158,7 @@ export function EmployeeProfilePanel({
         </FormField>
 
         <FormField
-          label="전화번호"
+          label="본인 전화번호"
           htmlFor="employee-profile-phone"
           required
           hint="방문객이 담당자를 등록할 때 이름과 함께 확인하는 값입니다."

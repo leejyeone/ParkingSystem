@@ -29,9 +29,9 @@ export default async function EmployeeProfilePage({ searchParams }: PageProps) {
       </div>
 
       {reason === 'phone_required' && (
-        <Alert variant="warning" title="전화번호 등록이 필요합니다">
-          방문객이 담당자를 등록할 때 이름과 함께 확인하는 값이라, 전화번호를 입력해야 다른
-          화면을 이용할 수 있습니다.
+        <Alert variant="warning" title="본인 전화번호 등록이 필요합니다">
+          방문객이 담당자를 등록할 때 이름과 함께 확인하는 값이라, 본인 전화번호를 입력해야
+          다른 화면을 이용할 수 있습니다.
         </Alert>
       )}
 

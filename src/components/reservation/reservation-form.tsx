@@ -83,6 +83,17 @@ const REQUIRED_FIELD_LABELS: Record<string, string> = {
   visitorSecurityPledgeConfirmed: '방문객 보안서약서 동의 확인',
 };
 
+/**
+ * employee-proxy 는 신청 직원 본인이 아니라 방문객의 정보를 입력하는 화면이라, 헷갈리지
+ * 않도록 안내 배너에서도 FormField 라벨과 똑같이 "방문객" 접두어를 붙인다.
+ */
+const PROXY_REQUIRED_FIELD_LABELS: Partial<Record<string, string>> = {
+  companyOrBranchName: '방문객 회사명',
+  requesterName: '방문객 성명',
+  requesterEmail: '방문객 이메일',
+  vehicleNo: '방문객 차량번호',
+};
+
 /** 보안서약서 본문(직원 본인 방문 제외 전부에 동일하게 노출). */
 const SECURITY_PLEDGE_ITEMS = [
   '회사로부터 사전에 허가받지 않은 구역, 시스템 및 정보에 접근하거나 열람하지 않겠습니다.',
@@ -166,19 +177,28 @@ export function ReservationForm({
     // visitor 는 회사명/성명/이메일/차량번호/담당자가 전부 회원 프로필에서 온 읽기 전용 값이라
     // 검증할 입력 자체가 없다(페이지 진입 시점에 프로필 완결성을 이미 확인했다).
     if (mode !== 'visitor') {
+      const isProxy = mode === 'employee-proxy';
       if (form.companyOrBranchName.trim() === '') {
         errors.companyOrBranchName = [
-          mode === 'employee-self' ? '소속 사업장명을 입력해 주세요.' : '회사명을 입력해 주세요.',
+          mode === 'employee-self'
+            ? '소속 사업장명을 입력해 주세요.'
+            : isProxy
+              ? '방문객 회사명을 입력해 주세요.'
+              : '회사명을 입력해 주세요.',
         ];
       }
       if (form.requesterName.trim() === '') {
-        errors.requesterName = ['성명을 입력해 주세요.'];
+        errors.requesterName = [isProxy ? '방문객 성명을 입력해 주세요.' : '성명을 입력해 주세요.'];
       }
       if (form.requesterEmail.trim() === '') {
-        errors.requesterEmail = ['이메일을 입력해 주세요.'];
+        errors.requesterEmail = [
+          isProxy ? '방문객 이메일을 입력해 주세요.' : '이메일을 입력해 주세요.',
+        ];
       }
       if (form.vehicleNo.trim() === '') {
-        errors.vehicleNo = ['차량번호를 입력해 주세요.'];
+        errors.vehicleNo = [
+          isProxy ? '방문객 차량번호를 입력해 주세요.' : '차량번호를 입력해 주세요.',
+        ];
       }
     }
     if (form.visitStartAt === '') {
@@ -219,7 +239,10 @@ export function ReservationForm({
     if (Object.keys(clientErrors).length > 0) {
       setFieldErrors(clientErrors);
       const missingLabels = Object.keys(clientErrors).map(
-        (key) => REQUIRED_FIELD_LABELS[key] ?? key,
+        (key) =>
+          (mode === 'employee-proxy' ? PROXY_REQUIRED_FIELD_LABELS[key] : undefined) ??
+          REQUIRED_FIELD_LABELS[key] ??
+          key,
       );
       setFormError({
         code: 'VALIDATION_ERROR',
@@ -336,7 +359,7 @@ export function ReservationForm({
         <div className="card">
           <div className="card-body space-y-5">
             <FormField
-              label={mode === 'employee-self' ? '소속 사업장명' : '회사명'}
+              label={mode === 'employee-self' ? '소속 사업장명' : '방문객 회사명'}
               htmlFor="companyOrBranchName"
               required
               errors={fieldErrors.companyOrBranchName}
@@ -354,7 +377,7 @@ export function ReservationForm({
             </FormField>
 
             <FormField
-              label="성명"
+              label={mode === 'employee-self' ? '성명' : '방문객 성명'}
               htmlFor="requesterName"
               required
               errors={fieldErrors.requesterName}
@@ -373,7 +396,7 @@ export function ReservationForm({
             </FormField>
 
             <FormField
-              label="이메일"
+              label={mode === 'employee-self' ? '이메일' : '방문객 이메일'}
               htmlFor="requesterEmail"
               required
               hint={
@@ -397,7 +420,12 @@ export function ReservationForm({
               />
             </FormField>
 
-            <FormField label="차량번호" htmlFor="vehicleNo" required errors={fieldErrors.vehicleNo}>
+            <FormField
+              label={mode === 'employee-self' ? '차량번호' : '방문객 차량번호'}
+              htmlFor="vehicleNo"
+              required
+              errors={fieldErrors.vehicleNo}
+            >
               <input
                 id="vehicleNo"
                 name="vehicleNo"
