@@ -38,6 +38,8 @@ const EMAIL_TYPE_LABEL: Record<EmailType, string> = {
   VEHICLE_TRIP_APPROVED: '법인차량 승인',
   VEHICLE_TRIP_REJECTED: '법인차량 반려',
   VEHICLE_TRIP_CANCELLED: '법인차량 취소',
+  VEHICLE_TRIP_RETURN_REQUESTED_TO_ADMIN: '법인차량 반납신청',
+  VEHICLE_TRIP_RETURN_CONFIRMED: '법인차량 반납확정',
 };
 
 /** 이 컬럼이 생기기 전 발송분(과거 데이터)은 null이라 "-"로 표시한다. */

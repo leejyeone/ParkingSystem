@@ -184,7 +184,8 @@
 - **(시스템 관리자 전용)** 이메일 발송 이력 조회 (실패 사유 포함) — 예약 목록과 동일한
   접이식 검색 조건
 - **법인 공용 차량 관리** (양쪽 권한 모두) — 차량 자산 등록/수정/비활성화, 운행 신청 승인/반려/
-  취소, 입출차 처리, 운행일지 주행거리 기록, 운행 대장 조회
+  취소, 반납 확정(직원이 반납 처리한 뒤 차량 상태 확인), 운행일지 주행거리 사후 정정, 운행
+  대장 조회 (차량 선택·주행거리 1차 입력·반납 처리는 신청 직원이 직접 한다)
 - 시스템 설정, 주차 구역·주차면, 알림 이메일 관리 (양쪽 권한 모두)
 - **(시스템 관리자 전용)** 관리자 계정 생성(권한을 시스템 관리자/주차 관리자 중 선택, 기본값
   주차 관리자)·수정·비활성화
@@ -278,7 +279,7 @@
 - 주차 구역 / 주차면 관리
 - 관리자 알림 이메일 관리 (일반 예약 신규 신청/변경 알림 수신자)
 - 시스템 운영시간·정책 설정 (입·출차 관리 사용 여부 포함)
-- 법인 공용 차량 자산 관리, 운행 신청 승인/반려/취소/입출차 처리
+- 법인 공용 차량 자산 관리, 운행 신청 승인/반려/취소/반납 확정(입출차는 관리자가 관리하지 않음)
 - 개인정보 열람·상태 변경 이력은 감사 로그(DB)에 기록됨(화면 조회 기능 없음, 19절 참고)
 
 **시스템 관리자 전용** ("시스템 관리" 메뉴)
@@ -896,7 +897,7 @@ SynopexParking/
 │     ├─ reservation-access-service.ts            #   예약 접근 토큰 발급/검증
 │     ├─ reservation-lookup-service.ts            #   로그인 회원/직원 소유 예약의 접근 토큰 발급(마이페이지 진입용)
 │     ├─ company-vehicle-service.ts               #   법인 공용 차량 자산 등록/수정/활성화 전환
-│     ├─ company-vehicle-trip-service.ts          #   법인차량 운행 신청/승인/반려/취소/입출차/사후 정정
+│     ├─ company-vehicle-trip-service.ts          #   법인차량 운행 신청(차량 선택 포함)/승인/반려/취소/반납 처리·확정/사후 정정
 │     ├─ admin-auth-service.ts                    #   관리자 로그인/잠금/권한 확인
 │     ├─ user-auth-service.ts                     #   회원 가입/로그인/프로필
 │     ├─ employee-auth-service.ts                 #   직원(사번) 로그인/세션 발급
@@ -1260,7 +1261,7 @@ npx tsx scripts/import-operators.ts <JSON 경로>
 | `reservation_access_tokens`       | 예약 조회 토큰 **해시만** 저장                                                                                                   |
 | `parking_reservation_status_logs` | 상태 변경 이력                                                                                                                   |
 | `company_vehicles`                | 법인 공용 차량 자산 (차량번호·차종·고정 배정 주차면·활성 여부)                                                                   |
-| `company_vehicle_trips`           | 법인차량 운행 신청 (신청→승인/반려→입출차, 방문 예약과 같은 상태값 재사용)                                                       |
+| `company_vehicle_trips`           | 법인차량 운행 신청 (신청 시 차량 선택→승인/반려→반납 처리(직원)/확정(관리자), 방문 예약과 같은 상태값 재사용)                    |
 | `company_vehicle_trip_status_logs`| 법인차량 운행 신청 상태 변경 이력                                                                                                |
 | `admin_notification_emails`       | 관리자 알림 수신자 및 수신 항목                                                                                                  |
 | `email_send_logs`                 | 이메일 발송 이력 (+ 멱등성 키)                                                                                                   |
@@ -1700,9 +1701,10 @@ npm run test:integration
 | 16  | 회원 로그인 실패 5회 시 계정 잠금                                                       |
 | 17  | 내 정보 수정 결과가 자동완성 원본에 반영                                                |
 | 18  | 로그인 회원의 예약만 내 예약 목록에 표시                                                |
-| 19  | 법인차량 신청 → 승인(차량 배정) → 입차 → 출차, 시간대 겹침 시 재배정 거부               |
-| 20  | 법인차량 신청/승인/반려/취소 단계별 신청 직원 대상 메일 발송 확인                        |
-| 21  | 법인차량 배정 가능 차량 필터링(`findConflictingVehicleIds`) 겹침/제외 판정              |
+| 19  | 법인차량 신청(차량 선택)→승인→반납 처리(직원)→반납 확정(관리자), 신청 단계부터 같은 차량·시간대(승인 대기 포함) 중복 거부 |
+| 20  | 법인차량 신청/승인/반려/취소/반납 처리/반납 확정 단계별 메일 발송(신청 직원·관리자 알림) 확인 |
+| 21  | 법인차량 차량 선택 그리드용 데이터(`getVehicleAvailabilityForDate`)·충돌 판정(`findConflictingVehicleIds`) 겹침/제외 판정 |
+| 22  | 법인차량 주행거리 신청 직원 본인 입력 — 운행 예정일 이전 차단, 본인 소유 검증          |
 
 ### 16-3. E2E 테스트
 
@@ -2039,8 +2041,9 @@ Authorization: Bearer <CRON_SECRET>
 
 ### 법인차량 API
 
-법인 공용 차량 자산 관리는 관리자 전용(양쪽 역할 모두 접근 가능), 운행 신청은 직원이
-직접 올리고 관리자가 승인/처리합니다.
+법인 공용 차량 자산 관리는 관리자 전용입니다. 운행 신청은 **직원이 차량까지 직접 골라서**
+올리고, 관리자는 승인/반려만 합니다 — 입·출차를 관리자가 관리하는 개념이 없고, 직원이
+"반납 처리"를 누르면 관리자가 차량 상태를 확인하고 반납을 확정합니다.
 
 | 메서드   | 경로                                              | 권한   | 설명                                                        |
 | -------- | -------------------------------------------------- | ------ | ------------------------------------------------------------- |
@@ -2050,14 +2053,16 @@ Authorization: Bearer <CRON_SECRET>
 | `DELETE` | `/api/admin/company-vehicles/[id]`                | 관리자 | 법인차량 삭제                                                |
 | `GET`    | `/api/admin/company-vehicle-trips`                | 관리자 | 운행 신청 목록 (`?vehicleId=`로 특정 차량만 필터)             |
 | `GET`    | `/api/admin/company-vehicle-trips/[id]`           | 관리자 | 운행 신청 상세                                               |
-| `PATCH`  | `/api/admin/company-vehicle-trips/[id]`           | 관리자 | 신청 내용·배정 차량·실제 입출차 시각 사후 정정               |
-| `POST`   | `/api/admin/company-vehicle-trips/[id]/approve`   | 관리자 | 승인 + 차량 배정                                              |
+| `PATCH`  | `/api/admin/company-vehicle-trips/[id]`           | 관리자 | 신청 내용·배정 차량·반납 처리/확정 시각 사후 정정            |
+| `POST`   | `/api/admin/company-vehicle-trips/[id]/approve`   | 관리자 | 승인 (차량은 신청 시점에 이미 선택됨)                        |
 | `POST`   | `/api/admin/company-vehicle-trips/[id]/reject`    | 관리자 | 반려                                                          |
-| `POST`   | `/api/admin/company-vehicle-trips/[id]/cancel`    | 관리자 | 승인 완료 신청 취소 (배정 차량 해제)                          |
-| `POST`   | `/api/admin/company-vehicle-trips/[id]/entry`     | 관리자 | 출차 처리 (법인차량은 방문 예약과 입출차 방향이 반대)         |
-| `POST`   | `/api/admin/company-vehicle-trips/[id]/exit`      | 관리자 | 입차 처리                                                     |
-| `POST`   | `/api/admin/company-vehicle-trips/[id]/mileage`   | 관리자 | 운행일지 주행거리(계기판/수동 입력) 기록                      |
-| `POST`   | `/api/company-vehicle-trips`                      | 직원   | 법인차량 운행 신청 (전화번호 등록 필수)                        |
+| `POST`   | `/api/admin/company-vehicle-trips/[id]/cancel`    | 관리자 | 승인 완료 신청 취소                                          |
+| `POST`   | `/api/admin/company-vehicle-trips/[id]/confirm-return` | 관리자 | 반납 확정 (직원 반납 처리 후 차량 상태 확인, `PARKING→EXITED`) |
+| `POST`   | `/api/admin/company-vehicle-trips/[id]/mileage`   | 관리자 | 운행일지 주행거리(계기판/수동 입력) 사후 정정                |
+| `POST`   | `/api/company-vehicle-trips`                      | 직원   | 법인차량 운행 신청 (차량 선택 포함, 전화번호 등록 필수)       |
+| `GET`    | `/api/company-vehicle-trips/vehicle-availability` | 직원   | 신청 화면 차량 선택 그리드용 — 날짜별 차량 예약 현황 조회     |
+| `PUT`    | `/api/company-vehicle-trips/[id]/mileage`         | 직원   | 본인 신청의 주행거리(계기판) 입력 — 운행일 당일~반납 처리 전 |
+| `POST`   | `/api/company-vehicle-trips/[id]/return`          | 직원   | 본인 신청 "반납 처리" (승인 완료 상태에서만, `APPROVED→PARKING`) |
 | `POST`   | `/api/company-vehicle-trips/[id]/cancel`          | 직원   | 본인 신청 취소 (승인 대기 상태에서만)                          |
 
 ### 스케줄러 API
@@ -2100,17 +2105,26 @@ Authorization: Bearer <CRON_SECRET>
 | 15  | `VEHICLE_TRIP_APPROVED`       | 신청 직원            | 운행 시간, 배정 차량, 유의사항               |
 | 16  | `VEHICLE_TRIP_REJECTED`       | 신청 직원            | 반려 사유                                    |
 | 17  | `VEHICLE_TRIP_CANCELLED`      | 신청 직원            | 취소 처리 결과 (관리자 취소 · 본인 취소 모두)|
+| 18  | `VEHICLE_TRIP_RETURN_REQUESTED_TO_ADMIN` | 관리자 알림 수신자 | 직원이 반납 처리했다는 확인 요청, 관리자 상세 링크 |
+| 19  | `VEHICLE_TRIP_RETURN_CONFIRMED` | 신청 직원          | 관리자가 반납을 확정했다는 안내              |
 
 > **법인차량 신청도 방문 예약과 동일한 최소 사전 신청 시간(`reservationMinLeadMinutes`,
 > 기본 60분)이 적용됩니다.** 관리자가 상세 화면에서 시간을 직접 수정하는 경로는 방문 예약의
 > 관리자 수정과 마찬가지로 이 리드타임 검증을 받지 않습니다
 > ([`assertCompanyVehicleTripCreateTiming`](src/domain/company-vehicle-rules.ts)).
 
-> 관리자가 법인차량 상세에서 차량을 배정할 때 드롭다운에는 **해당 운행 시간대에 이미
-> 배정된 차량이 걸러진** 목록이 표시됩니다
-> ([`findConflictingVehicleIds()`](src/services/company-vehicle-trip-service.ts)). 실제 배정
-> 확정 시에는 동시 승인 경합 방지를 위해 별도로 다시 검증합니다(6절 "동시 승인 경합 방지"와
-> 동일한 방식).
+> **차량은 관리자가 아니라 직원이 신청 시점에 직접 고릅니다.** 신청 화면에서 차량별
+> 예약 현황(승인 대기 포함)을 그리드로 보여주고, 겹치는 시간대는 회색으로 막아 둡니다.
+> 서버도 신청 시점에 같은 차량·시간대 중복을 막고([`findConflictingTrip`/
+> `findConflictingVehicleIds`](src/services/company-vehicle-trip-service.ts), 승인
+> 대기(`REQUESTED`) 상태도 충돌로 본다), 관리자 승인 시에는 그 사이 다른 신청이 먼저
+> 승인돼 겹침이 생기지 않았는지 방어적으로 한 번 더 검증합니다.
+
+> **입·출차를 관리자가 관리하지 않습니다.** 승인 후에는 직원이 알아서 차량을 사용하고,
+> 다 쓰면 신청 상세에서 "반납 처리"를 누릅니다(`APPROVED→PARKING`, "반납 대기"). 관리자가
+> 차량 상태를 확인하고 "반납 확정"을 누르면 완전히 종료됩니다(`PARKING→EXITED`, "반납
+> 완료"). 주행거리(계기판)도 관리자가 아니라 **신청 직원 본인이** 운행 예정일 당일부터
+> 반납 처리 전까지 자유롭게 입력·수정합니다 — 관리자는 사후 정정만 합니다.
 
 > **반복 예약 메일의 "시스템 관리자" 수신자는 관리자 알림 이메일 목록(`admin_notification_emails`)과
 > 다릅니다.** 그 목록은 일반 주차 관리자(`PARKING_ADMIN`)까지 포함해 신규 신청·취소 알림을

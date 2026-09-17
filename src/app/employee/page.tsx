@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ClickableTableRow } from '@/components/admin/clickable-table-row';
 import { ActionCard } from '@/components/ui/action-card';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { COMPANY_VEHICLE_STATUS_LABEL } from '@/domain/reservation-status';
 import { DEFAULT_SETTINGS } from '@/domain/system-settings';
 import { requireEmployeePage } from '@/lib/employee-page-guard';
 import { findMatchingAdminAccount } from '@/services/admin-auth-service';
@@ -88,7 +89,14 @@ export default async function EmployeeHomePage() {
                         {item.purpose}
                       </td>
                       <td>
-                        <StatusBadge status={item.status} />
+                        <StatusBadge
+                          status={item.status}
+                          label={
+                            item.kind === 'COMPANY_VEHICLE'
+                              ? COMPANY_VEHICLE_STATUS_LABEL[item.status]
+                              : undefined
+                          }
+                        />
                       </td>
                     </ClickableTableRow>
                   ))}

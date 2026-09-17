@@ -146,6 +146,41 @@ export function resolveDisplayStatus(
   return reservation.reservationStatus;
 }
 
+/**
+ * 법인차량 전용 표시 상태.
+ *
+ * 법인차량은 입·출차 관리 개념 자체가 없다(설정과 무관하게 항상 `resolveDisplayStatus`의
+ * "꺼짐" 분기와 같은 처리) — 직원이 신청 시간대로 알아서 사용하고, "반납 처리"를 눌러야만
+ * PARKING(반납 대기)으로 실제 전이된다. 그래서 APPROVED 상태에서 "지금 사용 중인지/기간이
+ * 지났는지"는 방문 예약처럼 시간만 보고 추측할 수밖에 없다. PARKING/EXITED는 반납 처리·확정
+ * 이라는 실제 사건으로만 도달하므로 그대로 저장된 상태를 쓴다(추측할 필요가 없다).
+ *
+ * 관리자 화면은 이 함수를 쓰지 않고 저장된 실제 상태만 보여준다(방문 예약과 같은 원칙 —
+ * `resolveDisplayStatus` 위 주석 참고). 직원 본인 화면에서만 쓴다.
+ */
+export function resolveCompanyVehicleDisplayStatus(
+  trip: { tripStatus: ReservationStatus; requestStartAt: Date; requestEndAt: Date },
+  now: Date = new Date(),
+): DisplayReservationStatus {
+  if (trip.tripStatus !== ReservationStatus.APPROVED) return trip.tripStatus;
+
+  const nowMs = now.getTime();
+  if (nowMs >= trip.requestEndAt.getTime()) return 'USED';
+  if (nowMs >= trip.requestStartAt.getTime()) return 'IN_USE';
+  return trip.tripStatus;
+}
+
+/**
+ * 법인차량 전용 상태 라벨. 방문 예약과 공유하는 `RESERVATION_STATUS_LABEL`을 베이스로,
+ * PARKING/EXITED만 "반납 대기"/"반납 완료"로 다시 쓴다(트리거 주체가 관리자에서 직원·관리자
+ * 확인으로 바뀌었기 때문 — `StatusBadge`의 `label` 오버라이드로 화면마다 적용한다).
+ */
+export const COMPANY_VEHICLE_STATUS_LABEL: Readonly<Record<DisplayReservationStatus, string>> = {
+  ...DISPLAY_STATUS_LABEL,
+  PARKING: '반납 대기',
+  EXITED: '반납 완료',
+};
+
 export const REQUESTER_TYPE_LABEL = {
   VISITOR: '방문객',
   EMPLOYEE: '직원',

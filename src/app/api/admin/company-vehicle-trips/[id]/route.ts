@@ -35,7 +35,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
 /**
  * PATCH /api/admin/company-vehicle-trips/[id] — 신청 상세 카드에서 신청 내용(신청
- * 직원·행선지·사유·운행시간)과 운행 기록(배정 차량·실제 출차/입차 시각) 정정
+ * 직원·행선지·사유·운행시간)과 운행 기록(배정 차량·반납 처리/확정 시각) 정정
  */
 export async function PATCH(request: NextRequest, context: RouteContext) {
   try {

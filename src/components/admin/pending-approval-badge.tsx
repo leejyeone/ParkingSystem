@@ -35,9 +35,10 @@ function usePendingBadgeVisible() {
 }
 
 /**
- * 방문 예약 + 법인차량 승인대기를 합산한 빨간 뱃지 — 관리실 모니터(`/admin/parking-map`)
- * 화면에서 승인 대기가 쌓여도 알아차릴 수 있도록 `MaximizableCard`의 header 슬롯에 둔다.
- * 눈 아이콘으로 껐다 켤 수 있으며, 꺼진 상태에서도 다시 켤 수 있도록 토글 버튼은 계속 보인다.
+ * 방문 예약 승인대기 + 법인차량 승인대기 + 법인차량 반납대기를 합산한 빨간 뱃지 —
+ * 관리실 모니터(`/admin/parking-map`) 화면에서 처리할 일이 쌓여도 알아차릴 수 있도록
+ * `MaximizableCard`의 header 슬롯에 둔다. 눈 아이콘으로 껐다 켤 수 있으며, 꺼진
+ * 상태에서도 다시 켤 수 있도록 토글 버튼은 계속 보인다.
  */
 export function PendingApprovalBadge({ count }: { count: number }) {
   const { visible, toggle } = usePendingBadgeVisible();
@@ -51,8 +52,8 @@ export function PendingApprovalBadge({ count }: { count: number }) {
         <Link
           href="/admin"
           className="flex h-6 min-w-6 items-center justify-center rounded-full bg-red-600 px-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-red-700"
-          aria-label={`승인대기 ${count}건 — 대시보드로 이동`}
-          title={`승인대기 ${count}건`}
+          aria-label={`승인·반납 대기 ${count}건 — 대시보드로 이동`}
+          title={`승인·반납 대기 ${count}건`}
         >
           {count}
         </Link>

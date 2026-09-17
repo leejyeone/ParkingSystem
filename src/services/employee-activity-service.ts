@@ -1,5 +1,6 @@
 import { Prisma, type ReservationStatus } from '@prisma/client';
 
+import { resolveCompanyVehicleDisplayStatus, type DisplayReservationStatus } from '@/domain/reservation-status';
 import { formatKstDateTime, formatKstRange } from '@/lib/datetime';
 import { prisma } from '@/lib/prisma';
 
@@ -29,7 +30,7 @@ export type EmployeeActivityItem = {
   /** 직원 홈 "최근 예약 현황" 요약 표 전용 — 방문 시작 시각만(예: '2026-09-14 09:00'). */
   startAtText: string;
   purpose: string;
-  status: ReservationStatus;
+  status: DisplayReservationStatus;
   href: string;
   sortAt: Date;
 };
@@ -163,7 +164,9 @@ function tripToItem(trip: {
     dateRangeText: formatKstRange(trip.requestStartAt, trip.requestEndAt),
     startAtText: formatKstDateTime(trip.requestStartAt),
     purpose: trip.reason,
-    status: trip.tripStatus,
+    // 입출차 관리가 없어져 저장된 상태만으로는 "지금 사용 중인지" 알 수 없다 —
+    // resolveCompanyVehicleDisplayStatus 참고.
+    status: resolveCompanyVehicleDisplayStatus(trip),
     href: `/employee/company-vehicle/trips/${trip.tripId}`,
     // 방문 예약과 같은 이유로 화면에 보이는 "일시"(운행 시각) 기준으로 정렬한다.
     sortAt: trip.requestStartAt,

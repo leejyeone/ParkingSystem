@@ -309,6 +309,91 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
         </div>
       </section>
 
+      <section className="card">
+        <div className="card-body">
+          <div className="flex items-center justify-between">
+            <h2 className="card-title">
+              법인차량 반납 대기
+              {(dashboard.companyVehicleReturnPendingCount > 0 ||
+                dashboard.companyVehicleReturnPendingTotalCount > 0) && (
+                <span className="text-ink-faint ml-2 text-xs font-bold">
+                  {dashboard.companyVehicleReturnPendingCount}/
+                  {dashboard.companyVehicleReturnPendingTotalCount}건
+                </span>
+              )}
+            </h2>
+            <Link
+              href="/admin/company-vehicles/trips?status=PARKING"
+              className="text-brand-700 text-sm font-bold"
+            >
+              전체 보기 →
+            </Link>
+          </div>
+
+          {dashboard.companyVehicleReturnPendingTrips.length === 0 ? (
+            <p className="text-ink-faint mt-4 text-sm">
+              이 날짜에는 반납 확인이 필요한 법인차량이 없습니다.
+              {dashboard.companyVehicleReturnPendingTotalCount > 0 ? (
+                <>
+                  {' '}
+                  다른 날짜에 {dashboard.companyVehicleReturnPendingTotalCount}건이 대기 중입니다.{' '}
+                  <Link
+                    href="/admin/company-vehicles/trips?status=PARKING"
+                    className="text-brand-700 font-bold"
+                  >
+                    전체 보기
+                  </Link>
+                </>
+              ) : null}
+            </p>
+          ) : (
+            <>
+              <p className="field-hint mt-2">
+                직원이 반납 처리한 건입니다. 행을 누르면 차량 상태를 확인하고 반납을 확정할 수
+                있습니다.
+              </p>
+              <div className="table-scroll mt-2">
+                <table className="data-table table-fixed">
+                  <thead>
+                    <tr>
+                      <th className="w-44">운행 시간</th>
+                      <th className="w-64">신청 직원</th>
+                      <th className="w-28">행선지</th>
+                      <th>사유</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dashboard.companyVehicleReturnPendingTrips.map((trip) => (
+                      <ClickableTableRow
+                        key={trip.tripId}
+                        href={`/admin/company-vehicles/trips/${trip.tripId}`}
+                      >
+                        <td className="whitespace-nowrap">
+                          {/* 키보드 이동과 새 탭 열기를 위해 실제 링크를 둔다. */}
+                          <Link
+                            href={`/admin/company-vehicles/trips/${trip.tripId}`}
+                            className="text-brand-700 font-bold hover:underline"
+                          >
+                            {formatKstRange(trip.requestStartAt, trip.requestEndAt)}
+                          </Link>
+                        </td>
+                        <td>
+                          {trip.requesterName} ({trip.departmentName})
+                        </td>
+                        <td>{trip.destination}</td>
+                        <td className="truncate" title={trip.reason}>
+                          {trip.reason}
+                        </td>
+                      </ClickableTableRow>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      </section>
+
       {showSpace && (
         <section className="card">
           <div className="card-body">

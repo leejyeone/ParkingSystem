@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { EmployeeSearchSelect } from '@/components/reservation/employee-search-select';
 import { Alert } from '@/components/ui/alert';
@@ -12,7 +12,7 @@ import { apiRequest } from '@/lib/client/api-client';
  * 법인차량 신청 상세의 인라인 수정 카드. `reservation-detail-cards.tsx`(방문 예약 상세)와
  * 같은 패턴 — 카드 우상단 [수정하기]를 누르면 그 카드만 편집 모드로 바뀐다.
  *
- * 신청 직원/행선지/사유/운행시간/배정 차량/실제 출입차 시각은 PATCH
+ * 신청 직원/행선지/사유/운행시간/배정 차량/반납 처리·확정 시각은 PATCH
  * /api/admin/company-vehicle-trips/[id] 로, 주행거리는 POST
  * /api/admin/company-vehicle-trips/[id]/mileage 로 따로 저장하지만, 세 카드(신청
  * 정보·운행 일정·주행 기록) 중 어느 쪽에서 저장하든 현재 폼 전체를 두 요청에 함께
@@ -308,7 +308,7 @@ export function CompanyVehicleTripInfoCard({
   );
 }
 
-/** 운행 일정 카드 — 운행 요청 시간·배정 차량·실제 출입차 시각을 수정한다. */
+/** 운행 일정 카드 — 운행 요청 시간·배정 차량·반납 처리/확정 시각을 수정한다. */
 export function CompanyVehicleTripScheduleCard({
   tripId,
   editable,
@@ -323,8 +323,8 @@ export function CompanyVehicleTripScheduleCard({
   readOnly: {
     visitRangeText: string;
     assignedVehicleText: string;
-    actualEntryText: string;
-    actualExitText: string;
+    returnRequestedText: string;
+    returnConfirmedText: string;
     rejectionReason: string | null;
     cancelReason: string | null;
   };
@@ -398,13 +398,12 @@ export function CompanyVehicleTripScheduleCard({
             </FormField>
           </div>
 
-          {/* 법인차량은 방문 예약과 입출차 방향이 반대라, actualEntryAt이 "실제 출차",
-              actualExitAt이 "실제 입차"다. */}
+          {/* actualEntryAt은 "반납 처리 시각"(직원), actualExitAt은 "반납 확정 시각"(관리자)이다. */}
           <div className="grid gap-3 sm:grid-cols-2">
             <FormField
-              label="실제 출차 시각"
+              label="반납 처리 시각"
               htmlFor="edit-actual-entry"
-              hint="아직 출차 처리 전이면 비워 둡니다."
+              hint="아직 반납 처리 전이면 비워 둡니다."
               errors={state.fieldErrors.actualEntryAt}
             >
               <input
@@ -416,9 +415,9 @@ export function CompanyVehicleTripScheduleCard({
               />
             </FormField>
             <FormField
-              label="실제 입차 시각"
+              label="반납 확정 시각"
               htmlFor="edit-actual-exit"
-              hint="아직 입차 처리 전이면 비워 둡니다."
+              hint="아직 반납 확정 전이면 비워 둡니다."
               errors={state.fieldErrors.actualExitAt}
             >
               <input
@@ -457,10 +456,8 @@ export function CompanyVehicleTripScheduleCard({
       ) : (
         <dl className="mt-3">
           <Row term="운행 요청 시간" desc={readOnly.visitRangeText} />
-          {/* 법인차량은 방문 예약과 입출차 방향이 반대라, actualEntryAt(APPROVED→PARKING
-              시각)이 "실제 출차", actualExitAt(PARKING→EXITED 시각)이 "실제 입차"다. */}
-          <Row term="실제 출차" desc={readOnly.actualEntryText} />
-          <Row term="실제 입차" desc={readOnly.actualExitText} />
+          <Row term="반납 처리 시각" desc={readOnly.returnRequestedText} />
+          <Row term="반납 확정 시각" desc={readOnly.returnConfirmedText} />
           <Row term="배정 차량" desc={readOnly.assignedVehicleText} />
           {readOnly.rejectionReason && <Row term="반려 사유" desc={readOnly.rejectionReason} />}
           {readOnly.cancelReason && <Row term="취소 사유" desc={readOnly.cancelReason} />}
@@ -481,35 +478,24 @@ function resolveMileageText(fields: Pick<EditableFields, 'odometerStartKm' | 'od
   return '-';
 }
 
-/** 주행 기록 카드 — 출발/도착 계기판 값(또는 계기판 없이 주행거리만)을 수정한다. */
+/**
+ * 주행 기록 카드 — 출발/도착 계기판 값(또는 계기판 없이 주행거리만)을 수정한다.
+ * 1차 입력은 신청 직원 본인이 하고(직원 상세 페이지), 이 카드는 관리자가 사후에 보정할
+ * 때 쓴다.
+ */
 export function CompanyVehicleTripMileageCard({
   tripId,
   editable,
   initial,
-  autoOpen,
 }: {
   tripId: number;
   editable: boolean;
   initial: EditableFields;
-  /** 출차/입차 처리 직후 이 카드를 자동으로 편집 모드로 열어 입력을 유도한다. */
-  autoOpen?: boolean;
 }) {
   const { editing, setEditing, form, update, state, saved, save, cancel } = useTripEdit(
     tripId,
     initial,
   );
-
-  const hasAnyMileageRecord =
-    initial.odometerStartKm !== '' || initial.odometerEndKm !== '' || initial.manualDistanceKm !== '';
-
-  useEffect(() => {
-    // 이미 뭔가 기록돼 있으면(계기판이든 직접 입력이든) 자동으로 편집 모드를 열지 않는다 —
-    // 입력을 유도할 필요가 없는 상태라 실수로 기존 값을 건드리게 하지 않기 위함이다.
-    if (autoOpen && editable && !hasAnyMileageRecord) {
-      setEditing();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const mileageText = resolveMileageText(initial);
 

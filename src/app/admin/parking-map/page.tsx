@@ -32,7 +32,10 @@ export default async function AdminParkingMapPage() {
   }
 
   const activeSpaces = dashboard.spaces.filter((space) => space.isActive);
-  const pendingCount = dashboard.pendingTotalCount + dashboard.companyVehiclePendingCount;
+  const pendingCount =
+    dashboard.pendingTotalCount +
+    dashboard.companyVehiclePendingCount +
+    dashboard.companyVehicleReturnPendingCount;
 
   return (
     <main className="app-container-wide space-y-4">

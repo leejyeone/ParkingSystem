@@ -276,6 +276,8 @@ export type ReservationEmailType = Exclude<
   | 'VEHICLE_TRIP_APPROVED'
   | 'VEHICLE_TRIP_REJECTED'
   | 'VEHICLE_TRIP_CANCELLED'
+  | 'VEHICLE_TRIP_RETURN_REQUESTED_TO_ADMIN'
+  | 'VEHICLE_TRIP_RETURN_CONFIRMED'
 >;
 
 /**
@@ -579,13 +581,14 @@ export type CompanyVehicleTripEmailData = {
   adminDetailUrl: string;
 };
 
-/** 신청 직원 본인이 받는 법인차량 상태 변경 메일 4종. */
+/** 신청 직원 본인이 받는 법인차량 상태 변경 메일 5종. */
 export type VehicleTripEmailType = Extract<
   EmailType,
   | 'VEHICLE_TRIP_REQUEST_RECEIVED'
   | 'VEHICLE_TRIP_APPROVED'
   | 'VEHICLE_TRIP_REJECTED'
   | 'VEHICLE_TRIP_CANCELLED'
+  | 'VEHICLE_TRIP_RETURN_CONFIRMED'
 >;
 
 export type VehicleTripStatusEmailData = {
@@ -695,6 +698,22 @@ export function renderCompanyVehicleTripStatusEmail(
       };
     }
 
+    case EmailType.VEHICLE_TRIP_RETURN_CONFIRMED: {
+      const params = {
+        title: '법인차량 반납이 확정되었습니다',
+        lead: `${data.employeeName}님, 반납 처리하신 법인차량 운행 건이 관리자 확인을 거쳐 반납 확정되었습니다. 이용해 주셔서 감사합니다.`,
+        rows: [...rows, { label: '신청 상태', value: '반납 완료' }],
+        notices: [],
+        buttonLabel: '내 신청 조회하기',
+        buttonUrl: data.employeeDetailUrl,
+      };
+      return {
+        subject: '[시노펙스] 법인차량 반납이 확정되었습니다',
+        html: renderHtmlLayout(params),
+        text: renderTextLayout(params),
+      };
+    }
+
     default: {
       const exhaustive: never = emailType;
       throw new Error(`알 수 없는 법인차량 메일 종류: ${exhaustive}`);
@@ -723,6 +742,37 @@ export function renderCompanyVehicleTripEmail(data: CompanyVehicleTripEmailData)
   };
   return {
     subject: `[시노펙스][승인요청] 신규 법인차량 운행 신청`,
+    html: renderHtmlLayout(params),
+    text: renderTextLayout(params),
+  };
+}
+
+/**
+ * 법인차량 반납 처리 알림 (관리자 전용) — 직원이 "반납 처리"를 누르면 관리자가 차량
+ * 상태를 확인하고 반납을 확정해야 하므로, 신규 신청 알림과 같은 톤으로 안내한다.
+ */
+export function renderCompanyVehicleTripReturnRequestedEmail(
+  data: CompanyVehicleTripEmailData,
+): RenderedEmail {
+  const params = {
+    title: '법인차량 반납 확인이 필요합니다',
+    lead: '신청 직원이 법인차량 반납 처리를 완료했습니다. 차량 상태를 확인한 뒤 관리자 화면에서 반납을 확정해 주세요.',
+    rows: [
+      { label: '신청번호', value: data.tripNo },
+      { label: '신청 직원', value: `${data.employeeName} (${data.departmentName})` },
+      { label: '행선지', value: data.destination },
+      { label: '운행 목적', value: data.reason },
+      { label: '운행 요청 시간', value: formatKstRange(data.requestStartAt, data.requestEndAt) },
+    ],
+    notices: [
+      '신청자 개인정보가 포함된 메일입니다. 업무 목적 외 사용이나 외부 공유를 금지합니다.',
+    ],
+    buttonLabel: '관리자 화면에서 확인하기',
+    buttonUrl: data.adminDetailUrl,
+    footerNote: '본 메일은 관리자 알림 수신자에게 발송됩니다.',
+  };
+  return {
+    subject: '[시노펙스][확인요청] 법인차량 반납 확인이 필요합니다',
     html: renderHtmlLayout(params),
     text: renderTextLayout(params),
   };

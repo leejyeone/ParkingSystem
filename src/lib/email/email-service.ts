@@ -13,6 +13,7 @@ import { EmailSendError } from '@/lib/email/email-provider';
 import { serializeAttachments } from '@/lib/email/email-attachments';
 import {
   renderCompanyVehicleTripEmail,
+  renderCompanyVehicleTripReturnRequestedEmail,
   renderCompanyVehicleTripStatusEmail,
   renderReservationEmail,
   type ReservationEmailData,
@@ -593,6 +594,39 @@ export async function sendVehicleTripCancelledEmail(
   trip: CompanyVehicleTripForEmail,
 ): Promise<EmailDispatchResult> {
   return sendVehicleTripStatusEmail(EmailType.VEHICLE_TRIP_CANCELLED, trip);
+}
+
+/** 법인차량 반납 확정 안내 (신청 직원 본인) */
+export async function sendVehicleTripReturnConfirmedEmail(
+  trip: CompanyVehicleTripForEmail,
+): Promise<EmailDispatchResult> {
+  return sendVehicleTripStatusEmail(EmailType.VEHICLE_TRIP_RETURN_CONFIRMED, trip);
+}
+
+/**
+ * 법인차량 반납 처리 알림 (관리자). 신청 직원이 "반납 처리"를 누르면 관리자가 차량
+ * 상태를 확인하고 반납을 확정해야 하므로, 신규 신청 알림과 같은 수신자·구조로 보낸다.
+ */
+export async function sendVehicleTripReturnRequestedToAdminEmails(
+  trip: CompanyVehicleTripForEmail,
+): Promise<EmailDispatchResult[]> {
+  const recipients = await getAdminRecipients('receiveNewRequest');
+  const rendered = renderCompanyVehicleTripReturnRequestedEmail({
+    ...trip,
+    adminDetailUrl: buildAdminVehicleTripDetailUrl(trip.tripId),
+  });
+  return Promise.all(
+    recipients.map((to) =>
+      sendEmailWithLog({
+        reservationId: null,
+        companyVehicleTripId: trip.tripId,
+        emailType: EmailType.VEHICLE_TRIP_RETURN_REQUESTED_TO_ADMIN,
+        audience: EmailAudience.ADMIN,
+        to,
+        rendered,
+      }),
+    ),
+  );
 }
 
 /**

@@ -9,7 +9,7 @@ import {
   CompanyVehicleTripScheduleCard,
 } from '@/components/admin/company-vehicle-trip-detail-cards';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { RESERVATION_STATUS_LABEL } from '@/domain/reservation-status';
+import { COMPANY_VEHICLE_STATUS_LABEL } from '@/domain/reservation-status';
 import { requireAdminPage } from '@/lib/admin-page-guard';
 import { formatKstDateTime, formatKstRange, utcToZonedInput } from '@/lib/datetime';
 import { NotFoundError } from '@/lib/errors';
@@ -19,7 +19,6 @@ import {
   findConflictingVehicleIds,
   getCompanyVehicleTripDetail,
 } from '@/services/company-vehicle-trip-service';
-import { getSystemSettings } from '@/services/settings-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +26,7 @@ export const metadata: Metadata = { title: '운행 신청 상세' };
 
 type PageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ returnTo?: string; mileagePrompt?: string }>;
+  searchParams: Promise<{ returnTo?: string }>;
 };
 
 export default async function CompanyVehicleTripDetailPage({ params, searchParams }: PageProps) {
@@ -36,7 +35,7 @@ export default async function CompanyVehicleTripDetailPage({ params, searchParam
 
   /* 예약 상세와 같은 이유(목록·운행 대장 두 곳에서 들어올 수 있음)로 returnTo 를 신뢰
      범위(`/admin/`) 안에서만 뒤로가기에 쓴다. */
-  const { returnTo: rawReturnTo, mileagePrompt } = await searchParams;
+  const { returnTo: rawReturnTo } = await searchParams;
   const returnTo =
     typeof rawReturnTo === 'string' && rawReturnTo.startsWith('/admin/')
       ? rawReturnTo
@@ -60,14 +59,13 @@ export default async function CompanyVehicleTripDetailPage({ params, searchParam
     throw error;
   }
 
-  const [vehicles, conflictingVehicleIds, settings] = await Promise.all([
+  const [vehicles, conflictingVehicleIds] = await Promise.all([
     listCompanyVehicles(),
     findConflictingVehicleIds({
       requestStartAt: trip.requestStartAt,
       requestEndAt: trip.requestEndAt,
       excludeTripId: trip.tripId,
     }),
-    getSystemSettings(),
   ]);
   const vehiclesWithAvailability = vehicles.map((vehicle) => ({
     ...vehicle,
@@ -102,7 +100,7 @@ export default async function CompanyVehicleTripDetailPage({ params, searchParam
           <h1 className="text-ink font-mono text-xl font-black sm:text-2xl">
             {trip.tripNo ?? `운행 신청 #${trip.tripId}`}
           </h1>
-          <StatusBadge status={trip.tripStatus} />
+          <StatusBadge status={trip.tripStatus} label={COMPANY_VEHICLE_STATUS_LABEL[trip.tripStatus]} />
         </div>
       </div>
 
@@ -127,8 +125,8 @@ export default async function CompanyVehicleTripDetailPage({ params, searchParam
             readOnly={{
               visitRangeText: formatKstRange(trip.requestStartAt, trip.requestEndAt),
               assignedVehicleText: trip.assignedVehicle?.vehicleNo ?? '-',
-              actualEntryText: trip.actualEntryAt ? formatKstDateTime(trip.actualEntryAt) : '-',
-              actualExitText: trip.actualExitAt ? formatKstDateTime(trip.actualExitAt) : '-',
+              returnRequestedText: trip.actualEntryAt ? formatKstDateTime(trip.actualEntryAt) : '-',
+              returnConfirmedText: trip.actualExitAt ? formatKstDateTime(trip.actualExitAt) : '-',
               rejectionReason: trip.rejectionReason,
               cancelReason: trip.cancelReason,
             }}
@@ -136,18 +134,12 @@ export default async function CompanyVehicleTripDetailPage({ params, searchParam
         </div>
 
         <div className="min-w-0 space-y-4">
-          <CompanyVehicleTripActionPanel
-            tripId={trip.tripId}
-            tripStatus={trip.tripStatus}
-            vehicles={vehiclesWithAvailability}
-            entryExitManagementEnabled={settings.entryExitManagementEnabled}
-          />
+          <CompanyVehicleTripActionPanel tripId={trip.tripId} tripStatus={trip.tripStatus} />
 
           <CompanyVehicleTripMileageCard
             tripId={trip.tripId}
             editable={editable}
             initial={editableFields}
-            autoOpen={mileagePrompt === '1'}
           />
         </div>
       </div>
@@ -173,9 +165,9 @@ export default async function CompanyVehicleTripDetailPage({ params, searchParam
                     </td>
                     <td className="text-xs whitespace-nowrap">
                       {log.previousStatus
-                        ? `${RESERVATION_STATUS_LABEL[log.previousStatus]} → `
+                        ? `${COMPANY_VEHICLE_STATUS_LABEL[log.previousStatus]} → `
                         : ''}
-                      <strong>{RESERVATION_STATUS_LABEL[log.currentStatus]}</strong>
+                      <strong>{COMPANY_VEHICLE_STATUS_LABEL[log.currentStatus]}</strong>
                     </td>
                     <td className="text-xs">
                       {log.changedByType === 'ADMIN'

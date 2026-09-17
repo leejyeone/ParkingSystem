@@ -5,7 +5,7 @@ import {
   assertCompanyVehicleTripTiming,
 } from '@/domain/company-vehicle-rules';
 import { assertTransition } from '@/domain/reservation-status';
-import { todayKstDateString } from '@/lib/datetime';
+import { formatKstDate, kstDayRangeUtc, todayKstDateString } from '@/lib/datetime';
 import {
   dispatchQuietly,
   sendNewVehicleTripRequestToAdminEmails,
@@ -13,6 +13,8 @@ import {
   sendVehicleTripCancelledEmail,
   sendVehicleTripRejectedEmail,
   sendVehicleTripRequestReceivedEmail,
+  sendVehicleTripReturnConfirmedEmail,
+  sendVehicleTripReturnRequestedToAdminEmails,
   type CompanyVehicleTripForEmail,
 } from '@/lib/email/email-service';
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/errors';
@@ -25,13 +27,29 @@ import { getSystemSettings } from '@/services/settings-service';
 /**
  * 법인 공용 차량 운행 신청 처리.
  *
- * 방문 예약(reservation-service.ts)과 흐름은 같지만(신청→승인→입출차→이력) 배정 대상이
- * "주차 공간"이 아니라 "차량 자산"이라 별도 서비스로 둔다. 상태 전이 검증(assertTransition)과
- * 상태 로그·감사 로그 패턴은 방문 예약과 동일하게 재사용한다.
+ * 방문 예약(reservation-service.ts)과 다른 점: 배정 대상이 "주차 공간"이 아니라 "차량
+ * 자산"이고, **차량은 직원이 신청 시점에 직접 고른다**(관리자는 승인/반려만 한다). 입·출차를
+ * 관리자가 관리하는 개념도 없다 — 승인 후에는 직원이 알아서 사용하고, 다 쓰면 "반납 처리"를
+ * 눌러 관리자에게 알리면 관리자가 차량 상태를 확인한 뒤 반납을 확정한다(PARKING="반납 대기",
+ * EXITED="반납 완료"로 재해석 — 상태 전이 그래프 자체는 방문 예약과 동일하게 공유한다).
+ * 상태 전이 검증(assertTransition)과 상태 로그·감사 로그 패턴도 방문 예약과 동일하게
+ * 재사용한다.
  */
 
-/** 차량 배정이 의미를 갖는(승인 절차를 거친) 상태. */
+/**
+ * 이 시간대에 이미 이 차량을 쓰기로 한(또는 쓰고 있는) 것으로 보는 상태.
+ * REQUESTED도 포함해야 승인 대기 단계부터 같은 차량·시간대 중복 신청을 막을 수 있다 —
+ * 차량을 관리자가 아니라 신청 시점에 직원이 직접 고르기 때문.
+ */
+const CONFLICTING_TRIP_STATUSES: ReservationStatus[] = [
+  ReservationStatus.REQUESTED,
+  ReservationStatus.APPROVED,
+  ReservationStatus.PARKING,
+];
+
+/** 배정 차량 변경이 의미를 갖는 상태. 직원이 신청 시점부터 차량을 고르므로 REQUESTED도 포함한다. */
 const VEHICLE_ASSIGNABLE_STATUSES: ReservationStatus[] = [
+  ReservationStatus.REQUESTED,
   ReservationStatus.APPROVED,
   ReservationStatus.PARKING,
   ReservationStatus.EXITED,
@@ -154,6 +172,7 @@ export type CreateCompanyVehicleTripInput = {
   reason: string;
   requestStartAt: Date;
   requestEndAt: Date;
+  vehicleId: number;
 };
 
 /**
@@ -199,17 +218,40 @@ export async function createCompanyVehicleTrip(
   });
 
   const created = await createWithUniqueTripNo((tripNo) =>
-    prisma.companyVehicleTrip.create({
-      data: {
-        tripNo,
-        employeeUserId,
-        destination: input.destination.trim(),
-        reason: input.reason.trim(),
-        requestStartAt: input.requestStartAt,
-        requestEndAt: input.requestEndAt,
-        tripStatus: ReservationStatus.REQUESTED,
-      },
-      include: { employee: { select: { name: true, email: true, departmentName: true } } },
+    prisma.$transaction(async (tx) => {
+      // 두 직원이 거의 동시에 같은 차량·시간대를 신청해도 한쪽만 통과하도록 차량 행을
+      // 먼저 잠근다(approveCompanyVehicleTrip과 같은 이유).
+      await tx.$queryRaw`SELECT vehicle_id FROM company_vehicles WHERE vehicle_id = ${input.vehicleId} FOR UPDATE`;
+
+      const vehicle = await tx.companyVehicle.findUnique({ where: { vehicleId: input.vehicleId } });
+      if (!vehicle || !vehicle.isActive) {
+        throw new NotFoundError('선택하신 법인차량을 찾을 수 없습니다.');
+      }
+
+      const conflict = await findConflictingTrip(
+        { vehicleId: input.vehicleId, requestStartAt: input.requestStartAt, requestEndAt: input.requestEndAt },
+        tx,
+      );
+      if (conflict) {
+        throw new ConflictError(
+          '선택하신 차량은 해당 시간대에 이미 다른 신청(승인 대기 포함)이 있습니다. 다른 차량이나 시간을 선택해 주세요.',
+          'VEHICLE_TIME_CONFLICT',
+        );
+      }
+
+      return tx.companyVehicleTrip.create({
+        data: {
+          tripNo,
+          employeeUserId,
+          destination: input.destination.trim(),
+          reason: input.reason.trim(),
+          requestStartAt: input.requestStartAt,
+          requestEndAt: input.requestEndAt,
+          assignedVehicleId: input.vehicleId,
+          tripStatus: ReservationStatus.REQUESTED,
+        },
+        include: { employee: { select: { name: true, email: true, departmentName: true } } },
+      });
     }),
   );
 
@@ -244,7 +286,7 @@ export async function createCompanyVehicleTrip(
   return created;
 }
 
-/** 해당 차량이 그 시간대에 이미 다른 트립(APPROVED/PARKING)에 배정되어 있는지 확인 */
+/** 해당 차량이 그 시간대에 이미 다른 트립(승인 대기 포함)에 배정되어 있는지 확인 */
 async function findConflictingTrip(
   params: { vehicleId: number; requestStartAt: Date; requestEndAt: Date; excludeTripId?: number },
   tx: Prisma.TransactionClient,
@@ -252,7 +294,7 @@ async function findConflictingTrip(
   return tx.companyVehicleTrip.findFirst({
     where: {
       assignedVehicleId: params.vehicleId,
-      tripStatus: { in: [ReservationStatus.APPROVED, ReservationStatus.PARKING] },
+      tripStatus: { in: CONFLICTING_TRIP_STATUSES },
       requestStartAt: { lt: params.requestEndAt },
       requestEndAt: { gt: params.requestStartAt },
       ...(params.excludeTripId ? { tripId: { not: params.excludeTripId } } : {}),
@@ -262,9 +304,9 @@ async function findConflictingTrip(
 }
 
 /**
- * 주어진 시간대와 겹치는(APPROVED/PARKING) 트립에 배정된 차량 ID 전체.
- * 관리자 상세의 차량 배정 드롭다운에서 "이 시간대엔 배정 불가"를 표시하는 데 쓴다.
- * 단일 차량만 보는 `findConflictingTrip`(승인/수정 트랜잭션의 최종 확인용)과 달리
+ * 주어진 시간대와 겹치는(승인 대기 포함) 트립에 배정된 차량 ID 전체.
+ * 관리자 상세 화면에서 "이 시간대엔 이미 다른 신청이 있음"을 표시하는 데 쓴다.
+ * 단일 차량만 보는 `findConflictingTrip`(생성/승인/수정 트랜잭션의 최종 확인용)과 달리
  * 배치 조회용이며, 잠금(FOR UPDATE) 없이 읽기 전용으로만 쓴다.
  */
 export async function findConflictingVehicleIds(params: {
@@ -275,7 +317,7 @@ export async function findConflictingVehicleIds(params: {
   const rows = await prisma.companyVehicleTrip.findMany({
     where: {
       assignedVehicleId: { not: null },
-      tripStatus: { in: [ReservationStatus.APPROVED, ReservationStatus.PARKING] },
+      tripStatus: { in: CONFLICTING_TRIP_STATUSES },
       requestStartAt: { lt: params.requestEndAt },
       requestEndAt: { gt: params.requestStartAt },
       ...(params.excludeTripId ? { tripId: { not: params.excludeTripId } } : {}),
@@ -285,24 +327,84 @@ export async function findConflictingVehicleIds(params: {
   return new Set(rows.map((row) => row.assignedVehicleId).filter((id): id is number => id !== null));
 }
 
-/** 승인 + 차량 배정. 겹치는 시간대에 이미 배정된 차량이면 거부한다. */
+/**
+ * 직원 신청 화면의 차량 선택 그리드용 — 그 날짜(KST)에 걸치는 활성 차량별 기존 예약
+ * (승인 대기 포함) 구간을 전부 돌려준다. `findConflictingVehicleIds`는 "겹치는지 여부"만
+ * 알려주는 배치 조회고, 이건 실제 구간 목록까지 필요한 그리드 렌더링용이라 별도로 둔다.
+ */
+export type VehicleAvailability = {
+  vehicleId: number;
+  vehicleNo: string;
+  vehicleModel: string | null;
+  busyRanges: { start: Date; end: Date }[];
+};
+
+export async function getVehicleAvailabilityForDate(
+  dateRange: { start: Date; end: Date },
+  excludeTripId?: number,
+): Promise<VehicleAvailability[]> {
+  const [vehicles, trips] = await Promise.all([
+    prisma.companyVehicle.findMany({
+      where: { isActive: true },
+      orderBy: { vehicleId: 'asc' },
+      select: { vehicleId: true, vehicleNo: true, vehicleModel: true },
+    }),
+    prisma.companyVehicleTrip.findMany({
+      where: {
+        assignedVehicleId: { not: null },
+        tripStatus: { in: CONFLICTING_TRIP_STATUSES },
+        requestStartAt: { lt: dateRange.end },
+        requestEndAt: { gt: dateRange.start },
+        ...(excludeTripId ? { tripId: { not: excludeTripId } } : {}),
+      },
+      select: { assignedVehicleId: true, requestStartAt: true, requestEndAt: true },
+    }),
+  ]);
+
+  const byVehicle = new Map<number, { start: Date; end: Date }[]>();
+  for (const trip of trips) {
+    if (trip.assignedVehicleId === null) continue;
+    const list = byVehicle.get(trip.assignedVehicleId) ?? [];
+    list.push({ start: trip.requestStartAt, end: trip.requestEndAt });
+    byVehicle.set(trip.assignedVehicleId, list);
+  }
+
+  return vehicles.map((vehicle) => ({
+    vehicleId: vehicle.vehicleId,
+    vehicleNo: vehicle.vehicleNo,
+    vehicleModel: vehicle.vehicleModel,
+    busyRanges: byVehicle.get(vehicle.vehicleId) ?? [],
+  }));
+}
+
+/**
+ * 승인. 차량은 신청 시점에 이미 직원이 골랐으므로 여기서는 그 사이 다른 신청이 먼저
+ * 승인돼 겹침이 생기지 않았는지 방어적으로 재확인만 한다.
+ */
 export async function approveCompanyVehicleTrip(
-  params: { tripId: number; vehicleId: number } & AdminActionContext,
+  params: { tripId: number } & AdminActionContext,
 ): Promise<CompanyVehicleTripDetail> {
   const approved = await prisma.$transaction(async (tx) => {
     const current = await loadTripOrThrow(params.tripId, tx);
     assertTransition(current.tripStatus, ReservationStatus.APPROVED);
 
-    await tx.$queryRaw`SELECT vehicle_id FROM company_vehicles WHERE vehicle_id = ${params.vehicleId} FOR UPDATE`;
+    if (current.assignedVehicleId === null) {
+      throw new ConflictError(
+        '신청에 배정된 차량 정보가 없습니다. 신청 내용을 다시 확인해 주세요.',
+        'VEHICLE_NOT_ASSIGNED',
+      );
+    }
 
-    const vehicle = await tx.companyVehicle.findUnique({ where: { vehicleId: params.vehicleId } });
+    await tx.$queryRaw`SELECT vehicle_id FROM company_vehicles WHERE vehicle_id = ${current.assignedVehicleId} FOR UPDATE`;
+
+    const vehicle = await tx.companyVehicle.findUnique({ where: { vehicleId: current.assignedVehicleId } });
     if (!vehicle || !vehicle.isActive) {
-      throw new NotFoundError('배정할 수 있는 법인차량을 찾을 수 없습니다.');
+      throw new NotFoundError('신청 시점에 선택된 법인차량을 찾을 수 없습니다.');
     }
 
     const conflict = await findConflictingTrip(
       {
-        vehicleId: params.vehicleId,
+        vehicleId: current.assignedVehicleId,
         requestStartAt: current.requestStartAt,
         requestEndAt: current.requestEndAt,
         excludeTripId: current.tripId,
@@ -311,7 +413,7 @@ export async function approveCompanyVehicleTrip(
     );
     if (conflict) {
       throw new ConflictError(
-        '선택하신 차량은 해당 시간대에 이미 다른 운행에 배정되어 있습니다.',
+        '선택된 차량이 그 사이 해당 시간대에 다른 신청과 겹치게 되었습니다. 신청자에게 재조정을 요청하거나 반려해 주세요.',
         'VEHICLE_TIME_CONFLICT',
       );
     }
@@ -320,7 +422,6 @@ export async function approveCompanyVehicleTrip(
       where: { tripId: params.tripId },
       data: {
         tripStatus: ReservationStatus.APPROVED,
-        assignedVehicleId: params.vehicleId,
         approvalAdminId: params.adminUserId,
         approvedAt: new Date(),
         rejectedAt: null,
@@ -336,7 +437,7 @@ export async function approveCompanyVehicleTrip(
         currentStatus: ReservationStatus.APPROVED,
         changedByType: ChangedByType.ADMIN,
         changedByAdminId: params.adminUserId,
-        changeReason: `차량 ${result.assignedVehicle?.vehicleNo ?? '-'} 배정 후 승인`,
+        changeReason: `차량 ${result.assignedVehicle?.vehicleNo ?? '-'} 신청으로 승인`,
       },
     });
 
@@ -370,7 +471,6 @@ export async function rejectCompanyVehicleTrip(
         tripStatus: ReservationStatus.REJECTED,
         rejectedAt: new Date(),
         rejectionReason: params.rejectionReason,
-        assignedVehicleId: null,
         approvalAdminId: params.adminUserId,
       },
       include: TRIP_DETAIL_INCLUDE,
@@ -417,7 +517,6 @@ export async function cancelCompanyVehicleTripByAdmin(
         tripStatus: ReservationStatus.CANCELLED,
         cancelledAt: new Date(),
         cancelReason: params.cancelReason,
-        assignedVehicleId: null,
       },
       include: TRIP_DETAIL_INCLUDE,
     });
@@ -504,17 +603,18 @@ export async function cancelCompanyVehicleTripByRequester(params: {
 
 /**
  * 신청 상세(관리자 화면 카드별 [수정하기])에서 신청 내용(신청 직원·행선지·사유·
- * 운행시간)과 사후 정정이 필요한 운행 기록(배정 차량·실제 출차/입차 시각)을
+ * 운행시간)과 사후 정정이 필요한 운행 기록(배정 차량·반납 처리/확정 시각)을
  * 관리자가 직접 고친다. 신청 단계의 운영시간/최대 사용시간 규칙
  * (`assertCompanyVehicleTripTiming`)은 관리자가 고친 시간에도 동일하게 적용한다 —
  * 그래야 관리자 수정을 거쳐 운영시간 밖이나 최대 사용시간을 넘는 신청이 남는 걸 막을
  * 수 있다(방문 예약 관리자 수정의 `checkVisitRange`/`checkOperatingHours` 재검증과
- * 같은 원칙). 실제 출·입차 "처리"(정방향 상태 전이) 자체는 markCompanyVehicleEntry/Exit
- * 가 맡고, 여기서는 신청 내용과 이미 기록된 실제 시각을 바로잡는다 — 다만 실제 시각을
- * 지워서(null) 그 처리 자체를 취소하는 경우에는, `reservation-service.ts`의
- * `updateEntryExitRecords`와 같은 이유로 `tripStatus`도 처리 이전 상태로 함께 되돌리고
- * 상태 로그를 남긴다(정방향 전이가 아니라 사후 취소라 `assertTransition`은 쓰지 않는다 —
- * `ALLOWED_TRANSITIONS`에는 역방향 전이가 정의돼 있지 않기 때문).
+ * 같은 원칙). 반납 처리/확정(정방향 상태 전이) 자체는 requestCompanyVehicleReturn(직원)/
+ * confirmCompanyVehicleReturn(관리자)이 맡고, 여기서는 신청 내용과 이미 기록된 실제
+ * 시각을 바로잡는다 — 다만 실제 시각을 지워서(null) 그 처리 자체를 취소하는 경우에는,
+ * `reservation-service.ts`의 `updateEntryExitRecords`와 같은 이유로 `tripStatus`도 처리
+ * 이전 상태로 함께 되돌리고 상태 로그를 남긴다(정방향 전이가 아니라 사후 취소라
+ * `assertTransition`은 쓰지 않는다 — `ALLOWED_TRANSITIONS`에는 역방향 전이가 정의돼
+ * 있지 않기 때문).
  */
 export async function updateCompanyVehicleTripDetails(
   params: {
@@ -536,15 +636,15 @@ export async function updateCompanyVehicleTripDetails(
     settings,
   });
 
-  // 법인차량은 방문 예약과 입출차 방향이 반대라, actualEntryAt이 "실제 출차",
-  // actualExitAt이 "실제 입차"다 — 그래도 시간 순서상 출차가 입차보다 먼저여야 한다.
+  // actualEntryAt은 "반납 처리 시각", actualExitAt은 "반납 확정 시각"이다 — 확정이
+  // 처리보다 먼저일 수 없다.
   if (
     params.actualEntryAt &&
     params.actualExitAt &&
     params.actualExitAt < params.actualEntryAt
   ) {
-    throw new ValidationError('입차 시간은 출차 시간 이후여야 합니다.', {
-      actualExitAt: ['입차 시간은 출차 시간 이후여야 합니다.'],
+    throw new ValidationError('반납 확정 시간은 반납 처리 시간 이후여야 합니다.', {
+      actualExitAt: ['반납 확정 시간은 반납 처리 시간 이후여야 합니다.'],
     });
   }
 
@@ -573,13 +673,11 @@ export async function updateCompanyVehicleTripDetails(
       params.requestEndAt.getTime() !== current.requestEndAt.getTime();
 
     if (params.assignedVehicleId !== null && (vehicleChanged || timeChanged)) {
-      // 차량 배정은 승인 절차를 거친 상태(APPROVED/PARKING/EXITED)에서만 의미가 있다 —
-      // REQUESTED/REJECTED/CANCELLED 건에 이 경로로 차량을 억지로 넣으면 승인을 거치지
-      // 않은 배정이 생긴다. changeAssignedSpace(방문 예약의 주차면 재배정)가 상태를
-      // 제한하는 것과 같은 이유다.
+      // REJECTED/CANCELLED(종료된 신청)에는 이 경로로 차량을 넣어도 의미가 없다 —
+      // changeAssignedSpace(방문 예약의 주차면 재배정)가 상태를 제한하는 것과 같은 이유.
       if (!VEHICLE_ASSIGNABLE_STATUSES.includes(current.tripStatus)) {
         throw new ConflictError(
-          '승인 완료 이후(승인/입차/입출차 완료) 상태의 신청만 배정 차량을 변경할 수 있습니다.',
+          '종료(반려/취소)된 신청은 배정 차량을 변경할 수 없습니다.',
           'VEHICLE_CHANGE_NOT_ALLOWED',
         );
       }
@@ -620,12 +718,12 @@ export async function updateCompanyVehicleTripDetails(
     }
 
     /*
-     * 실제 출·입차 기록을 지우면(값 -> null) 그 처리 이전 상태로 되돌린다 —
-     * markCompanyVehicleEntry/Exit 가 기록을 "남길" 때 tripStatus 를 함께 전이시키는
-     * 것과 대칭이다. 법인차량은 필드 의미가 반대라(actualEntryAt=출차, actualExitAt=
-     * 입차) 되돌리는 순서도 반대다: 나중 사건인 입차(actualExitAt) 기록부터 지워야
-     * EXITED->PARKING, 그다음 출차(actualEntryAt) 기록을 지워야 PARKING->APPROVED —
-     * 한 번에 두 값을 함께 null 로 보내도 이 순서대로 처리하므로 문제없다.
+     * 반납 처리/확정 기록을 지우면(값 -> null) 그 처리 이전 상태로 되돌린다 —
+     * requestCompanyVehicleReturn/confirmCompanyVehicleReturn이 기록을 "남길" 때
+     * tripStatus를 함께 전이시키는 것과 대칭이다. 나중 사건인 반납 확정(actualExitAt)
+     * 기록부터 지워야 EXITED->PARKING, 그다음 반납 처리(actualEntryAt) 기록을 지워야
+     * PARKING->APPROVED — 한 번에 두 값을 함께 null로 보내도 이 순서대로 처리하므로
+     * 문제없다.
      */
     let nextTripStatus = current.tripStatus;
     const statusLogsToWrite: {
@@ -637,14 +735,14 @@ export async function updateCompanyVehicleTripDetails(
     if (params.actualExitAt === null && current.actualExitAt !== null) {
       if (nextTripStatus !== ReservationStatus.EXITED) {
         throw new ConflictError(
-          '입차 처리된 신청만 입차 기록을 지울 수 있습니다.',
+          '반납 확정된 신청만 반납 확정 기록을 지울 수 있습니다.',
           'TRIP_NOT_EXITED',
         );
       }
       statusLogsToWrite.push({
         previousStatus: nextTripStatus,
         currentStatus: ReservationStatus.PARKING,
-        changeReason: '입차 기록 삭제(관리자 정정) — 입차 처리 이전 상태로 되돌림',
+        changeReason: '반납 확정 기록 삭제(관리자 정정) — 반납 확정 이전 상태로 되돌림',
       });
       nextTripStatus = ReservationStatus.PARKING;
     }
@@ -652,14 +750,14 @@ export async function updateCompanyVehicleTripDetails(
     if (params.actualEntryAt === null && current.actualEntryAt !== null) {
       if (nextTripStatus !== ReservationStatus.PARKING) {
         throw new ConflictError(
-          '출차 처리된 신청만 출차 기록을 지울 수 있습니다. (입차 기록이 남아 있다면 함께 지워 주세요)',
+          '반납 처리된 신청만 반납 처리 기록을 지울 수 있습니다. (반납 확정 기록이 남아 있다면 함께 지워 주세요)',
           'TRIP_NOT_PARKING',
         );
       }
       statusLogsToWrite.push({
         previousStatus: nextTripStatus,
         currentStatus: ReservationStatus.APPROVED,
-        changeReason: '출차 기록 삭제(관리자 정정) — 출차 처리 이전 상태로 되돌림',
+        changeReason: '반납 처리 기록 삭제(관리자 정정) — 반납 처리 이전 상태로 되돌림',
       });
       nextTripStatus = ReservationStatus.APPROVED;
     }
@@ -720,9 +818,10 @@ export async function updateCompanyVehicleTripDetails(
 }
 
 /**
- * 운행일지 주행거리 기록. 상태 전이가 아니라 단순 필드 갱신이라 상태 로그는 남기지
- * 않고, 다른 관리자 조작처럼 감사 로그만 남긴다. 입·출차 관리 기능 on/off 와 무관하게
- * 항상 사용할 수 있다(실제로는 입출차 관리를 꺼 둔 곳도 계기판 숫자는 따로 기록한다).
+ * 운행일지 주행거리 기록(관리자 사후 정정용). 상태 전이가 아니라 단순 필드 갱신이라
+ * 상태 로그는 남기지 않고, 다른 관리자 조작처럼 감사 로그만 남긴다. 1차 입력은 이제
+ * 신청 직원 본인이 한다(`updateCompanyVehicleTripMileageByEmployee` 참고) — 이 함수는
+ * 관리자가 나중에 값을 보정해야 할 때 쓴다.
  */
 export async function updateCompanyVehicleTripMileage(
   params: {
@@ -760,33 +859,71 @@ export async function updateCompanyVehicleTripMileage(
   return updated;
 }
 
-/** 입·출차 관리 기능이 꺼져 있으면 호출 자체를 막는다. (방문 예약과 동일한 시스템 설정 공유) */
-async function assertEntryExitEnabled(): Promise<void> {
-  const settings = await getSystemSettings();
-  if (!settings.entryExitManagementEnabled) {
+/**
+ * 운행일지 주행거리 기록 — 신청 직원 본인 입력. 예약일(requestStartAt의 KST 날짜) 당일
+ * 0시부터 반납 처리(PARKING 전이) 전까지 몇 번이든 저장할 수 있다. 상태 전이가 아니라
+ * 단순 필드 갱신이고, 직원 액터는 감사 로그(AuditLog) 대상이 아니므로(관리자 전용
+ * 스키마) 별도 로그는 남기지 않는다.
+ */
+export async function updateCompanyVehicleTripMileageByEmployee(params: {
+  tripId: number;
+  employeeUserId: number;
+  odometerStartKm: number | null;
+  odometerEndKm: number | null;
+  manualDistanceKm: number | null;
+}): Promise<CompanyVehicleTripDetail> {
+  const current = await loadTripOrThrow(params.tripId, prisma);
+
+  if (current.employeeUserId !== params.employeeUserId) {
+    throw new NotFoundError('법인차량 운행 신청을 찾을 수 없습니다.');
+  }
+  if (current.tripStatus !== ReservationStatus.APPROVED) {
     throw new ConflictError(
-      '입·출차 처리는 현재 사용하지 않는 기능입니다.',
-      'ENTRY_EXIT_DISABLED',
+      '승인 완료 후 반납 처리 전까지만 주행거리를 입력할 수 있습니다.',
+      'MILEAGE_EDIT_NOT_ALLOWED',
     );
   }
+  const tripDayStart = kstDayRangeUtc(formatKstDate(current.requestStartAt)).start;
+  if (Date.now() < tripDayStart.getTime()) {
+    throw new ConflictError(
+      '운행 예정일 당일부터 주행거리를 입력할 수 있습니다.',
+      'MILEAGE_TOO_EARLY',
+    );
+  }
+
+  return prisma.companyVehicleTrip.update({
+    where: { tripId: params.tripId },
+    data: {
+      odometerStartKm: params.odometerStartKm,
+      odometerEndKm: params.odometerEndKm,
+      manualDistanceKm: params.manualDistanceKm,
+    },
+    include: TRIP_DETAIL_INCLUDE,
+  });
 }
 
-async function changeTripStatusByAdmin(params: {
+/**
+ * 신청 직원 본인의 "반납 처리". 승인 완료(APPROVED) 상태에서만 가능하며, 입·출차를
+ * 관리자가 관리하던 예전 흐름(markCompanyVehicleEntry)을 대체한다 — 이제 그 사이 실제
+ * 사용은 시스템이 추적하지 않고, 직원이 다 쓰고 나서 이 버튼을 눌러야만 실제 상태가
+ * 바뀐다(APPROVED→PARKING="반납 대기"). 관리자가 확인하고 확정해야 완전히 끝난다
+ * (`confirmCompanyVehicleReturn` 참고).
+ */
+export async function requestCompanyVehicleReturn(params: {
   tripId: number;
-  nextStatus: ReservationStatus;
-  adminUserId: number;
-  reason: string;
-  extraData?: Prisma.CompanyVehicleTripUncheckedUpdateInput;
-  validate?: (current: CompanyVehicleTripDetail) => void;
+  employeeUserId: number;
+  returnMemo?: string;
 }): Promise<CompanyVehicleTripDetail> {
-  return prisma.$transaction(async (tx) => {
+  const returned = await prisma.$transaction(async (tx) => {
     const current = await loadTripOrThrow(params.tripId, tx);
-    assertTransition(current.tripStatus, params.nextStatus);
-    params.validate?.(current);
+    if (current.employeeUserId !== params.employeeUserId) {
+      throw new NotFoundError('법인차량 운행 신청을 찾을 수 없습니다.');
+    }
+    assertTransition(current.tripStatus, ReservationStatus.PARKING);
 
     const result = await tx.companyVehicleTrip.update({
       where: { tripId: params.tripId },
-      data: { tripStatus: params.nextStatus, ...params.extraData },
+      data: { tripStatus: ReservationStatus.PARKING, actualEntryAt: new Date() },
       include: TRIP_DETAIL_INCLUDE,
     });
 
@@ -794,73 +931,64 @@ async function changeTripStatusByAdmin(params: {
       data: {
         tripId: params.tripId,
         previousStatus: current.tripStatus,
-        currentStatus: params.nextStatus,
-        changedByType: ChangedByType.ADMIN,
-        changedByAdminId: params.adminUserId,
-        changeReason: params.reason,
+        currentStatus: ReservationStatus.PARKING,
+        changedByType: ChangedByType.REQUESTER,
+        changeReason: params.returnMemo?.trim() || '반납 처리',
       },
     });
 
     return result;
   });
+
+  dispatchQuietly(() =>
+    sendVehicleTripReturnRequestedToAdminEmails(toVehicleTripForEmail(returned)),
+  );
+
+  return returned;
 }
 
-export async function markCompanyVehicleEntry(
-  params: { tripId: number; actualEntryAt: Date } & AdminActionContext,
+/**
+ * 관리자의 "반납 확정". 직원의 반납 처리(PARKING) 이후 차량 상태를 확인하고 나서
+ * 최종적으로 종료 처리한다(PARKING→EXITED="반납 완료") — 예전 markCompanyVehicleExit를
+ * 대체한다.
+ */
+export async function confirmCompanyVehicleReturn(
+  params: { tripId: number; confirmMemo?: string } & AdminActionContext,
 ): Promise<CompanyVehicleTripDetail> {
-  await assertEntryExitEnabled();
+  const confirmed = await prisma.$transaction(async (tx) => {
+    const current = await loadTripOrThrow(params.tripId, tx);
+    assertTransition(current.tripStatus, ReservationStatus.EXITED);
 
-  const updated = await changeTripStatusByAdmin({
-    tripId: params.tripId,
-    nextStatus: ReservationStatus.PARKING,
-    adminUserId: params.adminUserId,
-    // 법인차량은 승인 후 차가 먼저 나가는(출차) 흐름이라, 이 첫 처리(APPROVED→PARKING)가
-    // 실제로는 "출차 처리"다 — 방문 예약과 방향이 반대다(도메인 상태값 자체는 공유).
-    reason: '실제 출차 처리',
-    extraData: { actualEntryAt: params.actualEntryAt },
+    const result = await tx.companyVehicleTrip.update({
+      where: { tripId: params.tripId },
+      data: { tripStatus: ReservationStatus.EXITED, actualExitAt: new Date() },
+      include: TRIP_DETAIL_INCLUDE,
+    });
+
+    await tx.companyVehicleTripStatusLog.create({
+      data: {
+        tripId: params.tripId,
+        previousStatus: current.tripStatus,
+        currentStatus: ReservationStatus.EXITED,
+        changedByType: ChangedByType.ADMIN,
+        changedByAdminId: params.adminUserId,
+        changeReason: params.confirmMemo?.trim() || '반납 확정',
+      },
+    });
+
+    return result;
   });
 
   await writeAuditLog({
     actorAdminId: params.adminUserId,
-    actionType: AUDIT_ACTIONS.COMPANY_VEHICLE_TRIP_ENTRY,
+    actionType: AUDIT_ACTIONS.COMPANY_VEHICLE_TRIP_RETURN_CONFIRMED,
     targetType: AUDIT_TARGETS.COMPANY_VEHICLE_TRIP,
-    targetId: updated.tripId,
-    detail: {},
+    targetId: confirmed.tripId,
+    detail: { confirmMemo: params.confirmMemo ?? null },
     context: params.requestContext,
   });
 
-  return updated;
-}
+  dispatchQuietly(() => sendVehicleTripReturnConfirmedEmail(toVehicleTripForEmail(confirmed)));
 
-export async function markCompanyVehicleExit(
-  params: { tripId: number; actualExitAt: Date } & AdminActionContext,
-): Promise<CompanyVehicleTripDetail> {
-  await assertEntryExitEnabled();
-
-  const updated = await changeTripStatusByAdmin({
-    tripId: params.tripId,
-    nextStatus: ReservationStatus.EXITED,
-    adminUserId: params.adminUserId,
-    // 이 두 번째 처리(PARKING→EXITED)는 차가 돌아오는 "입차 처리"다.
-    reason: '실제 입차 처리',
-    extraData: { actualExitAt: params.actualExitAt },
-    validate: (current) => {
-      if (current.actualEntryAt && params.actualExitAt < current.actualEntryAt) {
-        throw new ValidationError('입차 시간은 출차 시간 이후여야 합니다.', {
-          actualExitAt: ['입차 시간은 출차 시간 이후여야 합니다.'],
-        });
-      }
-    },
-  });
-
-  await writeAuditLog({
-    actorAdminId: params.adminUserId,
-    actionType: AUDIT_ACTIONS.COMPANY_VEHICLE_TRIP_EXIT,
-    targetType: AUDIT_TARGETS.COMPANY_VEHICLE_TRIP,
-    targetId: updated.tripId,
-    detail: {},
-    context: params.requestContext,
-  });
-
-  return updated;
+  return confirmed;
 }

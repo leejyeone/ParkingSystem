@@ -6,7 +6,11 @@ import { ClickableTableRow } from '@/components/admin/clickable-table-row';
 import { FilterBar, type FilterChip } from '@/components/admin/filter-bar';
 import { EmployeeRecurringScheduleList } from '@/components/employee/employee-reservation-tabs';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { RESERVATION_STATUS_LABEL, reservationStatusFilterOptions } from '@/domain/reservation-status';
+import {
+  COMPANY_VEHICLE_STATUS_LABEL,
+  RESERVATION_STATUS_LABEL,
+  reservationStatusFilterOptions,
+} from '@/domain/reservation-status';
 import { requireEmployeePage } from '@/lib/employee-page-guard';
 import { kstDayRangeUtc } from '@/lib/datetime';
 import {
@@ -243,7 +247,14 @@ export default async function EmployeeReservationsPage({ searchParams }: PagePro
                             {item.purpose}
                           </td>
                           <td>
-                            <StatusBadge status={item.status} />
+                            <StatusBadge
+                              status={item.status}
+                              label={
+                                item.kind === 'COMPANY_VEHICLE'
+                                  ? COMPANY_VEHICLE_STATUS_LABEL[item.status]
+                                  : undefined
+                              }
+                            />
                           </td>
                         </ClickableTableRow>
                       ))}

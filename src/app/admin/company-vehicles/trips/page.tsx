@@ -5,15 +5,11 @@ import Link from 'next/link';
 import { ClickableTableRow } from '@/components/admin/clickable-table-row';
 import { FilterBar, type FilterChip } from '@/components/admin/filter-bar';
 import { StatusBadge } from '@/components/ui/status-badge';
-import {
-  RESERVATION_STATUS_LABEL,
-  reservationStatusFilterOptions,
-} from '@/domain/reservation-status';
+import { COMPANY_VEHICLE_STATUS_LABEL } from '@/domain/reservation-status';
 import { requireAdminPage } from '@/lib/admin-page-guard';
 import { formatKstRange, kstDayRangeUtc } from '@/lib/datetime';
 import { listCompanyVehicles } from '@/services/company-vehicle-service';
 import { listCompanyVehicleTrips } from '@/services/company-vehicle-trip-service';
-import { getSystemSettings } from '@/services/settings-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,11 +26,12 @@ type PageProps = {
   }>;
 };
 
+// 법인차량은 입출차 관리 설정과 무관하게(그 개념 자체가 없다) 항상 전체 상태를 필터에 보여준다.
+const statusFilterOptions = Object.values(ReservationStatus);
+
 export default async function CompanyVehicleTripsPage({ searchParams }: PageProps) {
   await requireAdminPage(BASE_PATH);
   const params = await searchParams;
-  const settings = await getSystemSettings();
-  const statusFilterOptions = reservationStatusFilterOptions(settings.entryExitManagementEnabled);
 
   const date = params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date) ? params.date : undefined;
   const range = date ? kstDayRangeUtc(date) : null;
@@ -76,7 +73,7 @@ export default async function CompanyVehicleTripsPage({ searchParams }: PageProp
 
   const chips: FilterChip[] = [
     { key: 'date', label: '날짜', value: date },
-    { key: 'status', label: '상태', value: status ? RESERVATION_STATUS_LABEL[status] : undefined },
+    { key: 'status', label: '상태', value: status ? COMPANY_VEHICLE_STATUS_LABEL[status] : undefined },
     { key: 'employeeName', label: '신청 직원', value: employeeName },
     { key: 'vehicleId', label: '차량', value: selectedVehicle?.vehicleNo },
   ]
@@ -92,8 +89,8 @@ export default async function CompanyVehicleTripsPage({ searchParams }: PageProp
       <div>
         <h1 className="text-ink text-xl font-black sm:text-2xl">법인차량 신청내역</h1>
         <p className="text-ink-muted mt-1 text-sm">
-          직원이 신청한 법인 공용 차량 운행 내역입니다. 행을 누르면 상세에서 승인·반려·차량
-          배정·입출차 처리를 할 수 있습니다.
+          직원이 신청한 법인 공용 차량 운행 내역입니다. 행을 누르면 상세에서 승인·반려·반납 확정
+          처리를 할 수 있습니다.
         </p>
       </div>
 
@@ -113,7 +110,7 @@ export default async function CompanyVehicleTripsPage({ searchParams }: PageProp
               <option value="">전체</option>
               {statusFilterOptions.map((value) => (
                 <option key={value} value={value}>
-                  {RESERVATION_STATUS_LABEL[value]}
+                  {COMPANY_VEHICLE_STATUS_LABEL[value]}
                 </option>
               ))}
             </select>
@@ -189,7 +186,10 @@ export default async function CompanyVehicleTripsPage({ searchParams }: PageProp
                       {trip.tripNo ?? `#${trip.tripId}`}
                     </td>
                     <td>
-                      <StatusBadge status={trip.tripStatus} />
+                      <StatusBadge
+                        status={trip.tripStatus}
+                        label={COMPANY_VEHICLE_STATUS_LABEL[trip.tripStatus]}
+                      />
                     </td>
                     <td className="text-xs whitespace-nowrap">
                       {formatKstRange(trip.requestStartAt, trip.requestEndAt)}

@@ -11,8 +11,8 @@ export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/company-vehicle-trips
- * 직원이 법인 공용 차량 운행을 신청한다. 로그인이 필수이며, 어떤 차량을 배정할지는
- * 관리자가 승인 시점에 정하므로 신청 단계에서는 받지 않는다.
+ * 직원이 법인 공용 차량 운행을 신청한다. 로그인이 필수이며, 어떤 차량을 쓸지는
+ * 신청 단계에서 직원이 직접 고른다.
  */
 export async function POST(request: NextRequest) {
   try {

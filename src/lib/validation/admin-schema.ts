@@ -142,16 +142,17 @@ export const companyVehicleCreateSchema = z.object({
 
 export const companyVehicleUpdateSchema = companyVehicleCreateSchema.partial();
 
-export const companyVehicleTripApproveSchema = z.object({
-  vehicleId: z.coerce.number().int().positive('배정할 차량을 선택해 주세요.'),
-});
-
 export const companyVehicleTripRejectSchema = z.object({
   rejectionReason: requiredText(500, '반려 사유'),
 });
 
 export const companyVehicleTripCancelSchema = z.object({
   cancelReason: requiredText(500, '취소 사유'),
+});
+
+/** 관리자의 "반납 확정" — 차량 상태 확인 결과를 선택적으로 한 줄 남길 수 있다. */
+export const confirmCompanyVehicleReturnSchema = z.object({
+  confirmMemo: z.string().max(500, '500자 이하로 입력해 주세요.').trim().optional(),
 });
 
 /** 빈 문자열/undefined 는 null 로, 그 외는 숫자로 강제 변환한다(선택 입력 숫자 필드용). */

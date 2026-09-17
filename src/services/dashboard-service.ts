@@ -107,6 +107,12 @@ export type DashboardData = {
   companyVehiclePendingTotalCount: number;
   /** 선택한 날짜에 걸치는 승인 대기 중인 법인차량 신청 목록(운행 예정 임박순). */
   companyVehiclePendingTrips: PendingCompanyVehicleTripItem[];
+  /** 선택한 날짜에 걸치는 반납 대기(직원이 반납 처리했지만 관리자 확인 전) 건수. */
+  companyVehicleReturnPendingCount: number;
+  /** 날짜와 무관한 전체 반납 대기 건수. */
+  companyVehicleReturnPendingTotalCount: number;
+  /** 선택한 날짜에 걸치는 반납 대기 목록(반납 처리한 지 오래된 순). */
+  companyVehicleReturnPendingTrips: PendingCompanyVehicleTripItem[];
   /**
    * 오늘 접수된 신규 신청 건수(방문 예약 + 법인차량, 반복 예약의 개별 일정 제외).
    * 화면에서 조회 중인 날짜(dateString)와 무관하게 항상 서버 기준 오늘 값이다.
@@ -145,6 +151,8 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
     failedEmailCount,
     companyVehiclePendingTrips,
     companyVehiclePendingTotalCount,
+    companyVehicleReturnPendingTrips,
+    companyVehicleReturnPendingTotalCount,
     todayNewReservationCount,
     todayNewCompanyVehicleTripCount,
   ] = await Promise.all([
@@ -186,8 +194,9 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
         orderBy: { visitStartAt: 'asc' },
       }),
       // 법인차량 주차면의 "상태" 열도 방문 예약과 같은 방식(신청된 시간대)으로 보여주기
-      // 위해 선택한 날짜에 걸치는 운행 신청을 가져온다. 승인 전(REQUESTED)은 아직 어느
-      // 차량을 내줄지 정해지지 않아 특정 주차면과 연결할 수 없으므로 뺀다.
+      // 위해 선택한 날짜에 걸치는 운행 신청을 가져온다. 승인 전(REQUESTED)은 아직 확정된
+      // 일정이 아니므로 뺀다(차량은 신청 시점에 이미 골라져 있지만, 승인 대기 상태로는
+      // 이 평면도에 "확정 사용"으로 보여주지 않는다).
       prisma.companyVehicleTrip.findMany({
         where: {
           assignedVehicleId: { not: null },
@@ -235,6 +244,22 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
       // 날짜 필터 없이 전체 법인차량 승인 대기 건수를 센다.
       prisma.companyVehicleTrip.count({
         where: { tripStatus: ReservationStatus.REQUESTED },
+      }),
+      // 선택한 날짜에 걸치는 반납 대기(직원이 반납 처리했지만 관리자 확인 전) 목록.
+      // 승인 대기와 달리 "얼마나 오래 기다렸는지"가 중요하므로 반납 처리 시각
+      // (actualEntryAt) 오름차순으로 — 방문 예약/법인차량 예정 시각 임박순과는 다른 기준.
+      prisma.companyVehicleTrip.findMany({
+        where: {
+          tripStatus: ReservationStatus.PARKING,
+          requestStartAt: { lt: end },
+          requestEndAt: { gt: start },
+        },
+        include: { employee: { select: { name: true, departmentName: true } } },
+        orderBy: { actualEntryAt: 'asc' },
+      }),
+      // 날짜 필터 없이 전체 반납 대기 건수를 센다.
+      prisma.companyVehicleTrip.count({
+        where: { tripStatus: ReservationStatus.PARKING },
       }),
       // 오늘 접수된(생성된) 방문 예약 건수 — 반복 예약에서 매번 새로 생기는 개별 일정은
       // 신규 "신청"이 아니라 기존 시리즈의 결과물이므로 제외한다.
@@ -390,6 +415,18 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
     todayNewRequestCount: todayNewReservationCount + todayNewCompanyVehicleTripCount,
     companyVehiclePendingCount: companyVehiclePendingTrips.length,
     companyVehiclePendingTotalCount,
+    companyVehicleReturnPendingCount: companyVehicleReturnPendingTrips.length,
+    companyVehicleReturnPendingTotalCount,
+    companyVehicleReturnPendingTrips: companyVehicleReturnPendingTrips.map((trip) => ({
+      tripId: trip.tripId,
+      tripNo: trip.tripNo,
+      destination: trip.destination,
+      reason: trip.reason,
+      requesterName: trip.employee.name,
+      departmentName: trip.employee.departmentName,
+      requestStartAt: trip.requestStartAt,
+      requestEndAt: trip.requestEndAt,
+    })),
     companyVehiclePendingTrips: companyVehiclePendingTrips.map((trip) => ({
       tripId: trip.tripId,
       tripNo: trip.tripNo,

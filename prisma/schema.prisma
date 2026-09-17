@@ -95,6 +95,8 @@ enum EmailType {
   VEHICLE_TRIP_APPROVED
   VEHICLE_TRIP_REJECTED
   VEHICLE_TRIP_CANCELLED
+  VEHICLE_TRIP_RETURN_REQUESTED_TO_ADMIN
+  VEHICLE_TRIP_RETURN_CONFIRMED
 }
 
 /// 이메일을 받는 사람의 역할 — 이메일 발송 이력 화면의 "대상" 컬럼에 쓴다.
@@ -463,10 +465,15 @@ model CompanyVehicleTrip {
   /// 모든 시각은 UTC로 저장하고 화면에서 Asia/Seoul로 변환한다.
   requestStartAt DateTime  @map("request_start_at")
   requestEndAt   DateTime  @map("request_end_at")
-  actualEntryAt  DateTime? @map("actual_entry_at")
-  actualExitAt   DateTime? @map("actual_exit_at")
+  /// 입·출차 관리 개념이 없어진 뒤로는 "반납 처리 시각"(직원이 반납 버튼을 누른 시각,
+  /// APPROVED→PARKING)이다. 예전 이름(actualEntryAt)은 DB 컬럼명 변경을 피하려고 남긴 것.
+  actualEntryAt DateTime? @map("actual_entry_at")
+  /// "반납 확정 시각"(관리자가 반납을 확인한 시각, PARKING→EXITED). 위와 같은 이유로
+  /// 컬럼명(actualExitAt)은 그대로 두고 의미만 재해석한다.
+  actualExitAt DateTime? @map("actual_exit_at")
 
-  /// 신청 시점에는 비어 있다 — 2대 중 어느 차를 내줄지는 관리자가 승인하면서 정한다.
+  /// 직원이 신청 시점에 직접 고른다(관리자는 승인/반려만 한다) — 승인 시점 배정은
+  /// 더 이상 하지 않는다.
   assignedVehicleId Int? @map("assigned_vehicle_id")
 
   tripStatus ReservationStatus @default(REQUESTED) @map("trip_status")
