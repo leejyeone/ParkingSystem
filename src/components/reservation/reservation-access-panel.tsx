@@ -267,7 +267,7 @@ function EditForm({
       {formError && <Alert variant="error">{formError.message}</Alert>}
 
       <FormField
-        label="회사명"
+        label={reservation.requesterType === 'EMPLOYEE' ? '사업장' : '회사명'}
         htmlFor="edit-company"
         required
         errors={fieldErrors.companyOrBranchName}
