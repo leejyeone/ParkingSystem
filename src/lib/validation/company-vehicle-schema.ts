@@ -49,7 +49,3 @@ export const employeeCompanyVehicleTripMileageSchema = z
     },
   );
 
-/** 신청 직원 본인의 "반납 처리". 차량 상태 메모는 선택 입력이다. */
-export const requestCompanyVehicleReturnSchema = z.object({
-  returnMemo: z.string().max(500, '500자 이하로 입력해 주세요.').trim().optional(),
-});

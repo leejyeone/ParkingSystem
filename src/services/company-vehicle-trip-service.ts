@@ -912,7 +912,6 @@ export async function updateCompanyVehicleTripMileageByEmployee(params: {
 export async function requestCompanyVehicleReturn(params: {
   tripId: number;
   employeeUserId: number;
-  returnMemo?: string;
 }): Promise<CompanyVehicleTripDetail> {
   const returned = await prisma.$transaction(async (tx) => {
     const current = await loadTripOrThrow(params.tripId, tx);
@@ -933,7 +932,7 @@ export async function requestCompanyVehicleReturn(params: {
         previousStatus: current.tripStatus,
         currentStatus: ReservationStatus.PARKING,
         changedByType: ChangedByType.REQUESTER,
-        changeReason: params.returnMemo?.trim() || '반납 처리',
+        changeReason: '반납 처리',
       },
     });
 
