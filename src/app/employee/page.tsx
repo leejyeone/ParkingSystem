@@ -44,7 +44,6 @@ export default async function EmployeeHomePage() {
           icon={<BuildingIcon />}
           title="법인 차량 예약"
           description="법인차량 사용을 예약합니다."
-          disabled
         />
       </div>
 
