@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
-import { CompanyVehicleTripCancelPanel } from '@/components/employee/company-vehicle-trip-cancel-panel';
+import { CompanyVehicleTripActionsPanel } from '@/components/employee/company-vehicle-trip-actions-panel';
 import { CompanyVehicleTripMileagePanel } from '@/components/employee/company-vehicle-trip-mileage-panel';
 import { CompanyVehicleTripReturnPanel } from '@/components/employee/company-vehicle-trip-return-panel';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -10,10 +10,12 @@ import {
   resolveCompanyVehicleDisplayStatus,
 } from '@/domain/reservation-status';
 import { requireEmployeePage } from '@/lib/employee-page-guard';
-import { formatKstDateTime, formatKstRange } from '@/lib/datetime';
+import { earliestSelectableInput, formatKstDateTime, formatKstRange, utcToZonedInput } from '@/lib/datetime';
 import { NotFoundError } from '@/lib/errors';
 import { parseNumericId } from '@/lib/api-helpers';
 import { getCompanyVehicleTripDetail } from '@/services/company-vehicle-trip-service';
+import { getEmployeeProfile } from '@/services/employee-auth-service';
+import { getSystemSettings } from '@/services/settings-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +53,36 @@ export default async function EmployeeCompanyVehicleTripDetailPage({ params }: P
   // 관리자 화면과 달리 직원 본인 화면에서는 이 파생 상태를 보여준다.
   const displayStatus = resolveCompanyVehicleDisplayStatus(trip);
 
+  // 수정·취소 패널(REQUESTED 상태만)은 신청 폼과 같은 설정값·초기값이 필요하다 —
+  // 승인 대기가 아니면 아예 안 쓰이므로 그때만 불러온다.
+  let actionsPanel: React.ReactNode = null;
+  if (trip.tripStatus === 'REQUESTED' && trip.assignedVehicle) {
+    const [profile, settings] = await Promise.all([
+      getEmployeeProfile(session.employeeUserId),
+      getSystemSettings(),
+    ]);
+    const startInput = utcToZonedInput(trip.requestStartAt);
+    actionsPanel = (
+      <CompanyVehicleTripActionsPanel
+        tripId={trip.tripId}
+        employeeName={profile?.name ?? session.name}
+        minDateTimeInput={earliestSelectableInput(settings.reservationMinLeadMinutes)}
+        reservationMinLeadMinutes={settings.reservationMinLeadMinutes}
+        operatingStartTime={settings.companyVehicleOperatingStartTime}
+        operatingEndTime={settings.companyVehicleOperatingEndTime}
+        maxUsageHours={settings.companyVehicleMaxUsageHours}
+        initial={{
+          destination: trip.destination,
+          reason: trip.reason,
+          vehicleId: trip.assignedVehicle.vehicleId,
+          date: startInput.split('T')[0],
+          requestStartAt: startInput,
+          requestEndAt: utcToZonedInput(trip.requestEndAt),
+        }}
+      />
+    );
+  }
+
   return (
     <main className="app-container space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -84,12 +116,6 @@ export default async function EmployeeCompanyVehicleTripDetailPage({ params }: P
             <dt className="definition-term">신청 일시</dt>
             <dd className="definition-desc">{formatKstDateTime(trip.createdAt)}</dd>
           </div>
-        </div>
-      </section>
-
-      <section className="card">
-        <div className="card-body space-y-3">
-          <h2 className="card-title">운행 일정</h2>
           <div className="definition-row">
             <dt className="definition-term">운행 요청 시간</dt>
             <dd className="definition-desc">{formatKstRange(trip.requestStartAt, trip.requestEndAt)}</dd>
@@ -98,26 +124,31 @@ export default async function EmployeeCompanyVehicleTripDetailPage({ params }: P
             <dt className="definition-term">사용 차량</dt>
             <dd className="definition-desc">{trip.assignedVehicle?.vehicleNo ?? '-'}</dd>
           </div>
-          <div className="definition-row">
-            <dt className="definition-term">반납 처리 시각</dt>
-            <dd className="definition-desc">
-              {trip.actualEntryAt ? formatKstDateTime(trip.actualEntryAt) : '-'}
-            </dd>
-          </div>
-          <div className="definition-row">
-            <dt className="definition-term">반납 확정 시각</dt>
-            <dd className="definition-desc">
-              {trip.actualExitAt ? formatKstDateTime(trip.actualExitAt) : '-'}
-            </dd>
-          </div>
-          <div className="definition-row">
-            <dt className="definition-term">주행거리</dt>
-            <dd className="definition-desc">
-              {trip.odometerStartKm !== null && trip.odometerEndKm !== null
-                ? `${trip.odometerEndKm - trip.odometerStartKm}km`
-                : '-'}
-            </dd>
-          </div>
+          {/* 반납 처리/확정, 주행거리는 승인 전에는 의미가 없으므로 승인 완료 후에만 보여준다. */}
+          {trip.approvedAt && (
+            <>
+              <div className="definition-row">
+                <dt className="definition-term">반납 처리 시각</dt>
+                <dd className="definition-desc">
+                  {trip.actualEntryAt ? formatKstDateTime(trip.actualEntryAt) : '-'}
+                </dd>
+              </div>
+              <div className="definition-row">
+                <dt className="definition-term">반납 확정 시각</dt>
+                <dd className="definition-desc">
+                  {trip.actualExitAt ? formatKstDateTime(trip.actualExitAt) : '-'}
+                </dd>
+              </div>
+              <div className="definition-row">
+                <dt className="definition-term">주행거리</dt>
+                <dd className="definition-desc">
+                  {trip.odometerStartKm !== null && trip.odometerEndKm !== null
+                    ? `${trip.odometerEndKm - trip.odometerStartKm}km`
+                    : '-'}
+                </dd>
+              </div>
+            </>
+          )}
           {trip.rejectionReason && (
             <div className="definition-row">
               <dt className="definition-term">반려 사유</dt>
@@ -133,7 +164,7 @@ export default async function EmployeeCompanyVehicleTripDetailPage({ params }: P
         </div>
       </section>
 
-      {trip.tripStatus === 'REQUESTED' && <CompanyVehicleTripCancelPanel tripId={trip.tripId} />}
+      {actionsPanel}
 
       {trip.tripStatus === 'APPROVED' && (
         <CompanyVehicleTripMileagePanel
@@ -147,37 +178,6 @@ export default async function EmployeeCompanyVehicleTripDetailPage({ params }: P
       )}
 
       {trip.tripStatus === 'APPROVED' && <CompanyVehicleTripReturnPanel tripId={trip.tripId} />}
-
-      <section className="card">
-        <div className="card-body">
-          <h2 className="card-title">상태 변경 이력</h2>
-          <div className="table-scroll mt-3">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>일시</th>
-                  <th>변경</th>
-                  <th>사유</th>
-                </tr>
-              </thead>
-              <tbody>
-                {trip.statusLogs.map((log) => (
-                  <tr key={log.statusLogId}>
-                    <td className="text-xs whitespace-nowrap">{formatKstDateTime(log.createdAt)}</td>
-                    <td className="text-xs whitespace-nowrap">
-                      {log.previousStatus
-                        ? `${COMPANY_VEHICLE_STATUS_LABEL[log.previousStatus]} → `
-                        : ''}
-                      <strong>{COMPANY_VEHICLE_STATUS_LABEL[log.currentStatus]}</strong>
-                    </td>
-                    <td className="text-xs">{log.changeReason ?? '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
     </main>
   );
 }

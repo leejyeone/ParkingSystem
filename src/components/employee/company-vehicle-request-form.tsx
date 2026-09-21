@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 import { CompanyVehicleSlotPicker } from '@/components/employee/company-vehicle-slot-picker';
 import { Alert } from '@/components/ui/alert';
@@ -21,6 +21,26 @@ type Props = {
   operatingEndTime: string;
   /** 1회 최대 사용 가능 시간(시스템 설정, 시간 단위). */
   maxUsageHours: number;
+  /**
+   * 'edit'이면 새 신청이 아니라 관리자 승인 전 신청을 본인이 고치는 화면이다 —
+   * `CompanyVehicleTripActionsPanel`이 상세 화면 안에서 이 폼을 그대로 재사용한다.
+   */
+  mode?: 'create' | 'edit';
+  /** mode: 'edit'일 때 필수 — 고칠 신청의 ID. */
+  tripId?: number;
+  /** mode: 'edit'일 때 필수 — 기존 신청 값으로 폼을 채운다. */
+  initial?: {
+    destination: string;
+    reason: string;
+    vehicleId: number;
+    date: string;
+    requestStartAt: string;
+    requestEndAt: string;
+  };
+  /** mode: 'edit'일 때만 쓰인다 — "되돌아가기". */
+  onCancel?: () => void;
+  /** mode: 'edit'일 때만 쓰인다 — 저장 성공 시 호출부가 카드를 닫고 새로고침한다. */
+  onSuccess?: () => void;
 };
 
 type VehicleAvailability = {
@@ -83,16 +103,22 @@ export function CompanyVehicleRequestForm({
   operatingStartTime,
   operatingEndTime,
   maxUsageHours,
+  mode = 'create',
+  tripId,
+  initial,
+  onCancel,
+  onSuccess,
 }: Props) {
-  const [destination, setDestination] = useState('');
-  const [reason, setReason] = useState('');
-  const [date, setDate] = useState(minDateTimeInput.split('T')[0]);
+  const isEdit = mode === 'edit';
+  const [destination, setDestination] = useState(initial?.destination ?? '');
+  const [reason, setReason] = useState(initial?.reason ?? '');
+  const [date, setDate] = useState(initial?.date ?? minDateTimeInput.split('T')[0]);
   const [vehicles, setVehicles] = useState<VehicleAvailability[] | null>(null);
   const [loadingVehicles, setLoadingVehicles] = useState(false);
   const [vehicleFetchError, setVehicleFetchError] = useState<string | null>(null);
-  const [vehicleId, setVehicleId] = useState<number | null>(null);
-  const [requestStartAt, setRequestStartAt] = useState('');
-  const [requestEndAt, setRequestEndAt] = useState('');
+  const [vehicleId, setVehicleId] = useState<number | null>(initial?.vehicleId ?? null);
+  const [requestStartAt, setRequestStartAt] = useState(initial?.requestStartAt ?? '');
+  const [requestEndAt, setRequestEndAt] = useState(initial?.requestEndAt ?? '');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -101,18 +127,32 @@ export function CompanyVehicleRequestForm({
   const operatingStartMin = toMinutesOfDay(operatingStartTime);
   const operatingEndMin = toMinutesOfDay(operatingEndTime);
 
+  // edit 모드의 첫 렌더링에서는 initial 값(기존 차량·시간)을 그대로 두고 차량 목록만
+  // 새로 불러온다 — 이후 사용자가 직접 날짜를 바꿀 때만 선택을 비운다. ref를 쓰는 이유는
+  // 이 값이 바뀐다고 해서 아래 useEffect가 다시 실행돼야 하는 건 아니기 때문이다(state로
+  // 하면 effect가 한 번 더 돌면서 방금 지킨 초기 선택을 곧바로 지워버린다).
+  const isFirstLoadRef = useRef(true);
+
   useEffect(() => {
     const timer = setTimeout(() => {
-      // 운행일이 바뀌면 그 전에 고른 차량·시간은 무효가 되므로 비운다.
-      setVehicleId(null);
-      setRequestStartAt('');
-      setRequestEndAt('');
+      const keepInitialSelection = isEdit && isFirstLoadRef.current;
+      isFirstLoadRef.current = false;
+
+      // 운행일이 바뀌면 그 전에 고른 차량·시간은 무효가 되므로 비운다(단, edit 모드의
+      // 첫 로딩에서는 기존 신청 값을 유지한다).
+      if (!keepInitialSelection) {
+        setVehicleId(null);
+        setRequestStartAt('');
+        setRequestEndAt('');
+      }
       setVehicles(null);
 
       if (!date) return;
 
       setLoadingVehicles(true);
       setVehicleFetchError(null);
+
+      const excludeQuery = isEdit && tripId ? `&excludeTripId=${tripId}` : '';
 
       apiRequest<{
         vehicles: {
@@ -121,7 +161,7 @@ export function CompanyVehicleRequestForm({
           vehicleModel: string | null;
           busyRanges: { start: string; end: string }[];
         }[];
-      }>(`/api/company-vehicle-trips/vehicle-availability?date=${date}`).then((response) => {
+      }>(`/api/company-vehicle-trips/vehicle-availability?date=${date}${excludeQuery}`).then((response) => {
         setLoadingVehicles(false);
         if (!response.ok) {
           setVehicleFetchError(response.error.message);
@@ -146,6 +186,8 @@ export function CompanyVehicleRequestForm({
     }, 0);
 
     return () => clearTimeout(timer);
+    // isEdit/tripId는 이 폼의 수명 동안 바뀌지 않는 props라 생략한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date]);
 
   const availableVehicles = (vehicles ?? []).filter(
@@ -167,9 +209,9 @@ export function CompanyVehicleRequestForm({
     setFieldErrors({});
 
     const response = await apiRequest<{ tripId: number; tripStatus: string }>(
-      '/api/company-vehicle-trips',
+      isEdit ? `/api/company-vehicle-trips/${tripId}/edit` : '/api/company-vehicle-trips',
       {
-        method: 'POST',
+        method: isEdit ? 'PUT' : 'POST',
         body: JSON.stringify({ destination, reason, requestStartAt, requestEndAt, vehicleId }),
       },
     );
@@ -177,6 +219,10 @@ export function CompanyVehicleRequestForm({
     setSubmitting(false);
 
     if (response.ok) {
+      if (isEdit) {
+        onSuccess?.();
+        return;
+      }
       setCreatedTripId(response.data.tripId);
       return;
     }
@@ -186,7 +232,7 @@ export function CompanyVehicleRequestForm({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  if (createdTripId !== null) {
+  if (!isEdit && createdTripId !== null) {
     return (
       <div className="card" data-testid="company-vehicle-trip-complete">
         <div className="card-body">
@@ -350,20 +396,32 @@ export function CompanyVehicleRequestForm({
           <Alert variant="success">{formatDateTimeRange(requestStartAt, requestEndAt)}, {selectedVehicle?.vehicleNo} 신청됩니다.</Alert>
         )}
 
-        <button
-          type="submit"
-          className="btn btn-primary w-full"
-          disabled={
-            submitting ||
-            !destination.trim() ||
-            !reason.trim() ||
-            !requestStartAt ||
-            !requestEndAt ||
-            vehicleId === null
-          }
-        >
-          {submitting ? '신청 중…' : '법인 차량 신청'}
-        </button>
+        <div className={isEdit ? 'grid grid-cols-2 gap-2' : undefined}>
+          {isEdit && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={onCancel}
+              disabled={submitting}
+            >
+              되돌아가기
+            </button>
+          )}
+          <button
+            type="submit"
+            className={isEdit ? 'btn btn-primary' : 'btn btn-primary w-full'}
+            disabled={
+              submitting ||
+              !destination.trim() ||
+              !reason.trim() ||
+              !requestStartAt ||
+              !requestEndAt ||
+              vehicleId === null
+            }
+          >
+            {submitting ? (isEdit ? '저장 중…' : '신청 중…') : isEdit ? '수정하기' : '법인 차량 신청'}
+          </button>
+        </div>
       </div>
     </form>
   );

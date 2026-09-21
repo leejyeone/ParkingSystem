@@ -605,6 +605,85 @@ export async function cancelCompanyVehicleTripByRequester(params: {
 }
 
 /**
+ * 신청자(운행 예정자) 본인 수정. 방문 예약의 `updateReservationByRequester`와 같은 원칙 —
+ * 관리자 승인 전(REQUESTED)에만 허용한다. 이미 차량이 배정·승인된 뒤에는 관리자만 고칠 수
+ * 있다(`updateCompanyVehicleTripDetails` 참고). 새 신청(`createCompanyVehicleTrip`)과
+ * 같은 시간 규칙·차량 중복 검증을 그대로 재사용한다 — 수정도 결국 "그 시간에 그 차를 다시
+ * 신청하는 것"과 같기 때문이다. REQUESTED에서 REQUESTED로 상태 자체는 바뀌지 않으므로
+ * 상태 로그는 남기지 않는다.
+ */
+export async function updateCompanyVehicleTripByRequester(params: {
+  tripId: number;
+  employeeUserId: number;
+  destination: string;
+  reason: string;
+  requestStartAt: Date;
+  requestEndAt: Date;
+  vehicleId: number;
+}): Promise<CompanyVehicleTripDetail> {
+  const settings = await getSystemSettings();
+  const now = new Date();
+  assertCompanyVehicleTripCreateTiming({
+    requestStartAt: params.requestStartAt,
+    requestEndAt: params.requestEndAt,
+    now,
+    settings,
+  });
+
+  return prisma.$transaction(async (tx) => {
+    const current = await loadTripOrThrow(params.tripId, tx);
+    if (current.employeeUserId !== params.employeeUserId) {
+      // 남의 신청 ID 를 넣은 경우도 "없음"으로 동일하게 처리한다.
+      throw new NotFoundError('법인차량 운행 신청을 찾을 수 없습니다.');
+    }
+    if (current.tripStatus !== ReservationStatus.REQUESTED) {
+      throw new ConflictError(
+        '승인 대기 상태에서만 수정할 수 있습니다. 승인 이후 변경이 필요하면 관리자에게 문의해 주세요.',
+        'CHANGE_NOT_ALLOWED',
+      );
+    }
+
+    // createCompanyVehicleTrip과 동일하게 차량 행을 먼저 잠근다 — 잠그지 않으면 두 신청이
+    // 거의 동시에 같은 차량·시간대로 수정될 때 서로의 커밋 전 상태를 못 보고 둘 다
+    // findConflictingTrip을 통과할 수 있다.
+    await tx.$queryRaw`SELECT vehicle_id FROM company_vehicles WHERE vehicle_id = ${params.vehicleId} FOR UPDATE`;
+
+    const vehicle = await tx.companyVehicle.findUnique({ where: { vehicleId: params.vehicleId } });
+    if (!vehicle || !vehicle.isActive) {
+      throw new NotFoundError('선택하신 법인차량을 찾을 수 없습니다.');
+    }
+
+    const conflict = await findConflictingTrip(
+      {
+        vehicleId: params.vehicleId,
+        requestStartAt: params.requestStartAt,
+        requestEndAt: params.requestEndAt,
+        excludeTripId: params.tripId,
+      },
+      tx,
+    );
+    if (conflict) {
+      throw new ConflictError(
+        '선택하신 차량은 해당 시간대에 이미 다른 신청(승인 대기 포함)이 있습니다. 다른 차량이나 시간을 선택해 주세요.',
+        'VEHICLE_TIME_CONFLICT',
+      );
+    }
+
+    return tx.companyVehicleTrip.update({
+      where: { tripId: params.tripId },
+      data: {
+        destination: params.destination.trim(),
+        reason: params.reason.trim(),
+        requestStartAt: params.requestStartAt,
+        requestEndAt: params.requestEndAt,
+        assignedVehicleId: params.vehicleId,
+      },
+      include: TRIP_DETAIL_INCLUDE,
+    });
+  });
+}
+
+/**
  * 신청 상세(관리자 화면 카드별 [수정하기])에서 신청 내용(신청 직원·행선지·사유·
  * 운행시간)과 사후 정정이 필요한 운행 기록(배정 차량·반납 처리/확정 시각)을
  * 관리자가 직접 고친다. 신청 단계의 운영시간/최대 사용시간 규칙
