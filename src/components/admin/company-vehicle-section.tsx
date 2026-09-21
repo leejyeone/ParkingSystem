@@ -129,6 +129,31 @@ export function CompanyVehicleSection({
     setMessage({ variant: 'error', text: response.error.message });
   }
 
+  async function handleDelete(vehicle: Vehicle) {
+    if (
+      !window.confirm(
+        `"${vehicle.vehicleNo}" 차량을 완전히 삭제하시겠습니까? 되돌릴 수 없습니다.\n(운행 이력이 있는 차량은 삭제할 수 없고, 비활성화만 가능합니다.)`,
+      )
+    ) {
+      return;
+    }
+
+    setPending(true);
+    setMessage(null);
+
+    const response = await apiRequest(`/api/admin/company-vehicles/${vehicle.vehicleId}`, {
+      method: 'DELETE',
+    });
+
+    setPending(false);
+    if (response.ok) {
+      setMessage({ variant: 'success', text: `"${vehicle.vehicleNo}" 차량을 삭제했습니다.` });
+      router.refresh();
+      return;
+    }
+    setMessage({ variant: 'error', text: response.error.message });
+  }
+
   /** 편집 모드의 모든 행 중 실제로 값이 바뀐 차량만 한꺼번에 저장한다. */
   async function handleSaveAll() {
     const changed = vehicles.filter((vehicle) => !isSameDraft(draftOf(vehicle), toDraft(vehicle)));
@@ -213,12 +238,13 @@ export function CompanyVehicleSection({
                   <th className="w-28">주차 위치</th>
                   <th>메모</th>
                   <th className="w-24">상태</th>
+                  {sectionEditMode && <th className="w-16">삭제</th>}
                 </tr>
               </thead>
               <tbody>
                 {vehicles.length === 0 && !creating && (
                   <tr>
-                    <td colSpan={5} className="text-ink-faint text-center text-sm">
+                    <td colSpan={sectionEditMode ? 6 : 5} className="text-ink-faint text-center text-sm">
                       등록된 법인차량이 없습니다.
                     </td>
                   </tr>
@@ -285,6 +311,18 @@ export function CompanyVehicleSection({
                               updateDraft(vehicle.vehicleId, { isActive: !draft.isActive })
                             }
                           />
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="btn btn-danger-outline min-h-8 w-8 px-0"
+                            disabled={pending}
+                            aria-label={`${vehicle.vehicleNo} 삭제`}
+                            title="삭제"
+                            onClick={() => handleDelete(vehicle)}
+                          >
+                            <TrashIcon />
+                          </button>
                         </td>
                       </tr>
                     );
@@ -373,9 +411,10 @@ export function CompanyVehicleSection({
                           }
                         />
                       </td>
+                      <td />
                     </tr>
                     <tr className="bg-surface-muted">
-                      <td colSpan={5} className="text-right">
+                      <td colSpan={6} className="text-right">
                         <button
                           type="button"
                           className="btn btn-primary btn-sm"
@@ -406,5 +445,22 @@ export function CompanyVehicleSection({
         </div>
       </section>
     </div>
+  );
+}
+
+/** 삭제 픽토그램(휴지통). 차량 행별 삭제 버튼에 쓴다. */
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 20 20" className="size-4" fill="none" aria-hidden="true">
+      <path d="M4 6h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M8 3h4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path
+        d="M6 6l.8 10.2A1 1 0 0 0 7.8 17h4.4a1 1 0 0 0 1-.8L14 6"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <path d="M8.3 9v5M11.7 9v5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
   );
 }

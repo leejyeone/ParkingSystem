@@ -145,7 +145,7 @@ export async function updateCompanyVehicle(
 /**
  * 법인차량 비활성화. (소프트 삭제 — isActive 를 false 로 바꾸고 행은 남긴다)
  *
- * 과거 운행일지(CompanyVehicleTrip)가 이 차량을 참조하므로 물리 삭제하지 않는다.
+ * 과거 운행일지(CompanyVehicleTrip)가 이 차량을 참조하므로, 이력이 있는 차량은 이쪽을 쓴다.
  */
 export async function deactivateCompanyVehicle(
   vehicleId: number,
@@ -162,6 +162,46 @@ export async function deactivateCompanyVehicle(
   await writeAuditLog({
     actorAdminId: actor.adminUserId,
     actionType: AUDIT_ACTIONS.COMPANY_VEHICLE_DEACTIVATE,
+    targetType: AUDIT_TARGETS.COMPANY_VEHICLE,
+    targetId: vehicleId,
+    detail: { vehicleNo: current.vehicleNo },
+    context: actor.requestContext,
+  });
+
+  return { vehicleId };
+}
+
+/**
+ * 법인차량 완전 삭제(물리 삭제) — 등록을 잘못했거나 애초에 운행 이력이 없는 차량을 아예
+ * 목록에서 지우고 싶을 때 쓴다. `CompanyVehicleTrip.assignedVehicleId`는 스키마상
+ * `onDelete: SetNull`이라 DB 차원에서는 삭제가 막히지 않지만, 운행 이력이 있는 채로
+ * 지우면 그 신청 건들이 "차량 없음"으로 남아 운행 대장 등에서 이력을 잃어버린다 — 그래서
+ * 여기서 먼저 운행 이력이 하나라도 있으면 막고, 그런 차량은 `deactivateCompanyVehicle`
+ * (비활성화)을 쓰라고 안내한다.
+ */
+export async function deleteCompanyVehicle(
+  vehicleId: number,
+  actor: { adminUserId: number; requestContext?: RequestContext },
+) {
+  const current = await prisma.companyVehicle.findUnique({
+    where: { vehicleId },
+    select: { vehicleId: true, vehicleNo: true },
+  });
+  if (!current) throw new NotFoundError('법인차량을 찾을 수 없습니다.');
+
+  const tripCount = await prisma.companyVehicleTrip.count({ where: { assignedVehicleId: vehicleId } });
+  if (tripCount > 0) {
+    throw new ConflictError(
+      '운행 이력이 있는 차량은 삭제할 수 없습니다. 대신 비활성화해 주세요.',
+      'VEHICLE_HAS_TRIP_HISTORY',
+    );
+  }
+
+  await prisma.companyVehicle.delete({ where: { vehicleId } });
+
+  await writeAuditLog({
+    actorAdminId: actor.adminUserId,
+    actionType: AUDIT_ACTIONS.COMPANY_VEHICLE_DELETE,
     targetType: AUDIT_TARGETS.COMPANY_VEHICLE,
     targetId: vehicleId,
     detail: { vehicleNo: current.vehicleNo },
