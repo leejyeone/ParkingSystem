@@ -446,6 +446,9 @@ model CompanyVehicle {
   isActive       Boolean  @default(true) @map("is_active")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
+  /// 소프트 삭제. isActive 는 "운영 중 여부" 토글이라 삭제 여부와 별개로 둔다
+  /// (AdminNotificationEmail과 같은 컨벤션).
+  deletedAt      DateTime? @map("deleted_at")
 
   parkingSpace ParkingSpace?        @relation(fields: [parkingSpaceId], references: [spaceId], onDelete: SetNull)
   trips        CompanyVehicleTrip[]

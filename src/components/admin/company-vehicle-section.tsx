@@ -132,7 +132,7 @@ export function CompanyVehicleSection({
   async function handleDelete(vehicle: Vehicle) {
     if (
       !window.confirm(
-        `"${vehicle.vehicleNo}" 차량을 완전히 삭제하시겠습니까? 되돌릴 수 없습니다.\n(운행 이력이 있는 차량은 삭제할 수 없고, 비활성화만 가능합니다.)`,
+        `"${vehicle.vehicleNo}" 차량을 삭제하시겠습니까? 목록에서 완전히 사라지며 이 화면에서 되돌릴 수 없습니다.\n(과거 운행 기록은 운행 대장에 그대로 남습니다.)`,
       )
     ) {
       return;

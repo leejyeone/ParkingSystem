@@ -104,14 +104,15 @@ export type CompanyVehicleTripListFilter = {
   actualEntryOnly?: boolean;
   /**
    * 기본 'createdAt_desc'(신청내역 목록 — 최근 신청 순). 운행 대장은 종이 운행일지처럼
-   * 시간순으로 누적되는 형태가 맞으므로 'requestStartAt_asc'를 쓴다. 'actualEntryAt_*'는
-   * 예정 시간이 아니라 실제 출차 시각(운행 대장에서 "실제 운행 일시") 기준 정렬이다 —
-   * 아직 출차 처리 전(실제 운행 일시 없음)인 행은 MySQL 기본 동작대로 오름차순에서는
-   * 맨 앞, 내림차순에서는 맨 뒤에 온다.
+   * 시간순으로 누적되는 형태가 맞으므로 'requestStartAt_asc'/'requestStartAt_desc'를
+   * 쓴다 — 운행 대장의 "운행 일시"는 실제 반납 처리 시각이 아니라 신청 폼에서 직원이
+   * 고른 예정 시간(requestStartAt~requestEndAt) 기준이다. 'actualEntryAt_*'는 그와
+   * 별개로 실제 반납 처리 시각 기준 정렬이 필요할 때 쓴다.
    */
   order?:
     | 'createdAt_desc'
     | 'requestStartAt_asc'
+    | 'requestStartAt_desc'
     | 'actualEntryAt_asc'
     | 'actualEntryAt_desc';
 };
@@ -120,11 +121,13 @@ export async function listCompanyVehicleTrips(filter: CompanyVehicleTripListFilt
   const orderBy: Prisma.CompanyVehicleTripOrderByWithRelationInput =
     filter.order === 'requestStartAt_asc'
       ? { requestStartAt: 'asc' }
-      : filter.order === 'actualEntryAt_asc'
-        ? { actualEntryAt: 'asc' }
-        : filter.order === 'actualEntryAt_desc'
-          ? { actualEntryAt: 'desc' }
-          : { createdAt: 'desc' };
+      : filter.order === 'requestStartAt_desc'
+        ? { requestStartAt: 'desc' }
+        : filter.order === 'actualEntryAt_asc'
+          ? { actualEntryAt: 'asc' }
+          : filter.order === 'actualEntryAt_desc'
+            ? { actualEntryAt: 'desc' }
+            : { createdAt: 'desc' };
 
   return prisma.companyVehicleTrip.findMany({
     where: {
@@ -139,7 +142,7 @@ export async function listCompanyVehicleTrips(filter: CompanyVehicleTripListFilt
     orderBy,
     include: {
       employee: { select: { name: true, departmentName: true } },
-      assignedVehicle: { select: { vehicleId: true, vehicleNo: true } },
+      assignedVehicle: { select: { vehicleId: true, vehicleNo: true, vehicleModel: true } },
     },
   });
 }
@@ -345,7 +348,7 @@ export async function getVehicleAvailabilityForDate(
 ): Promise<VehicleAvailability[]> {
   const [vehicles, trips] = await Promise.all([
     prisma.companyVehicle.findMany({
-      where: { isActive: true },
+      where: { isActive: true, deletedAt: null },
       orderBy: { vehicleId: 'asc' },
       select: { vehicleId: true, vehicleNo: true, vehicleModel: true },
     }),

@@ -25,7 +25,7 @@ const VEHICLE_SELECT = {
 
 export async function listCompanyVehicles(options: { includeInactive?: boolean } = {}) {
   return prisma.companyVehicle.findMany({
-    where: options.includeInactive ? {} : { isActive: true },
+    where: { deletedAt: null, ...(options.includeInactive ? {} : { isActive: true }) },
     orderBy: [{ vehicleId: 'asc' }],
     select: VEHICLE_SELECT,
   });
@@ -45,7 +45,11 @@ async function assertSpaceNotTakenByOtherVehicle(
   excludeVehicleId?: number,
 ): Promise<void> {
   const taken = await prisma.companyVehicle.findFirst({
-    where: { parkingSpaceId, vehicleId: excludeVehicleId ? { not: excludeVehicleId } : undefined },
+    where: {
+      parkingSpaceId,
+      deletedAt: null,
+      vehicleId: excludeVehicleId ? { not: excludeVehicleId } : undefined,
+    },
     select: { vehicleId: true, vehicleNo: true },
   });
   if (taken) {
@@ -94,7 +98,7 @@ export async function updateCompanyVehicle(
   actor: { adminUserId: number; requestContext?: RequestContext },
 ) {
   const current = await prisma.companyVehicle.findUnique({ where: { vehicleId } });
-  if (!current) throw new NotFoundError('법인차량을 찾을 수 없습니다.');
+  if (!current || current.deletedAt) throw new NotFoundError('법인차량을 찾을 수 없습니다.');
 
   if (input.parkingSpaceId !== undefined && input.parkingSpaceId !== null) {
     const space = await prisma.parkingSpace.findUnique({ where: { spaceId: input.parkingSpaceId } });
@@ -153,9 +157,9 @@ export async function deactivateCompanyVehicle(
 ) {
   const current = await prisma.companyVehicle.findUnique({
     where: { vehicleId },
-    select: { vehicleId: true, vehicleNo: true },
+    select: { vehicleId: true, vehicleNo: true, deletedAt: true },
   });
-  if (!current) throw new NotFoundError('법인차량을 찾을 수 없습니다.');
+  if (!current || current.deletedAt) throw new NotFoundError('법인차량을 찾을 수 없습니다.');
 
   await prisma.companyVehicle.update({ where: { vehicleId }, data: { isActive: false } });
 
@@ -172,12 +176,12 @@ export async function deactivateCompanyVehicle(
 }
 
 /**
- * 법인차량 완전 삭제(물리 삭제) — 등록을 잘못했거나 애초에 운행 이력이 없는 차량을 아예
- * 목록에서 지우고 싶을 때 쓴다. `CompanyVehicleTrip.assignedVehicleId`는 스키마상
- * `onDelete: SetNull`이라 DB 차원에서는 삭제가 막히지 않지만, 운행 이력이 있는 채로
- * 지우면 그 신청 건들이 "차량 없음"으로 남아 운행 대장 등에서 이력을 잃어버린다 — 그래서
- * 여기서 먼저 운행 이력이 하나라도 있으면 막고, 그런 차량은 `deactivateCompanyVehicle`
- * (비활성화)을 쓰라고 안내한다.
+ * 법인차량 삭제(소프트 삭제 — `deletedAt`을 채우고 행은 남긴다).
+ *
+ * `isActive`(운영 중 여부 토글)와는 별개 개념이다(AdminNotificationEmail과 같은 컨벤션).
+ * 물리적으로 지우지 않으므로 운행 이력(CompanyVehicleTrip)이 있어도 안전하게 삭제할 수
+ * 있다 — 삭제된 차량은 `listCompanyVehicles` 등 모든 조회에서 `deletedAt: null` 조건에
+ * 걸러져 화면에서는 사라지지만, 과거 운행 기록은 그대로 남는다.
  */
 export async function deleteCompanyVehicle(
   vehicleId: number,
@@ -185,19 +189,11 @@ export async function deleteCompanyVehicle(
 ) {
   const current = await prisma.companyVehicle.findUnique({
     where: { vehicleId },
-    select: { vehicleId: true, vehicleNo: true },
+    select: { vehicleId: true, vehicleNo: true, deletedAt: true },
   });
-  if (!current) throw new NotFoundError('법인차량을 찾을 수 없습니다.');
+  if (!current || current.deletedAt) throw new NotFoundError('법인차량을 찾을 수 없습니다.');
 
-  const tripCount = await prisma.companyVehicleTrip.count({ where: { assignedVehicleId: vehicleId } });
-  if (tripCount > 0) {
-    throw new ConflictError(
-      '운행 이력이 있는 차량은 삭제할 수 없습니다. 대신 비활성화해 주세요.',
-      'VEHICLE_HAS_TRIP_HISTORY',
-    );
-  }
-
-  await prisma.companyVehicle.delete({ where: { vehicleId } });
+  await prisma.companyVehicle.update({ where: { vehicleId }, data: { deletedAt: new Date() } });
 
   await writeAuditLog({
     actorAdminId: actor.adminUserId,
