@@ -95,8 +95,13 @@ export function VisitorEntryLogPreviewPanel({ exportQuery }: { exportQuery: stri
 
   return (
     <>
-      <button type="button" className="btn btn-secondary btn-sm" onClick={handleOpen}>
-        엑셀 다운로드
+      <button
+        type="button"
+        className="btn btn-primary min-h-9 px-3 py-1.5 text-xs"
+        onClick={handleOpen}
+      >
+        <EyeIcon />
+        엑셀 미리보기
       </button>
 
       {open && (
@@ -122,13 +127,18 @@ export function VisitorEntryLogPreviewPanel({ exportQuery }: { exportQuery: stri
                 <div className="flex shrink-0 gap-2">
                   <button
                     type="button"
-                    className="btn btn-primary btn-sm"
+                    className="btn btn-primary min-h-9 px-3 py-1.5 text-xs"
                     disabled={loading || downloading || rows.length === 0}
                     onClick={handleDownload}
                   >
+                    {downloading ? <SpinnerIcon /> : <DownloadIcon />}
                     {downloading ? '만드는 중…' : '다운로드'}
                   </button>
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={handleClose}>
+                  <button
+                    type="button"
+                    className="btn btn-ghost min-h-9 px-3 py-1.5 text-xs"
+                    onClick={handleClose}
+                  >
                     닫기
                   </button>
                 </div>
@@ -144,11 +154,13 @@ export function VisitorEntryLogPreviewPanel({ exportQuery }: { exportQuery: stri
               {loading ? (
                 <p className="text-ink-faint text-sm">불러오는 중…</p>
               ) : (
-                <div className="flex-1 space-y-6 overflow-auto rounded-lg border border-slate-300 bg-slate-50 p-3">
+                <div className="flex-1 space-y-5 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-4">
                   {pages.map((pageRows, pageIndex) => (
-                    <div key={pageIndex} className="rounded-md border border-slate-300 bg-white p-2 shadow-sm">
+                    <div key={pageIndex} className="rounded-lg border border-slate-300 bg-white p-3 shadow-sm">
                       {pages.length > 1 && (
-                        <p className="text-ink-faint mb-1 text-xs font-bold">{pageIndex + 1}페이지</p>
+                        <span className="text-ink-muted bg-surface-hover mb-2 inline-block rounded-full px-2 py-0.5 text-xs font-bold">
+                          {pageIndex + 1}페이지
+                        </span>
                       )}
                       <table className="w-full border-collapse text-xs" style={{ tableLayout: 'fixed' }}>
                         <colgroup>
@@ -159,18 +171,14 @@ export function VisitorEntryLogPreviewPanel({ exportQuery }: { exportQuery: stri
                         <tbody>
                           {/* 1~3행: 로고 / 제목 / 관리부서·총무팀 — 엑셀 병합 범위 그대로 재현 */}
                           <tr>
-                            <td
-                              rowSpan={3}
-                              colSpan={3}
-                              className="border border-slate-300 p-2 text-center align-middle"
-                            >
+                            <td rowSpan={3} colSpan={3} className="p-2 text-center align-middle">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img src="/synopex-logo.png" alt="SYNOPEX" className="mx-auto h-10 w-auto" />
                             </td>
                             <td
                               rowSpan={3}
                               colSpan={4}
-                              className="border border-slate-300 p-2 text-center align-middle text-xl font-bold"
+                              className="p-2 text-center align-middle text-xl font-bold"
                             >
                               방문 차량 입출차 현황
                             </td>
@@ -193,10 +201,11 @@ export function VisitorEntryLogPreviewPanel({ exportQuery }: { exportQuery: stri
                           </tr>
                           <tr />
 
-                          {/* 4행: 제목 박스와 별개의 헤더/본문 구분 행 — 위와 병합하지 않는다 */}
+                          {/* 4행: 제목 박스와 별개의 헤더/본문 구분 행 — 실제 엑셀에는 테두리가
+                              없는 순수 여백 행이라 여기서도 테두리를 넣지 않는다. */}
                           <tr>
                             {VISITOR_ENTRY_LOG_COLUMNS.map((column) => (
-                              <td key={`sep-${column}`} className="border border-slate-300" style={{ height: 31 }} />
+                              <td key={`sep-${column}`} style={{ height: 31 }} />
                             ))}
                           </tr>
 
@@ -205,8 +214,8 @@ export function VisitorEntryLogPreviewPanel({ exportQuery }: { exportQuery: stri
                             {VISITOR_ENTRY_LOG_COLUMNS.map((column) => (
                               <th
                                 key={column}
-                                className="border border-slate-300 p-1.5 text-center align-middle font-bold whitespace-pre-line text-white"
-                                style={{ backgroundColor: NAVY, height: 47 }}
+                                className="border border-slate-300 p-1 text-center align-middle font-bold whitespace-pre-line text-white"
+                                style={{ backgroundColor: NAVY, height: 47, fontSize: 10 }}
                               >
                                 {column}
                               </th>
@@ -221,13 +230,22 @@ export function VisitorEntryLogPreviewPanel({ exportQuery }: { exportQuery: stri
                               <tr key={rowIndexInPage} style={{ height: 54 }}>
                                 {row.map((cell, colIndex) =>
                                   colIndex === 0 ? (
-                                    <td key={colIndex} className="border border-slate-300 p-1.5 text-center">
+                                    <td
+                                      key={colIndex}
+                                      className="border border-slate-300 p-1 text-center"
+                                      style={{ fontSize: 10 }}
+                                    >
                                       {rowIndexInPage + 1}
                                     </td>
                                   ) : (
                                     <td key={colIndex} className="border border-slate-300 p-0">
+                                      {/* input,select,textarea 는 globals.css 에서 iOS 확대 방지용으로
+                                          font-size: 16px 를 @layer 밖(전역)에 고정해 둬서, Tailwind의
+                                          text-xs 류 유틸리티 클래스로는 절대 못 줄인다 — 인라인 style로
+                                          직접 덮어써야 실제로 작아진다. */}
                                       <input
-                                        className="w-full border-0 bg-transparent px-1.5 py-1.5 text-center text-xs focus:bg-brand-100 focus:outline-none"
+                                        className="w-full border-0 bg-transparent px-1 py-1 text-center focus:bg-brand-100 focus:outline-none"
+                                        style={{ fontSize: 10 }}
                                         value={cell}
                                         onChange={(event) => updateCell(flatIndex, colIndex, event.target.value)}
                                       />
@@ -243,7 +261,11 @@ export function VisitorEntryLogPreviewPanel({ exportQuery }: { exportQuery: stri
                             (_, blankIndex) => (
                               <tr key={`blank-${blankIndex}`} style={{ height: 54 }}>
                                 {VISITOR_ENTRY_LOG_COLUMNS.map((column, colIndex) => (
-                                  <td key={column} className="border border-slate-300 p-1.5 text-center">
+                                  <td
+                                    key={column}
+                                    className="border border-slate-300 p-1 text-center"
+                                    style={{ fontSize: 10 }}
+                                  >
                                     {colIndex === 0 ? pageRows.length + blankIndex + 1 : ''}
                                   </td>
                                 ))}
@@ -261,5 +283,44 @@ export function VisitorEntryLogPreviewPanel({ exportQuery }: { exportQuery: stri
         </div>
       )}
     </>
+  );
+}
+
+function EyeIcon() {
+  return (
+    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"
+        stroke="currentColor"
+        strokeWidth={1.8}
+        strokeLinejoin="round"
+      />
+      <circle cx={12} cy={12} r={3} stroke="currentColor" strokeWidth={1.8} />
+    </svg>
+  );
+}
+
+function DownloadIcon() {
+  return (
+    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M12 4v11.5M7.5 11 12 15.5 16.5 11"
+        stroke="currentColor"
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M5 19.5h14" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** 다운로드 진행 중 표시용 회전 스피너. */
+function SpinnerIcon() {
+  return (
+    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" className="animate-spin" aria-hidden="true">
+      <circle cx={12} cy={12} r={9} stroke="currentColor" strokeWidth={2.5} opacity={0.25} />
+      <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" />
+    </svg>
   );
 }
