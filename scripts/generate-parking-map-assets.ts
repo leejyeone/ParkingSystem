@@ -9,6 +9,7 @@
  * 실행: npx tsx scripts/generate-parking-map-assets.ts (또는 npm run build 시 자동 실행)
  */
 import fs from 'node:fs';
+import path from 'node:path';
 
 import { allStallCodes } from '../src/domain/parking-map-layout';
 import { generatedAssetPath, renderParkingMapAttachment } from '../src/lib/email/parking-map-image';
@@ -16,6 +17,10 @@ import { generatedAssetPath, renderParkingMapAttachment } from '../src/lib/email
 function main() {
   const codes = allStallCodes();
   const failed: string[] = [];
+
+  // renderParkingMapAttachment 는 기존 PNG 가 있으면 그걸 그대로 읽어 반환하므로, 도면이 바뀐 뒤
+  // 다시 만들 때는 옛 파일을 먼저 지워야 새로 그려진다.
+  fs.rmSync(path.dirname(generatedAssetPath('x')), { recursive: true, force: true });
 
   console.log(`주차 위치 안내 이미지 ${codes.length}개 생성 시작...`);
 
