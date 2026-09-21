@@ -90,6 +90,27 @@ export function CompanyVehicleSection({
     return vehicles.find((vehicle) => vehicle.vehicleId === vehicleId)!;
   }
 
+  /**
+   * 이 차량(수정 중이면 자기 자신은 제외)이 고를 수 있는 주차면만 남긴다 — 서버의
+   * `assertSpaceNotTakenByOtherVehicle`와 같은 기준(삭제되지 않은 다른 차량이 쓰는
+   * 주차면 제외). `keepSelected`가 그 사이 다른 차량에 넘어간 값이어도, 지금 드롭다운에
+   * 이미 선택돼 있는 값 자체는 목록에서 사라지지 않게 한다.
+   */
+  function availableSpaces(excludeVehicleId: number | undefined, keepSelected: string): SpaceOption[] {
+    const takenIds = new Set(
+      vehicles
+        .filter((vehicle) => vehicle.parkingSpaceId !== null && vehicle.vehicleId !== excludeVehicleId)
+        .map((vehicle) => vehicle.parkingSpaceId as number),
+    );
+    const filtered = spaces.filter((space) => !takenIds.has(space.spaceId));
+    const keptId = keepSelected ? Number(keepSelected) : null;
+    if (keptId !== null && !filtered.some((space) => space.spaceId === keptId)) {
+      const kept = spaces.find((space) => space.spaceId === keptId);
+      if (kept) return [...filtered, kept];
+    }
+    return filtered;
+  }
+
   function bodyFrom(draft: Draft) {
     return {
       vehicleNo: draft.vehicleNo,
@@ -105,28 +126,6 @@ export function CompanyVehicleSection({
     setDrafts({});
     setMessage(null);
     setFieldErrors({});
-  }
-
-  async function handleCreate() {
-    setPending(true);
-    setMessage(null);
-    setFieldErrors({});
-
-    const response = await apiRequest('/api/admin/company-vehicles', {
-      method: 'POST',
-      body: JSON.stringify(bodyFrom(createDraft)),
-    });
-
-    setPending(false);
-    if (response.ok) {
-      setCreating(false);
-      setCreateDraft(EMPTY_DRAFT);
-      setMessage({ variant: 'success', text: '법인차량을 등록했습니다.' });
-      router.refresh();
-      return;
-    }
-    setFieldErrors(response.error.fieldErrors ?? {});
-    setMessage({ variant: 'error', text: response.error.message });
   }
 
   async function handleDelete(vehicle: Vehicle) {
@@ -154,11 +153,21 @@ export function CompanyVehicleSection({
     setMessage({ variant: 'error', text: response.error.message });
   }
 
-  /** 편집 모드의 모든 행 중 실제로 값이 바뀐 차량만 한꺼번에 저장한다. */
+  /**
+   * 편집 모드의 모든 행 중 실제로 값이 바뀐 차량과, "법인차량 추가"로 열어 둔 신규 행을
+   * 한꺼번에 저장한다 — 신규 행에 따로 있던 "등록" 버튼(같은 역할이 중복돼 있던 것)을
+   * 없애고 이 저장 버튼 하나로 합쳤다.
+   */
   async function handleSaveAll() {
     const changed = vehicles.filter((vehicle) => !isSameDraft(draftOf(vehicle), toDraft(vehicle)));
 
-    if (changed.length === 0) {
+    if (creating && createDraft.vehicleNo.trim() === '') {
+      setFieldErrors({ vehicleNo: ['차량번호를 입력해 주세요.'] });
+      return;
+    }
+    const shouldCreate = creating;
+
+    if (changed.length === 0 && !shouldCreate) {
       setSectionEditMode(false);
       setDrafts({});
       return;
@@ -166,33 +175,55 @@ export function CompanyVehicleSection({
 
     setPending(true);
     setMessage(null);
+    setFieldErrors({});
 
-    const results = await Promise.all(
-      changed.map((vehicle) =>
-        apiRequest(`/api/admin/company-vehicles/${vehicle.vehicleId}`, {
-          method: 'PATCH',
-          body: JSON.stringify(bodyFrom(draftOf(vehicle))),
-        }).then((response) => ({ vehicle, response })),
+    const [createResponse, updateResults] = await Promise.all([
+      shouldCreate
+        ? apiRequest('/api/admin/company-vehicles', {
+            method: 'POST',
+            body: JSON.stringify(bodyFrom(createDraft)),
+          })
+        : Promise.resolve(null),
+      Promise.all(
+        changed.map((vehicle) =>
+          apiRequest(`/api/admin/company-vehicles/${vehicle.vehicleId}`, {
+            method: 'PATCH',
+            body: JSON.stringify(bodyFrom(draftOf(vehicle))),
+          }).then((response) => ({ vehicle, response })),
+        ),
       ),
-    );
+    ]);
 
     setPending(false);
 
-    const failures = results.filter((result) => !result.response.ok);
-    if (failures.length === 0) {
+    const createFailed = createResponse !== null && !createResponse.ok;
+    const updateFailures = updateResults.filter((result) => !result.response.ok);
+
+    if (createFailed) {
+      setFieldErrors(createResponse.error.fieldErrors ?? {});
+    } else if (shouldCreate) {
+      setCreating(false);
+      setCreateDraft(EMPTY_DRAFT);
+    }
+
+    if (!createFailed && updateFailures.length === 0) {
       setSectionEditMode(false);
       setDrafts({});
-      setMessage({ variant: 'success', text: `${changed.length}건을 저장했습니다.` });
+      const savedCount = changed.length + (shouldCreate ? 1 : 0);
+      setMessage({ variant: 'success', text: `${savedCount}건을 저장했습니다.` });
       router.refresh();
       return;
     }
 
     setMessage({
       variant: 'error',
-      text: failures
-        .map(({ vehicle, response }) =>
+      text: [
+        ...(createFailed ? [`신규 등록: ${createResponse.error.message}`] : []),
+        ...updateFailures.map(({ vehicle, response }) =>
           response.ok ? '' : `${vehicle.vehicleNo}: ${response.error.message}`,
-        )
+        ),
+      ]
+        .filter(Boolean)
         .join(' / '),
     });
     router.refresh();
@@ -285,7 +316,7 @@ export function CompanyVehicleSection({
                             }
                           >
                             <option value="">미지정</option>
-                            {spaces.map((space) => (
+                            {availableSpaces(vehicle.vehicleId, draft.parkingSpaceId).map((space) => (
                               <option key={space.spaceId} value={space.spaceId}>
                                 {space.spaceCode}
                               </option>
@@ -384,7 +415,7 @@ export function CompanyVehicleSection({
                           }
                         >
                           <option value="">미지정</option>
-                          {spaces.map((space) => (
+                          {availableSpaces(undefined, createDraft.parkingSpaceId).map((space) => (
                             <option key={space.spaceId} value={space.spaceId}>
                               {space.spaceCode}
                             </option>
@@ -411,29 +442,20 @@ export function CompanyVehicleSection({
                           }
                         />
                       </td>
-                      <td />
-                    </tr>
-                    <tr className="bg-surface-muted">
-                      <td colSpan={6} className="text-right">
+                      <td>
                         <button
                           type="button"
-                          className="btn btn-primary btn-sm"
-                          disabled={pending || createDraft.vehicleNo.trim() === ''}
-                          onClick={handleCreate}
-                        >
-                          등록
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-sm ml-1"
+                          className="btn btn-ghost min-h-8 w-8 px-0"
                           disabled={pending}
+                          aria-label="신규 등록 취소"
+                          title="취소"
                           onClick={() => {
                             setCreating(false);
                             setCreateDraft(EMPTY_DRAFT);
                             setFieldErrors({});
                           }}
                         >
-                          취소
+                          <XIcon />
                         </button>
                       </td>
                     </tr>
@@ -445,6 +467,15 @@ export function CompanyVehicleSection({
         </div>
       </section>
     </div>
+  );
+}
+
+/** 취소 픽토그램(X). 신규 등록 행의 취소 버튼에 쓴다 — 삭제 아이콘과 같은 칸에 놓인다. */
+function XIcon() {
+  return (
+    <svg viewBox="0 0 20 20" className="size-4" fill="none" aria-hidden="true">
+      <path d="M5 5l10 10M15 5 5 15" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
   );
 }
 

@@ -24,9 +24,18 @@ export async function listParkingAreas() {
   });
 }
 
-export async function listParkingSpaces(options: { includeInactive?: boolean } = {}) {
+export async function listParkingSpaces(
+  options: { includeInactive?: boolean; excludeCompanyVehicleAssigned?: boolean } = {},
+) {
   return prisma.parkingSpace.findMany({
-    where: options.includeInactive ? {} : { isActive: true },
+    where: {
+      ...(options.includeInactive ? {} : { isActive: true }),
+      // 법인차량이 고정 배정해 방문 예약 쪽에서는 못 쓰는 주차면을 뺀다 — 방문 예약
+      // 승인 화면의 findFirstAvailableSpace(space-assignment-service.ts)와 같은 기준.
+      ...(options.excludeCompanyVehicleAssigned
+        ? { OR: [{ companyVehicle: null }, { companyVehicle: { isActive: false } }] }
+        : {}),
+    },
     // 대시보드·배정 드롭다운과 같은 기준: 구역 표시 순서(지하 1층 -> 지상 1층)를 먼저
     // 따르고, 그 안에서 주차면 코드 순으로 정렬한다.
     orderBy: [{ area: { displayOrder: 'asc' } }, { spaceCode: 'asc' }],

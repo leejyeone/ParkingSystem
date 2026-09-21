@@ -13,7 +13,10 @@ export const metadata: Metadata = { title: '반복 예약 등록' };
 export default async function NewRecurringReservationPage() {
   await requireSystemAdminPage('/admin/recurring-reservations');
 
-  const [spaces, settings] = await Promise.all([listParkingSpaces(), getSystemSettings()]);
+  const [spaces, settings] = await Promise.all([
+    listParkingSpaces({ excludeCompanyVehicleAssigned: true }),
+    getSystemSettings(),
+  ]);
 
   return (
     <main className="app-container-wide space-y-4">

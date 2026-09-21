@@ -23,7 +23,7 @@ export default async function RecurringReservationDetailPage({ params }: PagePro
   const scheduleId = parseNumericId(id, '반복 예약 일정 ID');
   const [{ schedule, occurrences }, spaces] = await Promise.all([
     getRecurringScheduleDetail(scheduleId),
-    listParkingSpaces(),
+    listParkingSpaces({ excludeCompanyVehicleAssigned: true }),
   ]);
 
   return (
