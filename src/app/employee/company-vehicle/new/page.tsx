@@ -18,7 +18,7 @@ export default async function CompanyVehicleNewTripPage() {
   ]);
 
   return (
-    <main className="app-container space-y-4">
+    <main className="app-container-medium space-y-4">
       <div>
         <h1 className="text-xl font-black text-slate-900 sm:text-2xl">법인 차량 신청</h1>
         <p className="mt-1 text-sm text-slate-600">

@@ -86,7 +86,7 @@ export function CompanyVehicleRequestForm({
 }: Props) {
   const [destination, setDestination] = useState('');
   const [reason, setReason] = useState('');
-  const [date, setDate] = useState('');
+  const [date, setDate] = useState(minDateTimeInput.split('T')[0]);
   const [vehicles, setVehicles] = useState<VehicleAvailability[] | null>(null);
   const [loadingVehicles, setLoadingVehicles] = useState(false);
   const [vehicleFetchError, setVehicleFetchError] = useState<string | null>(null);
@@ -346,11 +346,8 @@ export function CompanyVehicleRequestForm({
           </FormField>
         )}
 
-        {vehicleId !== null && requestStartAt && requestEndAt && (
-          <Alert variant="success">
-            <span className="font-bold">{selectedVehicle?.vehicleNo}</span> 차량으로{' '}
-            {formatDateTimeRange(requestStartAt, requestEndAt)} 신청 준비가 되었습니다.
-          </Alert>
+        {requestStartAt && requestEndAt && (
+          <Alert variant="success">{formatDateTimeRange(requestStartAt, requestEndAt)}, {selectedVehicle?.vehicleNo} 신청됩니다.</Alert>
         )}
 
         <button
