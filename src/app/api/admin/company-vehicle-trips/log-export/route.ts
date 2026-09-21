@@ -25,7 +25,7 @@ function xlsxHeaders(): HeadersInit {
 }
 
 /**
- * GET /api/admin/company-vehicle-trips/log-export — `/admin/company-vehicles/log` 화면에
+ * GET /api/admin/company-vehicle-trips/log-export — `/admin/logs/company-vehicles` 화면에
  * 지금 보이는 차량·기간 그대로 조회한다. 쿼리 파라미터는 그 화면과 동일하게 맞춘다
  * (vehicleId/dateFrom/dateTo/sort). 기본은 엑셀 파일을 바로 내려받지만, `format=json`이면
  * 미리보기 패널이 편집할 수 있게 셀 값 배열만 JSON으로 돌려준다.

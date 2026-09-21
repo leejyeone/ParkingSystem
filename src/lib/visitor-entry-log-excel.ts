@@ -27,7 +27,7 @@ const HEADER_FONT: Partial<ExcelJS.Font> = { bold: true, color: { argb: 'FFFFFFF
 
 /**
  * 한 페이지(시트) 분량("방문 차량 입출차 현황" 로고/제목/관리부서 박스 + 헤더 + 데이터
- * 행)을 그린다. 법인차량 운행 대장(`company-vehicle-log-excel.ts`)과 같은 양식이며,
+ * 행)을 그린다. 법인차량 운행 내역(`company-vehicle-log-excel.ts`)과 같은 양식이며,
  * 치수(행 높이·로고 위치·구분 행 등)도 그대로 맞춘다 — 같은 9칸 표라 그대로 맞는다.
  */
 function addLogSheet(
@@ -73,7 +73,7 @@ function addLogSheet(
   }
 
   if (logoImageId !== null) {
-    // 법인차량 운행 대장과 같은 3행짜리 로고 영역(약 217x92px 상당, 열폭 5/9/20·행높이
+    // 법인차량 운행 내역과 같은 3행짜리 로고 영역(약 217x92px 상당, 열폭 5/9/20·행높이
     // 23pt×3 기준) 한가운데에 로고(원본 비율 350:100 유지, 160x46)를 앉힌다.
     sheet.addImage(logoImageId, { tl: { col: 0.81, row: 0.75 }, ext: { width: 160, height: 46 } });
   }
@@ -113,7 +113,7 @@ function addLogSheet(
 /**
  * 종이 운행대장과 같은 양식("방문 차량 입출차 현황")으로 완료된(EXITED) 방문 예약
  * 엑셀 워크북을 만든다 — 좌상단 로고, 중앙 제목, 우상단 "관리부서: 총무팀" 남색 박스 +
- * 아래 남색 헤더 표. 법인차량 운행 대장(`company-vehicle-log-excel.ts`)과 같은 원칙으로
+ * 아래 남색 헤더 표. 법인차량 운행 내역(`company-vehicle-log-excel.ts`)과 같은 원칙으로
  * 20건이 넘으면 시트를 한 장 더 만들어 No를 1부터 다시 매긴다(`renumberRowsByPage` 참고).
  *
  * `rows`는 DB에서 막 조회한 값일 수도, 미리보기 패널에서 관리자가 고친 값일 수도 있다 —

@@ -40,7 +40,7 @@ export default async function CompanyVehicleTripDetailPage({ params, searchParam
     typeof rawReturnTo === 'string' && rawReturnTo.startsWith('/admin/')
       ? rawReturnTo
       : '/admin/company-vehicles/trips';
-  const returnLabel = returnTo.startsWith('/admin/company-vehicles/log')
+  const returnLabel = returnTo.startsWith('/admin/logs/company-vehicles')
     ? '← 운행 대장'
     : '← 운행 신청 목록';
 

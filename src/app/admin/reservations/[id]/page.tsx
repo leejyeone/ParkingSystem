@@ -46,7 +46,9 @@ export default async function AdminReservationDetailPage({ params, searchParams 
       : '/admin/reservations';
   const returnLabel = returnTo.startsWith('/admin/recurring-reservations')
     ? '← 반복 예약 상세'
-    : '← 예약 목록';
+    : returnTo.startsWith('/admin/logs/visitors')
+      ? '← 입출차 내역'
+      : '← 예약 목록';
 
   if (!Number.isInteger(reservationId) || reservationId <= 0) {
     notFound();

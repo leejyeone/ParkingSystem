@@ -11,7 +11,7 @@ export type CompanyVehicleLogRow = Awaited<ReturnType<typeof listCompanyVehicleT
 export type CompanyVehicleLogCellRow = (string | number)[];
 
 /**
- * 법인차량 운행 대장의 "차량 배차 신청 현황" 표 칸 순서 — 화면과 엑셀 출력이 똑같은
+ * 법인차량 운행 내역의 "차량 배차 신청 현황" 표 칸 순서 — 화면과 엑셀 출력이 똑같은
  * 속성을 보여줘야 하므로, 두 쪽 다 이 목록과 아래 헬퍼 함수들을 그대로 재사용한다.
  * "신청자(운전자)"/"행선지(목적)"는 원본 종이 양식과 같이 줄바꿈으로 두 줄에 나눠 쓴다
  * (`\n` 기준 — 화면은 `<br/>`로, 엑셀은 wrapText로 각각 줄바꿈을 그린다).

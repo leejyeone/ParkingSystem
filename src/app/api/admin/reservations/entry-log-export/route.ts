@@ -26,8 +26,8 @@ function xlsxHeaders(): HeadersInit {
 }
 
 /**
- * GET /api/admin/reservations/entry-log-export — `/admin/reservations/log` 화면에 지금
- * 보이는 기간 그대로, 완료(EXITED)된 방문 예약을 조회한다. 법인차량 운행 대장 export
+ * GET /api/admin/reservations/entry-log-export — `/admin/logs/visitors` 화면에 지금
+ * 보이는 기간 그대로, 완료(EXITED)된 방문 예약을 조회한다. 법인차량 운행 내역 export
  * 라우트(`.../company-vehicle-trips/log-export/route.ts`)와 같은 구조 — vehicleId 대신
  * 날짜 범위만 받는다. 기본은 엑셀 파일을 바로 내려받지만, `format=json`이면 미리보기
  * 패널이 편집할 수 있게 셀 값 배열만 JSON으로 돌려준다.

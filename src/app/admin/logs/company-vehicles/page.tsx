@@ -3,6 +3,7 @@ import Link from 'next/link';
 
 import { ClickableTableRow } from '@/components/admin/clickable-table-row';
 import { CompanyVehicleLogPreviewPanel } from '@/components/admin/company-vehicle-log-preview-panel';
+import { CompanyVehicleLogSwitcher } from '@/components/admin/company-vehicle-log-switcher';
 import { FilterBar, type FilterChip } from '@/components/admin/filter-bar';
 import {
   COMPANY_VEHICLE_LOG_COLUMNS,
@@ -20,9 +21,9 @@ import { listCompanyVehicleTrips } from '@/services/company-vehicle-trip-service
 
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = { title: '법인차량 운행 대장' };
+export const metadata: Metadata = { title: '법인차량 운행 내역' };
 
-const BASE_PATH = '/admin/company-vehicles/log';
+const BASE_PATH = '/admin/logs/company-vehicles';
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 type PageProps = {
@@ -129,9 +130,9 @@ export default async function CompanyVehicleLogPage({ searchParams }: PageProps)
   return (
     <main className="app-container-wide space-y-4">
       <div>
-        <h1 className="text-ink text-xl font-black sm:text-2xl">법인차량 운행 대장</h1>
+        <h1 className="text-ink text-xl font-black sm:text-2xl">법인차량 운행 내역</h1>
         <p className="text-ink-muted mt-1 text-sm">
-          반납 처리까지 완료된 운행 기록만 표시됩니다. 탭에서 차량을 고르면 그 차량이 실제로 반납 처리된 운행 기록만, 신청 폼에서 고른
+          반납 처리까지 완료된 운행 기록만 표시됩니다. 차량을 선택하면 그 차량이 실제로 반납 처리된 운행 기록만, 신청 폼에서 고른
           운행 예정 시간 순으로 모아 보여줍니다.
         </p>
       </div>
@@ -144,23 +145,6 @@ export default async function CompanyVehicleLogPage({ searchParams }: PageProps)
         </section>
       ) : (
         <>
-          <nav className="bg-surface-hover flex gap-1 overflow-x-auto rounded-lg p-1">
-            {vehicles.map((vehicle) => (
-              <Link
-                key={vehicle.vehicleId}
-                href={buildHref({ vehicleId: String(vehicle.vehicleId) })}
-                className={`rounded-md px-3 py-2 text-sm font-bold whitespace-nowrap transition ${
-                  vehicle.vehicleId === vehicleId
-                    ? 'bg-brand-700 text-white'
-                    : 'text-ink-muted hover:bg-surface-active'
-                }`}
-              >
-                {vehicle.vehicleNo}
-                {!vehicle.isActive && ' (비활성)'}
-              </Link>
-            ))}
-          </nav>
-
           <FilterBar
             chips={chips}
             resetHref={buildHref({ dateFrom: undefined, dateTo: undefined })}
@@ -211,9 +195,22 @@ export default async function CompanyVehicleLogPage({ searchParams }: PageProps)
             <div className="card-body">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="card-title">{selectedVehicle?.vehicleNo ?? '알 수 없는 차량'}</h2>
-                <span className={`badge ${selectedVehicle?.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-surface-active text-ink-muted'}`}>
-                  {selectedVehicle?.isActive ? '활성' : '비활성'}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`badge ${selectedVehicle?.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-surface-active text-ink-muted'}`}>
+                    {selectedVehicle?.isActive ? '활성' : '비활성'}
+                  </span>
+                  <CompanyVehicleLogSwitcher
+                    vehicles={vehicles}
+                    vehicleId={vehicleId}
+                    hiddenFields={Object.fromEntries(
+                      Object.entries({
+                        dateFrom: explicitDateFrom,
+                        dateTo: explicitDateTo,
+                        sort: sort === 'request_desc' ? sort : undefined,
+                      }).filter((entry): entry is [string, string] => Boolean(entry[1])),
+                    )}
+                  />
+                </div>
               </div>
               <p className="text-ink-muted mt-1 text-sm">
                 배정 주차 위치:{' '}

@@ -54,7 +54,7 @@ export function formatKstTime(date: Date, timeZone = appTimeZone()): string {
   return formatInTimeZone(date, timeZone, 'HH:mm');
 }
 
-/** 'M/d' (앞자리 0 없음, 예: '9/7', '12/19') — 법인차량 운행 대장 엑셀 등에서 쓴다. */
+/** 'M/d' (앞자리 0 없음, 예: '9/7', '12/19') — 법인차량 운행 내역 엑셀 등에서 쓴다. */
 export function formatKstMonthDay(date: Date, timeZone = appTimeZone()): string {
   return formatInTimeZone(date, timeZone, 'M/d');
 }

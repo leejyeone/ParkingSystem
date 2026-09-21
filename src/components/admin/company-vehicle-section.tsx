@@ -331,7 +331,7 @@ export function CompanyVehicleSection({
                   return (
                     <ClickableTableRow
                       key={vehicle.vehicleId}
-                      href={`/admin/company-vehicles/log?vehicleId=${vehicle.vehicleId}`}
+                      href={`/admin/logs/company-vehicles?vehicleId=${vehicle.vehicleId}`}
                     >
                       <td className="font-mono font-bold whitespace-nowrap">{vehicle.vehicleNo}</td>
                       <td className="text-xs whitespace-nowrap">{vehicle.vehicleModel ?? '-'}</td>

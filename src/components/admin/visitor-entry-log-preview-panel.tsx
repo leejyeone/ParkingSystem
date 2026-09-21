@@ -17,7 +17,7 @@ const COLUMN_WIDTHS = [5, 9, 15, 10, 13, 12, 12, 29, 20];
 const NAVY = '#1F3864';
 
 /**
- * 법인차량 운행 대장 미리보기 패널(`company-vehicle-log-preview-panel.tsx`)과 같은
+ * 법인차량 운행 내역 미리보기 패널(`company-vehicle-log-preview-panel.tsx`)과 같은
  * 양식 — 컬럼 구성·API 엔드포인트만 방문 차량 입출차 현황에 맞게 바꿨다. "엑셀 다운로드"
  * 전에 실제 파일과 똑같은 모양으로 미리 보여주고, 데이터 행은 셀 단위로 고칠 수 있게
  * 한다. 조회는 GET(JSON), 다운로드는 편집된 값을 POST 로 그대로 보내 서버가 그 값

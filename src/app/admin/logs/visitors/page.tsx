@@ -21,7 +21,7 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = { title: '입출차 내역' };
 
-const BASE_PATH = '/admin/reservations/log';
+const BASE_PATH = '/admin/logs/visitors';
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 type PageProps = {
@@ -29,12 +29,12 @@ type PageProps = {
 };
 
 /**
- * 완료된(EXITED) 방문 예약 입출차 내역 — 법인차량 운행 대장(`/admin/company-vehicles/log`)과
+ * 완료된(EXITED) 방문 예약 입출차 내역 — 법인차량 운행 내역(`/admin/logs/company-vehicles`)과
  * 같은 양식이다(엑셀도 같은 구조: `visitor-entry-log-excel.ts` 참고). 차량별 탭이 없는
  * 대신 전체 방문객을 기간으로만 본다.
  *
  * 기간을 따로 고르지 않으면 최근 30일치만 기본으로 보여주고, 기간을 하나라도 직접 고르면
- * 그 지정대로 전체 기간을 조회한다(법인차량 운행 대장 페이지와 동일한 규칙).
+ * 그 지정대로 전체 기간을 조회한다(법인차량 운행 내역 페이지와 동일한 규칙).
  */
 export default async function VisitorEntryLogPage({ searchParams }: PageProps) {
   await requireAdminPage(BASE_PATH);
@@ -62,7 +62,7 @@ export default async function VisitorEntryLogPage({ searchParams }: PageProps) {
   });
 
   // 원본 종이 양식 한 장이 20행짜리라, 화면도 20건 단위로 페이지를 나누고 페이지마다
-  // No를 1부터 다시 매긴다(법인차량 운행 대장 페이지와 같은 규칙).
+  // No를 1부터 다시 매긴다(법인차량 운행 내역 페이지와 같은 규칙).
   const pageParam = Math.max(1, Number(params.page) || 1);
   const totalPages = Math.max(1, Math.ceil(reservations.length / VISITOR_ENTRY_LOG_PAGE_SIZE));
   const currentPage = Math.min(pageParam, totalPages);

@@ -4,7 +4,7 @@ import type { ReservationWithSpaces } from '@/services/reservation-service';
 
 /**
  * "방문 차량 입출차 현황" 표 한 줄을 셀 값 배열로 나타낸 것 — `VISITOR_ENTRY_LOG_COLUMNS`와
- * 순서가 같다. 법인차량 운행 대장(`domain/company-vehicle-log.ts`)과 같은 양식을 쓰며,
+ * 순서가 같다. 법인차량 운행 내역(`domain/company-vehicle-log.ts`)과 같은 양식을 쓰며,
  * 페이지 나누기(`paginateRows`/`renumberRowsByPage`/`COMPANY_VEHICLE_LOG_PAGE_SIZE`)도
  * 그대로 가져다 쓴다 — 완전히 범용적인 순수 함수라 이름 그대로 재사용한다.
  */
