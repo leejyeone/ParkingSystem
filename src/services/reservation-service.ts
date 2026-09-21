@@ -1675,6 +1675,31 @@ export async function listReservationsForAdmin(
   };
 }
 
+/**
+ * 완료(EXITED)된 방문 예약 목록 — "입출차 내역" 엑셀 대장용
+ * (`domain/visitor-entry-log.ts`, `listCompanyVehicleTrips`와 대응). 관리자 목록 API가
+ * 쓰는 좁혀진 `ReservationListItem`과 달리, 여기서는 `RESERVATION_WITH_SPACES`
+ * include(스칼라 필드 전부 + `assignedSpace`)를 그대로 돌려준다 — `actualEntryAt`/
+ * `actualExitAt` 등 엑셀에 필요한 값이 이미 다 들어 있기 때문이다.
+ */
+export async function listCompletedVisitReservations(filter: {
+  dateFrom?: Date;
+  dateTo?: Date;
+  requesterType?: RequesterType;
+}): Promise<ReservationWithSpaces[]> {
+  return prisma.parkingReservation.findMany({
+    where: {
+      reservationStatus: ReservationStatus.EXITED,
+      ...(filter.dateFrom && filter.dateTo
+        ? { visitStartAt: { lt: filter.dateTo }, visitEndAt: { gt: filter.dateFrom } }
+        : {}),
+      ...(filter.requesterType ? { requesterType: filter.requesterType } : {}),
+    },
+    include: RESERVATION_WITH_SPACES,
+    orderBy: { visitStartAt: 'asc' },
+  });
+}
+
 export function toReservationListItem(
   reservation: ReservationWithSpaces,
   entryExitManagementEnabled: boolean,
