@@ -2,14 +2,15 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { ClickableTableRow } from '@/components/admin/clickable-table-row';
+import { CompanyVehicleLogPreviewPanel } from '@/components/admin/company-vehicle-log-preview-panel';
 import { FilterBar, type FilterChip } from '@/components/admin/filter-bar';
 import {
   COMPANY_VEHICLE_LOG_COLUMNS,
   formatDestinationCell,
+  formatDistanceCell,
   formatProgressStatusCell,
   formatRequestDateCell,
   formatVehicleModelCell,
-  resolveDistanceKm,
 } from '@/domain/company-vehicle-log';
 import { requireAdminPage } from '@/lib/admin-page-guard';
 import { formatKstTime, kstDayRangeUtc, shiftKstDateString, todayKstDateString } from '@/lib/datetime';
@@ -108,10 +109,8 @@ export default async function CompanyVehicleLogPage({ searchParams }: PageProps)
       <div>
         <h1 className="text-ink text-xl font-black sm:text-2xl">법인차량 운행 대장</h1>
         <p className="text-ink-muted mt-1 text-sm">
-          탭에서 차량을 고르면 그 차량이 실제로 반납 처리된 운행 기록만, 신청 폼에서 고른
-          운행 예정 시간 순으로 모아 보여줍니다. 아직 반납 처리하지 않은 신청은 여기 나오지
-          않습니다. 기간을 따로 고르지 않으면 최근 30일치만 보여주고, 기간을 직접 고르면 그
-          범위 전체를 조회합니다.
+          반납 처리까지 완료된 운행 기록만 표시됩니다. 탭에서 차량을 고르면 그 차량이 실제로 반납 처리된 운행 기록만, 신청 폼에서 고른
+          운행 예정 시간 순으로 모아 보여줍니다.
         </p>
       </div>
 
@@ -230,22 +229,19 @@ export default async function CompanyVehicleLogPage({ searchParams }: PageProps)
                       내림차순
                     </Link>
                   </div>
-                  <a
-                    href={`/api/admin/company-vehicle-trips/log-export?${new URLSearchParams(
+                  <CompanyVehicleLogPreviewPanel
+                    exportQuery={new URLSearchParams(
                       Object.fromEntries(
                         Object.entries({
                           vehicleId: vehicleId ? String(vehicleId) : undefined,
-                          // 화면에 실제로 적용된(30일 기본값 포함) 기간 그대로 내려받는다.
+                          // 화면에 실제로 적용된(30일 기본값 포함) 기간 그대로 미리보기·다운로드한다.
                           dateFrom,
                           dateTo,
                           sort: sort === 'request_desc' ? sort : undefined,
                         }).filter((entry): entry is [string, string] => Boolean(entry[1])),
                       ),
-                    ).toString()}`}
-                    className="btn btn-secondary btn-sm"
-                  >
-                    엑셀 다운로드
-                  </a>
+                    ).toString()}
+                  />
                 </div>
               </div>
               <div className="table-scroll mt-3">
@@ -271,7 +267,6 @@ export default async function CompanyVehicleLogPage({ searchParams }: PageProps)
                       </tr>
                     )}
                     {trips.map((trip, index) => {
-                      const distanceKm = resolveDistanceKm(trip);
                       return (
                         <ClickableTableRow
                           key={trip.tripId}
@@ -288,9 +283,7 @@ export default async function CompanyVehicleLogPage({ searchParams }: PageProps)
                           <td className="max-w-xs truncate text-xs" title={formatDestinationCell(trip)}>
                             {formatDestinationCell(trip)}
                           </td>
-                          <td className="text-xs whitespace-nowrap">
-                            {distanceKm !== null ? `${distanceKm}km` : '-'}
-                          </td>
+                          <td className="text-xs whitespace-nowrap">{formatDistanceCell(trip)}</td>
                           <td className="text-xs whitespace-nowrap">{formatProgressStatusCell(trip)}</td>
                         </ClickableTableRow>
                       );

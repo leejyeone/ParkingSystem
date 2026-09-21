@@ -66,6 +66,12 @@ export function formatDestinationCell(trip: CompanyVehicleLogRow): string {
   return `${trip.destination}(${trip.reason})`;
 }
 
+/** 주행거리(km) 칸 — 값이 있으면 'km' 단위를 붙이고, 없으면 '-'로 보여준다. */
+export function formatDistanceCell(trip: CompanyVehicleLogRow): string {
+  const distanceKm = resolveDistanceKm(trip);
+  return distanceKm !== null ? `${distanceKm}km` : '-';
+}
+
 /** DB 조회 결과를 표/엑셀이 그대로 쓸 수 있는 셀 값 배열 목록으로 바꾼다. */
 export function tripsToLogRows(trips: CompanyVehicleLogRow[]): CompanyVehicleLogCellRow[] {
   return trips.map((trip, index) => [
@@ -76,7 +82,7 @@ export function tripsToLogRows(trips: CompanyVehicleLogRow[]): CompanyVehicleLog
     formatVehicleModelCell(trip),
     `${formatKstTime(trip.requestStartAt)} ~ ${formatKstTime(trip.requestEndAt)}`,
     formatDestinationCell(trip),
-    resolveDistanceKm(trip) ?? '',
+    formatDistanceCell(trip),
     formatProgressStatusCell(trip),
   ]);
 }

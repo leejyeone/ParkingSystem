@@ -58,7 +58,7 @@ export async function buildCompanyVehicleLogWorkbook(
   orgLabelCell.font = HEADER_FONT;
   orgLabelCell.fill = HEADER_FILL;
 
-  sheet.mergeCells(2, 8, 2, 9);
+  sheet.mergeCells(2, 8, 3, 9);
   const orgValueCell = sheet.getCell(2, 8);
   orgValueCell.value = '총무팀';
   orgValueCell.font = { bold: true };
