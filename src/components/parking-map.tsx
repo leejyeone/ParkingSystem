@@ -418,15 +418,31 @@ export function ParkingMap({
         />
 
         {layout.roomShape ? (
-          <path
-            d={roundedPolygonPath(
-              layout.roomShape.map(([x, y]) => [u(x), u(y)]),
-              8,
-            )}
-            fill={ROOM_FILL}
-            stroke={ROOM_LINE}
-            strokeWidth={1.5}
-          />
+          <>
+            <path
+              d={roundedPolygonPath(
+                layout.roomShape.map(([x, y]) => [u(x), u(y)]),
+                8,
+              )}
+              fill={ROOM_FILL}
+              stroke={ROOM_LINE}
+              strokeWidth={1.5}
+            />
+            {layout.roomLabels?.map((label) => (
+              <text
+                key={label.text}
+                x={u(label.x)}
+                y={u(label.y)}
+                fontSize={9}
+                fontWeight={700}
+                fill="#64748b"
+                textAnchor="middle"
+                dominantBaseline="central"
+              >
+                {label.text}
+              </text>
+            ))}
+          </>
         ) : (
           layout.rooms.map((room) => (
             <g key={`${room.x}-${room.y}`}>

@@ -48,6 +48,8 @@ export type MapLayout = {
    * 이걸로 그린다.
    */
   roomShape?: readonly (readonly [number, number])[];
+  /** `roomShape` 폴리곤 위에 그릴 글자 라벨. 사각형이 아니라 중심 좌표를 직접 지정한다. */
+  roomLabels?: readonly { x: number; y: number; text: string }[];
   rooms: readonly MapRoom[];
   stalls: readonly MapStall[];
 };
@@ -146,6 +148,10 @@ export const B1_LAYOUT: MapLayout = {
   entrance: B1_ENTRANCE,
   elevator: B1_ELEVATOR,
   roomShape: B1_ROOM_SHAPE,
+  roomLabels: [
+    { x: 17.15, y: 11.4, text: '유틸리티센터' },
+    { x: 45.63, y: 8.65, text: '물류센터' },
+  ],
   rooms: [],
   stalls: B1_STALLS,
 };

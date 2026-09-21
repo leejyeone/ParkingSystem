@@ -114,7 +114,13 @@ function buildParkingMapSvg(highlightCode: string): string | null {
     ? `<path d="${roundedPolygonPath(
         layout.roomShape.map(([x, y]) => [u(x), u(y)]),
         8,
-      )}" fill="${ROOM_FILL}" stroke="${ROOM_LINE}" stroke-width="1.5" />`
+      )}" fill="${ROOM_FILL}" stroke="${ROOM_LINE}" stroke-width="1.5" />
+      ${(layout.roomLabels ?? [])
+        .map(
+          (label) =>
+            `<text x="${u(label.x)}" y="${u(label.y)}" font-size="9" font-weight="700" fill="#64748b" text-anchor="middle" dominant-baseline="central">${escapeXml(label.text)}</text>`,
+        )
+        .join('')}`
     : layout.rooms
         .map(
           (room) => `
