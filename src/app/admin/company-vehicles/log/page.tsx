@@ -6,6 +6,7 @@ import { CompanyVehicleLogPreviewPanel } from '@/components/admin/company-vehicl
 import { FilterBar, type FilterChip } from '@/components/admin/filter-bar';
 import {
   COMPANY_VEHICLE_LOG_COLUMNS,
+  COMPANY_VEHICLE_LOG_PAGE_SIZE,
   formatDestinationCell,
   formatDistanceCell,
   formatProgressStatusCell,
@@ -25,7 +26,13 @@ const BASE_PATH = '/admin/company-vehicles/log';
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 type PageProps = {
-  searchParams: Promise<{ vehicleId?: string; dateFrom?: string; dateTo?: string; sort?: string }>;
+  searchParams: Promise<{
+    vehicleId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    sort?: string;
+    page?: string;
+  }>;
 };
 
 /**
@@ -77,6 +84,19 @@ export default async function CompanyVehicleLogPage({ searchParams }: PageProps)
       })
     : [];
 
+  // 원본 종이 양식 한 장이 20행짜리라, 화면도 20건 단위로 페이지를 나누고 페이지마다
+  // No를 1부터 다시 매긴다(엑셀의 renumberRowsByPage와 같은 규칙 — 자세한 설명은
+  // company-vehicle-log-excel.ts 참고).
+  const pageParam = Math.max(1, Number(params.page) || 1);
+  const totalPages = Math.max(1, Math.ceil(trips.length / COMPANY_VEHICLE_LOG_PAGE_SIZE));
+  const currentPage = Math.min(pageParam, totalPages);
+  const pagedTrips = trips.slice(
+    (currentPage - 1) * COMPANY_VEHICLE_LOG_PAGE_SIZE,
+    currentPage * COMPANY_VEHICLE_LOG_PAGE_SIZE,
+  );
+
+  // page는 여기 넣지 않는다 — 차량 탭/기간 필터/정렬을 바꾸면 항상 1페이지부터
+  // 다시 보여줘야 하므로, 페이지 링크(buildPageHref)에서만 명시적으로 넘긴다.
   const currentFilters: Record<string, string | undefined> = {
     vehicleId: vehicleId ? String(vehicleId) : undefined,
     dateFrom: explicitDateFrom,
@@ -92,6 +112,8 @@ export default async function CompanyVehicleLogPage({ searchParams }: PageProps)
     const queryString = query.toString();
     return queryString ? `${BASE_PATH}?${queryString}` : BASE_PATH;
   };
+
+  const buildPageHref = (targetPage: number) => buildHref({ page: String(targetPage) });
 
   const chips: FilterChip[] = [
     { key: 'dateFrom', label: '기간(부터)', value: explicitDateFrom },
@@ -256,7 +278,7 @@ export default async function CompanyVehicleLogPage({ searchParams }: PageProps)
                     </tr>
                   </thead>
                   <tbody>
-                    {trips.length === 0 && (
+                    {pagedTrips.length === 0 && (
                       <tr>
                         <td
                           colSpan={COMPANY_VEHICLE_LOG_COLUMNS.length}
@@ -266,11 +288,13 @@ export default async function CompanyVehicleLogPage({ searchParams }: PageProps)
                         </td>
                       </tr>
                     )}
-                    {trips.map((trip, index) => {
+                    {pagedTrips.map((trip, index) => {
                       return (
                         <ClickableTableRow
                           key={trip.tripId}
-                          href={`/admin/company-vehicles/trips/${trip.tripId}?returnTo=${encodeURIComponent(buildHref())}`}
+                          href={`/admin/company-vehicles/trips/${trip.tripId}?returnTo=${encodeURIComponent(
+                            buildHref({ page: currentPage > 1 ? String(currentPage) : undefined }),
+                          )}`}
                         >
                           <td className="text-xs whitespace-nowrap">{index + 1}</td>
                           <td className="text-xs whitespace-nowrap">{formatRequestDateCell(trip)}</td>
@@ -291,6 +315,24 @@ export default async function CompanyVehicleLogPage({ searchParams }: PageProps)
                   </tbody>
                 </table>
               </div>
+
+              {totalPages > 1 && (
+                <nav className="mt-4 flex items-center justify-center gap-2">
+                  {currentPage > 1 && (
+                    <Link href={buildPageHref(currentPage - 1)} className="btn btn-secondary min-h-9 px-3 text-xs">
+                      이전
+                    </Link>
+                  )}
+                  <span className="text-ink-muted text-sm">
+                    {currentPage} / {totalPages}
+                  </span>
+                  {currentPage < totalPages && (
+                    <Link href={buildPageHref(currentPage + 1)} className="btn btn-secondary min-h-9 px-3 text-xs">
+                      다음
+                    </Link>
+                  )}
+                </nav>
+              )}
             </div>
           </section>
         </>

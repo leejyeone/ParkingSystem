@@ -28,6 +28,38 @@ export const COMPANY_VEHICLE_LOG_COLUMNS = [
   '진행상태',
 ] as const;
 
+/** 원본 종이 양식 한 장에 미리 인쇄된 No 1~20 칸 수. 20건이 넘으면 같은 양식의 새
+ * 페이지(엑셀은 새 시트, 화면은 새 페이지)를 써서 No를 1부터 다시 매긴다. */
+export const COMPANY_VEHICLE_LOG_PAGE_SIZE = 20;
+
+/** 빈 배열이면 "빈 페이지 1장"([[]])을 돌려줘서, 데이터가 0건이어도 항상 최소
+ * 1페이지(20행 전부 빈칸)짜리 양식이 나오게 한다. */
+export function paginateRows<T>(
+  items: T[],
+  pageSize: number = COMPANY_VEHICLE_LOG_PAGE_SIZE,
+): T[][] {
+  if (items.length === 0) return [[]];
+  const pages: T[][] = [];
+  for (let start = 0; start < items.length; start += pageSize) {
+    pages.push(items.slice(start, start + pageSize));
+  }
+  return pages;
+}
+
+/**
+ * 엑셀 빌더와 미리보기 패널이 공통으로 쓰는 페이지 나누기 — 20건씩 나눈 뒤, 각
+ * 페이지 안에서 0번 칸(No)을 그 페이지 안의 순번(1~20)으로 다시 쓴다. `tripsToLogRows`가
+ * 채워 넣은 전역 No는 여기서 항상 덮어써지는 임시값이다.
+ */
+export function renumberRowsByPage(
+  rows: CompanyVehicleLogCellRow[],
+  pageSize: number = COMPANY_VEHICLE_LOG_PAGE_SIZE,
+): CompanyVehicleLogCellRow[][] {
+  return paginateRows(rows, pageSize).map((page) =>
+    page.map((row, indexInPage) => [indexInPage + 1, ...row.slice(1)]),
+  );
+}
+
 /** 계기판 두 값이 모두 있으면 그 차이, 없으면 수기 입력값 — schema.prisma 의 우선순위 그대로. */
 export function resolveDistanceKm(trip: CompanyVehicleLogRow): number | null {
   if (trip.odometerStartKm !== null && trip.odometerEndKm !== null) {

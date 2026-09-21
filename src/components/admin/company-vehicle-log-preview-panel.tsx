@@ -3,13 +3,17 @@
 import { useState } from 'react';
 
 import { Alert } from '@/components/ui/alert';
-import { COMPANY_VEHICLE_LOG_COLUMNS } from '@/domain/company-vehicle-log';
+import {
+  COMPANY_VEHICLE_LOG_COLUMNS,
+  COMPANY_VEHICLE_LOG_PAGE_SIZE,
+  renumberRowsByPage,
+} from '@/domain/company-vehicle-log';
 import { apiRequest } from '@/lib/client/api-client';
 
 type CellRow = (string | number)[];
 
 /** 엑셀 빌더(`company-vehicle-log-excel.ts`)의 열 폭과 정확히 같은 비율. */
-const COLUMN_WIDTHS = [5, 10, 16, 12, 16, 18, 22, 12, 14];
+const COLUMN_WIDTHS = [5, 8.62, 17.38, 12, 16, 14.75, 25.25, 12, 14];
 const NAVY = '#1F3864';
 
 /**
@@ -17,8 +21,8 @@ const NAVY = '#1F3864';
  * 총무팀" 남색 박스, 남색 헤더)으로 미리 보여주고, 데이터 행은 셀 단위로 고칠 수 있게 한다.
  * 조회는 GET(JSON), 다운로드는 편집된 값을 POST 로 그대로 보내 서버가 그 값 그대로
  * 엑셀을 만들어 돌려준다(재조회하지 않음) — `company-vehicle-log-excel.ts`의 병합 범위
- * (로고 1~3행×1~3열 / 제목 1~3행×4~7열 / 관리부서 1행×8~9열 / 총무팀 2~3행×8~9열)를
- * HTML 표의 rowSpan/colSpan으로 그대로 재현한다.
+ * (로고 1~3행×1~3열 / 제목 1~3행×4~7열 / 관리부서 1행×8~9열 / 총무팀 2~3행×8~9열, 4행은
+ * 병합 없이 헤더/본문을 나누는 구분 행)를 HTML 표의 rowSpan/colSpan으로 그대로 재현한다.
  */
 export function CompanyVehicleLogPreviewPanel({ exportQuery }: { exportQuery: string }) {
   const [open, setOpen] = useState(false);
@@ -47,6 +51,8 @@ export function CompanyVehicleLogPreviewPanel({ exportQuery }: { exportQuery: st
   function handleClose() {
     setOpen(false);
   }
+
+  const pages = renumberRowsByPage(rows);
 
   function updateCell(rowIndex: number, colIndex: number, value: string) {
     setRows((previous) =>
@@ -136,75 +142,116 @@ export function CompanyVehicleLogPreviewPanel({ exportQuery }: { exportQuery: st
               {loading ? (
                 <p className="text-ink-faint text-sm">불러오는 중…</p>
               ) : (
-                <div className="flex-1 overflow-auto rounded-lg border border-slate-300">
-                  <table className="w-full border-collapse text-xs" style={{ tableLayout: 'fixed' }}>
-                    <colgroup>
-                      {COLUMN_WIDTHS.map((width, index) => (
-                        <col key={index} style={{ width: `${(width / 125) * 100}%` }} />
-                      ))}
-                    </colgroup>
-                    <tbody>
-                      {/* 1~3행: 로고 / 제목 / 관리부서·총무팀 — 엑셀 병합 범위 그대로 재현 */}
-                      <tr>
-                        <td rowSpan={3} colSpan={3} className="border border-slate-300 p-2 text-center align-middle">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src="/synopex-logo.png" alt="SYNOPEX" className="mx-auto h-10 w-auto" />
-                        </td>
-                        <td
-                          rowSpan={3}
-                          colSpan={4}
-                          className="border border-slate-300 p-2 text-center align-middle text-xl font-bold"
-                        >
-                          차량 배차 신청 현황
-                        </td>
-                        <td
-                          colSpan={2}
-                          className="border border-slate-300 p-1.5 text-center align-middle font-bold text-white"
-                          style={{ backgroundColor: NAVY }}
-                        >
-                          관리부서
-                        </td>
-                      </tr>
-                      <tr>
-                        <td
-                          rowSpan={2}
-                          colSpan={2}
-                          className="border border-slate-300 p-1.5 text-center align-middle font-bold"
-                        >
-                          총무팀
-                        </td>
-                      </tr>
-                      <tr />
-
-                      {/* 헤더 행 */}
-                      <tr>
-                        {COMPANY_VEHICLE_LOG_COLUMNS.map((column) => (
-                          <th
-                            key={column}
-                            className="border border-slate-300 p-1.5 text-center align-middle font-bold whitespace-pre-line text-white"
-                            style={{ backgroundColor: NAVY }}
-                          >
-                            {column}
-                          </th>
-                        ))}
-                      </tr>
-
-                      {/* 데이터 행 — 편집 가능 */}
-                      {rows.map((row, rowIndex) => (
-                        <tr key={rowIndex}>
-                          {row.map((cell, colIndex) => (
-                            <td key={colIndex} className="border border-slate-300 p-0">
-                              <input
-                                className="w-full border-0 bg-transparent px-1.5 py-1.5 text-center text-xs focus:bg-brand-100 focus:outline-none"
-                                value={cell}
-                                onChange={(event) => updateCell(rowIndex, colIndex, event.target.value)}
-                              />
-                            </td>
+                <div className="flex-1 space-y-6 overflow-auto rounded-lg border border-slate-300 bg-slate-50 p-3">
+                  {pages.map((pageRows, pageIndex) => (
+                    <div key={pageIndex} className="rounded-md border border-slate-300 bg-white p-2 shadow-sm">
+                      {pages.length > 1 && (
+                        <p className="text-ink-faint mb-1 text-xs font-bold">{pageIndex + 1}페이지</p>
+                      )}
+                      <table className="w-full border-collapse text-xs" style={{ tableLayout: 'fixed' }}>
+                        <colgroup>
+                          {COLUMN_WIDTHS.map((width, index) => (
+                            <col key={index} style={{ width: `${(width / 125) * 100}%` }} />
                           ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                        </colgroup>
+                        <tbody>
+                          {/* 1~3행: 로고 / 제목 / 관리부서·총무팀 — 엑셀 병합 범위 그대로 재현 */}
+                          <tr>
+                            <td
+                              rowSpan={3}
+                              colSpan={3}
+                              className="border border-slate-300 p-2 text-center align-middle"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src="/synopex-logo.png" alt="SYNOPEX" className="mx-auto h-10 w-auto" />
+                            </td>
+                            <td
+                              rowSpan={3}
+                              colSpan={4}
+                              className="border border-slate-300 p-2 text-center align-middle text-xl font-bold"
+                            >
+                              차량 배차 신청 현황
+                            </td>
+                            <td
+                              colSpan={2}
+                              className="border border-slate-300 p-1.5 text-center align-middle font-bold text-white"
+                              style={{ backgroundColor: NAVY }}
+                            >
+                              관리부서
+                            </td>
+                          </tr>
+                          <tr>
+                            <td
+                              rowSpan={2}
+                              colSpan={2}
+                              className="border border-slate-300 p-1.5 text-center align-middle font-bold"
+                            >
+                              총무팀
+                            </td>
+                          </tr>
+                          <tr />
+
+                          {/* 4행: 제목 박스와 별개의 헤더/본문 구분 행 — 위와 병합하지 않는다 */}
+                          <tr>
+                            {COMPANY_VEHICLE_LOG_COLUMNS.map((column) => (
+                              <td key={`sep-${column}`} className="border border-slate-300" style={{ height: 31 }} />
+                            ))}
+                          </tr>
+
+                          {/* 헤더 행 — 엑셀 35pt ≈ 47px */}
+                          <tr>
+                            {COMPANY_VEHICLE_LOG_COLUMNS.map((column) => (
+                              <th
+                                key={column}
+                                className="border border-slate-300 p-1.5 text-center align-middle font-bold whitespace-pre-line text-white"
+                                style={{ backgroundColor: NAVY, height: 47 }}
+                              >
+                                {column}
+                              </th>
+                            ))}
+                          </tr>
+
+                          {/* 데이터 행 — No는 페이지 안 순번으로 고정, 나머지는 편집 가능.
+                              엑셀 40.3pt(31pt×1.3) ≈ 54px. */}
+                          {pageRows.map((row, rowIndexInPage) => {
+                            const flatIndex = pageIndex * COMPANY_VEHICLE_LOG_PAGE_SIZE + rowIndexInPage;
+                            return (
+                              <tr key={rowIndexInPage} style={{ height: 54 }}>
+                                {row.map((cell, colIndex) =>
+                                  colIndex === 0 ? (
+                                    <td key={colIndex} className="border border-slate-300 p-1.5 text-center">
+                                      {rowIndexInPage + 1}
+                                    </td>
+                                  ) : (
+                                    <td key={colIndex} className="border border-slate-300 p-0">
+                                      <input
+                                        className="w-full border-0 bg-transparent px-1.5 py-1.5 text-center text-xs focus:bg-brand-100 focus:outline-none"
+                                        value={cell}
+                                        onChange={(event) => updateCell(flatIndex, colIndex, event.target.value)}
+                                      />
+                                    </td>
+                                  ),
+                                )}
+                              </tr>
+                            );
+                          })}
+
+                          {/* 원본 양식처럼 마지막 페이지도 20행까지 빈 칸으로 채운다 */}
+                          {Array.from({ length: Math.max(0, COMPANY_VEHICLE_LOG_PAGE_SIZE - pageRows.length) }).map(
+                            (_, blankIndex) => (
+                              <tr key={`blank-${blankIndex}`} style={{ height: 54 }}>
+                                {COMPANY_VEHICLE_LOG_COLUMNS.map((column, colIndex) => (
+                                  <td key={column} className="border border-slate-300 p-1.5 text-center">
+                                    {colIndex === 0 ? pageRows.length + blankIndex + 1 : ''}
+                                  </td>
+                                ))}
+                              </tr>
+                            ),
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
