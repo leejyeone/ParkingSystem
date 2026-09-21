@@ -27,10 +27,13 @@ export const PARKING_MAP_CID = 'parking-map-image';
 const U = 10;
 const u = (meters: number) => Math.round(meters * U * 10) / 10;
 
+/** `ParkingMap`의 GATE_LABEL_SPACE 와 동일 — 건물 아래 출입구 표지 여백. */
+const GATE_LABEL_SPACE = 36;
+
 const SHARED_VIEWBOX_W =
   Math.max(...Object.values(LAYOUTS_BY_AREA_CODE).map((layout) => layout.building.w * 10)) + 16;
 const SHARED_VIEWBOX_H =
-  Math.max(...Object.values(LAYOUTS_BY_AREA_CODE).map((layout) => layout.building.h * 10)) + 16;
+  Math.max(...Object.values(LAYOUTS_BY_AREA_CODE).map((layout) => layout.building.h * 10)) + 16 + GATE_LABEL_SPACE;
 
 const STRUCT_FILL = '#52525b';
 const STRUCT_LINE = '#27272a';
@@ -102,6 +105,29 @@ function entranceArrowsSvg(box: { x: number; y: number; w: number; h: number }):
   return `${arrow(y1, 'left')}${arrow(y2, 'right')}`;
 }
 
+/** `ParkingMap`의 SlopeMarker 와 동일 — 대각선 빗금으로 채운 슬로프 다각형. */
+function slopeSvg(slope: NonNullable<MapLayout['slope']>): string {
+  const d = `M ${slope.points.map(([x, y]) => `${u(x)} ${u(y)}`).join(' L ')} Z`;
+  return `
+      <defs>
+        <pattern id="slope-hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <rect width="4" height="4" fill="#ffffff" />
+          <line x1="0" y1="0" x2="0" y2="4" stroke="#27272a" stroke-width="1" />
+        </pattern>
+      </defs>
+      <path d="${d}" fill="url(#slope-hatch)" />`;
+}
+
+/** `ParkingMap`의 출입구 표지(gate)와 동일 — 외곽선 아래 위쪽 삼각형 + 글자. */
+function gateSvg(layout: MapLayout): string {
+  if (!layout.gate) return '';
+  const gx = u(layout.gate.x);
+  const by = u(layout.building.h);
+  return `
+      <path d="M ${gx} ${by + 6} l -8 14 h 16 Z" fill="#0f172a" />
+      <text x="${gx}" y="${by + 34}" font-size="11" font-weight="700" fill="#0f172a" text-anchor="middle">${escapeXml(layout.gate.label)}</text>`;
+}
+
 /** `ParkingMap`의 highlightCode(신청자 조회) 모드와 동일한 그림을 SVG 문자열로 만든다. */
 function buildParkingMapSvg(highlightCode: string): string | null {
   const layout: MapLayout | null = findLayoutForStallCode(highlightCode);
@@ -124,7 +150,7 @@ function buildParkingMapSvg(highlightCode: string): string | null {
     : layout.rooms
         .map(
           (room) => `
-      <rect x="${u(room.x)}" y="${u(room.y)}" width="${u(room.w)}" height="${u(room.h)}" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="1.5" />
+      <rect x="${u(room.x)}" y="${u(room.y)}" width="${u(room.w)}" height="${u(room.h)}" fill="${ROOM_FILL}" stroke="${ROOM_LINE}" stroke-width="1.5" />
       ${
         room.label
           ? `<text x="${u(room.x + room.w / 2)}" y="${u(room.y + room.h / 2)}" font-size="9" font-weight="700" fill="#64748b" text-anchor="middle" dominant-baseline="central">${escapeXml(room.label)}</text>`
@@ -136,7 +162,7 @@ function buildParkingMapSvg(highlightCode: string): string | null {
   const elevatorSvg = layout.elevator
     ? `
       <rect x="${u(layout.elevator.x)}" y="${u(layout.elevator.y)}" width="${u(layout.elevator.w)}" height="${u(layout.elevator.h)}" rx="${STALL_RADIUS * 2}" fill="${STRUCT_FILL}" stroke="${STRUCT_LINE}" stroke-width="2" />
-      <text x="${u(layout.elevator.x + layout.elevator.w / 2)}" y="${u(layout.elevator.y + layout.elevator.h / 2) + 5}" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle">엘리베이터</text>`
+      <text x="${u(layout.elevator.x + layout.elevator.w / 2)}" y="${u(layout.elevator.y + layout.elevator.h / 2) + 3}" font-size="8" font-weight="700" fill="#ffffff" text-anchor="middle">엘리베이터</text>`
     : '';
 
   const entranceSvg = layout.entrance ? entranceArrowsSvg(layout.entrance) : '';
@@ -163,9 +189,11 @@ function buildParkingMapSvg(highlightCode: string): string | null {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-8 -8 ${viewBoxW} ${viewBoxH}" font-family="${MAP_FONT_FAMILY}">
     <rect x="0" y="0" width="${u(layout.building.w)}" height="${u(layout.building.h)}" rx="${STALL_RADIUS * 2}" fill="#ffffff" />
     ${roomsSvg}
+    ${layout.slope ? slopeSvg(layout.slope) : ''}
     ${elevatorSvg}
     ${entranceSvg}
     <rect x="0" y="0" width="${u(layout.building.w)}" height="${u(layout.building.h)}" rx="${STALL_RADIUS * 2}" fill="none" stroke="#0f172a" stroke-width="4" />
+    ${gateSvg(layout)}
     ${stallsSvg}
   </svg>`;
 }

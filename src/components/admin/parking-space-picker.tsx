@@ -3,7 +3,7 @@
 import { useState } from 'react';
 
 import { ParkingMap, type SelectableSpace } from '@/components/parking-map';
-import { LAYOUTS_BY_AREA_CODE } from '@/domain/parking-map-layout';
+import { ADMIN_LAYOUTS_BY_AREA_CODE } from '@/domain/parking-map-layout';
 
 type AreaGroup = {
   areaId: number;
@@ -37,7 +37,7 @@ export function ParkingSpacePicker({
 
   if (!selected) return null;
 
-  const layout = LAYOUTS_BY_AREA_CODE[selected.areaCode];
+  const layout = ADMIN_LAYOUTS_BY_AREA_CODE[selected.areaCode];
 
   return (
     <div>

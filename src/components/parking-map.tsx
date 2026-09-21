@@ -2,7 +2,7 @@
 
 import type { SpaceType } from '@prisma/client';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 
 import { useIsMaximized } from '@/components/admin/maximizable-card';
 import {
@@ -53,10 +53,13 @@ const u = (meters: number) => Math.round(meters * U * 10) / 10;
  * 어긋나 보인다. 가장 큰 건물 기준으로 여백까지 포함한 크기를 한 번만 계산해 모든 층이
  * 그대로 쓴다.
  */
+/** 건물 아래쪽 바깥에 출입구 삼각형·글자를 그릴 여백(모든 층 공통 — 층마다 배율이 달라지지 않게). */
+const GATE_LABEL_SPACE = 36;
+
 const SHARED_VIEWBOX_W =
   Math.max(...Object.values(LAYOUTS_BY_AREA_CODE).map((layout) => layout.building.w * 10)) + 16;
 const SHARED_VIEWBOX_H =
-  Math.max(...Object.values(LAYOUTS_BY_AREA_CODE).map((layout) => layout.building.h * 10)) + 16;
+  Math.max(...Object.values(LAYOUTS_BY_AREA_CODE).map((layout) => layout.building.h * 10)) + 16 + GATE_LABEL_SPACE;
 
 /** 건물 외곽선·엘리베이터·차량 출입구 화살표 — 구조물은 전부 모노톤. */
 const STRUCT_FILL = '#52525b';
@@ -158,6 +161,28 @@ function EntranceArrows({ box }: { box: { x: number; y: number; w: number; h: nu
       {arrow(y1, 'left')}
       {arrow(y2, 'right')}
     </>
+  );
+}
+
+/**
+ * 지하 주차장 슬로프 — 경사로의 관례적 표현인 촘촘한 대각선 빗금으로 계단 모양 다각형을
+ * 채운다. 차량 출입구 화살표(B1)는 이 위에 얹혀 그려진다(호출부의 그리는 순서). 라벨은 빗금
+ * 위에서도 읽히도록 흰색 테두리(halo)를 두른다.
+ */
+function SlopeMarker({ slope }: { slope: NonNullable<MapLayout['slope']> }) {
+  const patternId = useId();
+  const d = `M ${slope.points.map(([x, y]) => `${u(x)} ${u(y)}`).join(' L ')} Z`;
+
+  return (
+    <g>
+      <defs>
+        <pattern id={patternId} width={4} height={4} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <rect width={4} height={4} fill="#ffffff" />
+          <line x1={0} y1={0} x2={0} y2={4} stroke="#27272a" strokeWidth={1} />
+        </pattern>
+      </defs>
+      <path d={d} fill={`url(#${patternId})`} />
+    </g>
   );
 }
 
@@ -451,8 +476,8 @@ export function ParkingMap({
                 y={u(room.y)}
                 width={u(room.w)}
                 height={u(room.h)}
-                fill="#e2e8f0"
-                stroke="#cbd5e1"
+                fill={ROOM_FILL}
+                stroke={ROOM_LINE}
                 strokeWidth={1.5}
               />
               {room.label && (
@@ -472,6 +497,8 @@ export function ParkingMap({
           ))
         )}
 
+        {layout.slope && <SlopeMarker slope={layout.slope} />}
+
         {layout.elevator && (
           <>
             <rect
@@ -486,8 +513,8 @@ export function ParkingMap({
             />
             <text
               x={u(layout.elevator.x + layout.elevator.w / 2)}
-              y={u(layout.elevator.y + layout.elevator.h / 2) + 5}
-              fontSize={13}
+              y={u(layout.elevator.y + layout.elevator.h / 2) + 3}
+              fontSize={8}
               fontWeight={700}
               fill="#ffffff"
               textAnchor="middle"
@@ -510,6 +537,25 @@ export function ParkingMap({
           stroke="#0f172a"
           strokeWidth={4}
         />
+
+        {layout.gate && (
+          <g>
+            <path
+              d={`M ${u(layout.gate.x)} ${u(layout.building.h) + 6} l -8 14 h 16 Z`}
+              fill="#0f172a"
+            />
+            <text
+              x={u(layout.gate.x)}
+              y={u(layout.building.h) + 34}
+              fontSize={11}
+              fontWeight={700}
+              fill="#0f172a"
+              textAnchor="middle"
+            >
+              {layout.gate.label}
+            </text>
+          </g>
+        )}
 
         {/*
           주차면끼리 간격 없이 붙어 있어서(0 유닛), 강조 테두리(strokeWidth 3)가 이웃 칸

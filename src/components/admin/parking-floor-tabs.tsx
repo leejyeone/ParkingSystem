@@ -3,7 +3,7 @@
 import { useState } from 'react';
 
 import { ParkingMap } from '@/components/parking-map';
-import { LAYOUTS_BY_AREA_CODE } from '@/domain/parking-map-layout';
+import { ADMIN_LAYOUTS_BY_AREA_CODE } from '@/domain/parking-map-layout';
 import type { SpaceStatusRow } from '@/services/dashboard-service';
 
 type AreaGroup = {
@@ -20,7 +20,7 @@ export function ParkingFloorTabs({ areas }: { areas: AreaGroup[] }) {
 
   if (!selected) return null;
 
-  const layout = LAYOUTS_BY_AREA_CODE[selected.areaCode];
+  const layout = ADMIN_LAYOUTS_BY_AREA_CODE[selected.areaCode];
 
   return (
     <div>
