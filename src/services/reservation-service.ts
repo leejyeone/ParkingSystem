@@ -74,6 +74,7 @@ const RESERVATION_WITH_SPACES = {
   assignedSpace: { select: { spaceId: true, spaceCode: true, spaceType: true } },
   employeeUser: { select: { name: true, email: true, deletedAt: true } },
   recurringSchedule: { select: { scheduleId: true } },
+  timingExceptionApprovedByAdmin: { select: { adminName: true } },
 } satisfies Prisma.ParkingReservationInclude;
 
 export type ReservationWithSpaces = Prisma.ParkingReservationGetPayload<{
@@ -241,6 +242,8 @@ export type CreateReservationInput = {
   privacyConsent: boolean;
   /** 직원 본인 방문(EMPLOYEE)은 서약 대상이 아니므로 검증하지 않는다. */
   securityPledgeConsent: boolean;
+  /** 운영시간/최대 이용시간을 벗어난 시간대를 예외로 신청하는 사유. 있으면 그 검증을 건너뛴다. */
+  timingExceptionReason?: string | null;
 };
 
 export async function createReservation(input: CreateReservationInput): Promise<{
@@ -275,6 +278,7 @@ export async function createReservation(input: CreateReservationInput): Promise<
     visitEndAt: input.visitEndAt,
     now,
     settings,
+    allowTimingException: Boolean(input.timingExceptionReason),
   });
 
   const vehicleNo = normalizeVehicleNo(input.vehicleNo);
@@ -303,6 +307,7 @@ export async function createReservation(input: CreateReservationInput): Promise<
           reservationStatus: ReservationStatus.REQUESTED,
           privacyConsentAt: now,
           securityPledgeConsentAt: input.requesterType === RequesterType.VISITOR ? now : null,
+          timingExceptionReason: input.timingExceptionReason ?? null,
         },
         include: RESERVATION_WITH_SPACES,
       });
@@ -467,6 +472,8 @@ export type UpdateReservationInput = {
   requestMemo?: string | null;
   visitStartAt: Date;
   visitEndAt: Date;
+  /** 운영시간/최대 이용시간을 벗어난 시간대를 예외로 신청하는 사유. 있으면 그 검증을 건너뛴다. */
+  timingExceptionReason?: string | null;
 };
 
 /**
@@ -500,6 +507,7 @@ export async function updateReservationByRequester(
     visitEndAt: input.visitEndAt,
     now,
     settings,
+    allowTimingException: Boolean(input.timingExceptionReason),
   });
 
   const vehicleNo = normalizeVehicleNo(input.vehicleNo);
@@ -522,7 +530,8 @@ export async function updateReservationByRequester(
     current.requesterName !== input.requesterName ||
     current.companyOrBranchName !== input.companyOrBranchName ||
     current.visitPurpose !== (input.visitPurpose ?? null) ||
-    current.requestMemo !== (input.requestMemo ?? null);
+    current.requestMemo !== (input.requestMemo ?? null) ||
+    current.timingExceptionReason !== (input.timingExceptionReason ?? null);
 
   const updated = await prisma.$transaction(async (tx) => {
     const result = await tx.parkingReservation.update({
@@ -535,6 +544,9 @@ export async function updateReservationByRequester(
         requestMemo: input.requestMemo ?? null,
         visitStartAt: input.visitStartAt,
         visitEndAt: input.visitEndAt,
+        // 신청자는 REQUESTED 상태에서만 수정할 수 있으므로 아직 승인 전이다 — 예외
+        // 사유가 바뀌어도 승인 필드는 그대로 null(관리자가 승인할 때 함께 확정된다).
+        timingExceptionReason: input.timingExceptionReason ?? null,
       },
       include: RESERVATION_WITH_SPACES,
     });
@@ -585,6 +597,7 @@ export async function updateReservationByAdmin(
   actor: AdminActionContext,
 ): Promise<ReservationWithSpaces> {
   const settings = await getSystemSettings();
+  const now = new Date();
   const current = await loadReservationOrThrow(reservationId);
 
   // 종료된 예약(반려/취소/출차/미방문)도 관리자가 내용을 정정할 수 있다 — 상태 전이가
@@ -598,14 +611,30 @@ export async function updateReservationByAdmin(
     requestMemo: input.requestMemo !== undefined ? input.requestMemo : current.requestMemo,
     visitStartAt: input.visitStartAt ?? current.visitStartAt,
     visitEndAt: input.visitEndAt ?? current.visitEndAt,
+    timingExceptionReason:
+      input.timingExceptionReason !== undefined
+        ? input.timingExceptionReason
+        : current.timingExceptionReason,
   };
+  // 관리자가 직접 예외 사유를 채워 넣는 경우, 별도 승인 대기 없이 그 자리에서 바로
+  // 확정한다(이미 관리자 본인이 검토·기록하는 행위이므로). 사유가 그대로면 기존 승인
+  // 기록(신청자 요청 → 관리자 승인 흐름에서 채워졌을 수도 있음)을 건드리지 않는다.
+  const timingExceptionReasonChanged =
+    current.timingExceptionReason !== (merged.timingExceptionReason ?? null);
+  const timingExceptionFields = merged.timingExceptionReason
+    ? timingExceptionReasonChanged || !current.timingExceptionApprovedAt
+      ? { timingExceptionApprovedAt: now, timingExceptionApprovedByAdminId: actor.adminUserId }
+      : {}
+    : { timingExceptionApprovedAt: null, timingExceptionApprovedByAdminId: null };
 
-  // 운영시간·최대 이용시간·시작<종료 는 그대로 적용하고, 최소 사전 신청 시간만 면제한다.
+  // 운영시간·최대 이용시간·시작<종료 는 예외가 없으면 그대로 적용하고, 최소 사전 신청
+  // 시간만 면제한다.
   const fieldErrors: FieldErrors = {};
   const rangeError = checkVisitRange(
     merged.visitStartAt,
     merged.visitEndAt,
     settings.maxReservationHours,
+    { allowException: Boolean(merged.timingExceptionReason) },
   );
   if (rangeError) (fieldErrors.visitEndAt ??= []).push(rangeError);
   if (!rangeError) {
@@ -615,6 +644,7 @@ export async function updateReservationByAdmin(
       settings.parkingOpenTime,
       settings.parkingCloseTime,
       settings.appTimeZone,
+      { allowException: Boolean(merged.timingExceptionReason) },
     );
     if (hoursError) (fieldErrors.visitStartAt ??= []).push(hoursError);
   }
@@ -688,6 +718,8 @@ export async function updateReservationByAdmin(
         requestMemo: merged.requestMemo ?? null,
         visitStartAt: merged.visitStartAt,
         visitEndAt: merged.visitEndAt,
+        timingExceptionReason: merged.timingExceptionReason ?? null,
+        ...timingExceptionFields,
       },
       include: RESERVATION_WITH_SPACES,
     });
@@ -724,7 +756,8 @@ export async function updateReservationByAdmin(
     requesterNameChanged ||
     companyChanged ||
     purposeChanged ||
-    memoChanged;
+    memoChanged ||
+    timingExceptionReasonChanged;
 
   await writeAuditLog({
     actorAdminId: actor.adminUserId,
@@ -966,6 +999,7 @@ export async function approveReservation(
         approvedAt: new Date(),
         rejectedAt: null,
         rejectionReason: null,
+        ...timingExceptionApprovalOnApprove(current, params.adminUserId),
       },
       include: RESERVATION_WITH_SPACES,
     });
@@ -1011,6 +1045,18 @@ export async function approveReservation(
 }
 
 /** 주차면 배정을 사용하지 않는 운영에서의 승인 처리. 주차면을 잡지 않는다. */
+/**
+ * 신청자가 예외 신청했는데(사유 있음) 아직 승인되지 않은 경우, 예약 승인과 함께 그
+ * 예외도 확정한다 — 별도 승인 버튼 없이 일반 승인 액션이 곧 예외 승인이다.
+ */
+function timingExceptionApprovalOnApprove(
+  current: { timingExceptionReason: string | null; timingExceptionApprovedAt: Date | null },
+  adminUserId: number,
+): { timingExceptionApprovedAt: Date; timingExceptionApprovedByAdminId: number } | undefined {
+  if (!current.timingExceptionReason || current.timingExceptionApprovedAt) return undefined;
+  return { timingExceptionApprovedAt: new Date(), timingExceptionApprovedByAdminId: adminUserId };
+}
+
 async function approveWithoutSpace(
   tx: Prisma.TransactionClient,
   current: ReservationWithSpaces,
@@ -1026,6 +1072,7 @@ async function approveWithoutSpace(
       approvedAt: new Date(),
       rejectedAt: null,
       rejectionReason: null,
+      ...timingExceptionApprovalOnApprove(current, adminUserId),
     },
     include: RESERVATION_WITH_SPACES,
   });

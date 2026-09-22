@@ -29,6 +29,8 @@ export type EditableFields = {
   /** 'yyyy-MM-ddTHH:mm' (Asia/Seoul 기준, 서버에서 변환해 전달) */
   visitStartAt: string;
   visitEndAt: string;
+  /** 운영시간/최대 이용시간을 벗어난 시간대를 예외로 허용하는 사유. 비어 있으면 예외 없음. */
+  timingExceptionReason: string;
 };
 
 type SaveState = {
@@ -350,6 +352,8 @@ export function ScheduleCard({
     spaceSection: ReactNode;
     rejectionReason: string | null;
     cancelReason: string | null;
+    /** 예외 신청 사유. 예외가 아니면 null. */
+    timingExceptionReasonText: string | null;
   };
 }) {
   const router = useRouter();
@@ -364,6 +368,9 @@ export function ScheduleCard({
   const [exitDraft, setExitDraft] = useState<string | null>(actualExitAt);
   const [state, setState] = useState<SaveState>(IDLE);
   const [saved, setSaved] = useState(false);
+  const [timingExceptionOpen, setTimingExceptionOpen] = useState(
+    Boolean(initial.timingExceptionReason),
+  );
 
   // 출차 기록이 남아 있으면 입차 기록을 먼저 지울 수 없다 — 서버 쪽 규칙과 맞춘다.
   // 출차 기록을 먼저 지우고 저장한 뒤, 다시 열면 입차 기록도 지울 수 있다.
@@ -384,6 +391,7 @@ export function ScheduleCard({
     setForm(committed);
     setEntryDraft(actualEntryAt);
     setExitDraft(actualExitAt);
+    setTimingExceptionOpen(Boolean(committed.timingExceptionReason));
     setState(IDLE);
     setEditing(false);
   }
@@ -399,6 +407,7 @@ export function ScheduleCard({
         body: JSON.stringify({
           visitStartAt: form.visitStartAt,
           visitEndAt: form.visitEndAt,
+          timingExceptionReason: timingExceptionOpen ? form.timingExceptionReason : null,
         }),
       });
 
@@ -413,7 +422,10 @@ export function ScheduleCard({
 
       // 일정 저장은 이미 서버에 반영되었다 — 뒤이은 입출차 기록 저장이 실패하더라도
       // "취소"를 누르면 이 값으로 되돌아가야 한다(저장 전 값으로 되돌리면 안 됨).
-      setCommitted(form);
+      setCommitted({
+        ...form,
+        timingExceptionReason: timingExceptionOpen ? form.timingExceptionReason : '',
+      });
       router.refresh();
     }
 
@@ -510,6 +522,38 @@ export function ScheduleCard({
               운영시간과 최대 이용시간은 그대로 적용됩니다. 이미 주차면이 배정된 예약이면 바뀐
               시간대에 충돌이 없는지 다시 확인합니다. 예약 상태는 유지됩니다.
             </p>
+          )}
+
+          {editable && (
+            <div className="border-line-muted space-y-2 border-t pt-3">
+              <label className="flex items-center gap-2 text-sm font-semibold">
+                <input
+                  type="checkbox"
+                  className="accent-brand-700 size-4"
+                  checked={timingExceptionOpen}
+                  onChange={(event) => setTimingExceptionOpen(event.target.checked)}
+                />
+                운영시간·최대 이용시간 제한 예외 허용
+              </label>
+              {timingExceptionOpen && (
+                <FormField
+                  label="예외 사유"
+                  htmlFor="edit-timing-exception-reason"
+                  required
+                  hint="저장하면 관리자 본인 승인으로 바로 확정됩니다."
+                  errors={state.fieldErrors.timingExceptionReason}
+                >
+                  <textarea
+                    id="edit-timing-exception-reason"
+                    rows={2}
+                    className={inputClassName(Boolean(state.fieldErrors.timingExceptionReason))}
+                    value={form.timingExceptionReason}
+                    onChange={(event) => update('timingExceptionReason', event.target.value)}
+                    maxLength={300}
+                  />
+                </FormField>
+              )}
+            </div>
           )}
 
           {(canEditEntryRecord || canEditExitRecord) && (
@@ -624,6 +668,9 @@ export function ScheduleCard({
           {readOnly.spaceSection}
           {readOnly.rejectionReason && <Row term="반려 사유" desc={readOnly.rejectionReason} />}
           {readOnly.cancelReason && <Row term="취소 사유" desc={readOnly.cancelReason} />}
+          {readOnly.timingExceptionReasonText && (
+            <Row term="시간 예외" desc={readOnly.timingExceptionReasonText} />
+          )}
         </dl>
       )}
     </CardShell>

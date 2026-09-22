@@ -208,6 +208,8 @@ export const companyVehicleTripDetailUpdateSchema = z.object({
   assignedVehicleId: optionalVehicleId,
   actualEntryAt: optionalZonedDateTimeInput,
   actualExitAt: optionalZonedDateTimeInput,
+  /** 관리자가 직접 운영시간/최대시간 제한 예외를 부여하거나 해제할 때 쓴다. */
+  timingExceptionReason: optionalText(300, '예외 신청 사유'),
 });
 
 export const systemSettingsSchema = z

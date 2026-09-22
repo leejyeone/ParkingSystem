@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 
 import { ReservationActionPanel } from '@/components/admin/reservation-action-panel';
 import { RequesterInfoCard, ScheduleCard } from '@/components/admin/reservation-detail-cards';
+import { Alert } from '@/components/ui/alert';
 import { SpaceTypeBadge, StatusBadge } from '@/components/ui/status-badge';
 import { REQUESTER_TYPE_LABEL, RESERVATION_STATUS_LABEL } from '@/domain/reservation-status';
 import { requireAdminPage } from '@/lib/admin-page-guard';
@@ -127,6 +128,7 @@ export default async function AdminReservationDetailPage({ params, searchParams 
     requestMemo: reservation.requestMemo ?? '',
     visitStartAt: utcToZonedInput(reservation.visitStartAt),
     visitEndAt: utcToZonedInput(reservation.visitEndAt),
+    timingExceptionReason: reservation.timingExceptionReason ?? '',
   };
 
   return (
@@ -146,7 +148,16 @@ export default async function AdminReservationDetailPage({ params, searchParams 
         </div>
       </div>
 
-      {/* 되살리려면 '@/components/ui/alert' 의 Alert import 도 함께 복원할 것
+      {reservation.timingExceptionReason && (
+        <Alert
+          variant={reservation.timingExceptionApprovedAt ? 'success' : 'warning'}
+          title={`시간 예외 신청 | ${formatKstRange(reservation.visitStartAt, reservation.visitEndAt)}`}
+        >
+          {reservation.timingExceptionReason}
+        </Alert>
+      )}
+
+      {/* 되살리려면 위 Alert import 를 그대로 두고 아래 주석을 복원할 것
       <Alert variant="warning" title="개인정보 열람 안내">
         이 화면에는 신청자의 개인정보 원문이 표시됩니다. 열람 이력은 감사 로그(audit_logs)에
         기록되며, 업무 목적 외 사용이나 외부 공유는 금지됩니다.
@@ -217,6 +228,7 @@ export default async function AdminReservationDetailPage({ params, searchParams 
               ) : null,
               rejectionReason: reservation.rejectionReason,
               cancelReason: reservation.cancelReason,
+              timingExceptionReasonText: reservation.timingExceptionReason,
             }}
           />
         </div>

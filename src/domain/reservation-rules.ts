@@ -26,15 +26,17 @@ export function checkMinimumLeadTime(
   return null;
 }
 
-/** 방문 구간(시작 < 종료, 최대 이용시간) 검증 */
+/** 방문 구간(시작 < 종료, 최대 이용시간) 검증. `allowException` 이면 최대 이용시간 초과는 허용한다. */
 export function checkVisitRange(
   visitStartAt: Date,
   visitEndAt: Date,
   maxReservationHours: number,
+  options?: { allowException?: boolean },
 ): string | null {
   if (visitEndAt.getTime() <= visitStartAt.getTime()) {
     return '출차 예정 시간은 입차 예정 시간보다 늦어야 합니다.';
   }
+  if (options?.allowException) return null;
   const hours = (visitEndAt.getTime() - visitStartAt.getTime()) / 3_600_000;
   if (hours > maxReservationHours) {
     return `1건당 최대 예약 시간은 ${maxReservationHours}시간입니다.`;
@@ -42,20 +44,23 @@ export function checkVisitRange(
   return null;
 }
 
-/** 운영시간(Asia/Seoul) 내 예약인지 검증 */
+/** 운영시간(Asia/Seoul) 내 예약인지 검증. `allowException` 이면 같은 날짜 제약·운영시간 제약을 모두 건너뛴다. */
 export function checkOperatingHours(
   visitStartAt: Date,
   visitEndAt: Date,
   openTime: string,
   closeTime: string,
   timeZone?: string,
+  options?: { allowException?: boolean },
 ): string | null {
-  const openMinutes = parseTimeOfDayToMinutes(openTime);
-  const closeMinutes = parseTimeOfDayToMinutes(closeTime);
+  if (options?.allowException) return null;
 
   if (formatKstDate(visitStartAt, timeZone) !== formatKstDate(visitEndAt, timeZone)) {
     return '입차와 출차 예정 시간은 같은 날짜여야 합니다.';
   }
+
+  const openMinutes = parseTimeOfDayToMinutes(openTime);
+  const closeMinutes = parseTimeOfDayToMinutes(closeTime);
 
   const startMinutes = kstMinutesOfDay(visitStartAt, timeZone);
   const endMinutes = kstMinutesOfDay(visitEndAt, timeZone);
@@ -77,14 +82,18 @@ export function assertReservationTiming(params: {
   visitEndAt: Date;
   now: Date;
   settings: SystemSettingsValues;
+  /** 신청자가 예외 신청했거나 관리자가 직접 허용한 경우, 최대 이용시간·운영시간 검증을 건너뛴다. */
+  allowTimingException?: boolean;
 }): void {
-  const { visitStartAt, visitEndAt, now, settings } = params;
+  const { visitStartAt, visitEndAt, now, settings, allowTimingException } = params;
   const fieldErrors: FieldErrors = {};
 
   const leadError = checkMinimumLeadTime(visitStartAt, now, settings.reservationMinLeadMinutes);
   if (leadError) (fieldErrors.visitStartAt ??= []).push(leadError);
 
-  const rangeError = checkVisitRange(visitStartAt, visitEndAt, settings.maxReservationHours);
+  const rangeError = checkVisitRange(visitStartAt, visitEndAt, settings.maxReservationHours, {
+    allowException: allowTimingException,
+  });
   if (rangeError) (fieldErrors.visitEndAt ??= []).push(rangeError);
 
   if (!rangeError) {
@@ -94,6 +103,7 @@ export function assertReservationTiming(params: {
       settings.parkingOpenTime,
       settings.parkingCloseTime,
       settings.appTimeZone,
+      { allowException: allowTimingException },
     );
     if (hoursError) (fieldErrors.visitStartAt ??= []).push(hoursError);
   }

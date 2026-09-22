@@ -146,13 +146,15 @@ model AdminUser {
   updatedAt         DateTime  @updatedAt @map("updated_at")
   deletedAt         DateTime? @map("deleted_at")
 
-  approvedReservations         ParkingReservation[]           @relation("ReservationApprovalAdmin")
-  statusLogs                   ParkingReservationStatusLog[]
-  auditLogs                    AuditLog[]
-  updatedSettings              SystemSetting[]
-  createdRecurringSchedules    RecurringReservationSchedule[]
-  approvedCompanyVehicleTrips  CompanyVehicleTrip[]
-  companyVehicleTripStatusLogs CompanyVehicleTripStatusLog[]
+  approvedReservations               ParkingReservation[]           @relation("ReservationApprovalAdmin")
+  timingExceptionReservations        ParkingReservation[]           @relation("ReservationTimingExceptionAdmin")
+  statusLogs                         ParkingReservationStatusLog[]
+  auditLogs                          AuditLog[]
+  updatedSettings                    SystemSetting[]
+  createdRecurringSchedules          RecurringReservationSchedule[]
+  approvedCompanyVehicleTrips        CompanyVehicleTrip[]           @relation("CompanyVehicleTripApprovalAdmin")
+  timingExceptionCompanyVehicleTrips CompanyVehicleTrip[]           @relation("CompanyVehicleTripTimingExceptionAdmin")
+  companyVehicleTripStatusLogs       CompanyVehicleTripStatusLog[]
 
   @@index([accountStatus], map: "idx_admin_users_account_status")
   @@index([role], map: "idx_admin_users_role")
@@ -359,14 +361,24 @@ model ParkingReservation {
    */
   securityPledgeConsentAt DateTime? @map("security_pledge_consent_at")
 
+  /// 신청자가 운영시간/최대 이용시간을 벗어난 시간대를 "예외로" 신청한 사유. 채워져
+  /// 있으면 예외 신청된 것, 비어 있으면 일반 신청. 값이 있어도 아래 승인 필드가 비어
+  /// 있으면 아직 승인 대기 상태다.
+  timingExceptionReason            String?   @map("timing_exception_reason") @db.VarChar(300)
+  /// 예외가 확정된 시각 — 신청 건은 관리자가 승인할 때, 관리자가 직접 정정한 건은
+  /// 그 자리에서 바로 채워진다.
+  timingExceptionApprovedAt        DateTime? @map("timing_exception_approved_at")
+  timingExceptionApprovedByAdminId Int?      @map("timing_exception_approved_by_admin_id")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  assignedSpace     ParkingSpace?                 @relation("ReservationAssignedSpace", fields: [assignedSpaceId], references: [spaceId], onDelete: SetNull)
-  approvalAdmin     AdminUser?                    @relation("ReservationApprovalAdmin", fields: [approvalAdminId], references: [adminUserId], onDelete: SetNull)
-  visitorUser       SiteUser?                     @relation(fields: [visitorUserId], references: [userId], onDelete: SetNull)
-  employeeUser      EmployeeUser?                 @relation(fields: [employeeUserId], references: [employeeUserId], onDelete: SetNull)
-  recurringSchedule RecurringReservationSchedule? @relation(fields: [recurringScheduleId], references: [scheduleId], onDelete: SetNull)
+  assignedSpace                  ParkingSpace?                 @relation("ReservationAssignedSpace", fields: [assignedSpaceId], references: [spaceId], onDelete: SetNull)
+  approvalAdmin                  AdminUser?                    @relation("ReservationApprovalAdmin", fields: [approvalAdminId], references: [adminUserId], onDelete: SetNull)
+  timingExceptionApprovedByAdmin AdminUser?                    @relation("ReservationTimingExceptionAdmin", fields: [timingExceptionApprovedByAdminId], references: [adminUserId], onDelete: SetNull)
+  visitorUser                    SiteUser?                     @relation(fields: [visitorUserId], references: [userId], onDelete: SetNull)
+  employeeUser                   EmployeeUser?                 @relation(fields: [employeeUserId], references: [employeeUserId], onDelete: SetNull)
+  recurringSchedule              RecurringReservationSchedule? @relation(fields: [recurringScheduleId], references: [scheduleId], onDelete: SetNull)
 
   accessTokens ReservationAccessToken[]
   statusLogs   ParkingReservationStatusLog[]
@@ -436,16 +448,16 @@ model ParkingReservationStatusLog {
 // ---------------------------------------------------------------------------
 
 model CompanyVehicle {
-  vehicleId      Int      @id @default(autoincrement()) @map("vehicle_id")
-  vehicleNo      String   @map("vehicle_no") @db.VarChar(20)
-  vehicleModel   String?  @map("vehicle_model") @db.VarChar(50)
-  memo           String?  @db.VarChar(500)
+  vehicleId      Int       @id @default(autoincrement()) @map("vehicle_id")
+  vehicleNo      String    @map("vehicle_no") @db.VarChar(20)
+  vehicleModel   String?   @map("vehicle_model") @db.VarChar(50)
+  memo           String?   @db.VarChar(500)
   /// 이 차량이 고정 주차된 위치. 이 값이 채워진 주차면은 모든 평면도에서 다른 색으로
   /// 표시되고, 방문 예약 배정 후보에서 제외된다.
-  parkingSpaceId Int?     @unique @map("parking_space_id")
-  isActive       Boolean  @default(true) @map("is_active")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  parkingSpaceId Int?      @unique @map("parking_space_id")
+  isActive       Boolean   @default(true) @map("is_active")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
   /// 소프트 삭제. isActive 는 "운영 중 여부" 토글이라 삭제 여부와 별개로 둔다
   /// (AdminNotificationEmail과 같은 컨벤션).
   deletedAt      DateTime? @map("deleted_at")
@@ -462,18 +474,18 @@ model CompanyVehicleTrip {
   /// 이 테이블이 생기기 전 신청은 없으므로 nullable — 없으면 화면에서 tripId 로 폴백한다.
   tripNo         String? @unique @map("trip_no") @db.VarChar(20)
   employeeUserId Int     @map("employee_user_id")
-  destination    String @db.VarChar(200)
-  reason         String @db.VarChar(500)
+  destination    String  @db.VarChar(200)
+  reason         String  @db.VarChar(500)
 
   /// 모든 시각은 UTC로 저장하고 화면에서 Asia/Seoul로 변환한다.
   requestStartAt DateTime  @map("request_start_at")
   requestEndAt   DateTime  @map("request_end_at")
   /// 입·출차 관리 개념이 없어진 뒤로는 "반납 처리 시각"(직원이 반납 버튼을 누른 시각,
   /// APPROVED→PARKING)이다. 예전 이름(actualEntryAt)은 DB 컬럼명 변경을 피하려고 남긴 것.
-  actualEntryAt DateTime? @map("actual_entry_at")
+  actualEntryAt  DateTime? @map("actual_entry_at")
   /// "반납 확정 시각"(관리자가 반납을 확인한 시각, PARKING→EXITED). 위와 같은 이유로
   /// 컬럼명(actualExitAt)은 그대로 두고 의미만 재해석한다.
-  actualExitAt DateTime? @map("actual_exit_at")
+  actualExitAt   DateTime? @map("actual_exit_at")
 
   /// 직원이 신청 시점에 직접 고른다(관리자는 승인/반려만 한다) — 승인 시점 배정은
   /// 더 이상 하지 않는다.
@@ -490,18 +502,25 @@ model CompanyVehicleTrip {
 
   /// 운행일지 표준 항목 — 주행 전/후 계기판 거리(km). 입·출차 관리 기능과 무관하게
   /// 관리자가 신청 상세에서 직접 기록한다(둘 다 있어야 주행거리를 계산해 보여준다).
-  odometerStartKm Int? @map("odometer_start_km")
-  odometerEndKm   Int? @map("odometer_end_km")
+  odometerStartKm  Int? @map("odometer_start_km")
+  odometerEndKm    Int? @map("odometer_end_km")
   /// 계기판을 확인할 수 없을 때를 대비한 대체 입력 — 주행거리(km)를 직접 적는다.
   /// 계기판 두 값이 모두 있으면 그 차이를 우선하고, 없을 때만 이 값을 쓴다.
   manualDistanceKm Int? @map("manual_distance_km")
 
+  /// 방문 예약과 동일한 "예외 신청" 컨벤션. 채워져 있으면 예외 신청, 승인 필드가 비어
+  /// 있으면 아직 승인 대기.
+  timingExceptionReason            String?   @map("timing_exception_reason") @db.VarChar(300)
+  timingExceptionApprovedAt        DateTime? @map("timing_exception_approved_at")
+  timingExceptionApprovedByAdminId Int?      @map("timing_exception_approved_by_admin_id")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  employee        EmployeeUser    @relation(fields: [employeeUserId], references: [employeeUserId])
-  assignedVehicle CompanyVehicle? @relation(fields: [assignedVehicleId], references: [vehicleId], onDelete: SetNull)
-  approvalAdmin   AdminUser?      @relation(fields: [approvalAdminId], references: [adminUserId], onDelete: SetNull)
+  employee                       EmployeeUser    @relation(fields: [employeeUserId], references: [employeeUserId])
+  assignedVehicle                CompanyVehicle? @relation(fields: [assignedVehicleId], references: [vehicleId], onDelete: SetNull)
+  approvalAdmin                  AdminUser?      @relation("CompanyVehicleTripApprovalAdmin", fields: [approvalAdminId], references: [adminUserId], onDelete: SetNull)
+  timingExceptionApprovedByAdmin AdminUser?      @relation("CompanyVehicleTripTimingExceptionAdmin", fields: [timingExceptionApprovedByAdminId], references: [adminUserId], onDelete: SetNull)
 
   statusLogs CompanyVehicleTripStatusLog[]
   emailLogs  EmailSendLog[]
@@ -623,30 +642,30 @@ model AdminNotificationEmail {
 // ---------------------------------------------------------------------------
 
 model EmailSendLog {
-  emailLogId        Int             @id @default(autoincrement()) @map("email_log_id")
-  reservationId     Int?            @map("reservation_id")
+  emailLogId           Int             @id @default(autoincrement()) @map("email_log_id")
+  reservationId        Int?            @map("reservation_id")
   /// 법인차량 운행 신청 관련 메일이면 채운다(reservationId 와 동시에 채워지지 않는다).
-  companyVehicleTripId Int?         @map("company_vehicle_trip_id")
-  emailType         EmailType       @map("email_type")
+  companyVehicleTripId Int?            @map("company_vehicle_trip_id")
+  emailType            EmailType       @map("email_type")
   /// 이 메일을 받은 사람의 역할. 이 컬럼이 생기기 전 발송분은 NULL이라 "대상" 컬럼에
   /// "-"로 표시된다.
-  audience          EmailAudience?  @map("audience")
-  recipientEmail    String          @map("recipient_email") @db.VarChar(255)
-  subject           String          @db.VarChar(300)
+  audience             EmailAudience?  @map("audience")
+  recipientEmail       String          @map("recipient_email") @db.VarChar(255)
+  subject              String          @db.VarChar(300)
   /// 실제 발송한 HTML 본문. 실패 건 재발송 시 원문 그대로 다시 보내는 데 쓴다.
-  bodyHtml          String?         @map("body_html") @db.LongText
+  bodyHtml             String?         @map("body_html") @db.LongText
   /// 실제 발송한 텍스트 본문.
-  bodyText          String?         @map("body_text") @db.LongText
+  bodyText             String?         @map("body_text") @db.LongText
   /// 발송 당시 첨부파일(배정 주차 위치 평면도 이미지 등). 재발송 시 그대로 다시 실어
   /// 보내기 위해 저장한다. [{ filename, contentType, cid, contentBase64 }] 형태.
   /// 첨부가 없으면 NULL.
-  attachmentsJson   Json?           @map("attachments_json")
-  sendStatus        EmailSendStatus @default(PENDING) @map("send_status")
-  providerMessageId String?         @map("provider_message_id") @db.VarChar(255)
-  failReason        String?         @map("fail_reason") @db.Text
-  retryCount        Int             @default(0) @map("retry_count")
-  requestedAt       DateTime        @default(now()) @map("requested_at")
-  sentAt            DateTime?       @map("sent_at")
+  attachmentsJson      Json?           @map("attachments_json")
+  sendStatus           EmailSendStatus @default(PENDING) @map("send_status")
+  providerMessageId    String?         @map("provider_message_id") @db.VarChar(255)
+  failReason           String?         @map("fail_reason") @db.Text
+  retryCount           Int             @default(0) @map("retry_count")
+  requestedAt          DateTime        @default(now()) @map("requested_at")
+  sentAt               DateTime?       @map("sent_at")
 
   /// 1회만 발송되어야 하는 메일(EXIT_REMINDER)의 멱등성 키.
   /// "<reservationId>:<emailType>" 형태이며 그 외 메일에서는 NULL 이다.

@@ -53,6 +53,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       assignedVehicleId: payload.assignedVehicleId,
       actualEntryAt: payload.actualEntryAt === null ? null : zonedInputToUtc(payload.actualEntryAt),
       actualExitAt: payload.actualExitAt === null ? null : zonedInputToUtc(payload.actualExitAt),
+      timingExceptionReason: payload.timingExceptionReason,
       adminUserId: session.adminUserId,
       requestContext: getRequestContext(request.headers),
     });
@@ -67,6 +68,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       assignedVehicleId: trip.assignedVehicleId,
       actualEntryAt: trip.actualEntryAt,
       actualExitAt: trip.actualExitAt,
+      timingExceptionReason: trip.timingExceptionReason,
+      timingExceptionApprovedAt: trip.timingExceptionApprovedAt,
     });
   } catch (error) {
     return handleApiError(error);

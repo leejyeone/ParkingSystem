@@ -8,6 +8,7 @@ import {
   CompanyVehicleTripMileageCard,
   CompanyVehicleTripScheduleCard,
 } from '@/components/admin/company-vehicle-trip-detail-cards';
+import { Alert } from '@/components/ui/alert';
 import { StatusBadge } from '@/components/ui/status-badge';
 import {
   COMPANY_VEHICLE_STATUS_LABEL,
@@ -99,6 +100,7 @@ export default async function CompanyVehicleTripDetailPage({ params, searchParam
     odometerStartKm: trip.odometerStartKm !== null ? String(trip.odometerStartKm) : '',
     odometerEndKm: trip.odometerEndKm !== null ? String(trip.odometerEndKm) : '',
     manualDistanceKm: trip.manualDistanceKm !== null ? String(trip.manualDistanceKm) : '',
+    timingExceptionReason: trip.timingExceptionReason ?? '',
   };
 
   return (
@@ -114,6 +116,15 @@ export default async function CompanyVehicleTripDetailPage({ params, searchParam
           <StatusBadge status={displayStatus} label={COMPANY_VEHICLE_STATUS_LABEL[displayStatus]} />
         </div>
       </div>
+
+      {trip.timingExceptionReason && (
+        <Alert
+          variant={trip.timingExceptionApprovedAt ? 'success' : 'warning'}
+          title={`시간 예외 신청 | ${formatKstRange(trip.requestStartAt, trip.requestEndAt)}`}
+        >
+          {trip.timingExceptionReason}
+        </Alert>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="min-w-0 space-y-4">
@@ -140,6 +151,7 @@ export default async function CompanyVehicleTripDetailPage({ params, searchParam
               returnConfirmedText: trip.actualExitAt ? formatKstDateTime(trip.actualExitAt) : '-',
               rejectionReason: trip.rejectionReason,
               cancelReason: trip.cancelReason,
+              timingExceptionReasonText: trip.timingExceptionReason,
             }}
           />
         </div>

@@ -77,6 +77,7 @@ const REQUIRED_FIELD_LABELS: Record<string, string> = {
   visitStartAt: '입차 예정 시간',
   visitEndAt: '출차 예정 시간',
   visitPurpose: '방문 목적',
+  timingExceptionReason: '예외 신청 사유',
   privacyConsent: '개인정보 수집 및 이용 동의',
   visitorConsentConfirmed: '방문객 개인정보 수집·이용 동의 확인',
   securityPledgeConsent: '보안서약서 동의',
@@ -113,6 +114,8 @@ type FormState = {
   visitEndAt: string;
   privacyConsent: boolean;
   securityPledgeConsent: boolean;
+  /** 운영시간/최대 이용시간을 벗어난 시간대를 예외로 신청하는 사유. 비어 있으면 일반 신청. */
+  timingExceptionReason: string;
 };
 
 function buildInitialState(
@@ -130,6 +133,7 @@ function buildInitialState(
     visitEndAt: '',
     privacyConsent: false,
     securityPledgeConsent: false,
+    timingExceptionReason: '',
   };
 }
 
@@ -151,6 +155,8 @@ export function ReservationForm({
   const [formError, setFormError] = useState<ApiErrorPayload | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<CreateResponse | null>(null);
+  // 처음엔 접어 두고, 신청자가 필요할 때만 펼쳐서 사유를 입력한다.
+  const [timingExceptionOpen, setTimingExceptionOpen] = useState(false);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((previous) => ({ ...previous, [key]: value }));
@@ -210,6 +216,9 @@ export function ReservationForm({
     if (form.visitPurpose.trim() === '') {
       errors.visitPurpose = ['방문 목적을 입력해 주세요.'];
     }
+    if (timingExceptionOpen && form.timingExceptionReason.trim() === '') {
+      errors.timingExceptionReason = ['예외 신청 사유를 입력해 주세요.'];
+    }
     if (mode !== 'employee-self' && !form.privacyConsent) {
       const consentKey = mode === 'employee-proxy' ? 'visitorConsentConfirmed' : 'privacyConsent';
       errors[consentKey] = [
@@ -261,6 +270,7 @@ export function ReservationForm({
       requestMemo: form.requestMemo || null,
       visitStartAt: form.visitStartAt,
       visitEndAt: form.visitEndAt,
+      timingExceptionReason: timingExceptionOpen ? form.timingExceptionReason : null,
     };
     // visitor: 회사명/성명/이메일/차량번호/담당자는 서버가 로그인 세션의 회원 프로필에서
     // 직접 읽으므로 아예 보내지 않는다(화면에도 안 보이는 값을 클라이언트가 조작해 보내는
@@ -320,6 +330,46 @@ export function ReservationForm({
 
   return (
     <form onSubmit={handleSubmit} noValidate>
+      <div className="mb-4">
+        {timingExceptionOpen ? (
+          <FormField
+            label="예외 신청 사유"
+            htmlFor="timingExceptionReason"
+            required
+            hint="운영시간이나 최대 이용시간을 벗어난 시간대를 신청하는 이유를 적어 주세요. 관리자가 승인해야 확정됩니다."
+            errors={fieldErrors.timingExceptionReason}
+          >
+            <textarea
+              id="timingExceptionReason"
+              name="timingExceptionReason"
+              rows={2}
+              className={inputClassName(Boolean(fieldErrors.timingExceptionReason))}
+              value={form.timingExceptionReason}
+              onChange={(event) => update('timingExceptionReason', event.target.value)}
+              maxLength={300}
+            />
+            <button
+              type="button"
+              className="text-ink-faint mt-1.5 text-xs font-semibold underline"
+              onClick={() => {
+                setTimingExceptionOpen(false);
+                update('timingExceptionReason', '');
+              }}
+            >
+              예외 신청 취소
+            </button>
+          </FormField>
+        ) : (
+          <button
+            type="button"
+            className="text-brand-700 text-xs font-semibold underline"
+            onClick={() => setTimingExceptionOpen(true)}
+          >
+            운영시간·최대 이용시간을 벗어난 시간대가 필요하신가요? 예외 신청
+          </button>
+        )}
+      </div>
+
       {formError && (
         <div className="mb-4">
           <Alert variant="error" title="신청을 완료하지 못했습니다">

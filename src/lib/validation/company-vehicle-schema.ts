@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { requiredText, zonedDateTimeSchema } from '@/lib/validation/common';
+import { optionalText, requiredText, zonedDateTimeSchema } from '@/lib/validation/common';
 
 /**
  * 법인 공용 차량 운행 신청 (로그인 직원 필수).
@@ -14,6 +14,8 @@ export const createCompanyVehicleTripSchema = z.object({
   requestStartAt: zonedDateTimeSchema,
   requestEndAt: zonedDateTimeSchema,
   vehicleId: z.coerce.number().int().positive('사용할 차량을 선택해 주세요.'),
+  /** 운영 가능 시간/최대 사용시간을 벗어난 시간대를 예외로 신청하는 사유. 채워지면 예외 신청. */
+  timingExceptionReason: optionalText(300, '예외 신청 사유'),
 });
 
 /** 신청자 본인 취소 (승인 대기 상태에서만 허용 — 서비스 계층에서 확인). */

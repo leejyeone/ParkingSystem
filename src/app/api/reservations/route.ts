@@ -56,6 +56,7 @@ export async function POST(request: NextRequest) {
       visitEndAt: payload.visitEndAt,
       privacyConsent: payload.privacyConsent,
       securityPledgeConsent: payload.securityPledgeConsent,
+      timingExceptionReason: payload.timingExceptionReason,
     });
 
     return apiSuccess(

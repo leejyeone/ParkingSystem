@@ -20,6 +20,8 @@ export const createReservationSchema = z.object({
   requestMemo: optionalText(1000, '요청 메모'),
   visitStartAt: zonedDateTimeSchema,
   visitEndAt: zonedDateTimeSchema,
+  /** 운영시간/최대 이용시간을 벗어난 시간대를 예외로 신청하는 사유. 채워지면 예외 신청. */
+  timingExceptionReason: optionalText(300, '예외 신청 사유'),
   privacyConsent: z
     .boolean({ error: '개인정보 수집 및 이용에 동의해 주세요.' })
     .refine((value) => value === true, '개인정보 수집 및 이용에 동의해 주세요.'),
@@ -42,6 +44,7 @@ export const createEmployeeReservationSchema = z.object({
   requestMemo: optionalText(1000, '요청 메모'),
   visitStartAt: zonedDateTimeSchema,
   visitEndAt: zonedDateTimeSchema,
+  timingExceptionReason: optionalText(300, '예외 신청 사유'),
 });
 
 /**
@@ -58,6 +61,7 @@ export const createEmployeeProxyReservationSchema = z.object({
   requestMemo: optionalText(1000, '요청 메모'),
   visitStartAt: zonedDateTimeSchema,
   visitEndAt: zonedDateTimeSchema,
+  timingExceptionReason: optionalText(300, '예외 신청 사유'),
   visitorConsentConfirmed: z
     .boolean({ error: '방문객 개인정보 수집·이용 동의 확인이 필요합니다.' })
     .refine((value) => value === true, '방문객 개인정보 수집·이용 동의 확인이 필요합니다.'),
@@ -79,6 +83,7 @@ export const updateReservationSchema = z.object({
   requestMemo: optionalText(1000, '요청 메모'),
   visitStartAt: zonedDateTimeSchema,
   visitEndAt: zonedDateTimeSchema,
+  timingExceptionReason: optionalText(300, '예외 신청 사유'),
 });
 
 export const cancelReservationSchema = z.object({

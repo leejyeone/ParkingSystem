@@ -78,6 +78,16 @@ export function ReservationAccessPanel({ token, initialReservation, settings }: 
                 </div>
               )}
 
+              {reservation.timingExceptionStatusText && (
+                <div className="mt-4">
+                  <Alert
+                    variant={reservation.timingExceptionStatusText.includes('승인 대기') ? 'warning' : 'success'}
+                  >
+                    {reservation.timingExceptionStatusText}
+                  </Alert>
+                </div>
+              )}
+
               {reservation.isDoubleParking && (
                 <div className="mt-4">
                   <Alert variant="warning" title="이중주차 위치로 배정되었습니다">
@@ -213,6 +223,12 @@ function EditForm({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [formError, setFormError] = useState<ApiErrorPayload | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [timingExceptionOpen, setTimingExceptionOpen] = useState(
+    Boolean(reservation.timingExceptionReason),
+  );
+  const [timingExceptionReason, setTimingExceptionReason] = useState(
+    reservation.timingExceptionReason ?? '',
+  );
 
   function update(key: keyof typeof form, value: string) {
     setForm((previous) => ({ ...previous, [key]: value }));
@@ -236,6 +252,7 @@ function EditForm({
           ...form,
           visitPurpose: form.visitPurpose,
           requestMemo: form.requestMemo || null,
+          timingExceptionReason: timingExceptionOpen ? timingExceptionReason : null,
         }),
       },
     );
@@ -338,6 +355,43 @@ function EditForm({
           onChange={(event) => update('visitEndAt', event.target.value)}
         />
       </FormField>
+
+      {timingExceptionOpen ? (
+        <FormField
+          label="예외 신청 사유"
+          htmlFor="edit-timing-exception-reason"
+          required
+          hint="운영시간이나 최대 이용시간을 벗어난 시간대를 신청하는 이유를 적어 주세요. 관리자가 승인해야 확정됩니다."
+          errors={fieldErrors.timingExceptionReason}
+        >
+          <textarea
+            id="edit-timing-exception-reason"
+            rows={2}
+            className={inputClassName(Boolean(fieldErrors.timingExceptionReason))}
+            value={timingExceptionReason}
+            onChange={(event) => setTimingExceptionReason(event.target.value)}
+            maxLength={300}
+          />
+          <button
+            type="button"
+            className="text-ink-faint mt-1.5 text-xs font-semibold underline"
+            onClick={() => {
+              setTimingExceptionOpen(false);
+              setTimingExceptionReason('');
+            }}
+          >
+            예외 신청 취소
+          </button>
+        </FormField>
+      ) : (
+        <button
+          type="button"
+          className="text-brand-700 text-xs font-semibold underline"
+          onClick={() => setTimingExceptionOpen(true)}
+        >
+          운영시간·최대 이용시간을 벗어난 시간대가 필요하신가요? 예외 신청
+        </button>
+      )}
 
       <FormField
         label="방문 목적"

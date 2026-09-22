@@ -38,6 +38,8 @@ export type EditableFields = {
   odometerEndKm: string;
   /** 계기판을 확인할 수 없을 때 대신 적는 주행거리(km). 빈 문자열이면 미기록. */
   manualDistanceKm: string;
+  /** 운영시간/최대 사용시간을 벗어난 시간대를 예외로 허용하는 사유. 비어 있으면 예외 없음. */
+  timingExceptionReason: string;
 };
 
 export type VehicleOption = {
@@ -93,6 +95,7 @@ function useTripEdit(tripId: number, initial: EditableFields) {
           assignedVehicleId: form.assignedVehicleId,
           actualEntryAt: form.actualEntryAt,
           actualExitAt: form.actualExitAt,
+          timingExceptionReason: form.timingExceptionReason || null,
         }),
       }),
       apiRequest(`/api/admin/company-vehicle-trips/${tripId}/mileage`, {
@@ -327,12 +330,22 @@ export function CompanyVehicleTripScheduleCard({
     returnConfirmedText: string;
     rejectionReason: string | null;
     cancelReason: string | null;
+    /** 예외 신청 사유. 예외가 아니면 null. */
+    timingExceptionReasonText: string | null;
   };
 }) {
   const { editing, setEditing, form, update, state, saved, save, cancel } = useTripEdit(
     tripId,
     initial,
   );
+  const [timingExceptionOpen, setTimingExceptionOpen] = useState(
+    Boolean(initial.timingExceptionReason),
+  );
+
+  function handleCancel() {
+    cancel();
+    setTimingExceptionOpen(Boolean(initial.timingExceptionReason));
+  }
 
   // 이미 배정된 차량이 비활성화되거나(목록에서 빠짐) 시간대가 겹쳐 배정 불가로
   // 바뀌었더라도, 편집 시 현재 선택값이 사라지지 않도록 목록에 남겨 둔다. 그 외
@@ -362,7 +375,7 @@ export function CompanyVehicleTripScheduleCard({
       error={state.error}
       saved={saved}
       onEdit={setEditing}
-      onCancel={cancel}
+      onCancel={handleCancel}
       onSave={save}
     >
       {editing ? (
@@ -452,6 +465,39 @@ export function CompanyVehicleTripScheduleCard({
               ))}
             </select>
           </FormField>
+
+          <div className="border-line-muted space-y-2 border-t pt-3">
+            <label className="flex items-center gap-2 text-sm font-semibold">
+              <input
+                type="checkbox"
+                className="accent-brand-700 size-4"
+                checked={timingExceptionOpen}
+                onChange={(event) => {
+                  setTimingExceptionOpen(event.target.checked);
+                  if (!event.target.checked) update('timingExceptionReason', '');
+                }}
+              />
+              운영 가능 시간·최대 사용시간 제한 예외 허용
+            </label>
+            {timingExceptionOpen && (
+              <FormField
+                label="예외 사유"
+                htmlFor="edit-timing-exception-reason"
+                required
+                hint="저장하면 관리자 본인 승인으로 바로 확정됩니다."
+                errors={state.fieldErrors.timingExceptionReason}
+              >
+                <textarea
+                  id="edit-timing-exception-reason"
+                  rows={2}
+                  className={inputClassName(Boolean(state.fieldErrors.timingExceptionReason))}
+                  value={form.timingExceptionReason}
+                  onChange={(event) => update('timingExceptionReason', event.target.value)}
+                  maxLength={300}
+                />
+              </FormField>
+            )}
+          </div>
         </div>
       ) : (
         <dl className="mt-3">
@@ -461,6 +507,9 @@ export function CompanyVehicleTripScheduleCard({
           <Row term="배정 차량" desc={readOnly.assignedVehicleText} />
           {readOnly.rejectionReason && <Row term="반려 사유" desc={readOnly.rejectionReason} />}
           {readOnly.cancelReason && <Row term="취소 사유" desc={readOnly.cancelReason} />}
+          {readOnly.timingExceptionReasonText && (
+            <Row term="시간 예외" desc={readOnly.timingExceptionReasonText} />
+          )}
         </dl>
       )}
     </CardShell>

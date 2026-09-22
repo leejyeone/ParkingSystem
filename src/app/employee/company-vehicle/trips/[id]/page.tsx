@@ -169,6 +169,13 @@ export default async function EmployeeCompanyVehicleTripDetailPage({ params }: P
               <dd className="definition-desc">{trip.cancelReason}</dd>
             </div>
           )}
+          {trip.timingExceptionReason && (
+            <Alert variant={trip.timingExceptionApprovedAt ? 'success' : 'warning'}>
+              {trip.timingExceptionApprovedAt
+                ? `⚠ 시간 예외 신청이 승인되었습니다. (사유: ${trip.timingExceptionReason})`
+                : `⚠ 시간 예외 신청이 접수되었습니다. 승인 대기 중입니다. (사유: ${trip.timingExceptionReason})`}
+            </Alert>
+          )}
         </div>
       </section>
 

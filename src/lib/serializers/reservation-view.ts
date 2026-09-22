@@ -50,6 +50,10 @@ export type RequesterReservationView = {
   changeDeadlineText: string;
   canChange: boolean;
   changeBlockedReason: string | null;
+  /** 예외 신청 사유 원문. 신청 안 했으면 null. */
+  timingExceptionReason: string | null;
+  /** 예외 신청/승인 상태 안내. 예외가 아니면 null. */
+  timingExceptionStatusText: string | null;
 };
 
 export function toRequesterReservationView(
@@ -89,5 +93,11 @@ export function toRequesterReservationView(
     changeDeadlineText: formatKstHuman(reservation.changeDeadlineAt),
     canChange: reservation.canChange,
     changeBlockedReason: reservation.changeBlockedReason,
+    timingExceptionReason: reservation.timingExceptionReason,
+    timingExceptionStatusText: reservation.timingExceptionReason
+      ? reservation.timingExceptionApprovedAt
+        ? `⚠ 시간 예외 신청이 승인되었습니다. (사유: ${reservation.timingExceptionReason})`
+        : `⚠ 시간 예외 신청이 접수되었습니다. 승인 대기 중입니다. (사유: ${reservation.timingExceptionReason})`
+      : null,
   };
 }

@@ -62,6 +62,7 @@ const TRIP_DETAIL_INCLUDE = {
     select: { vehicleId: true, vehicleNo: true, parkingSpace: { select: { spaceCode: true } } },
   },
   approvalAdmin: { select: { adminUserId: true, adminName: true } },
+  timingExceptionApprovedByAdmin: { select: { adminName: true } },
   statusLogs: {
     orderBy: { createdAt: 'asc' as const },
     include: { changedByAdmin: { select: { adminName: true } } },
@@ -181,6 +182,8 @@ export type CreateCompanyVehicleTripInput = {
   requestStartAt: Date;
   requestEndAt: Date;
   vehicleId: number;
+  /** 운영 가능 시간/최대 사용시간을 벗어난 시간대를 예외로 신청하는 사유. 있으면 그 검증을 건너뛴다. */
+  timingExceptionReason?: string | null;
 };
 
 /**
@@ -223,6 +226,7 @@ export async function createCompanyVehicleTrip(
     requestEndAt: input.requestEndAt,
     now,
     settings,
+    allowTimingException: Boolean(input.timingExceptionReason),
   });
 
   const created = await createWithUniqueTripNo((tripNo) =>
@@ -257,6 +261,7 @@ export async function createCompanyVehicleTrip(
           requestEndAt: input.requestEndAt,
           assignedVehicleId: input.vehicleId,
           tripStatus: ReservationStatus.REQUESTED,
+          timingExceptionReason: input.timingExceptionReason ?? null,
         },
         include: { employee: { select: { name: true, email: true, departmentName: true } } },
       });
@@ -394,6 +399,45 @@ export async function getVehicleAvailabilityForDate(
 }
 
 /**
+ * 시간 제약 예외 신청용 — 날짜 기준 가용성 계산 없이 활성 차량 전체를 돌려준다.
+ * 예외 신청은 여러 날짜에 걸칠 수 있어 "그 날짜에 비어 있는지"를 미리 판단할 수 없으므로,
+ * 중복 배정 여부는 관리자가 승인 시점에 직접 확인한다.
+ */
+export async function getActiveVehicleList(): Promise<VehicleAvailability[]> {
+  const vehicles = await prisma.companyVehicle.findMany({
+    where: { isActive: true, deletedAt: null },
+    orderBy: { vehicleId: 'asc' },
+    select: {
+      vehicleId: true,
+      vehicleNo: true,
+      vehicleModel: true,
+      parkingSpace: { select: { spaceCode: true } },
+    },
+  });
+
+  return vehicles.map((vehicle) => ({
+    vehicleId: vehicle.vehicleId,
+    vehicleNo: vehicle.vehicleNo,
+    vehicleModel: vehicle.vehicleModel,
+    parkingSpaceCode: vehicle.parkingSpace?.spaceCode ?? null,
+    busyRanges: [],
+  }));
+}
+
+/**
+ * 신청자가 예외 신청했는데(사유 있음) 아직 승인되지 않은 경우, 신청 승인과 함께 그
+ * 예외도 확정한다 — 별도 승인 버튼 없이 일반 승인 액션이 곧 예외 승인이다(방문 예약과
+ * 같은 컨벤션).
+ */
+function timingExceptionApprovalOnApprove(
+  current: { timingExceptionReason: string | null; timingExceptionApprovedAt: Date | null },
+  adminUserId: number,
+): { timingExceptionApprovedAt: Date; timingExceptionApprovedByAdminId: number } | undefined {
+  if (!current.timingExceptionReason || current.timingExceptionApprovedAt) return undefined;
+  return { timingExceptionApprovedAt: new Date(), timingExceptionApprovedByAdminId: adminUserId };
+}
+
+/**
  * 승인. 차량은 신청 시점에 이미 직원이 골랐으므로 여기서는 그 사이 다른 신청이 먼저
  * 승인돼 겹침이 생기지 않았는지 방어적으로 재확인만 한다.
  */
@@ -442,6 +486,7 @@ export async function approveCompanyVehicleTrip(
         approvedAt: new Date(),
         rejectedAt: null,
         rejectionReason: null,
+        ...timingExceptionApprovalOnApprove(current, params.adminUserId),
       },
       include: TRIP_DETAIL_INCLUDE,
     });
@@ -680,6 +725,8 @@ export async function updateCompanyVehicleTripByRequester(params: {
   requestStartAt: Date;
   requestEndAt: Date;
   vehicleId: number;
+  /** 운영 가능 시간/최대 사용시간을 벗어난 시간대를 예외로 신청하는 사유. 있으면 그 검증을 건너뛴다. */
+  timingExceptionReason?: string | null;
 }): Promise<CompanyVehicleTripDetail> {
   const settings = await getSystemSettings();
   const now = new Date();
@@ -688,6 +735,7 @@ export async function updateCompanyVehicleTripByRequester(params: {
     requestEndAt: params.requestEndAt,
     now,
     settings,
+    allowTimingException: Boolean(params.timingExceptionReason),
   });
 
   return prisma.$transaction(async (tx) => {
@@ -737,6 +785,7 @@ export async function updateCompanyVehicleTripByRequester(params: {
         requestStartAt: params.requestStartAt,
         requestEndAt: params.requestEndAt,
         assignedVehicleId: params.vehicleId,
+        timingExceptionReason: params.timingExceptionReason ?? null,
       },
       include: TRIP_DETAIL_INCLUDE,
     });
@@ -769,6 +818,8 @@ export async function updateCompanyVehicleTripDetails(
     assignedVehicleId: number | null;
     actualEntryAt: Date | null;
     actualExitAt: Date | null;
+    /** 관리자가 직접 운영시간/최대시간 제한 예외를 부여하거나 해제할 때 쓴다. */
+    timingExceptionReason?: string | null;
   } & AdminActionContext,
 ): Promise<CompanyVehicleTripDetail> {
   const settings = await getSystemSettings();
@@ -776,6 +827,7 @@ export async function updateCompanyVehicleTripDetails(
     requestStartAt: params.requestStartAt,
     requestEndAt: params.requestEndAt,
     settings,
+    allowTimingException: Boolean(params.timingExceptionReason),
   });
 
   // actualEntryAt은 "반납 처리 시각", actualExitAt은 "반납 확정 시각"이다 — 확정이
@@ -813,6 +865,17 @@ export async function updateCompanyVehicleTripDetails(
     const timeChanged =
       params.requestStartAt.getTime() !== current.requestStartAt.getTime() ||
       params.requestEndAt.getTime() !== current.requestEndAt.getTime();
+
+    // 관리자가 직접 예외 사유를 채워 넣는 경우, 별도 승인 대기 없이 그 자리에서 바로
+    // 확정한다. 사유가 그대로면 기존 승인 기록(신청자 요청 → 관리자 승인 흐름에서
+    // 채워졌을 수도 있음)을 건드리지 않는다.
+    const timingExceptionReasonChanged =
+      current.timingExceptionReason !== (params.timingExceptionReason ?? null);
+    const timingExceptionFields = params.timingExceptionReason
+      ? timingExceptionReasonChanged || !current.timingExceptionApprovedAt
+        ? { timingExceptionApprovedAt: new Date(), timingExceptionApprovedByAdminId: params.adminUserId }
+        : {}
+      : { timingExceptionApprovedAt: null, timingExceptionApprovedByAdminId: null };
 
     if (params.assignedVehicleId !== null && (vehicleChanged || timeChanged)) {
       // REJECTED/CANCELLED(종료된 신청)에는 이 경로로 차량을 넣어도 의미가 없다 —
@@ -916,6 +979,8 @@ export async function updateCompanyVehicleTripDetails(
         actualEntryAt: params.actualEntryAt,
         actualExitAt: params.actualExitAt,
         tripStatus: nextTripStatus,
+        timingExceptionReason: params.timingExceptionReason ?? null,
+        ...timingExceptionFields,
       },
       include: TRIP_DETAIL_INCLUDE,
     });

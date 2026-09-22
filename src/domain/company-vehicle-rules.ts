@@ -10,20 +10,23 @@ import type { SystemSettingsValues } from '@/domain/system-settings';
  * companyVehicleOperatingStartTime/EndTime 설정을 기준으로 검증한다.
  */
 
-/** 운영 가능 시간대(Asia/Seoul) 내 신청인지 검증 */
+/** 운영 가능 시간대(Asia/Seoul) 내 신청인지 검증. `allowException` 이면 같은 날짜 제약·시간대 제약을 모두 건너뛴다. */
 export function checkCompanyVehicleOperatingHours(
   requestStartAt: Date,
   requestEndAt: Date,
   operatingStartTime: string,
   operatingEndTime: string,
   timeZone?: string,
+  options?: { allowException?: boolean },
 ): string | null {
-  const openMinutes = parseTimeOfDayToMinutes(operatingStartTime);
-  const closeMinutes = parseTimeOfDayToMinutes(operatingEndTime);
+  if (options?.allowException) return null;
 
   if (formatKstDate(requestStartAt, timeZone) !== formatKstDate(requestEndAt, timeZone)) {
     return '운행 시작과 종료 예정 시간은 같은 날짜여야 합니다.';
   }
+
+  const openMinutes = parseTimeOfDayToMinutes(operatingStartTime);
+  const closeMinutes = parseTimeOfDayToMinutes(operatingEndTime);
 
   const startMinutes = kstMinutesOfDay(requestStartAt, timeZone);
   const endMinutes = kstMinutesOfDay(requestEndAt, timeZone);
@@ -44,13 +47,15 @@ export function assertCompanyVehicleTripTiming(params: {
   requestStartAt: Date;
   requestEndAt: Date;
   settings: SystemSettingsValues;
+  /** 신청자가 예외 신청했거나 관리자가 직접 허용한 경우, 최대 사용시간·운영시간 검증을 건너뛴다. */
+  allowTimingException?: boolean;
 }): void {
-  const { requestStartAt, requestEndAt, settings } = params;
+  const { requestStartAt, requestEndAt, settings, allowTimingException } = params;
   const fieldErrors: FieldErrors = {};
 
   if (requestEndAt.getTime() <= requestStartAt.getTime()) {
     (fieldErrors.requestEndAt ??= []).push('운행 종료 예정 시간은 시작 예정 시간보다 늦어야 합니다.');
-  } else {
+  } else if (!allowTimingException) {
     const hours = (requestEndAt.getTime() - requestStartAt.getTime()) / 3_600_000;
     if (hours > settings.companyVehicleMaxUsageHours) {
       (fieldErrors.requestEndAt ??= []).push(
@@ -66,6 +71,7 @@ export function assertCompanyVehicleTripTiming(params: {
       settings.companyVehicleOperatingStartTime,
       settings.companyVehicleOperatingEndTime,
       settings.appTimeZone,
+      { allowException: allowTimingException },
     );
     if (hoursError) (fieldErrors.requestStartAt ??= []).push(hoursError);
   }
@@ -85,6 +91,7 @@ export function assertCompanyVehicleTripCreateTiming(params: {
   requestEndAt: Date;
   now: Date;
   settings: SystemSettingsValues;
+  allowTimingException?: boolean;
 }): void {
   const { requestStartAt, now, settings } = params;
   const fieldErrors: FieldErrors = {};
