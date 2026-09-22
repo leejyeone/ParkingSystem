@@ -33,8 +33,10 @@ type PageProps = {
 };
 
 export default async function CompanyVehicleTripDetailPage({ params, searchParams }: PageProps) {
-  await requireAdminPage('/admin/company-vehicles/trips');
   const { id } = await params;
+  // 메일의 "관리자 화면에서 확인하기" 링크 등 로그인 없이 상세 URL로 바로 들어오는
+  // 경우, 로그인 후에는 목록이 아니라 원래 보려던 이 상세 화면으로 돌아와야 한다.
+  await requireAdminPage(`/admin/company-vehicles/trips/${id}`);
 
   /* 예약 상세와 같은 이유(목록·운행 대장 두 곳에서 들어올 수 있음)로 returnTo 를 신뢰
      범위(`/admin/`) 안에서만 뒤로가기에 쓴다. */

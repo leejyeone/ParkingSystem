@@ -29,8 +29,10 @@ type PageProps = {
  * 개인정보 원문이 노출되므로 조회 시점에 audit_logs 에 열람 이력이 기록된다.
  */
 export default async function AdminReservationDetailPage({ params, searchParams }: PageProps) {
-  const session = await requireAdminPage('/admin/reservations');
   const { id } = await params;
+  // 메일의 "관리자 화면에서 확인하기" 링크 등 로그인 없이 상세 URL로 바로 들어오는
+  // 경우, 로그인 후에는 목록이 아니라 원래 보려던 이 상세 화면으로 돌아와야 한다.
+  const session = await requireAdminPage(`/admin/reservations/${id}`);
   const reservationId = Number(id);
 
   /*
@@ -109,6 +111,14 @@ export default async function AdminReservationDetailPage({ params, searchParams 
   // 아니라 사후 기록 정정 목적이며, 이 경우 신청자에게 변경 안내 메일은 보내지 않는다
   // (updateReservationByAdmin 참고).
   const editable = true;
+  // 종료된 예약(반려/취소/출차/미방문)은 오른쪽 처리 패널에 표시할 액션이 하나도
+  // 없다(ReservationActionPanel의 canApprove/canReject/canCancel/canChangeSpace/
+  // canEntry/canExit/canNoShow가 모두 이 상태들에서 false) — 빈 열을 그대로 두면
+  // 왼쪽 카드만 반쪽 너비로 남아 어색하므로, 이때는 오른쪽 열 자체를 접고 카드를
+  // 전체 너비로 넓힌다.
+  const hasActionPanel = !['REJECTED', 'CANCELLED', 'EXITED', 'NO_SHOW'].includes(
+    reservation.reservationStatus,
+  );
   const editableFields = {
     companyOrBranchName: reservation.companyOrBranchName,
     requesterName: reservation.requesterName,
@@ -146,7 +156,7 @@ export default async function AdminReservationDetailPage({ params, searchParams 
         grid-cols-1 을 명시해야 열이 minmax(0, 1fr) 이 되어 항목이 0까지 줄어든다.
         명시하지 않으면 내부 표(min-width 640px) 때문에 모바일에서 가로 스크롤이 생긴다.
       */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className={`grid grid-cols-1 gap-4 ${hasActionPanel ? 'lg:grid-cols-2' : ''}`}>
         <div className="min-w-0 space-y-4">
           <RequesterInfoCard
             reservationId={reservation.reservationId}
@@ -211,19 +221,21 @@ export default async function AdminReservationDetailPage({ params, searchParams 
           />
         </div>
 
-        <div className="min-w-0">
-          <ReservationActionPanel
-            reservationId={reservation.reservationId}
-            reservationNo={reservation.reservationNo}
-            reservationStatus={reservation.reservationStatus}
-            defaultSpaceId={defaultSpace?.spaceId ?? null}
-            assignedSpaceId={reservation.assignedSpaceId}
-            availableSpaces={availableSpaces}
-            spaceAssignmentEnabled={showSpace}
-            capacityUsage={capacityUsage}
-            entryExitManagementEnabled={settings.entryExitManagementEnabled}
-          />
-        </div>
+        {hasActionPanel && (
+          <div className="min-w-0">
+            <ReservationActionPanel
+              reservationId={reservation.reservationId}
+              reservationNo={reservation.reservationNo}
+              reservationStatus={reservation.reservationStatus}
+              defaultSpaceId={defaultSpace?.spaceId ?? null}
+              assignedSpaceId={reservation.assignedSpaceId}
+              availableSpaces={availableSpaces}
+              spaceAssignmentEnabled={showSpace}
+              capacityUsage={capacityUsage}
+              entryExitManagementEnabled={settings.entryExitManagementEnabled}
+            />
+          </div>
+        )}
       </div>
 
       {/* 상태 변경 이력은 참고용이라 가장 아래에 둔다. */}

@@ -31,8 +31,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 }
 
 /**
- * DELETE /api/admin/company-vehicles/[id] — 법인차량 완전 삭제. 운행 이력이 있으면
- * 서비스 단에서 막고 비활성화를 안내한다(deactivateCompanyVehicle, PATCH isActive:false).
+ * DELETE /api/admin/company-vehicles/[id] — 법인차량 삭제(소프트 삭제 — `deletedAt`을
+ * 채우고 행은 남긴다. `deleteCompanyVehicle` 주석 참고). 물리적으로 지우지 않으므로 운행
+ * 이력(CompanyVehicleTrip)이 있어도 그대로 삭제되고, 과거 기록은 운행 대장에 남는다 —
+ * 이력이 있으면 막고 비활성화만 안내하는 것은 `deactivateCompanyVehicle`(PATCH
+ * isActive:false, 목록에는 계속 남기고 싶을 때 쓰는 별도 API)이다.
  */
 export async function DELETE(request: NextRequest, context: RouteContext) {
   try {

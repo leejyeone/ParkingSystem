@@ -15,9 +15,11 @@ export const metadata: Metadata = { title: '반복 예약 수정' };
 type PageProps = { params: Promise<{ id: string }> };
 
 export default async function RecurringReservationEditPage({ params }: PageProps) {
-  await requireSystemAdminPage('/admin/recurring-reservations');
-
   const { id } = await params;
+  // 로그인 없이 수정 URL로 바로 들어온 경우, 로그인 후 목록이 아니라 이 수정 화면으로
+  // 돌아와야 한다.
+  await requireSystemAdminPage(`/admin/recurring-reservations/${id}/edit`);
+
   const scheduleId = parseNumericId(id, '반복 예약 일정 ID');
   const [{ schedule }, settings] = await Promise.all([
     getRecurringScheduleDetail(scheduleId),

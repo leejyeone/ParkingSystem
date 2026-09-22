@@ -33,7 +33,7 @@ export default async function AdminLoginPage({ searchParams }: PageProps) {
   }     
 
   return (
-    <main className="app-container max-w-md">
+    <main className="app-container max-w-xl">
       <div className="mb-6">
         <Link href={homeHref} className="text-brand-700 text-xs font-semibold">
           ← 메인 화면으로

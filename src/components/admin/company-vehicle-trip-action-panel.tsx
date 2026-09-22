@@ -50,16 +50,11 @@ export function CompanyVehicleTripActionPanel({ tripId, tripStatus }: Props) {
   const canCancel = tripStatus === 'APPROVED';
   const canMarkNoShow = tripStatus === 'APPROVED';
   const canConfirmReturn = tripStatus === 'PARKING';
-  const isTerminal = ['REJECTED', 'CANCELLED', 'EXITED', 'NO_SHOW'].includes(tripStatus);
 
   return (
     <div className="space-y-4">
       {message && (
         <Alert variant={message.variant === 'success' ? 'success' : 'error'}>{message.text}</Alert>
-      )}
-
-      {isTerminal && (
-        <Alert variant="info">종료된 운행 신청입니다. 더 이상 상태를 변경할 수 없습니다.</Alert>
       )}
 
       {canConfirmReturn && (

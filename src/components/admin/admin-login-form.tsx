@@ -41,6 +41,10 @@ export function AdminLoginForm({ redirectTo }: { redirectTo: string }) {
   return (
     <form onSubmit={handleSubmit} noValidate className="card">
       <div className="card-body space-y-5">
+        <Alert variant="info">
+          그룹웨어 이메일과 비밀번호를 입력하세요. <br/>초기 비밀번호는 Synopex123!@# 입니다. <br/>로그인 후 상단바의 본인 이름을 눌러 비밀번호를 변경해주세요.
+        </Alert>
+
         {errorMessage && (
           <Alert variant="error" title="로그인할 수 없습니다">
             {errorMessage}
@@ -55,7 +59,7 @@ export function AdminLoginForm({ redirectTo }: { redirectTo: string }) {
             className={inputClassName(Boolean(fieldErrors.email))}
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            autoComplete="email"
+            autoComplete="off"
             maxLength={255}
           />
         </FormField>

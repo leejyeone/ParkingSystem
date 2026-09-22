@@ -17,9 +17,11 @@ const STATUS_LABEL = { ACTIVE: '진행 중', CANCELLED: '취소됨' } as const;
 type PageProps = { params: Promise<{ id: string }> };
 
 export default async function RecurringReservationDetailPage({ params }: PageProps) {
-  await requireSystemAdminPage('/admin/recurring-reservations');
-
   const { id } = await params;
+  // 로그인 없이 상세 URL로 바로 들어온 경우, 로그인 후 목록이 아니라 이 상세 화면으로
+  // 돌아와야 한다.
+  await requireSystemAdminPage(`/admin/recurring-reservations/${id}`);
+
   const scheduleId = parseNumericId(id, '반복 예약 일정 ID');
   const [{ schedule, occurrences }, spaces] = await Promise.all([
     getRecurringScheduleDetail(scheduleId),
