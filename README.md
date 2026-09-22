@@ -181,8 +181,12 @@
   기간·요일·시간대로 미리 배정, 승인/알림 메일/입출차 자동 처리 여부를 시리즈마다 선택,
   개별 날짜 제외(연차 등), 요일·시간·기간 수정, 시리즈 삭제(소프트 삭제) (3-4, 4-5, 18절 참고)
 - **(시스템 관리자 전용)** 직원 계정 목록 조회, 카드 우상단 [직원 추가]로 개별 등록, 활성/비활성 전환
-- **(시스템 관리자 전용)** 이메일 발송 이력 조회 (실패 사유 포함) — 예약 목록과 동일한
-  접이식 검색 조건
+- 이메일 발송 이력 조회 (실패 사유 포함, 양쪽 권한 모두) — 예약 목록과 동일한 접이식 검색
+  조건, [사용자 관리] 하위 메뉴
+- **출입 기록** (양쪽 권한 모두) — 방문 차량 입출차 내역 / 법인차량 운행 내역을 각각 조회하고
+  엑셀로 내보낼 수 있다(사이드바 최상위 [출입 기록] 메뉴)
+- 상단바 **통합 검색** (양쪽 권한 모두) — 예약(방문·직원)과 법인차량 운행 신청을 한 번에
+  검색해 각각 상위 5건을 보여준다
 - **법인 공용 차량 관리** (양쪽 권한 모두) — 차량 자산 등록/수정/비활성화, 운행 신청 승인/반려/
   취소, 반납 확정(직원이 반납 처리한 뒤 차량 상태 확인), 운행일지 주행거리 사후 정정, 운행
   대장 조회 (차량 선택·주행거리 1차 입력·반납 처리는 신청 직원이 직접 한다)
@@ -278,6 +282,9 @@
 - 예약 목록·상세 조회, 승인/반려, 주차 위치 배정/변경, 입차/출차/미방문 처리
 - 주차 구역 / 주차면 관리
 - 관리자 알림 이메일 관리 (일반 예약 신규 신청/변경 알림 수신자)
+- 이메일 발송 이력 조회 (실패 사유 포함, [사용자 관리] 하위)
+- 출입 기록 조회 — 방문 차량 입출차 내역 / 법인차량 운행 내역 (엑셀 내보내기 포함, [출입 기록] 메뉴)
+- 상단바 통합 검색 (예약 + 법인차량 신청)
 - 시스템 운영시간·정책 설정 (입·출차 관리 사용 여부 포함)
 - 법인 공용 차량 자산 관리, 운행 신청 승인/반려/취소/반납 확정(입출차는 관리자가 관리하지 않음)
 - 개인정보 열람·상태 변경 이력은 감사 로그(DB)에 기록됨(화면 조회 기능 없음, 19절 참고)
@@ -285,7 +292,6 @@
 **시스템 관리자 전용** ("시스템 관리" 메뉴)
 
 - 반복 예약(정기 주차 배정) 등록·조회·수정·삭제 (4-5절 참고)
-- 이메일 발송 이력 조회
 - 직원 계정 목록 조회, 개별 추가([직원 추가] 버튼), 활성/비활성 전환, 그룹웨어 명부 동기화
 - 관리자 계정 생성(권한을 시스템 관리자/주차 관리자 중 선택, 기본값 주차 관리자)·수정·비활성화
 
@@ -598,6 +604,21 @@ PARKING   → EXITED
 4. 상태 이력 저장
 5. 신청자 및 관리자에게 `CANCELLED` 메일 발송
 
+### 같은 자리의 물리적 점유 충돌 방지
+
+예정 시간대가 겹치지 않아도(즉 위 "시간 중복 판정식"을 통과해도), **지금 이 순간 실제로
+그 주차면에 주차 중인(`PARKING`) 예약이 따로 있으면** 아래 세 조작을 막습니다. 예정
+시간만으로는 잡아낼 수 없는, 한 자리에 물리적으로 두 대가 동시에 있는 상황을 막기
+위해서입니다([`findSpaceInUseBy`](src/services/space-assignment-service.ts)).
+
+| 조작                        | 막히는 조건                                                   | 오류 코드            |
+| --------------------------- | -------------------------------------------------------------- | --------------------- |
+| 출차 기록 취소(출차 되돌리기) | 그 자리를 다른 예약이 이미 `PARKING` 상태로 쓰고 있음         | `SPACE_ALREADY_IN_USE` |
+| 입차 처리                   | 배정된 자리를 다른 예약이 이미 `PARKING` 상태로 쓰고 있음      | `SPACE_ALREADY_IN_USE` |
+| 주차 위치 변경(`PARKING` 상태인 예약을 다른 자리로 옮길 때) | 옮겨갈 자리를 다른 예약이 이미 `PARKING` 상태로 쓰고 있음 | `SPACE_ALREADY_IN_USE` |
+
+먼저 그 자리를 쓰고 있는 예약을 출차 처리하거나 다른 자리로 옮겨야 진행할 수 있습니다.
+
 ---
 
 ### 대시보드 주차면 상태
@@ -842,19 +863,23 @@ SynopexParking/
 │  │  │  ├─ settings/                             # 시스템 설정 (사이드바 하위 메뉴로 분리된 라우트)
 │  │  │  │  ├─ page.tsx                           #   주차장 정보
 │  │  │  │  └─ areas-spaces/page.tsx              #   구역·주차면
-│  │  │  ├─ users/                                # 사용자 관리 (공용 레이아웃 + 하위 메뉴)
+│  │  │  ├─ logs/                                 # 출입 기록 (사이드바 최상위 메뉴, 양쪽 권한 모두)
+│  │  │  │  ├─ visitors/page.tsx                  #   방문 차량 입출차 내역 (엑셀 내보내기)
+│  │  │  │  └─ company-vehicles/page.tsx          #   법인차량 운행 내역 (차량별 전환, 엑셀 내보내기)
+│  │  │  ├─ users/                                # 사용자 관리 (공용 레이아웃 + 하위 메뉴, 양쪽 권한 모두)
 │  │  │  │  ├─ layout.tsx                         #   가드 + 공용 헤더
-│  │  │  │  ├─ employees/page.tsx                 #   등록 직원 관리(계정 목록 · 활성/비활성 전환)
+│  │  │  │  ├─ employees/page.tsx                 #   등록 직원 관리(계정 목록 · 활성/비활성 전환, 시스템 관리자 전용)
 │  │  │  │  ├─ members/page.tsx                   #   방문객 회원 계정 관리
-│  │  │  │  ├─ admins/page.tsx                    #   관리자 계정 (사이드바에서는 "시스템 관리" 하위)
+│  │  │  │  ├─ admins/page.tsx                    #   관리자 계정 (시스템 관리자 전용, 사이드바에서는 "시스템 관리" 하위)
 │  │  │  │  └─ notifications/page.tsx             #   관리자 이메일
-│  │  │  └─ email-logs/page.tsx                   # 이메일 발송 이력 (사이드바에서는 "시스템 설정" 하위)
+│  │  │  └─ email-logs/page.tsx                   # 이메일 발송 이력 (양쪽 권한 모두, 사이드바에서는 "사용자 관리" 하위)
 │  │  └─ api/                                     # Route Handlers (공개/관리자/cron)
 │  ├─ components/
 │  │  └─ reservation/  user/  employee/  admin/  ui/  # 화면 컴포넌트
 │  │     # reservation/employee-search-select.tsx : 직원 이름/부서 검색 콤보박스
 │  │     #   (관리자 전용 — 반복 예약 등록 폼의 대상 직원 선택에만 쓰임)
 │  │     # admin/admin-shell.tsx : 관리자 사이드바 메뉴 정의 + 다크모드 토글 배치
+│  │     # admin/admin-global-search.tsx : 상단바 통합 검색(예약 + 법인차량 신청, 각 상위 5건)
 │  │     # admin/theme-toggle.tsx : 다크모드 on/off 상태(localStorage)·토글 버튼
 │  │     # admin/parking-space-picker.tsx : 주차 평면도에서 클릭으로 주차면을 고르는 선택 UI
 │  │     # admin/recurring-schedule-form.tsx, recurring-schedule-edit-form.tsx,
@@ -862,6 +887,8 @@ SynopexParking/
 │  │     # admin/company-vehicle-section.tsx, company-vehicle-settings-form.tsx,
 │  │     #   company-vehicle-trip-action-panel.tsx, company-vehicle-trip-detail-cards.tsx :
 │  │     #   법인차량 자산·운행 신청 관리 UI
+│  │     # admin/visitor-entry-log-preview-panel.tsx, company-vehicle-log-preview-panel.tsx,
+│  │     #   company-vehicle-log-switcher.tsx : 출입 기록(로그) 화면의 엑셀 미리보기·차량 전환 UI
 │  ├─ domain/                                     # 순수 비즈니스 규칙 (DB 비의존)
 │  │  ├─ reservation-rules.ts                     #   60분 규칙, 운영시간, 수정 가능 시간
 │  │  ├─ reservation-status.ts                    #   상태 전이 규칙
@@ -906,6 +933,7 @@ SynopexParking/
 │     ├─ uniportal-sync-service.ts                #   그룹웨어(유니포탈) 직원 명부 동기화
 │     ├─ exit-reminder-service.ts                 #   출차 알림 / 반복 예약 입출차 자동 처리
 │     ├─ entry-reminder-service.ts                #   입차 예정 알림(당사 담당자)
+│     ├─ log-query-service.ts                     #   이메일 발송 이력 조회(email-logs 화면·API 공용)
 │     └─ audit-service.ts  dashboard-service.ts  settings-service.ts …
 ├─ tests/
 │  ├─ unit/                                       # 단위 테스트 (DB 불필요)
@@ -1575,6 +1603,15 @@ Gmail 을 제거할 수 있다.
 > 운영 환경에서는 `SEED_ADMIN_PASSWORD` 환경변수로 강력한 임시 비밀번호를 지정하고,
 > 최초 로그인 직후 변경하는 절차를 권장합니다.
 
+> **로그인 화면 안내 문구.** 관리자 로그인 화면
+> ([`AdminLoginForm`](src/components/admin/admin-login-form.tsx)) 상단에는 "그룹웨어 이메일과
+> 비밀번호를 입력하세요. 초기 비밀번호는 `Synopex123!@#` 입니다."라는 안내가 표시됩니다. 이
+> 문구의 비밀번호 값은 **고정 문구일 뿐**이며, 실제 초기 비밀번호는 위 표의
+> `SEED_ADMIN_PASSWORD`(기본 `Admin!2345`) 또는 `import-operators.ts`로 계정을 만들 때 쓰는
+> `OPERATOR_IMPORT_DEFAULT_PASSWORD`(기본 `Operator!2345`)로 실제 발급값과 다를 수 있습니다.
+> 운영 환경을 구성할 때는 이 문구를 실제로 안내할 초기 비밀번호와 맞추거나, 계정을 발급할 때
+> 문구에 적힌 값을 그대로 초기 비밀번호로 지정하세요.
+
 ### 비밀번호 변경 절차
 
 1. <http://localhost:3000/admin/login> 에서 초기 계정으로 로그인
@@ -1656,6 +1693,7 @@ npm run test:coverage    # 커버리지 리포트 (coverage/index.html)
 | 19  | 주차면 버퍼 시간 겹침 판정 (경계값 포함) | `tests/unit/time-overlap.test.ts`       |
 | 20  | 법인차량 운행 신청 가능 시간대·1회 최대 사용 시간 검증 | `tests/unit/company-vehicle-rules.test.ts` |
 | 21  | 법인차량 신규 신청 최소 사전 신청 시간(60분) 검증 | `tests/unit/company-vehicle-rules.test.ts` |
+| 22  | Gmail 발송용 MIME 메시지 생성 (첨부 유무별 구조, base64 줄바꿈, base64url 인코딩) | `tests/unit/gmail-api-email-provider.test.ts` |
 
 ### 16-2. 통합 테스트 DB 구성
 
@@ -1705,6 +1743,7 @@ npm run test:integration
 | 20  | 법인차량 신청/승인/반려/취소/반납 처리/반납 확정 단계별 메일 발송(신청 직원·관리자 알림) 확인 |
 | 21  | 법인차량 차량 선택 그리드용 데이터(`getVehicleAvailabilityForDate`)·충돌 판정(`findConflictingVehicleIds`) 겹침/제외 판정 |
 | 22  | 법인차량 주행거리 신청 직원 본인 입력 — 운행 예정일 이전 차단, 본인 소유 검증          |
+| 23  | 반복 예약(정기 주차 배정) 시리즈 등록(기간 내 occurrence 일괄 생성) / 개별 날짜 제외 / 요일·시간·기간 수정 시 미래 occurrence 정리·재생성 / 삭제(소프트 삭제) 시 예정 방문 취소 |
 
 ### 16-3. E2E 테스트
 
@@ -1737,6 +1776,12 @@ npx playwright test --ui
   프로젝트에서 한도를 넘겨 실패하므로, `clientIpFor()`(`tests/e2e/fixtures.ts`)로 테스트마다
   고유한 사설 IP 를 부여합니다.
 
+테스트 파일은 `tests/e2e/`에 10개 있습니다: `reservation.spec.ts`, `member.spec.ts`,
+`employee.spec.ts`, `admin.spec.ts`(기본 예약/승인 흐름)와, 관리자 백오피스 화면별로 나눈
+`admin-recurring-reservations.spec.ts`, `admin-settings.spec.ts`, `admin-users.spec.ts`,
+`admin-logs.spec.ts`, `admin-parking-map.spec.ts`, `admin-company-vehicles.spec.ts`
+6개(`fixtures.ts`는 공용 픽스처).
+
 커버하는 흐름
 
 - 방문객 예약 신청 → 관리자 로그인 → 승인 및 주차면 배정 → 상세 확인
@@ -1744,6 +1789,11 @@ npx playwright test --ui
   → 승인 후에는 신청자 수정 버튼이 사라지고 **관리자가 상세 화면에서 수정**
 - 회원가입 → 신청 폼 자동완성 → 신청 → 마이페이지 내 예약 목록
 - 미인증 접근 차단(관리자/회원 각각의 로그인 페이지로 이동), 잘못된 토큰 차단
+- 반복 예약(정기 주차 배정) 등록/수정/개별 날짜 제외/삭제, 주차 관리자 권한으로는 접근 차단
+- 시스템 설정(정책 값 저장, 주차면 배정 On/Off) · 구역/주차면 등록·수정·소프트 삭제
+- 관리자/직원/회원 계정 관리(생성, 활성·비활성 전환, 비밀번호 재설정), 역할별 접근 차단
+- 이메일 발송 이력 필터·재발송, 방문 차량/법인차량 출입 기록 필터·엑셀 미리보기
+- 주차 평면도 층 전환, 예약·법인차량 배정 상태에 따른 주차면 표시·상세 이동
 
 ---
 
@@ -1954,6 +2004,7 @@ Authorization: Bearer <CRON_SECRET>
 | 메서드 | 경로                               | 설명                                                                                                |
 | ------ | ---------------------------------- | --------------------------------------------------------------------------------------------------- |
 | `GET`  | `/api/employee/enter?empId=사번&k=공유비밀값` | 사번으로 세션 즉시 발급 (그룹웨어 연동 계약). `?email=`로도 진입 가능(개발용 보조 경로, 4-2절 참고). `k`는 `EMPLOYEE_ENTRY_KEY`와 일치해야 함 |
+| `GET`  | `/api/employee/enter-admin`        | 로그인한 직원의 이메일이 관리자 계정과 일치하면 비밀번호 없이 관리자 세션을 발급하고 관리자 화면으로 이동(직원 홈의 "관리자 화면으로 이동" 버튼). 실패해도 사유를 구분하지 않고 조용히 직원 홈으로 되돌림 |
 | `POST` | `/api/employee/auth/logout`        | 로그아웃                                                                                            |
 | `GET`  | `/api/employee/profile`            | 내 정보 조회 (자동완성 원본)                                                                        |
 | `PUT`  | `/api/employee/profile`            | 내 정보 수정 (차량번호·소속 사업장명·전화번호 — 전화번호는 필수)                                    |
@@ -2012,8 +2063,11 @@ Authorization: Bearer <CRON_SECRET>
 | `PUT`    | `/api/admin/site-users/[id]`                     | 관리자        | 회원 계정 활성·비활성 전환                                                        |
 | `POST`   | `/api/admin/site-users/bulk-status`               | 관리자        | 선택한 회원 계정 일괄 활성화/비활성화                                             |
 | `POST`   | `/api/admin/site-users/[id]/reset-password`      | 관리자        | 회원 비밀번호 초기화                                                              |
-| `GET`    | `/api/admin/email-logs`                          | 시스템 관리자 | 이메일 발송 이력                                                                  |
-| `POST`   | `/api/admin/email-logs/[id]/resend`              | 시스템 관리자 | 발송 실패 건 원문 그대로 재발송                                                   |
+| `GET`    | `/api/admin/email-logs`                          | 관리자        | 이메일 발송 이력 (양쪽 권한 모두 접근 가능)                                       |
+| `POST`   | `/api/admin/email-logs/[id]/resend`              | 관리자        | 발송 실패 건 원문 그대로 재발송 (양쪽 권한 모두 접근 가능)                        |
+| `POST`   | `/api/admin/search`                              | 관리자        | 상단바 통합 검색 — 예약(방문·직원) + 법인차량 운행 신청 각 상위 5건               |
+| `GET`/`POST` | `/api/admin/reservations/entry-log-export`   | 관리자        | 방문 차량 입출차 내역 조회(미리보기) / 엑셀 내보내기 ([출입 기록] → [입출차 내역]) |
+| `GET`/`POST` | `/api/admin/company-vehicle-trips/log-export` | 관리자       | 법인차량 운행 내역 조회(미리보기) / 엑셀 내보내기 ([출입 기록] → [법인차량 운행 내역]) |
 
 > 관리자 권한은 시스템 관리자/주차 관리자 두 단계입니다. 반복 예약·이메일 이력·직원
 > 등록·관리자 계정 관리처럼 방문 신청/승인 절차를 우회할 수 있는 기능은 시스템
@@ -2057,10 +2111,12 @@ Authorization: Bearer <CRON_SECRET>
 | `POST`   | `/api/admin/company-vehicle-trips/[id]/approve`   | 관리자 | 승인 (차량은 신청 시점에 이미 선택됨)                        |
 | `POST`   | `/api/admin/company-vehicle-trips/[id]/reject`    | 관리자 | 반려                                                          |
 | `POST`   | `/api/admin/company-vehicle-trips/[id]/cancel`    | 관리자 | 승인 완료 신청 취소                                          |
+| `POST`   | `/api/admin/company-vehicle-trips/[id]/no-show`   | 관리자 | 미사용 처리 (`APPROVED→NO_SHOW`)                              |
 | `POST`   | `/api/admin/company-vehicle-trips/[id]/confirm-return` | 관리자 | 반납 확정 (직원 반납 처리 후 차량 상태 확인, `PARKING→EXITED`) |
 | `POST`   | `/api/admin/company-vehicle-trips/[id]/mileage`   | 관리자 | 운행일지 주행거리(계기판/수동 입력) 사후 정정                |
 | `POST`   | `/api/company-vehicle-trips`                      | 직원   | 법인차량 운행 신청 (차량 선택 포함, 전화번호 등록 필수)       |
 | `GET`    | `/api/company-vehicle-trips/vehicle-availability` | 직원   | 신청 화면 차량 선택 그리드용 — 날짜별 차량 예약 현황 조회     |
+| `PUT`    | `/api/company-vehicle-trips/[id]/edit`            | 직원   | 본인 신청 내용 수정 (승인 대기 상태에서만)                    |
 | `PUT`    | `/api/company-vehicle-trips/[id]/mileage`         | 직원   | 본인 신청의 주행거리(계기판) 입력 — 운행일 당일~반납 처리 전 |
 | `POST`   | `/api/company-vehicle-trips/[id]/return`          | 직원   | 본인 신청 "반납 처리" (승인 완료 상태에서만, `APPROVED→PARKING`) |
 | `POST`   | `/api/company-vehicle-trips/[id]/cancel`          | 직원   | 본인 신청 취소 (승인 대기 상태에서만)                          |
@@ -2362,7 +2418,6 @@ proxy_set_header X-Forwarded-For  $proxy_add_x_forwarded_for;
 | 높음     | 이메일 재발송 배치          | `email_send_logs`의 `FAILED` 건을 백오프 재시도                                               |
 | 높음     | 분산 레이트 리밋            | in-memory → Redis 등 공유 저장소                                                              |
 | 중간     | 관리자 대시보드 통계 확장   | 주간/월간 이용률, 부서별·사업장별 통계, NO_SHOW 비율                                          |
-| 중간     | 반복 예약 자동 테스트       | 통합/E2E 테스트가 아직 없음(수동 확인만 완료) — 등록/충돌 스킵/수정 재생성/삭제 시나리오 보강 |
 | 중간     | 카카오 알림톡 / SMS 연동    | 이메일 미확인 사용자를 위한 보조 채널 (`EmailProvider`와 동일한 어댑터 구조)                  |
 | 중간     | 개인정보 보관기간 자동 파기 | 방문 종료 + N개월 경과 예약의 개인정보 익명화 배치                                            |
 | 낮음     | 도면 기반 시각화            | 참고용 도면 위 주차면 상태 오버레이 (배정은 계속 코드 기반)                                   |

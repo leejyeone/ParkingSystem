@@ -394,6 +394,9 @@ export function CompanyVehicleSection({
                           placeholder="12가3456"
                           maxLength={20}
                         />
+                        {fieldErrors.vehicleNo && (
+                          <p className="field-error">{fieldErrors.vehicleNo[0]}</p>
+                        )}
                       </td>
                       <td>
                         <input
