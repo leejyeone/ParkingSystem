@@ -4,8 +4,9 @@ import type { AdminRole } from '@prisma/client';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
+import { AdminGlobalSearch } from '@/components/admin/admin-global-search';
 import { AdminPasswordPanel } from '@/components/admin/admin-password-panel';
 import { ThemeToggleButton, useDarkMode } from '@/components/admin/theme-toggle';
 import { apiRequest } from '@/lib/client/api-client';
@@ -129,6 +130,35 @@ export function AdminShell({ adminName, role, children }: Props) {
   const [loggingOut, setLoggingOut] = useState(false);
   const [showPasswordPanel, setShowPasswordPanel] = useState(false);
   const { isDark, toggle: toggleDark } = useDarkMode();
+
+  // 검색창은 상단바 정중앙에 고정하는데, 그 확장 폭(224px)이 우측 그룹("직원 홈" 버튼부터
+  // 시작)과 실제로 겹칠 만큼 화면이 좁아지는 순간부터는 검색창을 항상 아이콘만 보이게
+  // 접어 둔다(AdminGlobalSearch의 forceIcon). 검색창 슬롯은 항상 상단바 중앙에 고정된
+  // 폭이라, 그 중심에서 확장 폭의 절반만큼 오른쪽으로 간 지점이 우측 그룹의 왼쪽 끝을
+  // 넘어서는지로 판단한다.
+  const searchSlotRef = useRef<HTMLDivElement>(null);
+  const rightGroupRef = useRef<HTMLDivElement>(null);
+  const [searchForceIcon, setSearchForceIcon] = useState(false);
+
+  useEffect(() => {
+    const SEARCH_EXPANDED_WIDTH = 224; // AdminGlobalSearch 의 확장 폭(w-56)과 맞춘다.
+    const SAFETY_GAP = 8;
+
+    function measure() {
+      const slot = searchSlotRef.current;
+      const rightGroup = rightGroupRef.current;
+      if (!slot || !rightGroup) return;
+      const slotRect = slot.getBoundingClientRect();
+      const rightRect = rightGroup.getBoundingClientRect();
+      const slotCenter = slotRect.left + slotRect.width / 2;
+      const wouldReach = slotCenter + SEARCH_EXPANDED_WIDTH / 2 + SAFETY_GAP;
+      setSearchForceIcon(wouldReach > rightRect.left);
+    }
+
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
   // 하위 메뉴가 있는 항목("시스템 설정" / "사용자 관리" / "시스템 관리") 중
   // 지금 펼쳐진 것의 href. 처음 진입할 때는 지금 보고 있는 페이지가 속한 항목을 미리
   // 펼쳐 둔다.
@@ -288,7 +318,7 @@ export function AdminShell({ adminName, role, children }: Props) {
           화면 최상단 고정 바. 관리자 이름·역할과 로그아웃을 여기 한 곳에 모아 둔다
           (예전에는 사이드바 맨 아래에 있었다). 모바일에서는 왼쪽에 햄버거 버튼도 같이 둔다.
         */}
-        <div className="border-line bg-surface sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b px-4">
+        <div className="border-line bg-surface sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b px-4 relative">
           <div className="flex items-center gap-3 lg:hidden">
             <button
               type="button"
@@ -301,10 +331,33 @@ export function AdminShell({ adminName, role, children }: Props) {
             </button>
           </div>
 
-          {/* lg 이상에서는 왼쪽이 비므로, 오른쪽 그룹이 항상 오른쪽 끝에 붙도록 spacer 를 둔다. */}
+          {/*
+            lg 이상에서는 햄버거 버튼이 사라지므로, 이 빈 spacer 가 그 자리를 대신 채운다.
+            검색창(바로 아래)은 position:absolute 라 flex 흐름에서 완전히 빠지는데, 만약
+            햄버거도 숨겨진 상태에서 flex 자식이 오른쪽 그룹 하나만 남으면 justify-between 이
+            기준으로 삼을 짝이 없어져 오른쪽 그룹이 왼쪽으로 붙어버린다 — 이 spacer가 항상
+            그 짝 역할을 해서 오른쪽 그룹이 "상단바 우측 고정"을 유지하게 한다.
+          */}
           <div className="hidden lg:block" />
 
-          <div className="flex items-center gap-3">
+          {/*
+            검색창은 좌우 그룹 폭이 서로 달라 flex 로는 가운데 고정이 안 되므로, 상단바
+            전체를 기준으로 절대 위치로 가운데에 얹는다. 좌우 버튼들과 안 겹치도록
+            max-width 를 주고, 이 레이어 자체는 클릭을 통과시키다가(pointer-events-none)
+            실제 검색창 안에서만 다시 받는다(pointer-events-auto). z-index 를 올려 두는 이유는
+            아주 좁은 화면에서 우측 그룹과 자리가 겹칠 때도 검색 아이콘이 항상 눌리게 하기
+            위해서다.
+          */}
+          <div
+            ref={searchSlotRef}
+            className="pointer-events-none absolute inset-x-0 z-10 flex justify-center px-16 sm:px-24"
+          >
+            <div className="pointer-events-auto w-full max-w-xs">
+              <AdminGlobalSearch forceIcon={searchForceIcon} />
+            </div>
+          </div>
+
+          <div ref={rightGroupRef} className="flex items-center gap-3">
             <Link
               href="/employee"
               className="border-line text-ink-muted hover:bg-surface-hover rounded-full border px-3 py-1.5 text-xs font-bold whitespace-nowrap transition"

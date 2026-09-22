@@ -1940,4 +1940,46 @@ export async function getReservationForRequester(reservationId: number): Promise
   };
 }
 
+export type ReservationSearchResult = {
+  reservationId: number;
+  reservationNo: string;
+  requesterName: string;
+  vehicleNo: string;
+  requesterType: RequesterType;
+  reservationStatus: ReservationStatus;
+};
+
+/**
+ * 관리자 대시보드 상단바 통합 검색용 — 예약번호·예약자명·차량번호 부분일치 OR 검색.
+ * `listReservationsForAdmin`의 필터(AND 조합, 페이지네이션)와 달리 자동완성 드롭다운에
+ * 쓰는 가벼운 상위 N건 검색이다.
+ */
+export async function searchReservationsForAdmin(
+  query: string,
+  limit = 5,
+): Promise<ReservationSearchResult[]> {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+
+  return prisma.parkingReservation.findMany({
+    where: {
+      OR: [
+        { reservationNo: { contains: trimmed } },
+        { requesterName: { contains: trimmed } },
+        { vehicleNo: { contains: normalizeVehicleNo(trimmed) } },
+      ],
+    },
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+    select: {
+      reservationId: true,
+      reservationNo: true,
+      requesterName: true,
+      vehicleNo: true,
+      requesterType: true,
+      reservationStatus: true,
+    },
+  });
+}
+
 export type { ParkingReservation };

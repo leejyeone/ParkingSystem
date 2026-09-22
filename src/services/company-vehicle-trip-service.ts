@@ -21,6 +21,7 @@ import { ConflictError, NotFoundError, ValidationError } from '@/lib/errors';
 import { prisma } from '@/lib/prisma';
 import type { RequestContext } from '@/lib/request-context';
 import { generateReservationNo } from '@/lib/tokens';
+import { normalizeVehicleNo } from '@/lib/vehicle';
 import { AUDIT_ACTIONS, AUDIT_TARGETS, writeAuditLog } from '@/services/audit-service';
 import { getSystemSettings } from '@/services/settings-service';
 
@@ -1084,4 +1085,52 @@ export async function confirmCompanyVehicleReturn(
   dispatchQuietly(() => sendVehicleTripReturnConfirmedEmail(toVehicleTripForEmail(confirmed)));
 
   return confirmed;
+}
+
+export type CompanyVehicleTripSearchResult = {
+  tripId: number;
+  tripNo: string | null;
+  tripStatus: ReservationStatus;
+  employeeName: string;
+  vehicleNo: string | null;
+};
+
+/**
+ * 관리자 대시보드 상단바 통합 검색용 — 신청번호·신청 직원명·배정 차량번호 부분일치 OR 검색.
+ * `listCompanyVehicleTrips`의 필터(AND 조합)와 달리 자동완성 드롭다운에 쓰는 가벼운
+ * 상위 N건 검색이다.
+ */
+export async function searchCompanyVehicleTripsForAdmin(
+  query: string,
+  limit = 5,
+): Promise<CompanyVehicleTripSearchResult[]> {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+
+  const trips = await prisma.companyVehicleTrip.findMany({
+    where: {
+      OR: [
+        { tripNo: { contains: trimmed } },
+        { employee: { name: { contains: trimmed } } },
+        { assignedVehicle: { vehicleNo: { contains: normalizeVehicleNo(trimmed) } } },
+      ],
+    },
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+    select: {
+      tripId: true,
+      tripNo: true,
+      tripStatus: true,
+      employee: { select: { name: true } },
+      assignedVehicle: { select: { vehicleNo: true } },
+    },
+  });
+
+  return trips.map((trip) => ({
+    tripId: trip.tripId,
+    tripNo: trip.tripNo,
+    tripStatus: trip.tripStatus,
+    employeeName: trip.employee.name,
+    vehicleNo: trip.assignedVehicle?.vehicleNo ?? null,
+  }));
 }
