@@ -1,4 +1,4 @@
-import { Prisma, SpaceType } from '@prisma/client';
+import { Prisma, ReservationStatus, SpaceType } from '@prisma/client';
 
 import { SPACE_OCCUPYING_STATUSES } from '@/domain/reservation-status';
 import { buildOverlapWhere } from '@/domain/time-overlap';
@@ -127,6 +127,26 @@ export async function findConflictingReservation(
       ...(params.excludeReservationId
         ? { reservationId: { not: params.excludeReservationId } }
         : {}),
+    },
+    select: { reservationId: true, reservationNo: true },
+  });
+}
+
+/**
+ * 예정 시간과 무관하게, 지금 이 순간 실제로 그 주차면을 사용 중(PARKING)인 예약이
+ * 있는지 확인한다. 출차 취소, 입차 처리, 주차 위치 변경처럼 한 주차면에 두 예약이
+ * 동시에 PARKING 상태가 되는 것을 막아야 하는 지점에서 쓴다.
+ */
+export async function findSpaceInUseBy(
+  spaceId: number,
+  excludeReservationId?: number,
+  db: Db = prisma,
+): Promise<{ reservationId: number; reservationNo: string } | null> {
+  return db.parkingReservation.findFirst({
+    where: {
+      assignedSpaceId: spaceId,
+      reservationStatus: ReservationStatus.PARKING,
+      ...(excludeReservationId ? { reservationId: { not: excludeReservationId } } : {}),
     },
     select: { reservationId: true, reservationNo: true },
   });

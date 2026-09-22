@@ -150,7 +150,6 @@ export function ReservationActionPanel({
   const canEntry = entryExitManagementEnabled && reservationStatus === 'APPROVED';
   const canExit = entryExitManagementEnabled && reservationStatus === 'PARKING';
   const canNoShow = entryExitManagementEnabled && reservationStatus === 'APPROVED';
-  const isTerminal = ['REJECTED', 'CANCELLED', 'EXITED', 'NO_SHOW'].includes(reservationStatus);
 
   /*
    * 배정할 자리가 하나도 없으면 주차면 선택과 승인 버튼을 아예 감춘다.
@@ -163,10 +162,6 @@ export function ReservationActionPanel({
     <div className="space-y-4">
       {message && (
         <Alert variant={message.variant === 'success' ? 'success' : 'error'}>{message.text}</Alert>
-      )}
-
-      {isTerminal && (
-        <Alert variant="info">종료된 예약입니다. 더 이상 상태를 변경할 수 없습니다.</Alert>
       )}
 
       {(canEntry || canExit || canNoShow) && (

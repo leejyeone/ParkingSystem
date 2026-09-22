@@ -9,6 +9,7 @@ import {
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 import { getSystemSettings } from '@/services/settings-service';
+import { findSpaceInUseBy } from '@/services/space-assignment-service';
 
 /**
  * 출차 예정 알림 스케줄러 작업.
@@ -146,11 +147,18 @@ export async function runAutoEntryExitJob(
       actualEntryAt: null,
       visitStartAt: { lte: now },
     },
-    select: { reservationId: true, visitStartAt: true },
+    select: { reservationId: true, visitStartAt: true, assignedSpaceId: true },
   });
 
+  let skippedEntryCount = 0;
+
   for (const target of entryTargets) {
-    await prisma.$transaction(async (tx) => {
+    const entered = await prisma.$transaction(async (tx) => {
+      if (target.assignedSpaceId) {
+        const inUseBy = await findSpaceInUseBy(target.assignedSpaceId, target.reservationId, tx);
+        if (inUseBy) return false;
+      }
+
       await tx.parkingReservation.update({
         where: { reservationId: target.reservationId },
         data: { reservationStatus: ReservationStatus.PARKING, actualEntryAt: target.visitStartAt },
@@ -166,7 +174,10 @@ export async function runAutoEntryExitJob(
           changeReason: '실제 입차 처리',
         },
       });
+      return true;
     });
+
+    if (!entered) skippedEntryCount += 1;
   }
 
   const exitTargets = await prisma.parkingReservation.findMany({
@@ -197,12 +208,15 @@ export async function runAutoEntryExitJob(
     });
   }
 
+  const enteredCount = entryTargets.length - skippedEntryCount;
+
   if (entryTargets.length > 0 || exitTargets.length > 0) {
     logger.info('반복 예약 입출차 자동 처리 완료', {
-      enteredCount: entryTargets.length,
+      enteredCount,
+      skippedEntryCount,
       exitedCount: exitTargets.length,
     });
   }
 
-  return { enteredCount: entryTargets.length, exitedCount: exitTargets.length };
+  return { enteredCount, exitedCount: exitTargets.length };
 }

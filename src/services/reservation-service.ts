@@ -52,6 +52,7 @@ import { SETTING_KEYS } from '@/domain/system-settings';
 import { getSystemSettings } from '@/services/settings-service';
 import {
   findConflictingReservation,
+  findSpaceInUseBy,
   pickAvailableSpace,
 } from '@/services/space-assignment-service';
 
@@ -511,6 +512,17 @@ export async function updateReservationByRequester(
 
   const previousVisitStartAt = current.visitStartAt;
   const previousVisitEndAt = current.visitEndAt;
+  // 신청자가 폼을 열고 아무것도 안 바꾼 채 저장해도 이 함수는 호출된다 — 그럴 때까지
+  // "변경 알림" 메일을 보내면 안 되므로 실제로 하나라도 바뀐 게 있을 때만 보낸다
+  // (updateReservationByAdmin의 somethingChanged와 같은 원칙).
+  const somethingChanged =
+    previousVisitStartAt.getTime() !== input.visitStartAt.getTime() ||
+    previousVisitEndAt.getTime() !== input.visitEndAt.getTime() ||
+    current.vehicleNo !== vehicleNo ||
+    current.requesterName !== input.requesterName ||
+    current.companyOrBranchName !== input.companyOrBranchName ||
+    current.visitPurpose !== (input.visitPurpose ?? null) ||
+    current.requestMemo !== (input.requestMemo ?? null);
 
   const updated = await prisma.$transaction(async (tx) => {
     const result = await tx.parkingReservation.update({
@@ -532,8 +544,8 @@ export async function updateReservationByRequester(
     return result;
   });
 
-  const accessUrl = await issueAccessUrl(updated.reservationId, updated.visitEndAt);
-  if (!updated.recurringScheduleId) {
+  if (somethingChanged && !updated.recurringScheduleId) {
+    const accessUrl = await issueAccessUrl(updated.reservationId, updated.visitEndAt);
     dispatchQuietly(() =>
       sendUpdatedEmails(toReservationForEmail(updated), {
         accessUrl,
@@ -1165,8 +1177,9 @@ export async function changeAssignedSpace(
     );
   }
 
-  const { updated, previousSpaceCode } = await prisma.$transaction(async (tx) => {
+  const { updated, previousSpaceCode, spaceChanged } = await prisma.$transaction(async (tx) => {
     const current = await loadReservationOrThrow(params.reservationId, tx);
+    const spaceChanged = current.assignedSpaceId !== params.spaceId;
 
     if (
       current.reservationStatus !== ReservationStatus.APPROVED &&
@@ -1198,6 +1211,18 @@ export async function changeAssignedSpace(
       );
     }
 
+    // 지금 실제로 주차 중인 예약을 옮기는 경우, 옮겨갈 자리에 이미 다른 차가 실제로
+    // 주차 중이면 안 된다(예정 시간이 겹치지 않아도 물리적으로 자리가 비어 있지 않음).
+    if (current.reservationStatus === ReservationStatus.PARKING) {
+      const inUseBy = await findSpaceInUseBy(params.spaceId, current.reservationId, tx);
+      if (inUseBy) {
+        throw new ConflictError(
+          `선택하신 주차면은 현재 다른 예약(${inUseBy.reservationNo})이 사용 중입니다.`,
+          'SPACE_ALREADY_IN_USE',
+        );
+      }
+    }
+
     const result = await tx.parkingReservation.update({
       where: { reservationId: params.reservationId },
       data: { assignedSpaceId: params.spaceId },
@@ -1217,7 +1242,11 @@ export async function changeAssignedSpace(
       },
     });
 
-    return { updated: result, previousSpaceCode: current.assignedSpace?.spaceCode ?? null };
+    return {
+      updated: result,
+      previousSpaceCode: current.assignedSpace?.spaceCode ?? null,
+      spaceChanged,
+    };
   });
 
   await writeAuditLog({
@@ -1233,9 +1262,10 @@ export async function changeAssignedSpace(
     context: params.requestContext,
   });
 
-  const accessUrl = await issueAccessUrl(updated.reservationId, updated.visitEndAt);
-  const forEmail = toReservationForEmail(updated);
-  if (!updated.recurringScheduleId) {
+  // 같은 주차면을 다시 배정해도(실질적으로 안 바뀜) 승인 안내 메일을 다시 보내면 안 된다.
+  if (spaceChanged && !updated.recurringScheduleId) {
+    const accessUrl = await issueAccessUrl(updated.reservationId, updated.visitEndAt);
+    const forEmail = toReservationForEmail(updated);
     dispatchQuietly(async () => {
       await sendApprovedEmail(forEmail, { accessUrl });
     });
@@ -1267,6 +1297,17 @@ export async function markEntry(
     adminUserId: params.adminUserId,
     reason: '실제 입차 처리',
     extraData: { actualEntryAt: params.actualEntryAt },
+    // 같은 주차면에 이미 다른 예약이 실제로 주차 중이면 입차 처리할 수 없다.
+    validate: async (current, tx) => {
+      if (!current.assignedSpaceId) return;
+      const inUseBy = await findSpaceInUseBy(current.assignedSpaceId, current.reservationId, tx);
+      if (inUseBy) {
+        throw new ConflictError(
+          `배정된 주차면은 현재 다른 예약(${inUseBy.reservationNo})이 사용 중입니다. 먼저 출차 처리해 주세요.`,
+          'SPACE_ALREADY_IN_USE',
+        );
+      }
+    },
   });
 
   await writeAuditLog({
@@ -1351,6 +1392,19 @@ export async function updateEntryExitRecords(
       }
 
       if (params.actualExitAt === null) {
+        if (current.assignedSpaceId) {
+          const inUseBy = await findSpaceInUseBy(
+            current.assignedSpaceId,
+            current.reservationId,
+            tx,
+          );
+          if (inUseBy) {
+            throw new ConflictError(
+              `배정된 주차면은 현재 다른 예약(${inUseBy.reservationNo})이 사용 중이라 출차 취소할 수 없습니다. 먼저 그 예약을 출차 처리하거나 다른 자리로 옮겨 주세요.`,
+              'SPACE_ALREADY_IN_USE',
+            );
+          }
+        }
         current = await tx.parkingReservation.update({
           where: { reservationId: params.reservationId },
           data: { reservationStatus: ReservationStatus.PARKING, actualExitAt: null },
@@ -1492,12 +1546,15 @@ async function changeStatusByAdmin(params: {
   reason: string;
   extraData?: Prisma.ParkingReservationUncheckedUpdateInput;
   /** 상태 전이 자체는 허용되지만 값(예: 출차 시각)이 부적절한 경우를 막는다. */
-  validate?: (current: ReservationWithSpaces) => void;
+  validate?: (
+    current: ReservationWithSpaces,
+    tx: Prisma.TransactionClient,
+  ) => void | Promise<void>;
 }): Promise<ReservationWithSpaces> {
   return prisma.$transaction(async (tx) => {
     const current = await loadReservationOrThrow(params.reservationId, tx);
     assertTransition(current.reservationStatus, params.nextStatus);
-    params.validate?.(current);
+    await params.validate?.(current, tx);
 
     const result = await tx.parkingReservation.update({
       where: { reservationId: params.reservationId },
