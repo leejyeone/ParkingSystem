@@ -603,6 +603,8 @@ export type VehicleTripStatusEmailData = {
   requestEndAt: Date;
   rejectionReason?: string | null;
   cancelReason?: string | null;
+  vehicleNo?: string | null;
+  parkingSpaceCode?: string | null;
   employeeDetailUrl: string;
 };
 
@@ -644,7 +646,12 @@ export function renderCompanyVehicleTripStatusEmail(
       const params = {
         title: '법인차량 운행 신청이 승인되었습니다',
         lead: `${data.employeeName}님, 신청하신 법인차량 운행이 승인되었습니다.`,
-        rows: [...rows, { label: '신청 상태', value: '승인 완료' }],
+        rows: [
+          ...rows,
+          { label: '배정 차량', value: data.vehicleNo ?? '-' },
+          { label: '주차 위치', value: data.parkingSpaceCode ?? '-' },
+          { label: '신청 상태', value: '승인 완료' },
+        ],
         notices: [
           '배정 차량 키는 관리실에서 수령해 주세요.',
           '운행 시 배정된 차량과 운행 정보가 일치해야 합니다.',

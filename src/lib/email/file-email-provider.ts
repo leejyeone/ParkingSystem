@@ -4,6 +4,23 @@ import path from 'node:path';
 import type { EmailMessage, EmailProvider, EmailSendResult } from '@/lib/email/email-provider';
 
 /**
+ * 메일 HTML을 크로미움으로 렌더링해 PNG로 찍는다. `EMAIL_PROVIDER=file`(로컬 개발 기본값)에서
+ * 매 발송마다 자동으로 실행된다 — 실제 메일함이 없어도 눈으로 바로 확인할 수 있게 하기 위해서다.
+ * 렌더링이 실패해도(크로미움 미설치 등) 발송 자체는 막지 않는다.
+ */
+async function renderEmailScreenshot(html: string, pngPath: string): Promise<void> {
+  const { chromium } = await import('@playwright/test');
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 640, height: 800 } });
+    await page.setContent(html, { waitUntil: 'load' });
+    await page.screenshot({ path: pngPath, fullPage: true });
+  } finally {
+    await browser.close();
+  }
+}
+
+/**
  * 개발/E2E 전용 이메일 공급자.
  *
  * 실제로 발송하지 않고 메일 내용을 JSON 파일로 저장한다.
@@ -72,6 +89,14 @@ export class FileEmailProvider implements EmailProvider {
       ),
       'utf8',
     );
+
+    try {
+      await renderEmailScreenshot(message.html, path.join(directory, `${id}.png`));
+    } catch (error) {
+      // 스크린샷은 눈으로 확인하기 위한 부가 기능이라, 실패해도 메일 "발송"(파일 저장) 자체는
+      // 성공으로 취급한다.
+      console.warn('[FileEmailProvider] 메일 스크린샷 생성 실패:', error);
+    }
 
     return { providerMessageId: id };
   }

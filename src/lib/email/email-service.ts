@@ -520,6 +520,10 @@ export type CompanyVehicleTripForEmail = {
   requestEndAt: Date;
   rejectionReason?: string | null;
   cancelReason?: string | null;
+  /** 배정 차량 번호. 아직 배정 전(관리자 승인 대기 접수 메일 등)이면 null. */
+  vehicleNo?: string | null;
+  /** 배정 차량이 고정 주차된 위치(주차면 코드). 고정 배정이 없으면 null. */
+  parkingSpaceCode?: string | null;
 };
 
 /** 법인차량 신규 운행 신청 알림 (관리자). 방문 예약의 `receiveNewRequest` 플래그를 공유한다. */

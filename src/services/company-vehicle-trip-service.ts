@@ -87,6 +87,8 @@ function toVehicleTripForEmail(trip: CompanyVehicleTripDetail): CompanyVehicleTr
     requestEndAt: trip.requestEndAt,
     rejectionReason: trip.rejectionReason,
     cancelReason: trip.cancelReason,
+    vehicleNo: trip.assignedVehicle?.vehicleNo ?? null,
+    parkingSpaceCode: trip.assignedVehicle?.parkingSpace?.spaceCode ?? null,
   };
 }
 
