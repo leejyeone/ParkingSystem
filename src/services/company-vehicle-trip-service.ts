@@ -57,7 +57,9 @@ const VEHICLE_ASSIGNABLE_STATUSES: ReservationStatus[] = [
 
 const TRIP_DETAIL_INCLUDE = {
   employee: { select: { employeeUserId: true, name: true, email: true, departmentName: true } },
-  assignedVehicle: { select: { vehicleId: true, vehicleNo: true } },
+  assignedVehicle: {
+    select: { vehicleId: true, vehicleNo: true, parkingSpace: { select: { spaceCode: true } } },
+  },
   approvalAdmin: { select: { adminUserId: true, adminName: true } },
   statusLogs: {
     orderBy: { createdAt: 'asc' as const },
@@ -339,6 +341,8 @@ export type VehicleAvailability = {
   vehicleId: number;
   vehicleNo: string;
   vehicleModel: string | null;
+  /** 이 차량이 고정 주차된 위치(주차면 코드). 고정 배정이 없으면 null. */
+  parkingSpaceCode: string | null;
   busyRanges: { start: Date; end: Date }[];
 };
 
@@ -350,7 +354,12 @@ export async function getVehicleAvailabilityForDate(
     prisma.companyVehicle.findMany({
       where: { isActive: true, deletedAt: null },
       orderBy: { vehicleId: 'asc' },
-      select: { vehicleId: true, vehicleNo: true, vehicleModel: true },
+      select: {
+        vehicleId: true,
+        vehicleNo: true,
+        vehicleModel: true,
+        parkingSpace: { select: { spaceCode: true } },
+      },
     }),
     prisma.companyVehicleTrip.findMany({
       where: {
@@ -376,6 +385,7 @@ export async function getVehicleAvailabilityForDate(
     vehicleId: vehicle.vehicleId,
     vehicleNo: vehicle.vehicleNo,
     vehicleModel: vehicle.vehicleModel,
+    parkingSpaceCode: vehicle.parkingSpace?.spaceCode ?? null,
     busyRanges: byVehicle.get(vehicle.vehicleId) ?? [],
   }));
 }

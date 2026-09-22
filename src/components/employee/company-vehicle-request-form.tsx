@@ -47,6 +47,8 @@ type VehicleAvailability = {
   vehicleId: number;
   vehicleNo: string;
   vehicleModel: string | null;
+  /** 이 차량이 고정 주차된 위치(주차면 코드). 고정 배정이 없으면 null. */
+  parkingSpaceCode: string | null;
   /** 그 차량이 이미 다른 신청(승인 대기 포함)에 걸려 있는 시간대(분 단위, 그날 0시 기준). */
   busyMinuteRanges: { start: number; end: number }[];
 };
@@ -159,6 +161,7 @@ export function CompanyVehicleRequestForm({
           vehicleId: number;
           vehicleNo: string;
           vehicleModel: string | null;
+          parkingSpaceCode: string | null;
           busyRanges: { start: string; end: string }[];
         }[];
       }>(`/api/company-vehicle-trips/vehicle-availability?date=${date}${excludeQuery}`).then((response) => {
@@ -172,6 +175,7 @@ export function CompanyVehicleRequestForm({
             vehicleId: vehicle.vehicleId,
             vehicleNo: vehicle.vehicleNo,
             vehicleModel: vehicle.vehicleModel,
+            parkingSpaceCode: vehicle.parkingSpaceCode,
             busyMinuteRanges: vehicle.busyRanges
               .map((range) => {
                 const start = isoToMinutesOfDay(range.start, date);
@@ -363,6 +367,7 @@ export function CompanyVehicleRequestForm({
                     <option key={vehicle.vehicleId} value={vehicle.vehicleId}>
                       {vehicle.vehicleNo}
                       {vehicle.vehicleModel ? ` (${vehicle.vehicleModel})` : ''}
+                      {vehicle.parkingSpaceCode ? ` · ${vehicle.parkingSpaceCode}` : ''}
                     </option>
                   ))}
                 </select>

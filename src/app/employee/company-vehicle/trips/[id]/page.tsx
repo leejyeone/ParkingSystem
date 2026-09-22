@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { CompanyVehicleTripActionsPanel } from '@/components/employee/company-vehicle-trip-actions-panel';
 import { CompanyVehicleTripMileagePanel } from '@/components/employee/company-vehicle-trip-mileage-panel';
 import { CompanyVehicleTripReturnPanel } from '@/components/employee/company-vehicle-trip-return-panel';
+import { Alert } from '@/components/ui/alert';
 import { StatusBadge } from '@/components/ui/status-badge';
 import {
   COMPANY_VEHICLE_STATUS_LABEL,
@@ -124,6 +125,13 @@ export default async function EmployeeCompanyVehicleTripDetailPage({ params }: P
             <dt className="definition-term">사용 차량</dt>
             <dd className="definition-desc">{trip.assignedVehicle?.vehicleNo ?? '-'}</dd>
           </div>
+          <div className="definition-row">
+            <dt className="definition-term">주차 위치</dt>
+            <dd className="definition-desc">{trip.assignedVehicle?.parkingSpace?.spaceCode ?? '-'}</dd>
+          </div>
+          {trip.tripStatus === 'APPROVED' && (
+            <Alert variant="info">배정 차량 키는 관리실에서 수령해 주세요.</Alert>
+          )}
           {/* 반납 처리/확정, 주행거리는 승인 전에는 의미가 없으므로 승인 완료 후에만 보여준다. */}
           {trip.approvedAt && (
             <>

@@ -646,6 +646,7 @@ export function renderCompanyVehicleTripStatusEmail(
         lead: `${data.employeeName}님, 신청하신 법인차량 운행이 승인되었습니다.`,
         rows: [...rows, { label: '신청 상태', value: '승인 완료' }],
         notices: [
+          '배정 차량 키는 관리실에서 수령해 주세요.',
           '운행 시 배정된 차량과 운행 정보가 일치해야 합니다.',
           '승인 완료된 신청은 직접 수정·취소할 수 없습니다. 변경이 필요하면 차량 관리 담당자에게 문의해 주세요.',
         ],

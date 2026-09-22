@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
         vehicleId: vehicle.vehicleId,
         vehicleNo: vehicle.vehicleNo,
         vehicleModel: vehicle.vehicleModel,
+        parkingSpaceCode: vehicle.parkingSpaceCode,
         busyRanges: vehicle.busyRanges.map((rangeItem) => ({
           start: rangeItem.start.toISOString(),
           end: rangeItem.end.toISOString(),
