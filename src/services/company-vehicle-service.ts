@@ -203,10 +203,12 @@ export async function deactivateCompanyVehicle(
 /**
  * 법인차량 삭제(소프트 삭제 — `deletedAt`을 채우고 행은 남긴다).
  *
- * `isActive`(운영 중 여부 토글)와는 별개 개념이다(AdminNotificationEmail과 같은 컨벤션).
- * 물리적으로 지우지 않으므로 운행 이력(CompanyVehicleTrip)이 있어도 안전하게 삭제할 수
- * 있다 — 삭제된 차량은 `listCompanyVehicles` 등 모든 조회에서 `deletedAt: null` 조건에
- * 걸러져 화면에서는 사라지지만, 과거 운행 기록은 그대로 남는다.
+ * 삭제되면 `isActive`도 항상 같이 꺼진다 — 삭제인데 활성 상태로 남으면, `deletedAt`을
+ * 안 보고 `isActive`만 확인하는 조회(예: 운행 신청 시 차량 검증)에서 삭제된 차량이 계속
+ * 배정 가능한 것처럼 새어 나간다. 물리적으로 지우지 않으므로 운행 이력
+ * (CompanyVehicleTrip)이 있어도 안전하게 삭제할 수 있다 — 삭제된 차량은
+ * `listCompanyVehicles` 등 모든 조회에서 `deletedAt: null` 조건에 걸러져 화면에서는
+ * 사라지지만, 과거 운행 기록은 그대로 남는다.
  */
 export async function deleteCompanyVehicle(
   vehicleId: number,
@@ -220,10 +222,11 @@ export async function deleteCompanyVehicle(
 
   // parkingSpaceId 도 같이 비워야 한다 — 안 비우면 소프트 삭제된 차량이어도 주차면 쪽
   // 조회(대시보드·평면도·예약 배정 후보 등)에서 여전히 "이 차량이 배정된 자리"로 잡혀
-  // 그 자리가 계속 법인차량 전용/비활성 취급된다(관계 자체가 안 끊기기 때문).
+  // 그 자리가 계속 법인차량 전용/비활성 취급된다(관계 자체가 안 끊기기 때문). isActive도
+  // 같이 꺼서 "삭제 = 항상 비활성" 원칙을 지킨다(위 함수 주석 참고).
   await prisma.companyVehicle.update({
     where: { vehicleId },
-    data: { deletedAt: new Date(), parkingSpaceId: null },
+    data: { deletedAt: new Date(), parkingSpaceId: null, isActive: false },
   });
 
   await writeAuditLog({

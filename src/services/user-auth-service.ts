@@ -47,6 +47,23 @@ export type UserProfile = {
   hostEmployeeDepartmentName: string | null;
 };
 
+/**
+ * 담당자(EmployeeUser)가 소프트 삭제됐으면 이름·부서를 보여주지 않는다 — 삭제된 담당자가
+ * 회원 프로필 자동완성에 계속 남아있게 두면 안 된다("삭제됐으면 안 쓰인다"는 원칙을
+ * 담당자 표시 조회에도 그대로 적용).
+ */
+function hostEmployeeDisplayFields(
+  hostEmployeeUser: { name: string; departmentName: string; deletedAt: Date | null } | null,
+): { hostEmployeeName: string | null; hostEmployeeDepartmentName: string | null } {
+  if (!hostEmployeeUser || hostEmployeeUser.deletedAt) {
+    return { hostEmployeeName: null, hostEmployeeDepartmentName: null };
+  }
+  return {
+    hostEmployeeName: hostEmployeeUser.name,
+    hostEmployeeDepartmentName: hostEmployeeUser.departmentName,
+  };
+}
+
 export type SignUpUserInput = {
   email: string;
   password: string;
@@ -256,7 +273,7 @@ export async function getUserProfile(userId: number): Promise<UserProfile | null
       companyOrBranchName: true,
       vehicleNo: true,
       hostEmployeeUserId: true,
-      hostEmployeeUser: { select: { name: true, departmentName: true } },
+      hostEmployeeUser: { select: { name: true, departmentName: true, deletedAt: true } },
     },
   });
   if (!user) return null;
@@ -264,8 +281,7 @@ export async function getUserProfile(userId: number): Promise<UserProfile | null
   const { hostEmployeeUser, ...rest } = user;
   return {
     ...rest,
-    hostEmployeeName: hostEmployeeUser?.name ?? null,
-    hostEmployeeDepartmentName: hostEmployeeUser?.departmentName ?? null,
+    ...hostEmployeeDisplayFields(hostEmployeeUser),
   };
 }
 
@@ -322,15 +338,14 @@ export async function updateUserProfile(
       companyOrBranchName: true,
       vehicleNo: true,
       hostEmployeeUserId: true,
-      hostEmployeeUser: { select: { name: true, departmentName: true } },
+      hostEmployeeUser: { select: { name: true, departmentName: true, deletedAt: true } },
     },
   });
 
   const { hostEmployeeUser, ...rest } = updated;
   return {
     ...rest,
-    hostEmployeeName: hostEmployeeUser?.name ?? null,
-    hostEmployeeDepartmentName: hostEmployeeUser?.departmentName ?? null,
+    ...hostEmployeeDisplayFields(hostEmployeeUser),
   };
 }
 

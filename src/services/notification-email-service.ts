@@ -76,8 +76,9 @@ export async function upsertNotificationEmail(
 /**
  * 수신자를 목록에서 지운다. (소프트 삭제 — deletedAt 만 채우고 행은 남긴다)
  *
- * DB 는 실제로 지우지 않는다. `isActive` 는 "알림 수신 여부" 토글이라 삭제 표시로
- * 재활용하면 일부러 꺼둔 수신자와 구분이 안 되므로 별도 필드를 쓴다.
+ * DB 는 실제로 지우지 않는다. 삭제되면 `isActive`("알림 수신 여부" 토글)도 항상 같이
+ * 꺼진다 — 삭제인데 `isActive`가 켜진 채로 남으면, `deletedAt`을 안 보고 `isActive`만
+ * 확인하는 조회가 생길 때마다 삭제된 수신자가 계속 알림을 받는 것처럼 새어 나갈 수 있다.
  */
 export async function deleteNotificationEmail(
   notificationEmailId: number,
@@ -90,7 +91,7 @@ export async function deleteNotificationEmail(
 
   await prisma.adminNotificationEmail.update({
     where: { notificationEmailId },
-    data: { deletedAt: new Date() },
+    data: { deletedAt: new Date(), isActive: false },
   });
 
   await writeAuditLog({
