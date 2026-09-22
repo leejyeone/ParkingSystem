@@ -1046,6 +1046,8 @@ export async function updateCompanyVehicleTripMileageByEmployee(params: {
 export async function requestCompanyVehicleReturn(params: {
   tripId: number;
   employeeUserId: number;
+  /** 실제 반납한 시각. 안 주면 지금 시각으로 처리한다(버튼을 누른 시각). */
+  actualEntryAt?: Date;
 }): Promise<CompanyVehicleTripDetail> {
   const returned = await prisma.$transaction(async (tx) => {
     const current = await loadTripOrThrow(params.tripId, tx);
@@ -1056,7 +1058,10 @@ export async function requestCompanyVehicleReturn(params: {
 
     const result = await tx.companyVehicleTrip.update({
       where: { tripId: params.tripId },
-      data: { tripStatus: ReservationStatus.PARKING, actualEntryAt: new Date() },
+      data: {
+        tripStatus: ReservationStatus.PARKING,
+        actualEntryAt: params.actualEntryAt ?? new Date(),
+      },
       include: TRIP_DETAIL_INCLUDE,
     });
 

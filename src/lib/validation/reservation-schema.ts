@@ -84,3 +84,10 @@ export const updateReservationSchema = z.object({
 export const cancelReservationSchema = z.object({
   cancelReason: requiredText(500, '취소 사유'),
 });
+
+/**
+ * 관리자 수정 — `updateReservationSchema`와 달리 모든 필드가 선택이다. 관리자 화면이
+ * "신청 정보"/"방문 일정" 두 카드로 나뉘어 있어, 카드마다 자기 영역의 필드만 보낸다
+ * (안 보낸 필드는 서비스 계층이 지금 DB 값으로 채운다 — `updateReservationByAdmin` 참고).
+ */
+export const adminUpdateReservationSchema = updateReservationSchema.partial();

@@ -1,7 +1,8 @@
 import type { NextRequest } from 'next/server';
 
-import { parseNumericId } from '@/lib/api-helpers';
+import { parseNumericId, readJsonBody } from '@/lib/api-helpers';
 import { apiSuccess, handleApiError } from '@/lib/api-response';
+import { requestCompanyVehicleReturnSchema } from '@/lib/validation/company-vehicle-schema';
 import { requireActiveEmployee } from '@/services/employee-auth-service';
 import { requestCompanyVehicleReturn } from '@/services/company-vehicle-trip-service';
 
@@ -12,17 +13,20 @@ type RouteContext = { params: Promise<{ id: string }> };
 
 /**
  * POST /api/company-vehicle-trips/[id]/return — 신청 직원 본인의 "반납 처리"
- * (APPROVED → PARKING). 관리자에게 알림이 가고, 관리자가 확인 후 반납을 확정해야
- * 완전히 종료된다.
+ * (APPROVED → PARKING). 본문에 `actualEntryAt`(실제 반납 시각, 'yyyy-MM-dd HH:mm')을
+ * 선택적으로 받는다 — 없으면 지금 시각으로 처리한다. 관리자에게 알림이 가고, 관리자가
+ * 확인 후 반납을 확정해야 완전히 종료된다.
  */
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const session = await requireActiveEmployee();
     const { id } = await context.params;
+    const payload = requestCompanyVehicleReturnSchema.parse(await readJsonBody(request));
 
     const trip = await requestCompanyVehicleReturn({
       tripId: parseNumericId(id, '신청 ID'),
       employeeUserId: session.employeeUserId,
+      actualEntryAt: payload.actualEntryAt,
     });
 
     return apiSuccess({ tripId: trip.tripId, tripStatus: trip.tripStatus });

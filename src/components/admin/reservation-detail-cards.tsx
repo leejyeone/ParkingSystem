@@ -13,8 +13,11 @@ import { apiRequest } from '@/lib/client/api-client';
  * 신청자는 승인 대기 + 마감 시각 이전에만 스스로 수정할 수 있어, 그 외의 변경 요청은
  * 담당자 문의로 안내된다. 두 카드의 [수정하기] 버튼이 그 문의를 처리하는 창구다.
  *
- * PUT /api/admin/reservations/[id] 는 예약 내용 전체를 받으므로,
- * 어느 카드에서 저장하든 현재 값 전체(EditableFields)를 함께 보낸다.
+ * PUT /api/admin/reservations/[id] 는 부분 수정을 받는다 — 각 카드는 자기 영역의
+ * 필드만 보내고, 안 보낸 필드는 서버가 지금 DB 값을 그대로 유지한다
+ * (updateReservationByAdmin 참고). 예전에는 항상 EditableFields 전체를 같이 보내야
+ * 해서, 한 카드가 저장한 값을 다른 카드가 모른 채 자기가 처음 열렸을 때의 옛 값으로
+ * 덮어써 버리는 문제가 있었다 — 카드마다 자기 필드만 보내면 그 문제 자체가 생기지 않는다.
  */
 
 export type EditableFields = {
@@ -62,10 +65,13 @@ function useReservationEdit(reservationId: number, initial: EditableFields) {
   async function save() {
     setState({ pending: true, fieldErrors: {}, error: null });
 
+    // 이 카드가 보여주고 고치는 필드만 보낸다(방문 일정은 다른 카드 소관이라 안 보낸다).
     const response = await apiRequest(`/api/admin/reservations/${reservationId}`, {
       method: 'PUT',
       body: JSON.stringify({
-        ...form,
+        companyOrBranchName: form.companyOrBranchName,
+        requesterName: form.requesterName,
+        vehicleNo: form.vehicleNo,
         visitPurpose: form.visitPurpose || null,
         requestMemo: form.requestMemo || null,
       }),
@@ -386,12 +392,13 @@ export function ScheduleCard({
     setState({ pending: true, fieldErrors: {}, error: null });
 
     if (editable) {
+      // 이 카드가 보여주고 고치는 필드(방문 일정)만 보낸다 — 차량번호 등 "신청 정보"
+      // 카드 소관인 필드는 안 보낸다.
       const response = await apiRequest(`/api/admin/reservations/${reservationId}`, {
         method: 'PUT',
         body: JSON.stringify({
-          ...form,
-          visitPurpose: form.visitPurpose,
-          requestMemo: form.requestMemo || null,
+          visitStartAt: form.visitStartAt,
+          visitEndAt: form.visitEndAt,
         }),
       });
 

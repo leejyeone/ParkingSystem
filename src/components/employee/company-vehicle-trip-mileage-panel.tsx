@@ -59,7 +59,12 @@ export function CompanyVehicleTripMileagePanel({ tripId, initial }: Props) {
   return (
     <form onSubmit={handleSubmit} noValidate className="card">
       <div className="card-body space-y-3">
-        <h2 className="card-title">주행 기록</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="card-title">주행 기록</h2>
+          <button type="submit" className="btn btn-primary btn-sm" disabled={submitting}>
+            {submitting ? '저장 중…' : '저장'}
+          </button>
+        </div>
         <p className="field-hint">
           반납 처리 전까지 계기판 값을 입력·수정할 수 있습니다.
         </p>
@@ -115,10 +120,6 @@ export function CompanyVehicleTripMileagePanel({ tripId, initial }: Props) {
             onChange={(event) => update('manualDistanceKm', event.target.value)}
           />
         </FormField>
-
-        <button type="submit" className="btn btn-primary" disabled={submitting}>
-          {submitting ? '저장 중…' : '저장'}
-        </button>
       </div>
     </form>
   );

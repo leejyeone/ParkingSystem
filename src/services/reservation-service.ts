@@ -558,9 +558,18 @@ export async function updateReservationByRequester(
  *  - 상태를 승인 대기로 되돌리지 않는다. 관리자가 곧 승인 주체이므로 재승인이 불필요하다.
  *  - 이미 배정된 주차면은 유지하되, 바뀐 시간대에 충돌이 없는지 다시 검증한다.
  */
+/**
+ * 관리자 화면은 "신청 정보"/"방문 일정" 두 카드로 나뉘어 있고, 카드마다 자기 영역의
+ * 필드만 고칠 수 있다 — 그래서 관리자 수정은 `UpdateReservationInput` 전체가 아니라
+ * 그 부분집합만 받는다. 안 보낸 필드는 지금 DB 값을 그대로 쓴다(아래 `merged`).
+ * 예전에는 두 카드 다 항상 전체 필드를 같이 보내야 해서, 한 카드에서 저장한 값을 다른
+ * 카드가 모른 채 자기가 처음 열렸을 때의 옛 값으로 덮어써 버리는 문제가 있었다.
+ */
+export type AdminUpdateReservationInput = Partial<UpdateReservationInput>;
+
 export async function updateReservationByAdmin(
   reservationId: number,
-  input: UpdateReservationInput,
+  input: AdminUpdateReservationInput,
   actor: AdminActionContext,
 ): Promise<ReservationWithSpaces> {
   const settings = await getSystemSettings();
@@ -569,19 +578,28 @@ export async function updateReservationByAdmin(
   // 종료된 예약(반려/취소/출차/미방문)도 관리자가 내용을 정정할 수 있다 — 상태 전이가
   // 아니라 사후 기록 정정이므로 여기서 막지 않는다. 다만 이미 끝난 건이라 신청자에게
   // 다시 안내 메일을 보낼 이유는 없으므로, 아래 이메일 발송은 종료 상태면 건너뛴다.
+  const merged = {
+    companyOrBranchName: input.companyOrBranchName ?? current.companyOrBranchName,
+    requesterName: input.requesterName ?? current.requesterName,
+    vehicleNo: input.vehicleNo ?? current.vehicleNo,
+    visitPurpose: input.visitPurpose !== undefined ? input.visitPurpose : current.visitPurpose,
+    requestMemo: input.requestMemo !== undefined ? input.requestMemo : current.requestMemo,
+    visitStartAt: input.visitStartAt ?? current.visitStartAt,
+    visitEndAt: input.visitEndAt ?? current.visitEndAt,
+  };
 
   // 운영시간·최대 이용시간·시작<종료 는 그대로 적용하고, 최소 사전 신청 시간만 면제한다.
   const fieldErrors: FieldErrors = {};
   const rangeError = checkVisitRange(
-    input.visitStartAt,
-    input.visitEndAt,
+    merged.visitStartAt,
+    merged.visitEndAt,
     settings.maxReservationHours,
   );
   if (rangeError) (fieldErrors.visitEndAt ??= []).push(rangeError);
   if (!rangeError) {
     const hoursError = checkOperatingHours(
-      input.visitStartAt,
-      input.visitEndAt,
+      merged.visitStartAt,
+      merged.visitEndAt,
       settings.parkingOpenTime,
       settings.parkingCloseTime,
       settings.appTimeZone,
@@ -592,19 +610,19 @@ export async function updateReservationByAdmin(
     throw new ValidationError('예약 시간을 다시 확인해 주세요.', fieldErrors);
   }
 
-  const vehicleNo = normalizeVehicleNo(input.vehicleNo);
+  const vehicleNo = normalizeVehicleNo(merged.vehicleNo);
   await assertNoVehicleOverlap({
     vehicleNo,
-    visitStartAt: input.visitStartAt,
-    visitEndAt: input.visitEndAt,
+    visitStartAt: merged.visitStartAt,
+    visitEndAt: merged.visitEndAt,
     excludeReservationId: reservationId,
   });
 
   const previousVisitStartAt = current.visitStartAt;
   const previousVisitEndAt = current.visitEndAt;
   const timeChanged =
-    previousVisitStartAt.getTime() !== input.visitStartAt.getTime() ||
-    previousVisitEndAt.getTime() !== input.visitEndAt.getTime();
+    previousVisitStartAt.getTime() !== merged.visitStartAt.getTime() ||
+    previousVisitEndAt.getTime() !== merged.visitEndAt.getTime();
   const occupiesSpace = SPACE_OCCUPYING_STATUSES.includes(current.reservationStatus);
 
   const updated = await prisma.$transaction(async (tx) => {
@@ -615,8 +633,8 @@ export async function updateReservationByAdmin(
         const conflict = await findConflictingReservation(
           {
             spaceId: current.assignedSpaceId,
-            visitStartAt: input.visitStartAt,
-            visitEndAt: input.visitEndAt,
+            visitStartAt: merged.visitStartAt,
+            visitEndAt: merged.visitEndAt,
             excludeReservationId: reservationId,
             bufferMinutes: settings.spaceBufferMinutes,
           },
@@ -633,8 +651,8 @@ export async function updateReservationByAdmin(
         await lockCapacitySetting(tx);
         const used = await countOverlappingReservations(
           {
-            visitStartAt: input.visitStartAt,
-            visitEndAt: input.visitEndAt,
+            visitStartAt: merged.visitStartAt,
+            visitEndAt: merged.visitEndAt,
             excludeReservationId: reservationId,
           },
           tx,
@@ -651,13 +669,13 @@ export async function updateReservationByAdmin(
     const result = await tx.parkingReservation.update({
       where: { reservationId },
       data: {
-        companyOrBranchName: input.companyOrBranchName,
-        requesterName: input.requesterName,
+        companyOrBranchName: merged.companyOrBranchName,
+        requesterName: merged.requesterName,
         vehicleNo,
-        visitPurpose: input.visitPurpose ?? null,
-        requestMemo: input.requestMemo ?? null,
-        visitStartAt: input.visitStartAt,
-        visitEndAt: input.visitEndAt,
+        visitPurpose: merged.visitPurpose ?? null,
+        requestMemo: merged.requestMemo ?? null,
+        visitStartAt: merged.visitStartAt,
+        visitEndAt: merged.visitEndAt,
       },
       include: RESERVATION_WITH_SPACES,
     });
@@ -671,15 +689,30 @@ export async function updateReservationByAdmin(
         changedByType: ChangedByType.ADMIN,
         changedByAdminId: actor.adminUserId,
         changeReason: timeChanged
-          ? `관리자 예약 수정 (방문 시간 ${formatKstRange(previousVisitStartAt, previousVisitEndAt)} → ${formatKstRange(input.visitStartAt, input.visitEndAt)})`
+          ? `관리자 예약 수정 (방문 시간 ${formatKstRange(previousVisitStartAt, previousVisitEndAt)} → ${formatKstRange(merged.visitStartAt, merged.visitEndAt)})`
           : '관리자 예약 수정',
       },
     });
 
-    await extendTokenExpiry({ reservationId, visitEndAt: input.visitEndAt }, tx);
+    await extendTokenExpiry({ reservationId, visitEndAt: merged.visitEndAt }, tx);
 
     return result;
   });
+
+  const vehicleNoChanged = current.vehicleNo !== vehicleNo;
+  const requesterNameChanged = current.requesterName !== merged.requesterName;
+  const companyChanged = current.companyOrBranchName !== merged.companyOrBranchName;
+  const purposeChanged = current.visitPurpose !== (merged.visitPurpose ?? null);
+  const memoChanged = current.requestMemo !== (merged.requestMemo ?? null);
+  // 신청자/관리자가 아무것도 안 바꾸고 그냥 저장을 눌러도 이 함수는 호출된다 —
+  // 그럴 때까지 "변경 알림" 메일을 보내면 안 되므로 실제로 하나라도 바뀐 게 있을 때만 보낸다.
+  const somethingChanged =
+    timeChanged ||
+    vehicleNoChanged ||
+    requesterNameChanged ||
+    companyChanged ||
+    purposeChanged ||
+    memoChanged;
 
   await writeAuditLog({
     actorAdminId: actor.adminUserId,
@@ -690,14 +723,14 @@ export async function updateReservationByAdmin(
     detail: {
       reservationNo: updated.reservationNo,
       timeChanged,
-      vehicleNoChanged: current.vehicleNo !== vehicleNo,
-      requesterNameChanged: current.requesterName !== input.requesterName,
-      companyChanged: current.companyOrBranchName !== input.companyOrBranchName,
+      vehicleNoChanged,
+      requesterNameChanged,
+      companyChanged,
     },
     context: actor.requestContext,
   });
 
-  if (!isTerminalStatus(current.reservationStatus) && !updated.recurringScheduleId) {
+  if (somethingChanged && !isTerminalStatus(current.reservationStatus) && !updated.recurringScheduleId) {
     const accessUrl = await issueAccessUrl(updated.reservationId, updated.visitEndAt);
     dispatchQuietly(() =>
       sendUpdatedEmails(toReservationForEmail(updated), {

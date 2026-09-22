@@ -30,13 +30,13 @@ export default async function AdminLoginPage({ searchParams }: PageProps) {
 
   if (session) {
     redirect(redirectTo);
-  }
+  }     
 
   return (
     <main className="app-container max-w-md">
       <div className="mb-6">
         <Link href={homeHref} className="text-brand-700 text-xs font-semibold">
-          ← 예약 화면으로
+          ← 메인 화면으로
         </Link>
         <h1 className="text-ink mt-2 text-2xl font-black">관리자 로그인</h1>
         <p className="text-ink-muted mt-1 text-sm">방문 관리 담당자 전용 화면입니다.</p>

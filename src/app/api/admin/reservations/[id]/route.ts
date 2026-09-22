@@ -4,7 +4,7 @@ import { parseNumericId, readJsonBody } from '@/lib/api-helpers';
 import { apiSuccess, handleApiError } from '@/lib/api-response';
 import { getRequestContext } from '@/lib/request-context';
 import { requireActiveAdmin } from '@/services/admin-auth-service';
-import { updateReservationSchema } from '@/lib/validation/reservation-schema';
+import { adminUpdateReservationSchema } from '@/lib/validation/reservation-schema';
 import {
   getReservationDetailForAdmin,
   updateReservationByAdmin,
@@ -59,7 +59,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     const session = await requireActiveAdmin();
     const { id } = await context.params;
     const reservationId = parseNumericId(id, '예약 ID');
-    const payload = updateReservationSchema.parse(await readJsonBody(request));
+    const payload = adminUpdateReservationSchema.parse(await readJsonBody(request));
 
     const updated = await updateReservationByAdmin(reservationId, payload, {
       adminUserId: session.adminUserId,

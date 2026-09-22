@@ -21,6 +21,15 @@ export const cancelCompanyVehicleTripSchema = z.object({
   cancelReason: requiredText(500, '취소 사유'),
 });
 
+/**
+ * 신청자 본인 "반납 처리" — 실제 반납한 시각을 직접 고른다. 버튼을 누른 시각이 아니라
+ * 실제로 차를 반납한 시각을 남길 수 있게 하기 위함(관리자 입/출차 시각 입력과 같은 이유).
+ * 값이 없으면 서비스 계층에서 지금 시각으로 처리한다(기존 동작과 호환).
+ */
+export const requestCompanyVehicleReturnSchema = z.object({
+  actualEntryAt: zonedDateTimeSchema.optional(),
+});
+
 /** 빈 문자열/undefined 는 null 로, 그 외는 숫자로 강제 변환한다(선택 입력 숫자 필드용). */
 const optionalNonNegativeInt = z.preprocess(
   (value) => (value === '' || value === undefined ? null : value),
