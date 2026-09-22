@@ -9,7 +9,10 @@ import {
   CompanyVehicleTripScheduleCard,
 } from '@/components/admin/company-vehicle-trip-detail-cards';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { COMPANY_VEHICLE_STATUS_LABEL } from '@/domain/reservation-status';
+import {
+  COMPANY_VEHICLE_STATUS_LABEL,
+  resolveCompanyVehicleDisplayStatus,
+} from '@/domain/reservation-status';
 import { requireAdminPage } from '@/lib/admin-page-guard';
 import { formatKstDateTime, formatKstRange, utcToZonedInput } from '@/lib/datetime';
 import { NotFoundError } from '@/lib/errors';
@@ -74,6 +77,12 @@ export default async function CompanyVehicleTripDetailPage({ params, searchParam
 
   // 종료된 신청(반려/취소/출차/미방문)도 관리자가 내용을 정정할 수 있다 — 방문 예약
   // 상세와 같은 기준. 법인차량은 애초에 이 수정으로 이메일을 보내지 않는다.
+  // 대시보드·직원 상세와 같은 기준(resolveCompanyVehicleDisplayStatus) — 저장된 상태는
+  // 승인 완료(APPROVED)까지만 있고, "사용 중/사용 완료"는 지금 시각과 신청 시간대를
+  // 비교해서만 알 수 있다. 배지는 이 파생 상태로 보여주고, 실제 상태 전이 버튼(승인·반려·
+  // 취소·반납확정)은 저장된 trip.tripStatus 그대로 쓴다(아래 CompanyVehicleTripActionPanel).
+  const displayStatus = resolveCompanyVehicleDisplayStatus(trip);
+
   const editable = true;
   const editableFields = {
     employeeUserId: trip.employeeUserId,
@@ -100,7 +109,7 @@ export default async function CompanyVehicleTripDetailPage({ params, searchParam
           <h1 className="text-ink font-mono text-xl font-black sm:text-2xl">
             {trip.tripNo ?? `운행 신청 #${trip.tripId}`}
           </h1>
-          <StatusBadge status={trip.tripStatus} label={COMPANY_VEHICLE_STATUS_LABEL[trip.tripStatus]} />
+          <StatusBadge status={displayStatus} label={COMPANY_VEHICLE_STATUS_LABEL[displayStatus]} />
         </div>
       </div>
 

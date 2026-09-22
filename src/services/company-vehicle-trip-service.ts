@@ -566,6 +566,53 @@ export async function cancelCompanyVehicleTripByAdmin(
 }
 
 /**
+ * 관리자의 "미사용" 처리 — 방문 예약의 `markNoShow`(reservation-service.ts)와 같은 개념.
+ * 승인은 났지만 직원이 나타나지 않은(차를 가져가지 않은) 신청을 종료 상태로 정리한다.
+ * 공유 전이표(`ALLOWED_TRANSITIONS`)에 이미 APPROVED→NO_SHOW가 있어 그대로 재사용한다
+ * (승인 대기 상태는 반려로 처리하면 되므로 대상에서 뺀다).
+ */
+export async function markCompanyVehicleTripNoShow(
+  params: { tripId: number; reason?: string } & AdminActionContext,
+): Promise<CompanyVehicleTripDetail> {
+  const reason = params.reason?.trim() || '운행 시간 종료 후 미사용';
+
+  const result = await prisma.$transaction(async (tx) => {
+    const current = await loadTripOrThrow(params.tripId, tx);
+    assertTransition(current.tripStatus, ReservationStatus.NO_SHOW);
+
+    const updated = await tx.companyVehicleTrip.update({
+      where: { tripId: params.tripId },
+      data: { tripStatus: ReservationStatus.NO_SHOW },
+      include: TRIP_DETAIL_INCLUDE,
+    });
+
+    await tx.companyVehicleTripStatusLog.create({
+      data: {
+        tripId: params.tripId,
+        previousStatus: current.tripStatus,
+        currentStatus: ReservationStatus.NO_SHOW,
+        changedByType: ChangedByType.ADMIN,
+        changedByAdminId: params.adminUserId,
+        changeReason: reason,
+      },
+    });
+
+    return updated;
+  });
+
+  await writeAuditLog({
+    actorAdminId: params.adminUserId,
+    actionType: AUDIT_ACTIONS.COMPANY_VEHICLE_TRIP_NO_SHOW,
+    targetType: AUDIT_TARGETS.COMPANY_VEHICLE_TRIP,
+    targetId: result.tripId,
+    detail: { reason },
+    context: params.requestContext,
+  });
+
+  return result;
+}
+
+/**
  * 신청자(운행 예정자) 본인 취소. 방문 예약의 `cancelReservationByRequester`와 같은 원칙 —
  * 승인 대기(REQUESTED) 상태에서만 허용한다. 승인 이후에는 차량이 이미 배정된 상태라
  * 관리자에게 문의해 처리하도록 안내한다(`cancelCompanyVehicleTripByAdmin` 참고).

@@ -16,6 +16,7 @@ export function CompanyVehicleTripActionPanel({ tripId, tripStatus }: Props) {
   const router = useRouter();
   const [rejectionReason, setRejectionReason] = useState('');
   const [cancelReason, setCancelReason] = useState('');
+  const [noShowReason, setNoShowReason] = useState('');
   const [confirmMemo, setConfirmMemo] = useState('');
   const [pending, setPending] = useState<string | null>(null);
   const [message, setMessage] = useState<{ variant: 'success' | 'error'; text: string } | null>(
@@ -23,7 +24,7 @@ export function CompanyVehicleTripActionPanel({ tripId, tripStatus }: Props) {
   );
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
-  /** 네 액션(승인/반려/취소/반납확정) 전부 성공하면 대시보드로 돌아간다. */
+  /** 다섯 액션(승인/반려/취소/미사용/반납확정) 전부 성공하면 대시보드로 돌아간다. */
   async function run(action: string, url: string, body?: unknown) {
     setPending(action);
     setMessage(null);
@@ -47,6 +48,7 @@ export function CompanyVehicleTripActionPanel({ tripId, tripStatus }: Props) {
   const canApprove = tripStatus === 'REQUESTED';
   const canReject = tripStatus === 'REQUESTED';
   const canCancel = tripStatus === 'APPROVED';
+  const canMarkNoShow = tripStatus === 'APPROVED';
   const canConfirmReturn = tripStatus === 'PARKING';
   const isTerminal = ['REJECTED', 'CANCELLED', 'EXITED', 'NO_SHOW'].includes(tripStatus);
 
@@ -58,13 +60,6 @@ export function CompanyVehicleTripActionPanel({ tripId, tripStatus }: Props) {
 
       {isTerminal && (
         <Alert variant="info">종료된 운행 신청입니다. 더 이상 상태를 변경할 수 없습니다.</Alert>
-      )}
-
-      {tripStatus === 'APPROVED' && (
-        <Alert variant="info">
-          신청 직원이 사용 중입니다. 직원이 &ldquo;반납 처리&rdquo;를 누르면 이 화면에 반납
-          확인 요청이 표시됩니다.
-        </Alert>
       )}
 
       {canConfirmReturn && (
@@ -201,6 +196,44 @@ export function CompanyVehicleTripActionPanel({ tripId, tripStatus }: Props) {
               }
             >
               {pending === 'cancel' ? '취소 처리 중…' : '신청 취소 확정'}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {canMarkNoShow && (
+        <section className="card">
+          <div className="card-body space-y-3">
+            <h2 className="card-title">미사용 처리</h2>
+            <p className="text-sm text-slate-600">
+              승인은 났지만 직원이 차량을 가져가지 않은 경우 미사용으로 처리합니다. 처리하면
+              되돌릴 수 없습니다.
+            </p>
+            <FormField
+              label="처리 사유 (선택)"
+              htmlFor="trip-no-show-reason"
+              errors={fieldErrors.reason}
+            >
+              <textarea
+                id="trip-no-show-reason"
+                rows={2}
+                className={inputClassName(Boolean(fieldErrors.reason))}
+                value={noShowReason}
+                onChange={(event) => setNoShowReason(event.target.value)}
+                maxLength={500}
+              />
+            </FormField>
+            <button
+              type="button"
+              className="btn btn-danger-outline"
+              disabled={pending !== null}
+              onClick={() =>
+                run('no-show', `/api/admin/company-vehicle-trips/${tripId}/no-show`, {
+                  reason: noShowReason.trim() || undefined,
+                })
+              }
+            >
+              {pending === 'no-show' ? '처리 중…' : '미사용 처리'}
             </button>
           </div>
         </section>

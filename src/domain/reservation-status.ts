@@ -151,12 +151,19 @@ export function resolveDisplayStatus(
  *
  * 법인차량은 입·출차 관리 개념 자체가 없다(설정과 무관하게 항상 `resolveDisplayStatus`의
  * "꺼짐" 분기와 같은 처리) — 직원이 신청 시간대로 알아서 사용하고, "반납 처리"를 눌러야만
- * PARKING(반납 대기)으로 실제 전이된다. 그래서 APPROVED 상태에서 "지금 사용 중인지/기간이
- * 지났는지"는 방문 예약처럼 시간만 보고 추측할 수밖에 없다. PARKING/EXITED는 반납 처리·확정
- * 이라는 실제 사건으로만 도달하므로 그대로 저장된 상태를 쓴다(추측할 필요가 없다).
+ * PARKING(반납 대기)으로 실제 전이된다. 그래서 APPROVED 상태에서 "지금 사용 중인지"는
+ * 방문 예약처럼 시간만 보고 추측할 수밖에 없다. 다만 방문 예약과 달리 **"사용 완료"로
+ * 넘어가는 시점도 시간이 아니라 실제 반납 처리(PARKING 전이)뿐이다** — 신청 종료 시각이
+ * 지나도 직원이 아직 반납 처리를 안 눌렀으면(차를 계속 쓰고 있을 수 있으므로) 여전히
+ * "사용 중"으로 본다. PARKING/EXITED는 반납 처리·확정이라는 실제 사건으로만 도달하므로
+ * 그대로 저장된 상태를 쓴다(추측할 필요가 없다).
  *
- * 관리자 화면은 이 함수를 쓰지 않고 저장된 실제 상태만 보여준다(방문 예약과 같은 원칙 —
- * `resolveDisplayStatus` 위 주석 참고). 직원 본인 화면에서만 쓴다.
+ * 방문 예약(`resolveDisplayStatus`)과 달리, 법인차량은 관리자 화면(신청 상세, 대시보드/
+ * 평면도/주차면현황, 차량 목록)도 이 함수를 그대로 호출해 직원 본인 화면과 같은 "사용중/
+ * 사용 완료"를 보여준다 — 법인차량은 관리자도 "지금 차가 쓰이고 있는지"를 바로 알아야
+ * 하는 화면이 많아서, 방문 예약의 "관리자는 저장된 값만" 원칙에 일부러 예외를 둔 것이다.
+ * "지금 사용중인가"를 판정하는 코드는 이 함수 한 곳에만 있어야 한다 — 다른 곳에서 같은
+ * 조건(APPROVED + 시간 비교)을 다시 구현하지 말고 항상 이 함수를 호출할 것.
  */
 export function resolveCompanyVehicleDisplayStatus(
   trip: { tripStatus: ReservationStatus; requestStartAt: Date; requestEndAt: Date },
@@ -164,8 +171,9 @@ export function resolveCompanyVehicleDisplayStatus(
 ): DisplayReservationStatus {
   if (trip.tripStatus !== ReservationStatus.APPROVED) return trip.tripStatus;
 
+  // 종료 시각이 지났어도 "사용 완료"로 치지 않는다 — 반납 처리(PARKING 전이) 전까지는
+  // 계속 사용 중인 것으로 본다(위 주석 참고).
   const nowMs = now.getTime();
-  if (nowMs >= trip.requestEndAt.getTime()) return 'USED';
   if (nowMs >= trip.requestStartAt.getTime()) return 'IN_USE';
   return trip.tripStatus;
 }
@@ -179,6 +187,7 @@ export const COMPANY_VEHICLE_STATUS_LABEL: Readonly<Record<DisplayReservationSta
   ...DISPLAY_STATUS_LABEL,
   PARKING: '반납 대기',
   EXITED: '반납 완료',
+  NO_SHOW: '미사용',
 };
 
 export const REQUESTER_TYPE_LABEL = {

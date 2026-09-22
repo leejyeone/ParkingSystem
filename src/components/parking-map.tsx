@@ -186,13 +186,27 @@ function SlopeMarker({ slope }: { slope: NonNullable<MapLayout['slope']> }) {
   );
 }
 
+/**
+ * 법인차량 신청은 입·출차 관리가 없어(dashboard-service.ts 주석 참고) `companyVehicleInUseTripId`
+ * (서버에서 "승인 완료 + 지금 시각이 신청 구간 안"으로 미리 계산해 둔 값)로만 판정한다.
+ * 예전에는 여기서 `tripStatus === 'PARKING'`을 직접 확인했는데, 법인차량 신청은 그 상태를
+ * 쓰지 않아 항상 거짓이었다 — 그래서 "운행 중" 하늘색이 한 번도 뜨지 않았다.
+ */
 function isCompanyVehicleOut(space: SpaceStatusRow): boolean {
-  return space.companyVehicleTrips.some((trip) => trip.tripStatus === 'PARKING');
+  return space.companyVehicleInUseTripId !== null;
 }
 
+/**
+ * 비활성화된 법인차량이 고정 배정된 주차면은, 지금 걸린 방문 예약이 없으면 비활성 구역과
+ * 같은 회색으로 보여준다 — 차가 없어졌으니 법인차량 전용 색을 유지할 이유가 없다(방문
+ * 예약 배정 후보에는 이미 포함되므로, 실제로 예약이 잡히면 정상적으로 OCCUPIED 로 넘어간다).
+ */
 function styleFor(space: SpaceStatusRow | undefined): StallStyle {
   if (!space) return UNKNOWN;
-  if (space.companyVehicle) return isCompanyVehicleOut(space) ? COMPANY_VEHICLE_OUT : COMPANY_VEHICLE;
+  if (space.companyVehicle?.isActive) {
+    return isCompanyVehicleOut(space) ? COMPANY_VEHICLE_OUT : COMPANY_VEHICLE;
+  }
+  if (space.companyVehicle && space.status === 'EMPTY') return DISABLED;
   if (!space.isActive) return DISABLED;
   return space.status === 'EMPTY' ? AVAILABLE : OCCUPIED;
 }
@@ -216,9 +230,12 @@ function activeCompanyVehicleTrips(
 /** 마우스를 올렸을 때 나오는 설명 */
 function tooltipFor(code: string, space: SpaceStatusRow | undefined): string {
   if (!space) return `${code} — 등록되지 않은 주차면`;
-  if (space.companyVehicle) {
+  if (space.companyVehicle?.isActive) {
     const outSuffix = isCompanyVehicleOut(space) ? ' · 지금 운행 중' : '';
     return `${code} — 법인차량 전용 (${space.companyVehicle.vehicleNo})${outSuffix}`;
+  }
+  if (space.companyVehicle && space.status === 'EMPTY') {
+    return `${code} — 비활성 법인차량 배정(${space.companyVehicle.vehicleNo}) · 사용 가능`;
   }
   if (!space.isActive) return `${code} — 비활성`;
   const typeSuffix = space.spaceType === 'DISABLED' ? ' (장애인 주차면)' : '';
@@ -338,10 +355,11 @@ export function ParkingMap({
     for (const stall of layout.stalls) {
       const space = byCode.get(stall.code);
       if (!space) continue;
-      if (space.companyVehicle) {
+      if (space.companyVehicle?.isActive) {
         if (isCompanyVehicleOut(space)) counts.companyVehicleOut += 1;
         else counts.companyVehicle += 1;
-      } else if (!space.isActive) counts.disabled += 1;
+      } else if (space.companyVehicle && space.status === 'EMPTY') counts.disabled += 1;
+      else if (!space.isActive) counts.disabled += 1;
       else if (space.status === 'EMPTY') counts.available += 1;
       else counts.occupied += 1;
     }
@@ -931,7 +949,7 @@ function CompanyVehicleTripPicker({
                     <span className="text-brand-700 text-sm font-bold">
                       {formatKstTime(trip.requestStartAt)} ~ {formatKstTime(trip.requestEndAt)}
                     </span>
-                    {trip.tripStatus === 'PARKING' && (
+                    {trip.tripId === space.companyVehicleInUseTripId && (
                       <span className="badge bg-emerald-100 text-emerald-800">운행 중</span>
                     )}
                   </span>

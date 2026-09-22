@@ -1,6 +1,9 @@
 import { ReservationStatus, SpaceType } from '@prisma/client';
 
-import { SPACE_OCCUPYING_STATUSES } from '@/domain/reservation-status';
+import {
+  resolveCompanyVehicleDisplayStatus,
+  SPACE_OCCUPYING_STATUSES,
+} from '@/domain/reservation-status';
 import { buildOverlapWhere } from '@/domain/time-overlap';
 import { kstDayRangeUtc, parseTimeOfDayToMinutes, todayKstDateString } from '@/lib/datetime';
 import { prisma } from '@/lib/prisma';
@@ -48,8 +51,12 @@ export type SpaceStatusRow = {
   status: SpaceOccupancyStatus;
   /** 지금 사용 중인 예약 ID. 화면에서 해당 시간 행에만 "사용 중" 표시를 붙인다. */
   inUseReservationId: number | null;
-  /** 이 주차면이 법인 공용 차량 전용으로 고정 배정되어 있으면 채워진다. 평면도에서 다른 색으로 표시한다. */
-  companyVehicle: { vehicleId: number; vehicleNo: string } | null;
+  /**
+   * 이 주차면이 법인 공용 차량 전용으로 고정 배정되어 있으면 채워진다(비활성 차량이어도
+   * 채워진다 — 평면도가 "비활성 차량 배정 구역"을 회색으로 구분해 보여줘야 해서다).
+   * 평면도에서 다른 색으로 표시한다.
+   */
+  companyVehicle: { vehicleId: number; vehicleNo: string; isActive: boolean } | null;
   /**
    * 이 주차면에 고정 배정된 법인 차량의, 선택한 날짜에 걸치는 운행 신청. 배정 전(REQUESTED,
    * 아직 어느 차를 내줄지 정해지지 않은 신청)은 특정 주차면과 연결할 수 없으므로 포함하지
@@ -63,6 +70,12 @@ export type SpaceStatusRow = {
     requesterName: string;
     departmentName: string;
   }[];
+  /**
+   * `companyVehicleTrips` 중 지금 이 순간 승인된 시간 구간 안에 있는 신청의 ID("사용중").
+   * 법인차량 신청은 입·출차 관리 자체가 없어(주석 참고) 항상 시간 비교로만 판정한다 —
+   * `resolveCompanyVehicleDisplayStatus`(reservation-status.ts)의 IN_USE 조건과 동일하다.
+   */
+  companyVehicleInUseTripId: number | null;
 };
 
 export type HourlyUsage = { hour: number; usedCount: number };
@@ -331,6 +344,16 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
     // (실측 isActive 는 "이 자리가 물리적으로 존재하는지"를 나타내는 별개의 값으로 보존한다).
     const isActive =
       space.isActive && (space.spaceType !== SpaceType.DOUBLE || settings.doubleParkingEnabled);
+    const companyVehicleTrips = space.companyVehicle
+      ? (tripsByVehicle.get(space.companyVehicle.vehicleId) ?? [])
+      : [];
+    // "지금 사용중인가"의 계산 자체는 여기서 하지 않는다 — 유일한 기준인
+    // resolveCompanyVehicleDisplayStatus(reservation-status.ts)에 위임해서, 판정 규칙이
+    // 바뀌어도 고칠 곳이 한 군데(그 함수)만 남게 한다.
+    const now = new Date(nowMs);
+    const inUseCompanyVehicleTrip = companyVehicleTrips.find(
+      (trip) => resolveCompanyVehicleDisplayStatus(trip, now) === 'IN_USE',
+    );
     return {
       spaceId: space.spaceId,
       spaceCode: space.spaceCode,
@@ -344,14 +367,15 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
       occupancies,
       status,
       inUseReservationId: inUse?.reservationId ?? null,
-      companyVehicle:
-        space.companyVehicle && space.companyVehicle.isActive
-          ? { vehicleId: space.companyVehicle.vehicleId, vehicleNo: space.companyVehicle.vehicleNo }
-          : null,
-      companyVehicleTrips:
-        space.companyVehicle && space.companyVehicle.isActive
-          ? (tripsByVehicle.get(space.companyVehicle.vehicleId) ?? [])
-          : [],
+      companyVehicle: space.companyVehicle
+        ? {
+            vehicleId: space.companyVehicle.vehicleId,
+            vehicleNo: space.companyVehicle.vehicleNo,
+            isActive: space.companyVehicle.isActive,
+          }
+        : null,
+      companyVehicleTrips,
+      companyVehicleInUseTripId: inUseCompanyVehicleTrip?.tripId ?? null,
     };
   });
 

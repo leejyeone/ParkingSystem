@@ -10,7 +10,16 @@ import type { ReactNode } from 'react';
  * "행 아무 곳이나 눌러도 이동" 하는 편의만 더한다.
  * (키보드 사용자와 새 탭 열기는 그 링크로 처리된다)
  */
-export function ClickableTableRow({ href, children }: { href: string; children: ReactNode }) {
+export function ClickableTableRow({
+  href,
+  children,
+  className,
+}: {
+  href: string;
+  children: ReactNode;
+  /** 행 배경 등을 덧붙일 때(예: 지금 사용중인 차량 강조) 쓴다. 기본 hover 효과는 그대로 유지된다. */
+  className?: string;
+}) {
   const router = useRouter();
 
   function handleClick(event: React.MouseEvent<HTMLTableRowElement>) {
@@ -25,7 +34,7 @@ export function ClickableTableRow({ href, children }: { href: string; children: 
   return (
     <tr
       onClick={handleClick}
-      className="hover:bg-surface-muted cursor-pointer transition"
+      className={`hover:bg-surface-muted cursor-pointer transition ${className ?? ''}`}
       data-testid="reservation-row"
     >
       {children}

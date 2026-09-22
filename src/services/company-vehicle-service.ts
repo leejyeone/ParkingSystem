@@ -1,5 +1,6 @@
-import { Prisma } from '@prisma/client';
+import { Prisma, ReservationStatus } from '@prisma/client';
 
+import { resolveCompanyVehicleDisplayStatus } from '@/domain/reservation-status';
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/errors';
 import { prisma } from '@/lib/prisma';
 import type { RequestContext } from '@/lib/request-context';
@@ -24,11 +25,35 @@ const VEHICLE_SELECT = {
 } satisfies Prisma.CompanyVehicleSelect;
 
 export async function listCompanyVehicles(options: { includeInactive?: boolean } = {}) {
-  return prisma.companyVehicle.findMany({
+  const vehicles = await prisma.companyVehicle.findMany({
     where: { deletedAt: null, ...(options.includeInactive ? {} : { isActive: true }) },
     orderBy: [{ vehicleId: 'asc' }],
     select: VEHICLE_SELECT,
   });
+
+  // "지금 사용중인가"는 오직 resolveCompanyVehicleDisplayStatus(reservation-status.ts)로만
+  // 판정한다 — 여기서는 승인 완료 트립만 후보로 추려오고(성능을 위한 사전 필터), 실제 시간
+  // 비교는 그 함수에 맡긴다.
+  const now = new Date();
+  const approvedTrips = await prisma.companyVehicleTrip.findMany({
+    where: {
+      assignedVehicleId: { in: vehicles.map((vehicle) => vehicle.vehicleId) },
+      tripStatus: ReservationStatus.APPROVED,
+    },
+    select: {
+      assignedVehicleId: true,
+      tripStatus: true,
+      requestStartAt: true,
+      requestEndAt: true,
+    },
+  });
+  const inUseVehicleIds = new Set(
+    approvedTrips
+      .filter((trip) => resolveCompanyVehicleDisplayStatus(trip, now) === 'IN_USE')
+      .map((trip) => trip.assignedVehicleId),
+  );
+
+  return vehicles.map((vehicle) => ({ ...vehicle, inUse: inUseVehicleIds.has(vehicle.vehicleId) }));
 }
 
 export type CompanyVehicleInput = {

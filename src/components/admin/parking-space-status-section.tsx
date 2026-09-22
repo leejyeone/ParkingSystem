@@ -130,7 +130,7 @@ function SpaceRow({ space, nowMs }: { space: SpaceStatusRow; nowMs: number }) {
                 >
                   {formatKstTime(trip.requestStartAt)} ~ {formatKstTime(trip.requestEndAt)}
                 </Link>
-                {trip.tripStatus === 'PARKING' && (
+                {trip.tripId === space.companyVehicleInUseTripId && (
                   <span className={`badge ${SPACE_STATUS_CLASS.IN_USE}`}>
                     {SPACE_STATUS_LABEL.IN_USE}
                   </span>
