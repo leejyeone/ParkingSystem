@@ -218,7 +218,13 @@ export async function deleteCompanyVehicle(
   });
   if (!current || current.deletedAt) throw new NotFoundError('법인차량을 찾을 수 없습니다.');
 
-  await prisma.companyVehicle.update({ where: { vehicleId }, data: { deletedAt: new Date() } });
+  // parkingSpaceId 도 같이 비워야 한다 — 안 비우면 소프트 삭제된 차량이어도 주차면 쪽
+  // 조회(대시보드·평면도·예약 배정 후보 등)에서 여전히 "이 차량이 배정된 자리"로 잡혀
+  // 그 자리가 계속 법인차량 전용/비활성 취급된다(관계 자체가 안 끊기기 때문).
+  await prisma.companyVehicle.update({
+    where: { vehicleId },
+    data: { deletedAt: new Date(), parkingSpaceId: null },
+  });
 
   await writeAuditLog({
     actorAdminId: actor.adminUserId,

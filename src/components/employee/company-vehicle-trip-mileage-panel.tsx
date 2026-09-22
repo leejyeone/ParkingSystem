@@ -17,7 +17,7 @@ type Props = {
 };
 
 /**
- * 신청 직원 본인의 주행거리(계기판) 입력 카드. 운행 예정일 당일부터 반납 처리 전까지
+ * 신청 직원 본인의 주행거리(계기판) 입력 카드. 승인 완료 후 반납 처리 전까지
  * (상세 페이지가 이 카드를 상태 APPROVED일 때만 렌더링) 몇 번이든 저장할 수 있다.
  */
 export function CompanyVehicleTripMileagePanel({ tripId, initial }: Props) {
@@ -61,7 +61,7 @@ export function CompanyVehicleTripMileagePanel({ tripId, initial }: Props) {
       <div className="card-body space-y-3">
         <h2 className="card-title">주행 기록</h2>
         <p className="field-hint">
-          운행 예정일 당일부터 반납 처리 전까지 계기판 값을 입력·수정할 수 있습니다.
+          반납 처리 전까지 계기판 값을 입력·수정할 수 있습니다.
         </p>
 
         {error && <Alert variant="error">{error}</Alert>}

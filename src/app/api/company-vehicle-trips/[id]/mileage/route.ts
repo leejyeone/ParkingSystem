@@ -13,7 +13,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 
 /**
  * PUT /api/company-vehicle-trips/[id]/mileage — 신청 직원 본인의 주행거리(계기판) 입력.
- * 운행 예정일 당일부터 반납 처리 전까지 몇 번이든 저장할 수 있다.
+ * 승인 완료 후 반납 처리 전까지 몇 번이든 저장할 수 있다.
  */
 export async function PUT(request: NextRequest, context: RouteContext) {
   try {

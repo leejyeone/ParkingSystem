@@ -5,7 +5,7 @@ import {
   assertCompanyVehicleTripTiming,
 } from '@/domain/company-vehicle-rules';
 import { assertTransition } from '@/domain/reservation-status';
-import { formatKstDate, kstDayRangeUtc, todayKstDateString } from '@/lib/datetime';
+import { todayKstDateString } from '@/lib/datetime';
 import {
   dispatchQuietly,
   sendNewVehicleTripRequestToAdminEmails,
@@ -1002,10 +1002,9 @@ export async function updateCompanyVehicleTripMileage(
 }
 
 /**
- * 운행일지 주행거리 기록 — 신청 직원 본인 입력. 예약일(requestStartAt의 KST 날짜) 당일
- * 0시부터 반납 처리(PARKING 전이) 전까지 몇 번이든 저장할 수 있다. 상태 전이가 아니라
- * 단순 필드 갱신이고, 직원 액터는 감사 로그(AuditLog) 대상이 아니므로(관리자 전용
- * 스키마) 별도 로그는 남기지 않는다.
+ * 운행일지 주행거리 기록 — 신청 직원 본인 입력. 승인 완료 후 반납 처리(PARKING 전이)
+ * 전까지 몇 번이든 저장할 수 있다. 상태 전이가 아니라 단순 필드 갱신이고, 직원 액터는
+ * 감사 로그(AuditLog) 대상이 아니므로(관리자 전용 스키마) 별도 로그는 남기지 않는다.
  */
 export async function updateCompanyVehicleTripMileageByEmployee(params: {
   tripId: number;
@@ -1023,13 +1022,6 @@ export async function updateCompanyVehicleTripMileageByEmployee(params: {
     throw new ConflictError(
       '승인 완료 후 반납 처리 전까지만 주행거리를 입력할 수 있습니다.',
       'MILEAGE_EDIT_NOT_ALLOWED',
-    );
-  }
-  const tripDayStart = kstDayRangeUtc(formatKstDate(current.requestStartAt)).start;
-  if (Date.now() < tripDayStart.getTime()) {
-    throw new ConflictError(
-      '운행 예정일 당일부터 주행거리를 입력할 수 있습니다.',
-      'MILEAGE_TOO_EARLY',
     );
   }
 

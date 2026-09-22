@@ -2,7 +2,7 @@
 
 import type { SpaceType } from '@prisma/client';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import { ParkingSpacePicker } from '@/components/admin/parking-space-picker';
 import { ParkingMap } from '@/components/parking-map';
@@ -68,12 +68,13 @@ export function ReservationActionPanel({
   );
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [spaceSelectOpen, setSpaceSelectOpen] = useState(false);
+  const spaceSelectBoxRef = useRef<HTMLDivElement>(null);
   // 이미 배정된 자리를 바꾸는 경우에만 쓴다 — [주차 위치 변경]을 눌러야 드롭다운이 열린다.
   // 처음 승인하며 배정하는 경우(canApprove)는 바꿀 기존 배정이 없으므로 항상 바로 연다.
   const [editingSpace, setEditingSpace] = useState(false);
 
   useDismissOnInteraction(Boolean(message), () => setMessage(null));
-  useDismissOnInteraction(spaceSelectOpen, () => setSpaceSelectOpen(false));
+  useDismissOnInteraction(spaceSelectOpen, () => setSpaceSelectOpen(false), spaceSelectBoxRef);
 
   const hasAvailableSpace = availableSpaces.some((space) => space.available);
   const selectedSpace = availableSpaces.find((space) => String(space.spaceId) === selectedSpaceId);
@@ -388,7 +389,7 @@ export function ReservationActionPanel({
                     )
                   }
                 />
-                <div className="relative mt-2">
+                <div className="relative mt-2" ref={spaceSelectBoxRef}>
                   <button
                     id="space-select"
                     type="button"
