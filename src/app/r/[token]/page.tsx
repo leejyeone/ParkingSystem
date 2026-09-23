@@ -55,6 +55,7 @@ export default async function ReservationAccessPage({ params }: PageProps) {
           reservationMinLeadMinutes: settings.reservationMinLeadMinutes,
           maxReservationHours: settings.maxReservationHours,
           spaceAssignmentEnabled: settings.spaceAssignmentEnabled,
+          timingExceptionEnabled: settings.timingExceptionEnabled,
         }}
       />
 

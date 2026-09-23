@@ -168,20 +168,20 @@ export function PolicySection({ initialSettings }: { initialSettings: SystemSett
             />
           </FormField>
           <FormField
-            label="출차 알림 기준(분 전)"
-            htmlFor="reminder"
+            label="최대 예약 시간(시간)"
+            htmlFor="maxHours"
             required
-            errors={fieldErrors.exitReminderMinutes}
+            errors={fieldErrors.maxReservationHours}
           >
             <input
-              id="reminder"
+              id="maxHours"
               type="number"
               min={1}
-              max={180}
-              className={inputClassName(Boolean(fieldErrors.exitReminderMinutes))}
-              value={form.exitReminderMinutes}
+              max={24}
+              className={inputClassName(Boolean(fieldErrors.maxReservationHours))}
+              value={form.maxReservationHours}
               onChange={(event) =>
-                setForm({ ...form, exitReminderMinutes: Number(event.target.value) })
+                setForm({ ...form, maxReservationHours: Number(event.target.value) })
               }
             />
           </FormField>
@@ -205,20 +205,20 @@ export function PolicySection({ initialSettings }: { initialSettings: SystemSett
             />
           </FormField>
           <FormField
-            label="최대 예약 시간(시간)"
-            htmlFor="maxHours"
+            label="출차 알림 기준(분 전)"
+            htmlFor="reminder"
             required
-            errors={fieldErrors.maxReservationHours}
+            errors={fieldErrors.exitReminderMinutes}
           >
             <input
-              id="maxHours"
+              id="reminder"
               type="number"
               min={1}
-              max={24}
-              className={inputClassName(Boolean(fieldErrors.maxReservationHours))}
-              value={form.maxReservationHours}
+              max={180}
+              className={inputClassName(Boolean(fieldErrors.exitReminderMinutes))}
+              value={form.exitReminderMinutes}
               onChange={(event) =>
-                setForm({ ...form, maxReservationHours: Number(event.target.value) })
+                setForm({ ...form, exitReminderMinutes: Number(event.target.value) })
               }
             />
           </FormField>
@@ -281,7 +281,7 @@ export function PolicySection({ initialSettings }: { initialSettings: SystemSett
           </FormField>
         </div>
 
-        <div className="space-y-2">
+        <div className="grid gap-4 sm:grid-cols-2">
           <label className="border-line flex min-h-12 items-center gap-3 rounded-lg border px-3">
             <input
               type="checkbox"
@@ -293,9 +293,19 @@ export function PolicySection({ initialSettings }: { initialSettings: SystemSett
             />
             <span className="text-ink text-sm font-semibold">실제 입·출차 관리 사용</span>
           </label>
-        </div>
 
-        <div className="space-y-2">
+          <label className="border-line flex min-h-12 items-center gap-3 rounded-lg border px-3">
+            <input
+              type="checkbox"
+              className="accent-brand-700 size-5"
+              checked={form.timingExceptionEnabled}
+              onChange={(event) =>
+                setForm({ ...form, timingExceptionEnabled: event.target.checked })
+              }
+            />
+            <span className="text-ink text-sm font-semibold">시간 예외 신청 받기</span>
+          </label>
+
           <label className="border-line flex min-h-12 items-center gap-3 rounded-lg border px-3">
             <input
               type="checkbox"
@@ -307,31 +317,6 @@ export function PolicySection({ initialSettings }: { initialSettings: SystemSett
             />
             <span className="text-ink text-sm font-semibold">주차면 배정 사용</span>
           </label>
-          <p className="text-ink-faint text-xs">
-            끄면 특정 주차 위치를 배정하지 않고 <strong>주차 가능 여부만</strong> 관리합니다.
-          </p>
-
-          {!form.spaceAssignmentEnabled && (
-            <FormField
-              label="최대 주차 가능 대수"
-              htmlFor="capacity"
-              required
-              errors={fieldErrors.parkingCapacity}
-              hint="같은 시간대에 이 대수를 이미 채웠다면 승인이 차단됩니다. 주차면 배정을 사용할 때는 주차면 개수가 정원이 되므로 이 값을 쓰지 않습니다."
-            >
-              <input
-                id="capacity"
-                type="number"
-                min={1}
-                max={999}
-                className={inputClassName(Boolean(fieldErrors.parkingCapacity))}
-                value={form.parkingCapacity}
-                onChange={(event) =>
-                  setForm({ ...form, parkingCapacity: Number(event.target.value) })
-                }
-              />
-            </FormField>
-          )}
 
           <label
             className={`border-line flex min-h-12 items-center gap-3 rounded-lg border px-3 ${
@@ -347,12 +332,29 @@ export function PolicySection({ initialSettings }: { initialSettings: SystemSett
             />
             <span className="text-ink text-sm font-semibold">이중주차 사용</span>
           </label>
-          {form.spaceAssignmentEnabled ? null : (
-            <p className="text-ink-faint text-xs">
-              주차면 배정을 끈 상태에서는 이중주차 설정이 적용되지 않습니다.
-            </p>
-          )}
         </div>
+
+        {!form.spaceAssignmentEnabled && (
+          <FormField
+            label="최대 주차 가능 대수"
+            htmlFor="capacity"
+            required
+            errors={fieldErrors.parkingCapacity}
+            hint="같은 시간대에 이 대수를 이미 채웠다면 승인이 차단됩니다. 주차면 배정을 사용할 때는 주차면 개수가 정원이 되므로 이 값을 쓰지 않습니다."
+          >
+            <input
+              id="capacity"
+              type="number"
+              min={1}
+              max={999}
+              className={inputClassName(Boolean(fieldErrors.parkingCapacity))}
+              value={form.parkingCapacity}
+              onChange={(event) =>
+                setForm({ ...form, parkingCapacity: Number(event.target.value) })
+              }
+            />
+          </FormField>
+        )}
       </div>
     </section>
   );

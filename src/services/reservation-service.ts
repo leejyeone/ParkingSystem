@@ -272,13 +272,20 @@ export async function createReservation(input: CreateReservationInput): Promise<
 
   const settings = await getSystemSettings();
   const now = new Date();
+  // 시스템 설정에서 예외 신청 자체를 꺼뒀거나(설정) 방문객 본인 신청이면(정책상 방문객은
+  // 스스로 시간 제약 예외를 판단할 입장이 아님) 사유를 보내도 무시하고 일반 신청
+  // 규칙만 적용한다. 직원 본인/대리 신청은 visitorUserId 가 항상 null 이라 영향 없다.
+  const timingExceptionReason =
+    settings.timingExceptionEnabled && input.visitorUserId == null
+      ? (input.timingExceptionReason ?? null)
+      : null;
 
   assertReservationTiming({
     visitStartAt: input.visitStartAt,
     visitEndAt: input.visitEndAt,
     now,
     settings,
-    allowTimingException: Boolean(input.timingExceptionReason),
+    allowTimingException: Boolean(timingExceptionReason),
   });
 
   const vehicleNo = normalizeVehicleNo(input.vehicleNo);
@@ -307,7 +314,7 @@ export async function createReservation(input: CreateReservationInput): Promise<
           reservationStatus: ReservationStatus.REQUESTED,
           privacyConsentAt: now,
           securityPledgeConsentAt: input.requesterType === RequesterType.VISITOR ? now : null,
-          timingExceptionReason: input.timingExceptionReason ?? null,
+          timingExceptionReason,
         },
         include: RESERVATION_WITH_SPACES,
       });
@@ -492,6 +499,17 @@ export async function updateReservationByRequester(
 
   const current = await loadReservationOrThrow(reservationId);
 
+  // 시스템 설정에서 예외 신청 자체를 꺼뒀거나 방문객 본인 신청이면 새로 예외를 걸거나
+  // 바꿀 수 없다 — 다만 이미 있던 예외를 취소(null로 보냄)하는 것은 항상 허용하고,
+  // 손대지 않고 그대로 다시 보낸 경우도 기존 값을 유지한다(신청자가 다른 필드만 고쳐도
+  // 이 로직 때문에 기존 예외가 말없이 사라지면 안 되므로).
+  const canRequestNewTimingException = settings.timingExceptionEnabled && current.visitorUserId == null;
+  const timingExceptionReason = canRequestNewTimingException
+    ? (input.timingExceptionReason ?? null)
+    : input.timingExceptionReason
+      ? current.timingExceptionReason
+      : null;
+
   const changeCheck = checkRequesterCanChange({
     status: current.reservationStatus,
     visitStartAt: current.visitStartAt,
@@ -507,7 +525,7 @@ export async function updateReservationByRequester(
     visitEndAt: input.visitEndAt,
     now,
     settings,
-    allowTimingException: Boolean(input.timingExceptionReason),
+    allowTimingException: Boolean(timingExceptionReason),
   });
 
   const vehicleNo = normalizeVehicleNo(input.vehicleNo);
@@ -531,7 +549,7 @@ export async function updateReservationByRequester(
     current.companyOrBranchName !== input.companyOrBranchName ||
     current.visitPurpose !== (input.visitPurpose ?? null) ||
     current.requestMemo !== (input.requestMemo ?? null) ||
-    current.timingExceptionReason !== (input.timingExceptionReason ?? null);
+    current.timingExceptionReason !== timingExceptionReason;
 
   const updated = await prisma.$transaction(async (tx) => {
     const result = await tx.parkingReservation.update({
@@ -546,7 +564,7 @@ export async function updateReservationByRequester(
         visitEndAt: input.visitEndAt,
         // 신청자는 REQUESTED 상태에서만 수정할 수 있으므로 아직 승인 전이다 — 예외
         // 사유가 바뀌어도 승인 필드는 그대로 null(관리자가 승인할 때 함께 확정된다).
-        timingExceptionReason: input.timingExceptionReason ?? null,
+        timingExceptionReason,
       },
       include: RESERVATION_WITH_SPACES,
     });
@@ -597,7 +615,6 @@ export async function updateReservationByAdmin(
   actor: AdminActionContext,
 ): Promise<ReservationWithSpaces> {
   const settings = await getSystemSettings();
-  const now = new Date();
   const current = await loadReservationOrThrow(reservationId);
 
   // 종료된 예약(반려/취소/출차/미방문)도 관리자가 내용을 정정할 수 있다 — 상태 전이가
@@ -616,15 +633,14 @@ export async function updateReservationByAdmin(
         ? input.timingExceptionReason
         : current.timingExceptionReason,
   };
-  // 관리자가 직접 예외 사유를 채워 넣는 경우, 별도 승인 대기 없이 그 자리에서 바로
-  // 확정한다(이미 관리자 본인이 검토·기록하는 행위이므로). 사유가 그대로면 기존 승인
-  // 기록(신청자 요청 → 관리자 승인 흐름에서 채워졌을 수도 있음)을 건드리지 않는다.
+  // 시간 예외 승인은 예약 승인과 함께만 확정된다(approveReservation/approveWithoutSpace의
+  // timingExceptionApprovalOnApprove) — 관리자가 여기서 사유만 고치는 것은 승인 행위가
+  // 아니므로 승인 기록을 새로 찍지 않는다. 사유를 지우면 더 이상 예외가 아니므로 남아있던
+  // 승인 기록도 함께 비운다.
   const timingExceptionReasonChanged =
     current.timingExceptionReason !== (merged.timingExceptionReason ?? null);
   const timingExceptionFields = merged.timingExceptionReason
-    ? timingExceptionReasonChanged || !current.timingExceptionApprovedAt
-      ? { timingExceptionApprovedAt: now, timingExceptionApprovedByAdminId: actor.adminUserId }
-      : {}
+    ? {}
     : { timingExceptionApprovedAt: null, timingExceptionApprovedByAdminId: null };
 
   // 운영시간·최대 이용시간·시작<종료 는 예외가 없으면 그대로 적용하고, 최소 사전 신청

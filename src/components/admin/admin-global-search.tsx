@@ -109,10 +109,16 @@ export function AdminGlobalSearch({ forceIcon }: { forceIcon: boolean }) {
         위치가 입력창과 겹치는 경우가 있었다.
       */}
       <div className="relative">
-        <SearchIcon className="text-ink-faint pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2" />
+        <SearchIcon
+          className={`pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 transition-colors ${
+            focused || trimmed !== '' ? 'text-brand-700' : 'text-ink-faint'
+          }`}
+        />
         <input
           type="search"
-          className={`input pl-8 transition-[width] duration-150 ${expanded ? 'w-56' : 'w-9'}`}
+          className={`bg-surface-hover text-ink placeholder:text-ink-faint h-9 rounded-full border border-transparent pl-8 text-sm shadow-sm transition-[width,background-color,border-color] duration-150 outline-none focus:border-brand-500 focus:bg-surface focus:ring-2 focus:ring-brand-200 ${
+            expanded ? 'w-56 pr-3' : 'w-9 pr-0'
+          }`}
           value={query}
           onChange={(event) => handleQueryChange(event.target.value)}
           onFocus={() => {
@@ -124,18 +130,18 @@ export function AdminGlobalSearch({ forceIcon }: { forceIcon: boolean }) {
           autoComplete="off"
         />
         {open && trimmed !== '' && (
-          <div className="absolute top-full left-0 z-10 mt-1 max-h-96 w-56 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+          <div className="border-line bg-surface absolute top-full left-0 z-10 mt-1 max-h-96 w-56 overflow-y-auto rounded-xl border shadow-lg">
             {trimmed.length < 2 ? (
-              <p className="p-3 text-sm text-slate-500">2자 이상 입력해 주세요.</p>
+              <p className="text-ink-faint p-3 text-sm">2자 이상 입력해 주세요.</p>
             ) : loading ? (
-              <p className="p-3 text-sm text-slate-500">검색 중…</p>
+              <p className="text-ink-faint p-3 text-sm">검색 중…</p>
             ) : noResults ? (
-              <p className="p-3 text-sm text-slate-500">일치하는 결과가 없습니다.</p>
+              <p className="text-ink-faint p-3 text-sm">일치하는 결과가 없습니다.</p>
             ) : (
               <>
                 {reservations.length > 0 && (
                   <div>
-                    <p className="bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-500">
+                    <p className="bg-surface-hover text-ink-faint px-3 py-1.5 text-xs font-bold">
                       방문 예약 신청
                     </p>
                     <ul>
@@ -143,18 +149,18 @@ export function AdminGlobalSearch({ forceIcon }: { forceIcon: boolean }) {
                         <li key={reservation.reservationId}>
                           <button
                             type="button"
-                            className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+                            className="hover:bg-surface-hover w-full px-3 py-2 text-left text-sm transition-colors"
                             onClick={() => goTo(`/admin/reservations/${reservation.reservationId}`)}
                           >
-                            <span className="font-semibold text-slate-900">
+                            <span className="text-ink font-semibold">
                               {reservation.requesterName}
                             </span>
-                            <span className="ml-1 text-xs text-slate-500">
+                            <span className="text-ink-faint ml-1 text-xs">
                               {reservation.vehicleNo} ·{' '}
                               {REQUESTER_TYPE_LABEL[reservation.requesterType]} ·{' '}
                               {RESERVATION_STATUS_LABEL[reservation.reservationStatus]}
                             </span>
-                            <span className="block text-xs text-slate-400">
+                            <span className="text-ink-faint block text-xs">
                               {reservation.reservationNo}
                             </span>
                           </button>
@@ -165,7 +171,7 @@ export function AdminGlobalSearch({ forceIcon }: { forceIcon: boolean }) {
                 )}
                 {vehicleTrips.length > 0 && (
                   <div>
-                    <p className="bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-500">
+                    <p className="bg-surface-hover text-ink-faint px-3 py-1.5 text-xs font-bold">
                       법인차량 운행 신청
                     </p>
                     <ul>
@@ -173,17 +179,15 @@ export function AdminGlobalSearch({ forceIcon }: { forceIcon: boolean }) {
                         <li key={trip.tripId}>
                           <button
                             type="button"
-                            className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+                            className="hover:bg-surface-hover w-full px-3 py-2 text-left text-sm transition-colors"
                             onClick={() => goTo(`/admin/company-vehicles/trips/${trip.tripId}`)}
                           >
-                            <span className="font-semibold text-slate-900">
-                              {trip.employeeName}
-                            </span>
-                            <span className="ml-1 text-xs text-slate-500">
+                            <span className="text-ink font-semibold">{trip.employeeName}</span>
+                            <span className="text-ink-faint ml-1 text-xs">
                               {trip.vehicleNo ?? '-'} · {RESERVATION_STATUS_LABEL[trip.tripStatus]}
                             </span>
                             {trip.tripNo && (
-                              <span className="block text-xs text-slate-400">{trip.tripNo}</span>
+                              <span className="text-ink-faint block text-xs">{trip.tripNo}</span>
                             )}
                           </button>
                         </li>

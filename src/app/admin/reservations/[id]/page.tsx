@@ -150,7 +150,7 @@ export default async function AdminReservationDetailPage({ params, searchParams 
 
       {reservation.timingExceptionReason && (
         <Alert
-          variant={reservation.timingExceptionApprovedAt ? 'success' : 'warning'}
+          variant="warning"
           title={`시간 예외 신청 | ${formatKstRange(reservation.visitStartAt, reservation.visitEndAt)}`}
         >
           {reservation.timingExceptionReason}

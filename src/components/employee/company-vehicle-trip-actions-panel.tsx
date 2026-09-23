@@ -16,6 +16,7 @@ type Props = {
   operatingStartTime: string;
   operatingEndTime: string;
   maxUsageHours: number;
+  timingExceptionEnabled: boolean;
   initial: {
     destination: string;
     reason: string;
@@ -23,6 +24,7 @@ type Props = {
     date: string;
     requestStartAt: string;
     requestEndAt: string;
+    timingExceptionReason: string | null;
   };
 };
 

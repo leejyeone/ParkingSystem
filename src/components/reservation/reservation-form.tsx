@@ -29,6 +29,8 @@ type Settings = {
    * 선택하는 것을 줄이기 위해, 서버가 현재시각 기준으로 계산해 미리 채워 준다.
    */
   defaultDateTimeInput: string;
+  /** 신청자가 시간 예외를 새로 요청할 수 있는지. false 면 예외 신청 진입점을 감춘다. */
+  timingExceptionEnabled: boolean;
 };
 
 /**
@@ -330,46 +332,6 @@ export function ReservationForm({
 
   return (
     <form onSubmit={handleSubmit} noValidate>
-      <div className="mb-4">
-        {timingExceptionOpen ? (
-          <FormField
-            label="예외 신청 사유"
-            htmlFor="timingExceptionReason"
-            required
-            hint="운영시간이나 최대 이용시간을 벗어난 시간대를 신청하는 이유를 적어 주세요. 관리자가 승인해야 확정됩니다."
-            errors={fieldErrors.timingExceptionReason}
-          >
-            <textarea
-              id="timingExceptionReason"
-              name="timingExceptionReason"
-              rows={2}
-              className={inputClassName(Boolean(fieldErrors.timingExceptionReason))}
-              value={form.timingExceptionReason}
-              onChange={(event) => update('timingExceptionReason', event.target.value)}
-              maxLength={300}
-            />
-            <button
-              type="button"
-              className="text-ink-faint mt-1.5 text-xs font-semibold underline"
-              onClick={() => {
-                setTimingExceptionOpen(false);
-                update('timingExceptionReason', '');
-              }}
-            >
-              예외 신청 취소
-            </button>
-          </FormField>
-        ) : (
-          <button
-            type="button"
-            className="text-brand-700 text-xs font-semibold underline"
-            onClick={() => setTimingExceptionOpen(true)}
-          >
-            운영시간·최대 이용시간을 벗어난 시간대가 필요하신가요? 예외 신청
-          </button>
-        )}
-      </div>
-
       {formError && (
         <div className="mb-4">
           <Alert variant="error" title="신청을 완료하지 못했습니다">
@@ -505,7 +467,31 @@ export function ReservationForm({
 
       <div className="card mt-4">
         <div className="card-body space-y-5">
-          <h2 className="card-title">방문 일정</h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="card-title">방문 일정</h2>
+            {mode !== 'visitor' &&
+              (settings.timingExceptionEnabled || form.timingExceptionReason) &&
+              (timingExceptionOpen ? (
+                <button
+                  type="button"
+                  className="text-ink-faint text-xs font-semibold underline"
+                  onClick={() => {
+                    setTimingExceptionOpen(false);
+                    update('timingExceptionReason', '');
+                  }}
+                >
+                  예외 신청 취소
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="text-brand-700 text-xs font-semibold underline"
+                  onClick={() => setTimingExceptionOpen(true)}
+                >
+                  예외 신청
+                </button>
+              ))}
+          </div>
 
           <FormField
             label="입차 예정 시간"
@@ -518,7 +504,8 @@ export function ReservationForm({
               id="visitStartAt"
               name="visitStartAt"
               type="datetime-local"
-              min={settings.minDateTimeInput}
+              // 예외 신청을 켜면 최소 사전 신청 시간(리드타임) 제약도 함께 풀린다.
+              min={timingExceptionOpen ? undefined : settings.minDateTimeInput}
               className={inputClassName(Boolean(fieldErrors.visitStartAt))}
               value={form.visitStartAt}
               onChange={(event) => update('visitStartAt', event.target.value)}
@@ -537,6 +524,14 @@ export function ReservationForm({
               name="visitEndAt"
               type="datetime-local"
               min={form.visitStartAt || settings.minDateTimeInput}
+              // 예외 신청 전 기본 흐름에서는 출차 시간이 입차일의 운영 종료 시각을
+              // 넘지 않도록 고정한다(같은 날짜 내에서만 선택 가능). 예외 신청을 켜면
+              // 이 제한 자체가 없어야 하므로 max를 아예 지운다.
+              max={
+                !timingExceptionOpen && form.visitStartAt
+                  ? `${form.visitStartAt.split('T')[0]}T${settings.parkingCloseTime}`
+                  : undefined
+              }
               className={inputClassName(Boolean(fieldErrors.visitEndAt))}
               value={form.visitEndAt}
               onChange={(event) => update('visitEndAt', event.target.value)}
@@ -558,6 +553,26 @@ export function ReservationForm({
               maxLength={200}
             />
           </FormField>
+
+          {timingExceptionOpen && (
+            <FormField
+              label="예외 신청 사유"
+              htmlFor="timingExceptionReason"
+              required
+              hint="운영시간이나 최대 이용시간을 벗어난 시간대를 신청하는 이유를 적어 주세요. 관리자가 승인해야 확정됩니다."
+              errors={fieldErrors.timingExceptionReason}
+            >
+              <textarea
+                id="timingExceptionReason"
+                name="timingExceptionReason"
+                rows={2}
+                className={inputClassName(Boolean(fieldErrors.timingExceptionReason))}
+                value={form.timingExceptionReason}
+                onChange={(event) => update('timingExceptionReason', event.target.value)}
+                maxLength={300}
+              />
+            </FormField>
+          )}
 
           <FormField label="요청 메모" htmlFor="requestMemo" errors={fieldErrors.requestMemo}>
             <textarea

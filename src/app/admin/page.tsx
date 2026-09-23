@@ -268,7 +268,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
             <>
               <p className="field-hint mt-2">행을 누르면 처리 화면으로 이동합니다.</p>
               <div className="table-scroll mt-2">
-                <table className="data-table table-fixed">
+                <table className="data-table">
                   <thead>
                     <tr>
                       <th className="w-48">운행 시간</th>
@@ -353,7 +353,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
                 있습니다.
               </p>
               <div className="table-scroll mt-2">
-                <table className="data-table table-fixed">
+                <table className="data-table">
                   <thead>
                     <tr>
                       <th className="w-44">운행 시간</th>

@@ -74,6 +74,7 @@ export default async function NewReservationPage() {
           maxReservationHours: settings.maxReservationHours,
           spaceAssignmentEnabled: settings.spaceAssignmentEnabled,
           personalDataRetentionDays: settings.personalDataRetentionDays,
+          timingExceptionEnabled: settings.timingExceptionEnabled,
           // 기기 타임존에 상관없이 Asia/Seoul 기준으로 최소 선택 가능 시각을 계산한다.
           minDateTimeInput: earliestSelectableInput(
             settings.reservationMinLeadMinutes,

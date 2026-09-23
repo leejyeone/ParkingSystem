@@ -6,6 +6,7 @@ import { kstDayRangeUtc } from '@/lib/datetime';
 import { requireActiveEmployee } from '@/services/employee-auth-service';
 import {
   getActiveVehicleList,
+  getActiveVehicleListWithConflict,
   getVehicleAvailabilityForDate,
 } from '@/services/company-vehicle-trip-service';
 
@@ -20,7 +21,9 @@ export const dynamic = 'force-dynamic';
  *
  * `date`를 생략하면(시간 제약 예외 신청 화면) 날짜 기준 가용성 계산 없이 활성 차량
  * 전체 목록을 돌려준다 — 예외 신청은 여러 날짜에 걸칠 수 있어 미리 판단할 수 없으므로,
- * 중복 배정 여부는 관리자가 승인 시점에 직접 확인한다.
+ * 중복 배정 여부는 관리자가 승인 시점에 직접 확인한다. 이때 `requestStartAt`/
+ * `requestEndAt`(ISO)을 함께 주면, 그 범위로 실제 겹치는 차량만 `hasConflict: true`로
+ * 표시해 화면에서 경고를 띄울 수 있게 한다(막지는 않는다).
  */
 export async function GET(request: NextRequest) {
   try {
@@ -33,7 +36,24 @@ export async function GET(request: NextRequest) {
 
     let vehicles;
     if (date === null) {
-      vehicles = await getActiveVehicleList();
+      const requestStartAtParam = request.nextUrl.searchParams.get('requestStartAt');
+      const requestEndAtParam = request.nextUrl.searchParams.get('requestEndAt');
+      if (requestStartAtParam && requestEndAtParam) {
+        const requestStartAt = new Date(requestStartAtParam);
+        const requestEndAt = new Date(requestEndAtParam);
+        if (Number.isNaN(requestStartAt.getTime()) || Number.isNaN(requestEndAt.getTime())) {
+          throw new ValidationError('올바른 시간을 지정해 주세요.', {
+            requestStartAt: ['올바른 시간을 지정해 주세요.'],
+          });
+        }
+        vehicles = await getActiveVehicleListWithConflict({
+          requestStartAt,
+          requestEndAt,
+          excludeTripId,
+        });
+      } else {
+        vehicles = await getActiveVehicleList();
+      }
     } else {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
         throw new ValidationError('올바른 날짜를 지정해 주세요.', { date: ['올바른 날짜를 지정해 주세요.'] });
@@ -51,6 +71,7 @@ export async function GET(request: NextRequest) {
           start: rangeItem.start.toISOString(),
           end: rangeItem.end.toISOString(),
         })),
+        hasConflict: vehicle.hasConflict,
       })),
     });
   } catch (error) {

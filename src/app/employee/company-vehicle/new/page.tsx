@@ -36,6 +36,7 @@ export default async function CompanyVehicleNewTripPage() {
         operatingStartTime={settings.companyVehicleOperatingStartTime}
         operatingEndTime={settings.companyVehicleOperatingEndTime}
         maxUsageHours={settings.companyVehicleMaxUsageHours}
+        timingExceptionEnabled={settings.timingExceptionEnabled}
       />
     </main>
   );

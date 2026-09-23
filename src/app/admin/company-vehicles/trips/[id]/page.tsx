@@ -22,6 +22,7 @@ import { listCompanyVehicles } from '@/services/company-vehicle-service';
 import {
   findConflictingVehicleIds,
   getCompanyVehicleTripDetail,
+  getConflictingTripsForVehicle,
 } from '@/services/company-vehicle-trip-service';
 
 export const dynamic = 'force-dynamic';
@@ -65,18 +66,28 @@ export default async function CompanyVehicleTripDetailPage({ params, searchParam
     throw error;
   }
 
-  const [vehicles, conflictingVehicleIds] = await Promise.all([
+  const [vehicles, conflictingVehicleIds, conflictingTrips] = await Promise.all([
     listCompanyVehicles(),
     findConflictingVehicleIds({
       requestStartAt: trip.requestStartAt,
       requestEndAt: trip.requestEndAt,
       excludeTripId: trip.tripId,
     }),
+    trip.assignedVehicleId !== null
+      ? getConflictingTripsForVehicle({
+          vehicleId: trip.assignedVehicleId,
+          requestStartAt: trip.requestStartAt,
+          requestEndAt: trip.requestEndAt,
+          excludeTripId: trip.tripId,
+        })
+      : Promise.resolve([]),
   ]);
   const vehiclesWithAvailability = vehicles.map((vehicle) => ({
     ...vehicle,
     available: !conflictingVehicleIds.has(vehicle.vehicleId),
   }));
+  const hasVehicleConflict =
+    trip.assignedVehicleId !== null && conflictingVehicleIds.has(trip.assignedVehicleId);
 
   // 종료된 신청(반려/취소/출차/미방문)도 관리자가 내용을 정정할 수 있다 — 방문 예약
   // 상세와 같은 기준. 법인차량은 애초에 이 수정으로 이메일을 보내지 않는다.
@@ -117,9 +128,29 @@ export default async function CompanyVehicleTripDetailPage({ params, searchParam
         </div>
       </div>
 
+      {hasVehicleConflict && (
+        <Alert variant="warning" title="배정 차량 중복">
+          <p>이 차량은 같은 시간대에 다른 신청과 겹칩니다. 승인 전에 확인해 주세요.</p>
+          <ul className="mt-2 list-disc space-y-1 pl-4">
+            {conflictingTrips.map((conflictingTrip) => (
+              <li key={conflictingTrip.tripId}>
+                <Link
+                  href={`/admin/company-vehicles/trips/${conflictingTrip.tripId}`}
+                  className="font-semibold underline hover:no-underline"
+                >
+                  {formatKstRange(conflictingTrip.requestStartAt, conflictingTrip.requestEndAt)} ·{' '}
+                  {conflictingTrip.requesterName} ({conflictingTrip.departmentName}) ·{' '}
+                  {conflictingTrip.reason}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Alert>
+      )}
+
       {trip.timingExceptionReason && (
         <Alert
-          variant={trip.timingExceptionApprovedAt ? 'success' : 'warning'}
+          variant="warning"
           title={`시간 예외 신청 | ${formatKstRange(trip.requestStartAt, trip.requestEndAt)}`}
         >
           {trip.timingExceptionReason}

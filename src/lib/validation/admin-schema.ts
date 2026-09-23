@@ -267,6 +267,7 @@ export const systemSettingsSchema = z
       .int()
       .min(1, '법인차량 최대 사용 가능 시간은 1시간 이상이어야 합니다.')
       .max(12, '법인차량 최대 사용 가능 시간은 12시간 이하로 설정해 주세요.'),
+    timingExceptionEnabled: z.boolean(),
   })
   .refine((values) => values.parkingOpenTime < values.parkingCloseTime, {
     error: '운영 종료 시간은 운영 시작 시간보다 늦어야 합니다.',

@@ -15,6 +15,22 @@ const SPACE_STATUS_CLASS: Record<Exclude<SpaceOccupancyStatus, 'EMPTY'>, string>
 };
 
 /**
+ * 조회 중인 날짜 하루 범위로 잘라낸 시간을 표시용 문자열로 바꾼다. 시간 예외로 여러
+ * 날짜에 걸치는 건(`spansMultipleDays`)은 자정에 걸쳐 잘린 종료 시각을 "00:00"이 아니라
+ * "24:00"으로 보여주고(자정에 끝난 것과 헷갈리지 않도록), "(시간예외)"를 붙여 원본이
+ * 하루짜리가 아님을 알린다.
+ */
+function formatDayRange(displayStartAt: Date, displayEndAt: Date, spansMultipleDays: boolean): string {
+  if (!spansMultipleDays) {
+    return `${formatKstTime(displayStartAt)} ~ ${formatKstTime(displayEndAt)}`;
+  }
+
+  const startText = formatKstTime(displayStartAt);
+  const endText = formatKstTime(displayEndAt) === '00:00' ? '24:00' : formatKstTime(displayEndAt);
+  return `${startText} ~ ${endText} (시간예외)`;
+}
+
+/**
  * "주차면 현황" 표 — 대시보드(`/admin`)와 상시 모니터용 주차 평면도(`/admin/parking-map`)
  * 양쪽에서 완전히 같은 표를 쓴다.
  *
@@ -105,7 +121,7 @@ function SpaceRow({ space, nowMs }: { space: SpaceStatusRow; nowMs: number }) {
                   href={`/admin/reservations/${occupancy.reservationId}`}
                   className="text-brand-700 font-bold hover:underline"
                 >
-                  {formatKstTime(occupancy.visitStartAt)} ~ {formatKstTime(occupancy.visitEndAt)}
+                  {formatDayRange(occupancy.displayStartAt, occupancy.displayEndAt, occupancy.spansMultipleDays)}
                 </Link>
                 {space.inUseReservationId === occupancy.reservationId ? (
                   <span className={`badge ${SPACE_STATUS_CLASS.IN_USE}`}>
@@ -128,7 +144,7 @@ function SpaceRow({ space, nowMs }: { space: SpaceStatusRow; nowMs: number }) {
                   href={`/admin/company-vehicles/trips/${trip.tripId}`}
                   className="text-brand-700 font-bold hover:underline"
                 >
-                  {formatKstTime(trip.requestStartAt)} ~ {formatKstTime(trip.requestEndAt)}
+                  {formatDayRange(trip.displayStartAt, trip.displayEndAt, trip.spansMultipleDays)}
                 </Link>
                 {trip.tripId === space.companyVehicleInUseTripId && (
                   <span className={`badge ${SPACE_STATUS_CLASS.IN_USE}`}>

@@ -85,6 +85,7 @@ export function assertCompanyVehicleTripTiming(params: {
  * 신규 신청 시 공통 시간 규칙 검증. 방문 예약과 동일하게 최소 사전 신청 시간
  * (`reservationMinLeadMinutes`)까지 함께 본다 — 관리자 수정(`assertCompanyVehicleTripTiming`)은
  * 방문 예약의 관리자 수정과 마찬가지로 이 리드타임 검증을 받지 않는다.
+ * `allowTimingException`이면 이 리드타임 검증도 함께 건너뛴다.
  */
 export function assertCompanyVehicleTripCreateTiming(params: {
   requestStartAt: Date;
@@ -93,11 +94,13 @@ export function assertCompanyVehicleTripCreateTiming(params: {
   settings: SystemSettingsValues;
   allowTimingException?: boolean;
 }): void {
-  const { requestStartAt, now, settings } = params;
+  const { requestStartAt, now, settings, allowTimingException } = params;
   const fieldErrors: FieldErrors = {};
 
-  const leadError = checkMinimumLeadTime(requestStartAt, now, settings.reservationMinLeadMinutes);
-  if (leadError) (fieldErrors.requestStartAt ??= []).push(leadError);
+  if (!allowTimingException) {
+    const leadError = checkMinimumLeadTime(requestStartAt, now, settings.reservationMinLeadMinutes);
+    if (leadError) (fieldErrors.requestStartAt ??= []).push(leadError);
+  }
 
   if (Object.keys(fieldErrors).length > 0) {
     throw new ValidationError('운행 요청 시간을 다시 확인해 주세요.', fieldErrors);

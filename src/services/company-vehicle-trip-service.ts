@@ -221,12 +221,17 @@ export async function createCompanyVehicleTrip(
 ) {
   const settings = await getSystemSettings();
   const now = new Date();
+  // 시스템 설정에서 예외 신청 자체를 꺼뒀으면 신청자가 사유를 보내도 무시하고 일반
+  // 신청 규칙만 적용한다.
+  const timingExceptionReason = settings.timingExceptionEnabled
+    ? (input.timingExceptionReason ?? null)
+    : null;
   assertCompanyVehicleTripCreateTiming({
     requestStartAt: input.requestStartAt,
     requestEndAt: input.requestEndAt,
     now,
     settings,
-    allowTimingException: Boolean(input.timingExceptionReason),
+    allowTimingException: Boolean(timingExceptionReason),
   });
 
   const created = await createWithUniqueTripNo((tripNo) =>
@@ -240,15 +245,19 @@ export async function createCompanyVehicleTrip(
         throw new NotFoundError('선택하신 법인차량을 찾을 수 없습니다.');
       }
 
-      const conflict = await findConflictingTrip(
-        { vehicleId: input.vehicleId, requestStartAt: input.requestStartAt, requestEndAt: input.requestEndAt },
-        tx,
-      );
-      if (conflict) {
-        throw new ConflictError(
-          '선택하신 차량은 해당 시간대에 이미 다른 신청(승인 대기 포함)이 있습니다. 다른 차량이나 시간을 선택해 주세요.',
-          'VEHICLE_TIME_CONFLICT',
+      // 시간 예외 신청은 겹쳐도 막지 않는다 — 신청 화면에서 경고만 보여주고, 최종
+      // 중복 여부 판단은 관리자가 승인 시점에 한다(정상 신청은 그대로 차단).
+      if (!timingExceptionReason) {
+        const conflict = await findConflictingTrip(
+          { vehicleId: input.vehicleId, requestStartAt: input.requestStartAt, requestEndAt: input.requestEndAt },
+          tx,
         );
+        if (conflict) {
+          throw new ConflictError(
+            '선택하신 차량은 해당 시간대에 이미 다른 신청(승인 대기 포함)이 있습니다. 다른 차량이나 시간을 선택해 주세요.',
+            'VEHICLE_TIME_CONFLICT',
+          );
+        }
       }
 
       return tx.companyVehicleTrip.create({
@@ -261,7 +270,7 @@ export async function createCompanyVehicleTrip(
           requestEndAt: input.requestEndAt,
           assignedVehicleId: input.vehicleId,
           tripStatus: ReservationStatus.REQUESTED,
-          timingExceptionReason: input.timingExceptionReason ?? null,
+          timingExceptionReason,
         },
         include: { employee: { select: { name: true, email: true, departmentName: true } } },
       });
@@ -341,6 +350,54 @@ export async function findConflictingVehicleIds(params: {
 }
 
 /**
+ * 특정 차량 한 대에, 주어진 시간대와 겹치는(승인 대기 포함) 트립들의 상세를 돌려준다.
+ * `findConflictingVehicleIds`는 "겹치는 차량 ID"만 배치로 알려주는 반면, 이건 관리자
+ * 상세 화면에서 "정확히 무엇과 겹치는지"를 보여줘야 할 때 쓴다.
+ */
+export async function getConflictingTripsForVehicle(params: {
+  vehicleId: number;
+  requestStartAt: Date;
+  requestEndAt: Date;
+  excludeTripId?: number;
+}): Promise<
+  {
+    tripId: number;
+    requestStartAt: Date;
+    requestEndAt: Date;
+    requesterName: string;
+    departmentName: string;
+    reason: string;
+  }[]
+> {
+  const trips = await prisma.companyVehicleTrip.findMany({
+    where: {
+      assignedVehicleId: params.vehicleId,
+      tripStatus: { in: CONFLICTING_TRIP_STATUSES },
+      requestStartAt: { lt: params.requestEndAt },
+      requestEndAt: { gt: params.requestStartAt },
+      ...(params.excludeTripId ? { tripId: { not: params.excludeTripId } } : {}),
+    },
+    select: {
+      tripId: true,
+      requestStartAt: true,
+      requestEndAt: true,
+      reason: true,
+      employee: { select: { name: true, departmentName: true } },
+    },
+    orderBy: { requestStartAt: 'asc' },
+  });
+
+  return trips.map((trip) => ({
+    tripId: trip.tripId,
+    requestStartAt: trip.requestStartAt,
+    requestEndAt: trip.requestEndAt,
+    requesterName: trip.employee.name,
+    departmentName: trip.employee.departmentName,
+    reason: trip.reason,
+  }));
+}
+
+/**
  * 직원 신청 화면의 차량 선택 그리드용 — 그 날짜(KST)에 걸치는 활성 차량별 기존 예약
  * (승인 대기 포함) 구간을 전부 돌려준다. `findConflictingVehicleIds`는 "겹치는지 여부"만
  * 알려주는 배치 조회고, 이건 실제 구간 목록까지 필요한 그리드 렌더링용이라 별도로 둔다.
@@ -352,6 +409,12 @@ export type VehicleAvailability = {
   /** 이 차량이 고정 주차된 위치(주차면 코드). 고정 배정이 없으면 null. */
   parkingSpaceCode: string | null;
   busyRanges: { start: Date; end: Date }[];
+  /**
+   * 예외 신청용 — 신청자가 고른 시간대와 이 차량의 기존 신청(승인 대기 포함)이 겹치는지.
+   * 날짜 기준 목록(`getVehicleAvailabilityForDate`)에서는 항상 false이고,
+   * `getActiveVehicleListWithConflict`에서만 실제로 계산된다.
+   */
+  hasConflict: boolean;
 };
 
 export async function getVehicleAvailabilityForDate(
@@ -395,6 +458,7 @@ export async function getVehicleAvailabilityForDate(
     vehicleModel: vehicle.vehicleModel,
     parkingSpaceCode: vehicle.parkingSpace?.spaceCode ?? null,
     busyRanges: byVehicle.get(vehicle.vehicleId) ?? [],
+    hasConflict: false,
   }));
 }
 
@@ -421,6 +485,29 @@ export async function getActiveVehicleList(): Promise<VehicleAvailability[]> {
     vehicleModel: vehicle.vehicleModel,
     parkingSpaceCode: vehicle.parkingSpace?.spaceCode ?? null,
     busyRanges: [],
+    hasConflict: false,
+  }));
+}
+
+/**
+ * 시간 제약 예외 신청용 — 활성 차량 전체 목록에, 신청자가 고른 시간대와 실제로 겹치는
+ * 차량이 있으면 `hasConflict: true`로 표시해 돌려준다. 목록 자체는 날짜와 무관하지만
+ * (`getActiveVehicleList`), 겹침 여부만은 `findConflictingVehicleIds`로 정확한 시간
+ * 범위 기준으로 판정한다 — 막지는 않고 화면에 경고로만 쓴다.
+ */
+export async function getActiveVehicleListWithConflict(params: {
+  requestStartAt: Date;
+  requestEndAt: Date;
+  excludeTripId?: number;
+}): Promise<VehicleAvailability[]> {
+  const [vehicles, conflictingVehicleIds] = await Promise.all([
+    getActiveVehicleList(),
+    findConflictingVehicleIds(params),
+  ]);
+
+  return vehicles.map((vehicle) => ({
+    ...vehicle,
+    hasConflict: conflictingVehicleIds.has(vehicle.vehicleId),
   }));
 }
 
@@ -730,12 +817,17 @@ export async function updateCompanyVehicleTripByRequester(params: {
 }): Promise<CompanyVehicleTripDetail> {
   const settings = await getSystemSettings();
   const now = new Date();
+  // 시스템 설정에서 예외 신청 자체를 꺼뒀으면 신청자가 사유를 보내도 무시하고 일반
+  // 신청 규칙만 적용한다.
+  const timingExceptionReason = settings.timingExceptionEnabled
+    ? (params.timingExceptionReason ?? null)
+    : null;
   assertCompanyVehicleTripCreateTiming({
     requestStartAt: params.requestStartAt,
     requestEndAt: params.requestEndAt,
     now,
     settings,
-    allowTimingException: Boolean(params.timingExceptionReason),
+    allowTimingException: Boolean(timingExceptionReason),
   });
 
   return prisma.$transaction(async (tx) => {
@@ -761,20 +853,24 @@ export async function updateCompanyVehicleTripByRequester(params: {
       throw new NotFoundError('선택하신 법인차량을 찾을 수 없습니다.');
     }
 
-    const conflict = await findConflictingTrip(
-      {
-        vehicleId: params.vehicleId,
-        requestStartAt: params.requestStartAt,
-        requestEndAt: params.requestEndAt,
-        excludeTripId: params.tripId,
-      },
-      tx,
-    );
-    if (conflict) {
-      throw new ConflictError(
-        '선택하신 차량은 해당 시간대에 이미 다른 신청(승인 대기 포함)이 있습니다. 다른 차량이나 시간을 선택해 주세요.',
-        'VEHICLE_TIME_CONFLICT',
+    // 시간 예외 신청은 겹쳐도 막지 않는다 — 신청 화면에서 경고만 보여주고, 최종
+    // 중복 여부 판단은 관리자가 승인 시점에 한다(정상 신청은 그대로 차단).
+    if (!timingExceptionReason) {
+      const conflict = await findConflictingTrip(
+        {
+          vehicleId: params.vehicleId,
+          requestStartAt: params.requestStartAt,
+          requestEndAt: params.requestEndAt,
+          excludeTripId: params.tripId,
+        },
+        tx,
       );
+      if (conflict) {
+        throw new ConflictError(
+          '선택하신 차량은 해당 시간대에 이미 다른 신청(승인 대기 포함)이 있습니다. 다른 차량이나 시간을 선택해 주세요.',
+          'VEHICLE_TIME_CONFLICT',
+        );
+      }
     }
 
     return tx.companyVehicleTrip.update({
@@ -785,7 +881,7 @@ export async function updateCompanyVehicleTripByRequester(params: {
         requestStartAt: params.requestStartAt,
         requestEndAt: params.requestEndAt,
         assignedVehicleId: params.vehicleId,
-        timingExceptionReason: params.timingExceptionReason ?? null,
+        timingExceptionReason,
       },
       include: TRIP_DETAIL_INCLUDE,
     });
@@ -866,15 +962,12 @@ export async function updateCompanyVehicleTripDetails(
       params.requestStartAt.getTime() !== current.requestStartAt.getTime() ||
       params.requestEndAt.getTime() !== current.requestEndAt.getTime();
 
-    // 관리자가 직접 예외 사유를 채워 넣는 경우, 별도 승인 대기 없이 그 자리에서 바로
-    // 확정한다. 사유가 그대로면 기존 승인 기록(신청자 요청 → 관리자 승인 흐름에서
-    // 채워졌을 수도 있음)을 건드리지 않는다.
-    const timingExceptionReasonChanged =
-      current.timingExceptionReason !== (params.timingExceptionReason ?? null);
+    // 시간 예외 승인은 신청 승인과 함께만 확정된다(approveCompanyVehicleTrip의
+    // timingExceptionApprovalOnApprove) — 관리자가 여기서 사유만 고치는 것은 승인 행위가
+    // 아니므로 승인 기록을 새로 찍지 않는다. 사유를 지우면 더 이상 예외가 아니므로
+    // 남아있던 승인 기록도 함께 비운다.
     const timingExceptionFields = params.timingExceptionReason
-      ? timingExceptionReasonChanged || !current.timingExceptionApprovedAt
-        ? { timingExceptionApprovedAt: new Date(), timingExceptionApprovedByAdminId: params.adminUserId }
-        : {}
+      ? {}
       : { timingExceptionApprovedAt: null, timingExceptionApprovedByAdminId: null };
 
     if (params.assignedVehicleId !== null && (vehicleChanged || timeChanged)) {

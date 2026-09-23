@@ -21,6 +21,7 @@ export const SETTING_KEYS = {
   COMPANY_VEHICLE_OPERATING_START_TIME: 'COMPANY_VEHICLE_OPERATING_START_TIME',
   COMPANY_VEHICLE_OPERATING_END_TIME: 'COMPANY_VEHICLE_OPERATING_END_TIME',
   COMPANY_VEHICLE_MAX_USAGE_HOURS: 'COMPANY_VEHICLE_MAX_USAGE_HOURS',
+  TIMING_EXCEPTION_ENABLED: 'TIMING_EXCEPTION_ENABLED',
 } as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS];
@@ -93,6 +94,14 @@ export type SystemSettingsValues = {
   companyVehicleOperatingEndTime: string;
   /** 법인 공용 차량 1회 신청당 최대 사용 가능 시간(시간). */
   companyVehicleMaxUsageHours: number;
+  /**
+   * 신청자가 시간 예외(운영시간·최대 이용시간·같은 날짜·최소 사전 신청 시간을 벗어난
+   * 신청)를 요청할 수 있는지. false 면 방문 예약/법인차량 신청·수정 화면에서 "예외
+   * 신청" 진입점이 사라지고, 서버도 신청자 경로로 들어오는 예외 사유를 무시한다.
+   * 관리자가 상세 화면에서 직접 시간을 정정하며 예외를 부여하는 기능은 이 설정과
+   * 무관하게 항상 동작한다.
+   */
+  timingExceptionEnabled: boolean;
 };
 
 export const DEFAULT_SETTINGS: SystemSettingsValues = {
@@ -118,6 +127,7 @@ export const DEFAULT_SETTINGS: SystemSettingsValues = {
   companyVehicleOperatingStartTime: '07:00',
   companyVehicleOperatingEndTime: '22:00',
   companyVehicleMaxUsageHours: 4,
+  timingExceptionEnabled: true,
 };
 
 export const SETTING_DESCRIPTIONS: Record<SettingKey, string> = {
@@ -144,6 +154,8 @@ export const SETTING_DESCRIPTIONS: Record<SettingKey, string> = {
   COMPANY_VEHICLE_OPERATING_START_TIME: '법인 공용 차량 운행 신청 가능 시작 시간(HH:mm, Asia/Seoul).',
   COMPANY_VEHICLE_OPERATING_END_TIME: '법인 공용 차량 운행 신청 가능 종료 시간(HH:mm, Asia/Seoul).',
   COMPANY_VEHICLE_MAX_USAGE_HOURS: '법인 공용 차량 1회 신청당 최대 사용 가능 시간(시간).',
+  TIMING_EXCEPTION_ENABLED:
+    '신청자의 시간 예외 신청 허용 여부(true/false). false 이면 신청·수정 화면에서 예외 신청 진입점이 사라지고 서버도 거부합니다.',
 };
 
 /** DB 의 key/value 목록을 타입이 있는 설정 객체로 변환 */
@@ -228,6 +240,10 @@ export function toSettingsValues(
       SETTING_KEYS.COMPANY_VEHICLE_MAX_USAGE_HOURS,
       DEFAULT_SETTINGS.companyVehicleMaxUsageHours,
     ),
+    timingExceptionEnabled: readBoolean(
+      SETTING_KEYS.TIMING_EXCEPTION_ENABLED,
+      DEFAULT_SETTINGS.timingExceptionEnabled,
+    ),
   };
 }
 
@@ -294,6 +310,10 @@ export function toSettingRows(
     {
       settingKey: SETTING_KEYS.COMPANY_VEHICLE_MAX_USAGE_HOURS,
       settingValue: String(values.companyVehicleMaxUsageHours),
+    },
+    {
+      settingKey: SETTING_KEYS.TIMING_EXCEPTION_ENABLED,
+      settingValue: String(values.timingExceptionEnabled),
     },
   ];
 }

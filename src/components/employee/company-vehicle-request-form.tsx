@@ -7,7 +7,7 @@ import { CompanyVehicleSlotPicker } from '@/components/employee/company-vehicle-
 import { Alert } from '@/components/ui/alert';
 import { FormField, inputClassName } from '@/components/ui/form-field';
 import { apiRequest } from '@/lib/client/api-client';
-import { utcToZonedInput } from '@/lib/datetime';
+import { utcToZonedInput, zonedInputToUtc } from '@/lib/datetime';
 
 type Props = {
   employeeName: string;
@@ -21,6 +21,8 @@ type Props = {
   operatingEndTime: string;
   /** 1회 최대 사용 가능 시간(시스템 설정, 시간 단위). */
   maxUsageHours: number;
+  /** 신청자가 시간 예외를 새로 요청할 수 있는지. false 면 예외 신청 진입점을 감춘다. */
+  timingExceptionEnabled: boolean;
   /**
    * 'edit'이면 새 신청이 아니라 관리자 승인 전 신청을 본인이 고치는 화면이다 —
    * `CompanyVehicleTripActionsPanel`이 상세 화면 안에서 이 폼을 그대로 재사용한다.
@@ -36,6 +38,8 @@ type Props = {
     date: string;
     requestStartAt: string;
     requestEndAt: string;
+    /** 기존 신청이 이미 시간 예외였으면 수정 화면을 열자마자 펼쳐서 사유를 보여준다. */
+    timingExceptionReason?: string | null;
   };
   /** mode: 'edit'일 때만 쓰인다 — "되돌아가기". */
   onCancel?: () => void;
@@ -51,6 +55,8 @@ type VehicleAvailability = {
   parkingSpaceCode: string | null;
   /** 그 차량이 이미 다른 신청(승인 대기 포함)에 걸려 있는 시간대(분 단위, 그날 0시 기준). */
   busyMinuteRanges: { start: number; end: number }[];
+  /** 예외 신청용 — 지금 고른 시작~종료 시간과 이 차량의 기존 신청이 실제로 겹치는지. */
+  hasConflict: boolean;
 };
 
 function toMinutesOfDay(hhmm: string): number {
@@ -105,6 +111,7 @@ export function CompanyVehicleRequestForm({
   operatingStartTime,
   operatingEndTime,
   maxUsageHours,
+  timingExceptionEnabled,
   mode = 'create',
   tripId,
   initial,
@@ -128,8 +135,12 @@ export function CompanyVehicleRequestForm({
   // 운영 가능 시간/최대 사용시간·같은 날짜 제약을 벗어난 신청이 필요할 때 켠다 — 날짜별
   // 가용성 조회 대신 활성 차량 전체 목록에서 바로 고르고, 시간도 직접 입력한다. 사유와
   // 함께 관리자 승인을 받아야 확정된다.
-  const [timingExceptionOpen, setTimingExceptionOpen] = useState(false);
-  const [timingExceptionReason, setTimingExceptionReason] = useState('');
+  const [timingExceptionOpen, setTimingExceptionOpen] = useState(
+    Boolean(initial?.timingExceptionReason),
+  );
+  const [timingExceptionReason, setTimingExceptionReason] = useState(
+    initial?.timingExceptionReason ?? '',
+  );
   const [exceptionVehicles, setExceptionVehicles] = useState<VehicleAvailability[] | null>(null);
   const [loadingExceptionVehicles, setLoadingExceptionVehicles] = useState(false);
 
@@ -191,6 +202,7 @@ export function CompanyVehicleRequestForm({
                 return { start, end };
               })
               .filter((range): range is { start: number; end: number } => range !== null),
+            hasConflict: false,
           })),
         );
       });
@@ -230,6 +242,7 @@ export function CompanyVehicleRequestForm({
             vehicleModel: vehicle.vehicleModel,
             parkingSpaceCode: vehicle.parkingSpaceCode,
             busyMinuteRanges: [],
+            hasConflict: false,
           })),
         );
       });
@@ -237,6 +250,39 @@ export function CompanyVehicleRequestForm({
 
     return () => clearTimeout(timer);
   }, [timingExceptionOpen, exceptionVehicles]);
+
+  // 예외 모드에서 시작/종료 시간이 모두 채워지면, 그 범위로 실제 겹치는 차량이 있는지
+  // 다시 조회해 경고로만 보여준다(막지는 않는다 — 최종 판단은 관리자 승인 시점).
+  useEffect(() => {
+    if (!timingExceptionOpen || !requestStartAt || !requestEndAt) return;
+
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams({
+        requestStartAt: zonedInputToUtc(requestStartAt).toISOString(),
+        requestEndAt: zonedInputToUtc(requestEndAt).toISOString(),
+      });
+      if (isEdit && tripId) params.set('excludeTripId', String(tripId));
+
+      apiRequest<{
+        vehicles: { vehicleId: number; hasConflict: boolean }[];
+      }>(`/api/company-vehicle-trips/vehicle-availability?${params.toString()}`).then((response) => {
+        if (!response.ok) return;
+        const conflictByVehicleId = new Map(
+          response.data.vehicles.map((vehicle) => [vehicle.vehicleId, vehicle.hasConflict]),
+        );
+        setExceptionVehicles((previous) =>
+          previous?.map((vehicle) => ({
+            ...vehicle,
+            hasConflict: conflictByVehicleId.get(vehicle.vehicleId) ?? false,
+          })) ?? previous,
+        );
+      });
+    }, 300);
+
+    return () => clearTimeout(timer);
+    // isEdit/tripId는 이 폼의 수명 동안 바뀌지 않는 props라 생략한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timingExceptionOpen, requestStartAt, requestEndAt]);
 
   const availableVehicles = (vehicles ?? []).filter(
     (vehicle) => !isFullyBooked(vehicle.busyMinuteRanges, operatingStartMin, operatingEndMin),
@@ -333,56 +379,41 @@ export function CompanyVehicleRequestForm({
   }
 
   return (
-    <>
-      <div className="mb-4">
-        {timingExceptionOpen ? (
-          <FormField
-            label="예외 신청 사유"
-            htmlFor="company-vehicle-exception-reason"
-            required
-            hint="운영 가능 시간·최대 사용시간·같은 날짜 제약을 벗어난 신청이 필요한 이유를 적어 주세요. 관리자가 승인해야 확정됩니다."
-            errors={fieldErrors.timingExceptionReason}
-          >
-            <textarea
-              id="company-vehicle-exception-reason"
-              rows={2}
-              className={inputClassName(Boolean(fieldErrors.timingExceptionReason))}
-              value={timingExceptionReason}
-              onChange={(event) => setTimingExceptionReason(event.target.value)}
-              maxLength={300}
-            />
-            <button
-              type="button"
-              className="text-ink-faint mt-1.5 text-xs font-semibold underline"
-              onClick={() => {
-                setTimingExceptionOpen(false);
-                setTimingExceptionReason('');
-                setVehicleId(null);
-                setRequestStartAt('');
-                setRequestEndAt('');
-              }}
-            >
-              예외 신청 취소
-            </button>
-          </FormField>
-        ) : (
-          <button
-            type="button"
-            className="text-brand-700 text-xs font-semibold underline"
-            onClick={() => {
-              setTimingExceptionOpen(true);
-              setVehicleId(null);
-              setRequestStartAt('');
-              setRequestEndAt('');
-            }}
-          >
-            운영 가능 시간·최대 사용시간·같은 날짜 제약을 벗어난 신청이 필요하신가요? 예외 신청
-          </button>
-        )}
-      </div>
-
-      <form onSubmit={handleSubmit} noValidate className="card">
+    <form onSubmit={handleSubmit} noValidate className="card">
       <div className="card-body space-y-5">
+        {(timingExceptionEnabled || timingExceptionOpen) && (
+          <div className="flex justify-end">
+            {timingExceptionOpen ? (
+              <button
+                type="button"
+                className="text-ink-faint text-xs font-semibold underline"
+                onClick={() => {
+                  setTimingExceptionOpen(false);
+                  setTimingExceptionReason('');
+                  setVehicleId(null);
+                  setRequestStartAt('');
+                  setRequestEndAt('');
+                }}
+              >
+                예외 신청 취소
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="text-brand-700 text-xs font-semibold underline"
+                onClick={() => {
+                  setTimingExceptionOpen(true);
+                  setVehicleId(null);
+                  setRequestStartAt('');
+                  setRequestEndAt('');
+                }}
+              >
+                예외 신청
+              </button>
+            )}
+          </div>
+        )}
+
         {message && <Alert variant="error">{message}</Alert>}
 
         <FormField label="운행 예정자" htmlFor="company-vehicle-requester">
@@ -427,37 +458,47 @@ export function CompanyVehicleRequestForm({
         </p>
 
         {timingExceptionOpen ? (
-          <FormField
-            label="사용할 차량"
-            htmlFor="company-vehicle-exception-select"
-            required
-            hint="날짜와 무관하게 활성 차량 전체가 표시됩니다. 다른 신청과 겹치는지는 관리자가 승인 시 확인합니다."
-            errors={fieldErrors.vehicleId}
-          >
-            {loadingExceptionVehicles ? (
-              <p className="text-ink-faint text-sm">차량 목록을 불러오는 중…</p>
-            ) : vehicleFetchError ? (
-              <p className="text-sm font-bold text-red-600">{vehicleFetchError}</p>
-            ) : (exceptionVehicles ?? []).length === 0 ? (
-              <Alert variant="warning">사용 가능한 차량이 없습니다.</Alert>
-            ) : (
-              <select
-                id="company-vehicle-exception-select"
-                className={inputClassName(Boolean(fieldErrors.vehicleId))}
-                value={vehicleId ?? ''}
-                onChange={(event) => handleVehicleChange(event.target.value)}
-              >
-                <option value="">차량을 선택해 주세요</option>
-                {(exceptionVehicles ?? []).map((vehicle) => (
-                  <option key={vehicle.vehicleId} value={vehicle.vehicleId}>
-                    {vehicle.vehicleNo}
-                    {vehicle.vehicleModel ? ` (${vehicle.vehicleModel})` : ''}
-                    {vehicle.parkingSpaceCode ? ` · ${vehicle.parkingSpaceCode}` : ''}
-                  </option>
-                ))}
-              </select>
+          <>
+            <FormField
+              label="사용할 차량"
+              htmlFor="company-vehicle-exception-select"
+              required
+              hint="날짜와 무관하게 활성 차량 전체가 표시됩니다. 다른 신청과 겹치는지는 관리자가 승인 시 확인합니다."
+              errors={fieldErrors.vehicleId}
+            >
+              {loadingExceptionVehicles ? (
+                <p className="text-ink-faint text-sm">차량 목록을 불러오는 중…</p>
+              ) : vehicleFetchError ? (
+                <p className="text-sm font-bold text-red-600">{vehicleFetchError}</p>
+              ) : (exceptionVehicles ?? []).length === 0 ? (
+                <Alert variant="warning">사용 가능한 차량이 없습니다.</Alert>
+              ) : (
+                <select
+                  id="company-vehicle-exception-select"
+                  className={inputClassName(Boolean(fieldErrors.vehicleId))}
+                  value={vehicleId ?? ''}
+                  onChange={(event) => handleVehicleChange(event.target.value)}
+                >
+                  <option value="">차량을 선택해 주세요</option>
+                  {(exceptionVehicles ?? []).map((vehicle) => (
+                    <option key={vehicle.vehicleId} value={vehicle.vehicleId}>
+                      {vehicle.vehicleNo}
+                      {vehicle.vehicleModel ? ` (${vehicle.vehicleModel})` : ''}
+                      {vehicle.parkingSpaceCode ? ` · ${vehicle.parkingSpaceCode}` : ''}
+                      {vehicle.hasConflict ? ' · 시간대 겹침' : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </FormField>
+
+            {selectedVehicle?.hasConflict && (
+              <Alert variant="warning">
+                이 차량은 선택하신 시간대에 이미 다른 신청이 있습니다. 승인 시 관리자가
+                최종 확인합니다.
+              </Alert>
             )}
-          </FormField>
+          </>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <FormField
@@ -565,6 +606,25 @@ export function CompanyVehicleRequestForm({
           </div>
         )}
 
+        {timingExceptionOpen && (
+          <FormField
+            label="예외 신청 사유"
+            htmlFor="company-vehicle-exception-reason"
+            required
+            hint="운영 가능 시간·최대 사용시간·같은 날짜 제약을 벗어난 신청이 필요한 이유를 적어 주세요. 관리자가 승인해야 확정됩니다."
+            errors={fieldErrors.timingExceptionReason}
+          >
+            <textarea
+              id="company-vehicle-exception-reason"
+              rows={2}
+              className={inputClassName(Boolean(fieldErrors.timingExceptionReason))}
+              value={timingExceptionReason}
+              onChange={(event) => setTimingExceptionReason(event.target.value)}
+              maxLength={300}
+            />
+          </FormField>
+        )}
+
         {requestStartAt && requestEndAt && (
           <Alert variant="success">{formatDateTimeRange(requestStartAt, requestEndAt)}, {selectedVehicle?.vehicleNo} 신청됩니다.</Alert>
         )}
@@ -598,7 +658,6 @@ export function CompanyVehicleRequestForm({
         </div>
       </div>
       </form>
-    </>
   );
 }
 

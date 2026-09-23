@@ -82,14 +82,19 @@ export function assertReservationTiming(params: {
   visitEndAt: Date;
   now: Date;
   settings: SystemSettingsValues;
-  /** 신청자가 예외 신청했거나 관리자가 직접 허용한 경우, 최대 이용시간·운영시간 검증을 건너뛴다. */
+  /**
+   * 신청자가 예외 신청했거나 관리자가 직접 허용한 경우, 최소 사전 신청 시간·최대
+   * 이용시간·운영시간(같은 날짜 포함) 검증을 모두 건너뛴다.
+   */
   allowTimingException?: boolean;
 }): void {
   const { visitStartAt, visitEndAt, now, settings, allowTimingException } = params;
   const fieldErrors: FieldErrors = {};
 
-  const leadError = checkMinimumLeadTime(visitStartAt, now, settings.reservationMinLeadMinutes);
-  if (leadError) (fieldErrors.visitStartAt ??= []).push(leadError);
+  if (!allowTimingException) {
+    const leadError = checkMinimumLeadTime(visitStartAt, now, settings.reservationMinLeadMinutes);
+    if (leadError) (fieldErrors.visitStartAt ??= []).push(leadError);
+  }
 
   const rangeError = checkVisitRange(visitStartAt, visitEndAt, settings.maxReservationHours, {
     allowException: allowTimingException,

@@ -72,6 +72,7 @@ export default async function EmployeeCompanyVehicleTripDetailPage({ params }: P
         operatingStartTime={settings.companyVehicleOperatingStartTime}
         operatingEndTime={settings.companyVehicleOperatingEndTime}
         maxUsageHours={settings.companyVehicleMaxUsageHours}
+        timingExceptionEnabled={settings.timingExceptionEnabled}
         initial={{
           destination: trip.destination,
           reason: trip.reason,
@@ -79,6 +80,7 @@ export default async function EmployeeCompanyVehicleTripDetailPage({ params }: P
           date: startInput.split('T')[0],
           requestStartAt: startInput,
           requestEndAt: utcToZonedInput(trip.requestEndAt),
+          timingExceptionReason: trip.timingExceptionReason,
         }}
       />
     );
@@ -89,6 +91,12 @@ export default async function EmployeeCompanyVehicleTripDetailPage({ params }: P
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-ink text-xl font-black sm:text-2xl">법인 차량 예약</h1>
       </div>
+
+      {trip.timingExceptionReason && (
+        <Alert variant="warning" title="시간 예외 신청">
+          운영 가능 시간·최대 사용시간 등 기본 제약을 벗어난 신청입니다.
+        </Alert>
+      )}
 
       <section className="card">
         <div className="card-body space-y-3">
@@ -121,6 +129,12 @@ export default async function EmployeeCompanyVehicleTripDetailPage({ params }: P
             <dt className="definition-term">운행 요청 시간</dt>
             <dd className="definition-desc">{formatKstRange(trip.requestStartAt, trip.requestEndAt)}</dd>
           </div>
+          {trip.timingExceptionReason && (
+            <div className="definition-row">
+              <dt className="definition-term">예외 신청 사유</dt>
+              <dd className="definition-desc whitespace-pre-wrap">{trip.timingExceptionReason}</dd>
+            </div>
+          )}
           <div className="definition-row">
             <dt className="definition-term">사용 차량</dt>
             <dd className="definition-desc">{trip.assignedVehicle?.vehicleNo ?? '-'}</dd>
@@ -168,13 +182,6 @@ export default async function EmployeeCompanyVehicleTripDetailPage({ params }: P
               <dt className="definition-term">취소 사유</dt>
               <dd className="definition-desc">{trip.cancelReason}</dd>
             </div>
-          )}
-          {trip.timingExceptionReason && (
-            <Alert variant={trip.timingExceptionApprovedAt ? 'success' : 'warning'}>
-              {trip.timingExceptionApprovedAt
-                ? `⚠ 시간 예외 신청이 승인되었습니다. (사유: ${trip.timingExceptionReason})`
-                : `⚠ 시간 예외 신청이 접수되었습니다. 승인 대기 중입니다. (사유: ${trip.timingExceptionReason})`}
-            </Alert>
           )}
         </div>
       </section>

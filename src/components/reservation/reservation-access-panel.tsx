@@ -20,6 +20,8 @@ type Props = {
     maxReservationHours: number;
     /** 주차면 배정 사용 여부. false 면 주차 위치 관련 안내를 모두 감춘다. */
     spaceAssignmentEnabled: boolean;
+    /** 신청자가 시간 예외를 새로 요청할 수 있는지. false 면 예외 신청 진입점을 감춘다. */
+    timingExceptionEnabled: boolean;
   };
 };
 
@@ -33,6 +35,12 @@ export function ReservationAccessPanel({ token, initialReservation, settings }: 
       {notice && (
         <Alert variant="success" title="처리되었습니다">
           {notice}
+        </Alert>
+      )}
+
+      {reservation.timingExceptionReason && (
+        <Alert variant="warning" title="시간 예외 신청">
+          운영시간·최대 이용시간 등 기본 제약을 벗어난 신청입니다.
         </Alert>
       )}
 
@@ -78,16 +86,6 @@ export function ReservationAccessPanel({ token, initialReservation, settings }: 
                 </div>
               )}
 
-              {reservation.timingExceptionStatusText && (
-                <div className="mt-4">
-                  <Alert
-                    variant={reservation.timingExceptionStatusText.includes('승인 대기') ? 'warning' : 'success'}
-                  >
-                    {reservation.timingExceptionStatusText}
-                  </Alert>
-                </div>
-              )}
-
               {reservation.isDoubleParking && (
                 <div className="mt-4">
                   <Alert variant="warning" title="이중주차 위치로 배정되었습니다">
@@ -113,6 +111,9 @@ export function ReservationAccessPanel({ token, initialReservation, settings }: 
                 )}
                 <Row term="차량번호" desc={reservation.vehicleNo} />
                 <Row term="방문 시간" desc={reservation.visitRangeText} />
+                {reservation.timingExceptionReason && (
+                  <Row term="사유" desc={reservation.timingExceptionReason} />
+                )}
                 {settings.spaceAssignmentEnabled && (
                   <Row
                     term="배정 위치"
@@ -206,6 +207,8 @@ function EditForm({
     maxReservationHours: number;
     /** 주차면 배정 사용 여부. false 면 주차 위치 관련 안내를 모두 감춘다. */
     spaceAssignmentEnabled: boolean;
+    /** 신청자가 시간 예외를 새로 요청할 수 있는지. false 면 예외 신청 진입점을 감춘다. */
+    timingExceptionEnabled: boolean;
   };
   onCancel: () => void;
   onSuccess: (updated: RequesterReservationView) => void;
@@ -384,13 +387,16 @@ function EditForm({
           </button>
         </FormField>
       ) : (
-        <button
-          type="button"
-          className="text-brand-700 text-xs font-semibold underline"
-          onClick={() => setTimingExceptionOpen(true)}
-        >
-          운영시간·최대 이용시간을 벗어난 시간대가 필요하신가요? 예외 신청
-        </button>
+        settings.timingExceptionEnabled &&
+        !reservation.isVisitorSelfRequest && (
+          <button
+            type="button"
+            className="text-brand-700 text-xs font-semibold underline"
+            onClick={() => setTimingExceptionOpen(true)}
+          >
+            예외 신청
+          </button>
+        )
       )}
 
       <FormField

@@ -47,6 +47,11 @@ export type SpaceStatusRow = {
     vehicleNo: string;
     visitStartAt: Date;
     visitEndAt: Date;
+    /** 조회 중인 날짜의 하루 범위로 잘라낸 시간대. 표시는 항상 이 값을 쓴다. */
+    displayStartAt: Date;
+    displayEndAt: Date;
+    /** 원본 예약이 조회 중인 날짜 하루를 벗어나는지(시간 예외로 여러 날짜에 걸침). */
+    spansMultipleDays: boolean;
   }[];
   status: SpaceOccupancyStatus;
   /** 지금 사용 중인 예약 ID. 화면에서 해당 시간 행에만 "사용 중" 표시를 붙인다. */
@@ -69,6 +74,11 @@ export type SpaceStatusRow = {
     requestEndAt: Date;
     requesterName: string;
     departmentName: string;
+    /** 조회 중인 날짜의 하루 범위로 잘라낸 시간대. 표시는 항상 이 값을 쓴다. */
+    displayStartAt: Date;
+    displayEndAt: Date;
+    /** 원본 신청이 조회 중인 날짜 하루를 벗어나는지(시간 예외로 여러 날짜에 걸침). */
+    spansMultipleDays: boolean;
   }[];
   /**
    * `companyVehicleTrips` 중 지금 이 순간 승인된 시간 구간 안에 있는 신청의 ID("사용중").
@@ -288,6 +298,15 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
       }),
     ]);
 
+  // 시간 예외로 조회 중인 날짜 하루를 벗어나는 예약/신청이 있을 수 있다 — 표시는 항상
+  // 이 날짜의 하루 범위(start~end)로 자른 시간을 쓰고, 잘렸는지 여부만 따로 표시한다.
+  function clipToDay(itemStart: Date, itemEnd: Date) {
+    const displayStartAt = itemStart < start ? start : itemStart;
+    const displayEndAt = itemEnd > end ? end : itemEnd;
+    const spansMultipleDays = itemStart < start || itemEnd > end;
+    return { displayStartAt, displayEndAt, spansMultipleDays };
+  }
+
   const nowMs = Date.now();
   const bySpace = new Map<number, SpaceStatusRow['occupancies']>();
   for (const reservation of dayReservations) {
@@ -300,6 +319,7 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
       vehicleNo: reservation.vehicleNo,
       visitStartAt: reservation.visitStartAt,
       visitEndAt: reservation.visitEndAt,
+      ...clipToDay(reservation.visitStartAt, reservation.visitEndAt),
     });
     bySpace.set(reservation.assignedSpaceId, list);
   }
@@ -315,6 +335,7 @@ export async function getDashboardData(dateString: string): Promise<DashboardDat
       tripStatus: trip.tripStatus,
       requestStartAt: trip.requestStartAt,
       requestEndAt: trip.requestEndAt,
+      ...clipToDay(trip.requestStartAt, trip.requestEndAt),
       requesterName: trip.employee.name,
       departmentName: trip.employee.departmentName,
     });

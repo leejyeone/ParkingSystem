@@ -43,6 +43,7 @@ export default async function EmployeeProxyReservationPage() {
           maxReservationHours: settings.maxReservationHours,
           spaceAssignmentEnabled: settings.spaceAssignmentEnabled,
           personalDataRetentionDays: settings.personalDataRetentionDays,
+          timingExceptionEnabled: settings.timingExceptionEnabled,
           minDateTimeInput: earliestSelectableInput(
             settings.reservationMinLeadMinutes,
             settings.appTimeZone,
