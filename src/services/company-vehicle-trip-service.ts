@@ -920,17 +920,17 @@ export async function updateCompanyVehicleTripDetails(
     assignedVehicleId: number | null;
     actualEntryAt: Date | null;
     actualExitAt: Date | null;
-    /** 관리자가 직접 운영시간/최대시간 제한 예외를 부여하거나 해제할 때 쓴다. */
+    /**
+     * 관리자가 직접 운영시간/최대시간 제한 예외를 부여하거나 해제할 때 쓴다.
+     * `undefined`면 "이 필드는 안 건드렸다"는 뜻으로 기존 값을 그대로 유지하고,
+     * `null`을 명시적으로 보내야 예외를 해제한다 — 어느 카드에서 저장하든 폼 전체를
+     * 함께 보내는 현재 관리자 화면에서는 항상 채워져 오지만, API 호출자가 이 필드를
+     * 아예 생략해도(부분 수정) 기존 예외가 조용히 사라지지 않도록 방어한다.
+     */
     timingExceptionReason?: string | null;
   } & AdminActionContext,
 ): Promise<CompanyVehicleTripDetail> {
   const settings = await getSystemSettings();
-  assertCompanyVehicleTripTiming({
-    requestStartAt: params.requestStartAt,
-    requestEndAt: params.requestEndAt,
-    settings,
-    allowTimingException: Boolean(params.timingExceptionReason),
-  });
 
   // actualEntryAt은 "반납 처리 시각", actualExitAt은 "반납 확정 시각"이다 — 확정이
   // 처리보다 먼저일 수 없다.
@@ -968,11 +968,25 @@ export async function updateCompanyVehicleTripDetails(
       params.requestStartAt.getTime() !== current.requestStartAt.getTime() ||
       params.requestEndAt.getTime() !== current.requestEndAt.getTime();
 
+    // 필드를 아예 안 보냈으면(undefined) 기존 값을 유지하고, null을 명시적으로 보낸
+    // 경우에만 예외를 해제한다.
+    const timingExceptionReason =
+      params.timingExceptionReason !== undefined
+        ? params.timingExceptionReason
+        : current.timingExceptionReason;
+
+    assertCompanyVehicleTripTiming({
+      requestStartAt: params.requestStartAt,
+      requestEndAt: params.requestEndAt,
+      settings,
+      allowTimingException: Boolean(timingExceptionReason),
+    });
+
     // 시간 예외 승인은 신청 승인과 함께만 확정된다(approveCompanyVehicleTrip의
     // timingExceptionApprovalOnApprove) — 관리자가 여기서 사유만 고치는 것은 승인 행위가
     // 아니므로 승인 기록을 새로 찍지 않는다. 사유를 지우면 더 이상 예외가 아니므로
     // 남아있던 승인 기록도 함께 비운다.
-    const timingExceptionFields = params.timingExceptionReason
+    const timingExceptionFields = timingExceptionReason
       ? {}
       : { timingExceptionApprovedAt: null, timingExceptionApprovedByAdminId: null };
 
@@ -1078,7 +1092,7 @@ export async function updateCompanyVehicleTripDetails(
         actualEntryAt: params.actualEntryAt,
         actualExitAt: params.actualExitAt,
         tripStatus: nextTripStatus,
-        timingExceptionReason: params.timingExceptionReason ?? null,
+        timingExceptionReason: timingExceptionReason ?? null,
         ...timingExceptionFields,
       },
       include: TRIP_DETAIL_INCLUDE,
