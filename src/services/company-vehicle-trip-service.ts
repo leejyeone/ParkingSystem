@@ -817,18 +817,6 @@ export async function updateCompanyVehicleTripByRequester(params: {
 }): Promise<CompanyVehicleTripDetail> {
   const settings = await getSystemSettings();
   const now = new Date();
-  // 시스템 설정에서 예외 신청 자체를 꺼뒀으면 신청자가 사유를 보내도 무시하고 일반
-  // 신청 규칙만 적용한다.
-  const timingExceptionReason = settings.timingExceptionEnabled
-    ? (params.timingExceptionReason ?? null)
-    : null;
-  assertCompanyVehicleTripCreateTiming({
-    requestStartAt: params.requestStartAt,
-    requestEndAt: params.requestEndAt,
-    now,
-    settings,
-    allowTimingException: Boolean(timingExceptionReason),
-  });
 
   return prisma.$transaction(async (tx) => {
     const current = await loadTripOrThrow(params.tripId, tx);
@@ -842,6 +830,24 @@ export async function updateCompanyVehicleTripByRequester(params: {
         'CHANGE_NOT_ALLOWED',
       );
     }
+
+    // 시스템 설정에서 예외 신청 자체를 꺼뒀으면 새로 예외를 걸거나 바꿀 수 없다 — 다만
+    // 이미 있던 예외를 취소(null로 보냄)하는 것은 항상 허용하고, 손대지 않고 그대로
+    // 다시 보낸 경우도 기존 값을 유지한다(updateReservationByRequester와 동일한 원칙 —
+    // 신청자가 다른 필드만 고쳐도 이 로직 때문에 기존 예외가 말없이 사라지면 안 되므로).
+    const timingExceptionReason = settings.timingExceptionEnabled
+      ? (params.timingExceptionReason ?? null)
+      : params.timingExceptionReason
+        ? current.timingExceptionReason
+        : null;
+
+    assertCompanyVehicleTripCreateTiming({
+      requestStartAt: params.requestStartAt,
+      requestEndAt: params.requestEndAt,
+      now,
+      settings,
+      allowTimingException: Boolean(timingExceptionReason),
+    });
 
     // createCompanyVehicleTrip과 동일하게 차량 행을 먼저 잠근다 — 잠그지 않으면 두 신청이
     // 거의 동시에 같은 차량·시간대로 수정될 때 서로의 커밋 전 상태를 못 보고 둘 다

@@ -37,6 +37,11 @@ export async function findExitReminderTargets(
   now: Date = new Date(),
 ): Promise<ReservationForEmail[]> {
   const settings = await getSystemSettings();
+  // 입출차 관리 자체를 꺼둔 운영이면 실제 입출차 기록도 안 남기므로, "곧 출차하세요"
+  // 알림도 함께 꺼진다(runAutoEntryExitJob과 동일한 원칙).
+  if (!settings.entryExitManagementEnabled) {
+    return [];
+  }
 
   const windowStart = new Date(now.getTime() - GRACE_MINUTES * 60_000);
   const windowEnd = new Date(now.getTime() + settings.exitReminderMinutes * 60_000);
